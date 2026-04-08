@@ -5,6 +5,7 @@ import type { PitchClass, ScaleId } from "./types";
 
 export interface DroneSessionSnapshot {
   activePresetId: string | null;
+  playing: boolean;
   root: PitchClass;
   octave: number;
   scale: ScaleId;

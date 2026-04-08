@@ -410,6 +410,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     getSnapshot() {
       return {
         activePresetId,
+        playing,
         root,
         octave,
         scale,
@@ -430,7 +431,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       };
     },
     applySnapshot(snapshot) {
+      const shouldPlay = snapshot.playing ?? false;
+      const nextFreq = pitchToFreq(snapshot.root, snapshot.octave);
+      const nextIntervals = scaleById(snapshot.scale).intervalsCents;
+
+      if (engine && playing && !shouldPlay) {
+        engine.stopDrone();
+      }
+
       setActivePresetId(snapshot.activePresetId ?? null);
+      setPlaying(shouldPlay);
       setRoot(snapshot.root);
       setOctave(snapshot.octave);
       setScale(snapshot.scale);
@@ -453,7 +463,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       engine.applyDroneScene(
         snapshot.voiceLayers,
         snapshot.voiceLevels,
-        scaleById(snapshot.scale).intervalsCents,
+        nextIntervals,
       );
       for (const id of Object.keys(snapshot.effects) as EffectId[]) {
         engine.setEffect(id, snapshot.effects[id]);
@@ -469,7 +479,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       engine.setLfoShape(snapshot.lfoShape);
       engine.setLfoRate(snapshot.lfoRate);
       engine.setLfoAmount(snapshot.lfoAmount);
-      if (playing) engine.setDroneFreq(pitchToFreq(snapshot.root, snapshot.octave));
+      if (shouldPlay) {
+        if (playing) engine.setDroneFreq(nextFreq);
+        else engine.startDrone(nextFreq, nextIntervals);
+      }
     },
     togglePlay,
     setRoot(nextRoot) {

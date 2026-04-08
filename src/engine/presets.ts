@@ -473,6 +473,7 @@ export function createPresetVariation(
 
   return {
     activePresetId: preset.id,
+    playing: true,
     root,
     octave,
     scale: preset.scale,

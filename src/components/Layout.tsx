@@ -29,6 +29,14 @@ const RANDOM_SCENE_TONICS: PitchClass[] = [
 ];
 const RANDOM_SCENE_OCTAVES = [2, 3] as const;
 
+function pickStartupPreset() {
+  const startupPresets = STARTUP_PRESET_IDS
+    .map((id) => PRESETS.find((preset) => preset.id === id) ?? null)
+    .filter((preset): preset is (typeof PRESETS)[number] => preset !== null);
+  const presetPool = startupPresets.length > 0 ? startupPresets : PRESETS;
+  return presetPool[Math.floor(Math.random() * presetPool.length)];
+}
+
 function captureMixerSnapshot(engine: AudioEngine): MixerSessionSnapshot {
   return {
     hpfHz: engine.getHpfFreq(),
@@ -83,6 +91,16 @@ export function Layout({ engine }: LayoutProps) {
   const initSessionRef = useRef(false);
   const droneViewRef = useRef<DroneViewHandle | null>(null);
 
+  const applyStartupScene = () => {
+    const randomPreset = pickStartupPreset();
+    const randomTonic = STARTUP_TONICS[Math.floor(Math.random() * STARTUP_TONICS.length)];
+    droneViewRef.current?.startImmediate(randomTonic, STARTUP_OCTAVE, randomPreset.id);
+    setCurrentPresetName(randomPreset.name);
+    setCurrentSessionId(null);
+    setCurrentSessionName(DEFAULT_SESSION_NAME);
+    saveCurrentSessionId(null);
+  };
+
   // REC timer tick — sync to external timer (Date.now). When isRec flips
   // off, the timer interval is cleared and we reset in the next frame via
   // a cleanup setter to avoid setState-in-effect lint warning.
@@ -104,23 +122,13 @@ export function Layout({ engine }: LayoutProps) {
     initSessionRef.current = true;
 
     if (!currentSessionId) {
-      const startupPresets = STARTUP_PRESET_IDS
-        .map((id) => PRESETS.find((preset) => preset.id === id) ?? null)
-        .filter((preset): preset is (typeof PRESETS)[number] => preset !== null);
-      const presetPool = startupPresets.length > 0 ? startupPresets : PRESETS;
-      const randomPreset = presetPool[Math.floor(Math.random() * presetPool.length)];
-      const randomTonic = STARTUP_TONICS[Math.floor(Math.random() * STARTUP_TONICS.length)];
-      droneViewRef.current?.startImmediate(randomTonic, STARTUP_OCTAVE, randomPreset.id);
-      setCurrentPresetName(randomPreset.name);
-      saveCurrentSessionId(null);
+      applyStartupScene();
       return;
     }
 
     const session = loadSessions().find((item) => item.id === currentSessionId);
     if (!session) {
-      setCurrentSessionId(null);
-      setCurrentSessionName(DEFAULT_SESSION_NAME);
-      saveCurrentSessionId(null);
+      applyStartupScene();
       return;
     }
 

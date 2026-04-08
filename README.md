@@ -62,7 +62,7 @@ No install. No account. No personal tracking. Session data stays in your browser
 
 | View | Description |
 |---|---|
-| **DRONE** | Tonic wheel, octave, mode selection, preset library, layered voice stack, macros, breathing LFO, climate XY pad, and effect strip with long-press configuration |
+| **DRONE** | Header tonic / octave / hold controls, preset library, mode selection, layered voice stack, macros, breathing LFO, climate XY pad, and effect strip with long-press configuration |
 | **MIXER** | Master bus with HPF, 3-band EQ, glue compressor, drive, limiter, ceiling, clip indicator, and final output trim |
 
 ---
@@ -113,13 +113,13 @@ All sound is synthesized in real time with the Web Audio API. No sample library 
 ## Features
 
 **Performance**
-- Tonic wheel with 12 pitch classes and octave control
+- Header tonic selector, octave control, HOLD transport, and random scene trigger
 - 6 modal stacks: major, minor, dorian, phrygian, just 5-limit, pentatonic
 - 6 core macros: drift, air, time, sub, bloom, glide
 - Breathing LFO with sine, triangle, square, and sawtooth shapes
 - Large XY climate pad for brightness and motion
 - Spacebar toggles HOLD
-- 8 authored presets inspired by drone traditions and ambient composers
+- 16 authored presets inspired by drone traditions and ambient composers
 
 **Sound Design**
 - Layer any combination of the 4 voice engines
@@ -138,7 +138,7 @@ All sound is synthesized in real time with the Web Audio API. No sample library 
 **Interface**
 - Warm ember-led palette system
 - Responsive two-column layout that collapses for smaller screens
-- Sticky header with view switch, sessions, and recording controls
+- Sticky header with transport, tonic, random scene, sessions, and recording controls
 - Session persistence via browser storage
 
 ---
