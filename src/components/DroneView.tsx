@@ -427,10 +427,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       if (!engine) return;
 
       engine.setIntervals(scaleById(snapshot.scale).intervalsCents);
-      for (const type of ALL_VOICE_TYPES) {
-        engine.setVoiceLayer(type, snapshot.voiceLayers[type]);
-        engine.setVoiceLevel(type, snapshot.voiceLevels[type]);
-      }
+      engine.applyVoiceState(snapshot.voiceLayers, snapshot.voiceLevels);
       for (const id of Object.keys(snapshot.effects) as EffectId[]) {
         engine.setEffect(id, snapshot.effects[id]);
       }

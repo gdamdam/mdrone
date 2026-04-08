@@ -276,10 +276,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   ui.setVoiceLayers(layers);
   ui.setVoiceLevels(levels);
   if (engine) {
-    for (const t of ALL_VOICE_TYPES) {
-      engine.setVoiceLayer(t, layers[t]);
-      engine.setVoiceLevel(t, levels[t]);
-    }
+    engine.applyVoiceState(layers, levels);
   }
 
   // Macros

@@ -35,6 +35,8 @@ export class AudioEngine {
   // droneVoiceGain, so layers can be mixed independently.
   private droneVoicesByLayer: Map<VoiceType, Voice[]> = new Map();
   private layerGains: Map<VoiceType, GainNode> = new Map();
+  private voiceUpdateDepth = 0;
+  private voiceRebuildPending = false;
   private layerLevels: Record<VoiceType, number> = {
     tanpura: 1, reed: 1, metal: 1, air: 1,
   };
@@ -466,7 +468,7 @@ export class AudioEngine {
   setVoiceLayer(type: VoiceType, on: boolean): void {
     if (this.voiceLayers[type] === on) return;
     this.voiceLayers[type] = on;
-    if (this.droneOn) this.rebuildIntervals();
+    this.scheduleVoiceRebuild();
   }
   getVoiceLayer(type: VoiceType): boolean { return this.voiceLayers[type]; }
   getVoiceLayers(): Record<VoiceType, boolean> { return { ...this.voiceLayers }; }
@@ -482,6 +484,27 @@ export class AudioEngine {
     }
   }
   getVoiceLevel(type: VoiceType): number { return this.layerLevels[type]; }
+
+  applyVoiceState(
+    layers: Record<VoiceType, boolean>,
+    levels: Record<VoiceType, number>,
+  ): void {
+    this.voiceUpdateDepth++;
+    try {
+      for (const type of ALL_VOICE_TYPES) {
+        this.voiceLayers[type] = layers[type];
+        this.layerLevels[type] = Math.max(0, Math.min(1, levels[type]));
+        const gain = this.layerGains.get(type);
+        if (gain) {
+          gain.gain.setTargetAtTime(this.layerLevels[type], this.ctx.currentTime, 0.08);
+        }
+      }
+      this.voiceRebuildPending = true;
+    } finally {
+      this.voiceUpdateDepth--;
+      this.flushVoiceRebuild();
+    }
+  }
 
   /** Ensure a GainNode exists for a layer and is wired to droneVoiceGain. */
   private ensureLayerGain(type: VoiceType): GainNode {
@@ -500,7 +523,7 @@ export class AudioEngine {
     for (const t of ALL_VOICE_TYPES) {
       this.voiceLayers[t] = t === type;
     }
-    if (this.droneOn) this.rebuildIntervals();
+    this.scheduleVoiceRebuild();
   }
   /** First active layer, for legacy callers that still want a scalar. */
   getVoiceType(): VoiceType {
@@ -840,6 +863,18 @@ export class AudioEngine {
   /** Current glide time in seconds (read by setDroneFreq). */
   private glideTime(): number {
     return 0.05 * Math.pow(160, this.glideAmount); // 0.05..8 s exponential
+  }
+
+  private scheduleVoiceRebuild(): void {
+    if (!this.droneOn) return;
+    this.voiceRebuildPending = true;
+    this.flushVoiceRebuild();
+  }
+
+  private flushVoiceRebuild(): void {
+    if (this.voiceUpdateDepth > 0 || !this.voiceRebuildPending || !this.droneOn) return;
+    this.voiceRebuildPending = false;
+    this.rebuildIntervals();
   }
 
   // ── Master accessors (same API shape as mloop) ───────────────────
