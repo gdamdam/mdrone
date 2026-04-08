@@ -41,6 +41,7 @@ interface Scale {
 }
 
 const SCALES: Scale[] = [
+  { id: "drone",      label: "Drone",      intervalsCents: [0] },                 // single-note ritual drone
   { id: "major",      label: "Major",      intervalsCents: [0, 400, 700] },          // 1 · M3 · P5
   { id: "minor",      label: "Minor",      intervalsCents: [0, 300, 700] },          // 1 · m3 · P5
   { id: "dorian",     label: "Dorian",     intervalsCents: [0, 300, 700, 1000] },    // 1 · m3 · P5 · m7
@@ -110,7 +111,7 @@ const VOICES: VoiceDef[] = [
   },
   {
     id: "metal", label: "METAL",
-    hint: "Inharmonic partial stack (1, 2.01, 2.94, 4.21, 5.43, 6.85) with independent per-partial amplitude random walks and slow detune drift. Singing-bowl / bell metal character with stereo spread per partial.",
+    hint: "Singing-bowl / ritual metal voice built from sparse inharmonic bowl modes, including split low resonances and slowly moving upper partials. Darker and purer than a generic bell, with a floating metal halo.",
     icon: (
       // Struck bar with radiating resonance
       <svg {...V_SVG}>

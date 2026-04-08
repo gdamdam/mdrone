@@ -261,11 +261,14 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // METAL — inharmonic partials with independent random walks
   // ═══════════════════════════════════════════════════════════════════
   initMetal() {
-    // Inharmonic ratios — subtly stretched harmonic series with the
-    // last two partials pushed off-integer for the metallic beating.
-    this.metalN = 6;
-    this.metalRatios = new Float32Array([1.0, 2.01, 2.94, 4.21, 5.43, 6.85]);
-    this.metalBaseAmps = new Float32Array([0.60, 0.42, 0.30, 0.20, 0.12, 0.07]);
+    // Bowl-like modal layout. Tibetan singing bowls are dominated by a
+    // low fundamental mode plus sparse higher deformation modes whose
+    // frequencies rise much faster than the harmonic series; struck
+    // spectra also exhibit split low peaks because real bowls are not
+    // perfectly symmetric.
+    this.metalN = 7;
+    this.metalRatios = new Float32Array([1.0, 1.006, 2.23, 2.27, 3.98, 6.18, 8.92]);
+    this.metalBaseAmps = new Float32Array([0.88, 0.28, 0.30, 0.18, 0.12, 0.07, 0.04]);
     this.metalPhasesL = new Float32Array(this.metalN);
     this.metalPhasesR = new Float32Array(this.metalN);
     this.metalPans    = new Float32Array(this.metalN);
@@ -280,8 +283,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < this.metalN; i++) {
       this.metalPhasesL[i] = this.rng() * Math.PI * 2;
       this.metalPhasesR[i] = this.rng() * Math.PI * 2;
-      this.metalPans[i] = (this.rng() - 0.5) * 0.8; // -0.4..0.4
-      this.metalWalkRates[i] = 0.02 + this.rng() * 0.08; // 0.02..0.1 Hz
+      this.metalPans[i] = (this.rng() - 0.5) * 0.34; // keep bowl mostly centered
+      this.metalWalkRates[i] = 0.01 + this.rng() * 0.05; // very slow movement
     }
     this.metalTickCounter = 0;
   }
@@ -289,14 +292,14 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   metalProcess(L, R, n, freq, drift, amp) {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
-    const driftDepth = drift * 0.006; // ±10 cents max walk target
+    const driftDepth = drift * 0.0024; // keep the bowl centered; max ~4 cents walk
 
     for (let i = 0; i < n; i++) {
       // Every ~256 samples, pick new random walk targets
       this.metalTickCounter++;
       if ((this.metalTickCounter & 255) === 0) {
         for (let p = 0; p < this.metalN; p++) {
-          this.metalAmpTargets[p] = 0.85 + this.rng() * 0.30;
+          this.metalAmpTargets[p] = 0.93 + this.rng() * 0.14;
           this.metalDetuneTargets[p] = (this.rng() * 2 - 1) * driftDepth;
         }
       }
@@ -304,27 +307,31 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       let l = 0, r = 0;
       for (let p = 0; p < this.metalN; p++) {
         // Advance walk toward targets with slow exponential
-        this.metalAmpWalks[p] += (this.metalAmpTargets[p] - this.metalAmpWalks[p]) * 0.00002;
-        this.metalDetuneWalks[p] += (this.metalDetuneTargets[p] - this.metalDetuneWalks[p]) * 0.00002;
+        this.metalAmpWalks[p] += (this.metalAmpTargets[p] - this.metalAmpWalks[p]) * 0.000015;
+        this.metalDetuneWalks[p] += (this.metalDetuneTargets[p] - this.metalDetuneWalks[p]) * 0.000015;
+        this.metalWalkPhases[p] += twoPi * this.metalWalkRates[p] * invSr;
+        if (this.metalWalkPhases[p] > twoPi) this.metalWalkPhases[p] -= twoPi;
 
         const partialFreq = freq * this.metalRatios[p] * (1 + this.metalDetuneWalks[p]);
         this.metalPhasesL[p] += twoPi * partialFreq * invSr;
-        this.metalPhasesR[p] += twoPi * partialFreq * invSr * 1.0005; // very subtle stereo decorrel
+        this.metalPhasesR[p] += twoPi * partialFreq * invSr * 1.00018; // preserve center image
         if (this.metalPhasesL[p] > twoPi) this.metalPhasesL[p] -= twoPi;
         if (this.metalPhasesR[p] > twoPi) this.metalPhasesR[p] -= twoPi;
 
-        const amp_p = this.metalBaseAmps[p] * this.metalAmpWalks[p];
+        const beat = 0.94 + 0.06 * Math.sin(this.metalWalkPhases[p]);
+        const amp_p = this.metalBaseAmps[p] * this.metalAmpWalks[p] * beat;
         const pan = this.metalPans[p];
         const lGain = amp_p * (1 - Math.max(0, pan));
         const rGain = amp_p * (1 - Math.max(0, -pan));
         l += Math.sin(this.metalPhasesL[p]) * lGain;
         r += Math.sin(this.metalPhasesR[p]) * rGain;
       }
-      l *= 0.42;
-      r *= 0.42;
-      // Very mild saturation — preserve crystalline character
-      l = Math.tanh(l * 1.1);
-      r = Math.tanh(r * 1.1);
+      l *= 0.34;
+      r *= 0.34;
+      // Keep the source comparatively pure; bowls read better when the
+      // upper modes stay narrow instead of being driven into brightness.
+      l = Math.tanh(l * 0.9);
+      r = Math.tanh(r * 0.9);
       L[i] = l * amp;
       R[i] = r * amp;
     }

@@ -3,6 +3,7 @@ export type ViewMode = "drone" | "mixer";
 
 /** Mode scale — biases which partials/intervals are musically sensible. */
 export type ScaleId =
+  | "drone"
   | "major"
   | "minor"
   | "dorian"
