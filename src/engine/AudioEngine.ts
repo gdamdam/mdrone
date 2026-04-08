@@ -23,6 +23,7 @@ import { buildVoice, ALL_VOICE_TYPES, type Voice, type VoiceType } from "./Voice
 // served directly in dev. Used with audioWorklet.addModule() to register
 // the DroneVoiceProcessor.
 import droneWorkletUrl from "./droneVoiceProcessor.js?url";
+import fxWorkletUrl from "./fxChainProcessor.js?url";
 
 export class AudioEngine {
   ctx: AudioContext;
@@ -238,9 +239,15 @@ export class AudioEngine {
     // interact for at least a few hundred ms so this normally lands
     // before the first startDrone call; if it doesn't, startDrone
     // queues via workletReady.
-    this.ctx.audioWorklet.addModule(droneWorkletUrl)
+    // Load both worklet modules in parallel. FxChain needs the fx
+    // module to be registered before its AudioWorkletNodes can be
+    // constructed — AudioEngine forwards the readiness promise to it.
+    const voiceReady = this.ctx.audioWorklet.addModule(droneWorkletUrl);
+    const fxReady = this.ctx.audioWorklet.addModule(fxWorkletUrl);
+    Promise.all([voiceReady, fxReady])
       .then(() => {
         this.isWorkletReady = true;
+        this.fxChain.onWorkletReady();
         if (this.pendingStart) {
           const fn = this.pendingStart;
           this.pendingStart = null;
@@ -248,7 +255,7 @@ export class AudioEngine {
         }
       })
       .catch((err) => {
-        console.error("mdrone: drone voice worklet failed to load", err);
+        console.error("mdrone: worklet module(s) failed to load", err);
       });
 
     this.hpf.connect(this.eqLow);

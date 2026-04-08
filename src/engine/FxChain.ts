@@ -1,19 +1,25 @@
 /**
  * FxChain — the drone effects bus sitting between droneFilter and the
- * master gain. Nine effects, two topologies:
+ * master gain. Nine effects, mixed topologies:
  *
- *  SERIAL INSERTS (colour the whole signal — both dry and wet):
- *    TAPE   — tanh saturation + high-shelf cut (analog warmth)
- *    WOW    — slow wow LFO + fast flutter LFO on a short delay line
+ * AudioWorklet-based (loaded via fxChainProcessor.js):
+ *   PLATE    — Jon Dattorro's classic plate reverb topology
+ *   SHIMMER  — pitch-shift feedback reverb (real shimmer, not a fake)
+ *   FREEZE   — ring buffer capture + crossfaded loop (real freeze)
  *
- *  PARALLEL SENDS (summed into wetOut):
- *    PLATE  — short dense reverb (EMT-140-style)
- *    HALL   — long airy reverb with pre-delay
- *    SHIMMER— bright highpassed reverb tail
- *    DELAY  — tape-style delay with saturated feedback loop
- *    SUB    — psychoacoustic bass enhancer (bandpass → saturation → lowpass)
- *    COMB   — resonant comb filter tuned to the current drone root
- *    FREEZE — continuous delay-feedback loop, self-sustaining at 0.95 fb
+ * Native Web Audio nodes:
+ *   TAPE     — tanh saturation + head bump peaking + highshelf cut
+ *   WOW      — modulated short delay line (wow + flutter LFOs)
+ *   HALL     — ConvolverNode with an early-reflections + late-diffuse IR
+ *   DELAY    — DelayNode with lowpass + tanh + DC blocker feedback
+ *   SUB      — bandpass → waveshaper → lowpass bass enhancer
+ *   COMB     — DelayNode + feedback, delayTime tracks drone root
+ *
+ * Worklet nodes are created lazily by onWorkletReady() after the
+ * fxChainProcessor.js module registers its processors. Before that,
+ * the wet sends for PLATE/SHIMMER/FREEZE aren't connected — toggling
+ * them has no audible effect for the first ~50 ms. The user won't
+ * interact that fast in practice.
  *
  * Signal flow:
  *
@@ -80,15 +86,16 @@ export class FxChain {
   // Split node — all parallel effects and dry tap from here
   private splitNode: GainNode;
 
-  // Parallel sends
+  // Parallel sends — PLATE, SHIMMER, FREEZE are worklet-based and
+  // created lazily once the fxChainProcessor module has loaded.
   private plateSend: GainNode;
-  private plateVerb: ConvolverNode;
+  private plateWorklet: AudioWorkletNode | null = null;
 
   private hallSend: GainNode;
   private hallVerb: ConvolverNode;
 
   private shimmerSend: GainNode;
-  private shimmerVerb: ConvolverNode;
+  private shimmerWorklet: AudioWorkletNode | null = null;
 
   private delaySend: GainNode;
   private delayNode: DelayNode;
@@ -104,9 +111,7 @@ export class FxChain {
   private combFb: GainNode;
 
   private freezeSend: GainNode;
-  private freezeDelay: DelayNode;
-  private freezeFb: GainNode;
-  private freezeWet: GainNode;
+  private freezeWorklet: AudioWorkletNode | null = null;
 
   private enabled: Record<EffectId, boolean> = {
     plate: false, hall: false, shimmer: false, delay: false,
@@ -126,16 +131,33 @@ export class FxChain {
     this.tapeSend.gain.value = 0;
     this.tapeOut = ctx.createGain();
 
+    // Tape chain: pre-drive → 2x-oversampled tanh saturation →
+    // head bump (peaking around 80 Hz, the characteristic low-mid
+    // lift of studio tape machines) → highshelf roll-off (analog-
+    // era HF limitation).
+    const tapePre = ctx.createGain();
+    tapePre.gain.value = 1.3; // push slightly into the saturator
     const tapeSat = ctx.createWaveShaper();
-    tapeSat.curve = FxChain.makeTapeCurve(1.8);
+    tapeSat.curve = FxChain.makeTapeCurve(2.2);
     tapeSat.oversample = "2x";
+    const tapeHeadBump = ctx.createBiquadFilter();
+    tapeHeadBump.type = "peaking";
+    tapeHeadBump.frequency.value = 82;
+    tapeHeadBump.Q.value = 1.1;
+    tapeHeadBump.gain.value = 3.5;
     const tapeHighCut = ctx.createBiquadFilter();
     tapeHighCut.type = "highshelf";
-    tapeHighCut.frequency.value = 7000;
-    tapeHighCut.gain.value = -4;
+    tapeHighCut.frequency.value = 6500;
+    tapeHighCut.gain.value = -5;
 
     this.input.connect(this.tapeBypass).connect(this.tapeOut);
-    this.input.connect(this.tapeSend).connect(tapeSat).connect(tapeHighCut).connect(this.tapeOut);
+    this.input
+      .connect(this.tapeSend)
+      .connect(tapePre)
+      .connect(tapeSat)
+      .connect(tapeHeadBump)
+      .connect(tapeHighCut)
+      .connect(this.tapeOut);
 
     // ── WOW serial insert ───────────────────────────────────────────
     this.wowBypass = ctx.createGain();
@@ -169,33 +191,25 @@ export class FxChain {
     this.wowOut.connect(this.splitNode);
     this.splitNode.connect(this.dryOut);
 
-    // ── PLATE ───────────────────────────────────────────────────────
-    this.plateVerb = ctx.createConvolver();
-    this.plateVerb.buffer = FxChain.makeImpulse(ctx, 1.6, 4.2, 0.018);
+    // ── PLATE (worklet — created in onWorkletReady) ─────────────────
     this.plateSend = ctx.createGain();
     this.plateSend.gain.value = 0;
-    this.splitNode.connect(this.plateSend).connect(this.plateVerb).connect(this.wetOut);
+    // plateSend → plateWorklet → wetOut (wired after worklet loads)
 
-    // ── HALL ────────────────────────────────────────────────────────
+    // ── HALL (native convolver with a richer impulse) ───────────────
+    // Hand-authored IR: early reflections (4 discrete echo peaks in the
+    // first 80 ms) blended with a late diffuse noise tail so it feels
+    // like a real room rather than pure noise decay.
     this.hallVerb = ctx.createConvolver();
-    this.hallVerb.buffer = FxChain.makeImpulse(ctx, 4.8, 2.2, 0.06);
+    this.hallVerb.buffer = FxChain.makeHallImpulse(ctx, 4.8);
     this.hallSend = ctx.createGain();
     this.hallSend.gain.value = 0;
     this.splitNode.connect(this.hallSend).connect(this.hallVerb).connect(this.wetOut);
 
-    // ── SHIMMER ─────────────────────────────────────────────────────
-    this.shimmerVerb = ctx.createConvolver();
-    this.shimmerVerb.buffer = FxChain.makeImpulse(ctx, 3.5, 1.6, 0.08);
-    const shimmerHp = ctx.createBiquadFilter();
-    shimmerHp.type = "highpass";
-    shimmerHp.frequency.value = 1200;
+    // ── SHIMMER (worklet — created in onWorkletReady) ───────────────
     this.shimmerSend = ctx.createGain();
     this.shimmerSend.gain.value = 0;
-    this.splitNode
-      .connect(this.shimmerSend)
-      .connect(this.shimmerVerb)
-      .connect(shimmerHp)
-      .connect(this.wetOut);
+    // shimmerSend → shimmerWorklet → wetOut (wired after worklet loads)
 
     // ── TAPE DELAY ──────────────────────────────────────────────────
     this.delayNode = ctx.createDelay(2.5);
@@ -272,22 +286,52 @@ export class FxChain {
     this.combDelay.connect(combDcBlock).connect(this.combFb).connect(this.combDelay);
     this.combDelay.connect(combOutFilter).connect(this.wetOut);
 
-    // ── FREEZE ──────────────────────────────────────────────────────
-    this.freezeDelay = ctx.createDelay(4);
-    this.freezeDelay.delayTime.value = 1.6;
-    this.freezeFb = ctx.createGain();
-    this.freezeFb.gain.value = 0;
-    // DC blocker on the feedback loop
-    const freezeDcBlock = ctx.createBiquadFilter();
-    freezeDcBlock.type = "highpass";
-    freezeDcBlock.frequency.value = 20;
+    // ── FREEZE (worklet — created in onWorkletReady) ────────────────
+    // The freezeSend gain gates input into the freeze worklet. The
+    // worklet's own "active" AudioParam handles the capture/release.
     this.freezeSend = ctx.createGain();
-    this.freezeSend.gain.value = 0;
-    this.freezeWet = ctx.createGain();
-    this.freezeWet.gain.value = 0;
-    this.splitNode.connect(this.freezeSend).connect(this.freezeDelay);
-    this.freezeDelay.connect(freezeDcBlock).connect(this.freezeFb).connect(this.freezeDelay);
-    this.freezeDelay.connect(this.freezeWet).connect(this.wetOut);
+    this.freezeSend.gain.value = 1; // always routed — worklet handles toggling
+    // splitNode → freezeSend → freezeWorklet → wetOut (wired on ready)
+    this.splitNode.connect(this.freezeSend);
+  }
+
+  /**
+   * Called by AudioEngine once both worklet modules have loaded.
+   * Creates the worklet-backed effect nodes (plate, shimmer, freeze)
+   * and wires them into the already-built send graph.
+   */
+  onWorkletReady(): void {
+    // ── Plate ────────────────────────────────────────────────────
+    this.plateWorklet = new AudioWorkletNode(this.ctx, "fx-plate", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    this.plateSend.connect(this.plateWorklet).connect(this.wetOut);
+
+    // ── Shimmer ──────────────────────────────────────────────────
+    this.shimmerWorklet = new AudioWorkletNode(this.ctx, "fx-shimmer", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    this.shimmerSend.connect(this.shimmerWorklet).connect(this.wetOut);
+
+    // ── Freeze ───────────────────────────────────────────────────
+    this.freezeWorklet = new AudioWorkletNode(this.ctx, "fx-freeze", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    // Freeze starts inactive (active=0) — flip to 1 in setEffect
+    this.freezeWorklet.parameters.get("active")!.setValueAtTime(0, this.ctx.currentTime);
+    this.freezeSend.connect(this.freezeWorklet).connect(this.wetOut);
+
+    // If any of these effects were toggled on before the worklet
+    // loaded, reapply the state now so they actually produce sound.
+    for (const id of ["plate", "shimmer", "freeze"] as const) {
+      if (this.enabled[id]) this.setEffect(id, true);
+    }
   }
 
   // ── Public API ─────────────────────────────────────────────────────
@@ -330,9 +374,13 @@ export class FxChain {
         this.combFb.gain.setTargetAtTime(on ? 0.85 : 0, now, RAMP_TC);
         break;
       case "freeze":
-        this.freezeSend.gain.setTargetAtTime(on ? 0.5 : 0, now, RAMP_TC);
-        this.freezeFb.gain.setTargetAtTime(on ? 0.95 : 0, now, RAMP_TC);
-        this.freezeWet.gain.setTargetAtTime(on ? level : 0, now, RAMP_TC);
+        // Drive the worklet's `active` AudioParam — the processor
+        // uses a ring buffer and handles capture/loop/crossfade
+        // internally. When off, it bypasses and resumes writing.
+        if (this.freezeWorklet) {
+          this.freezeWorklet.parameters.get("active")!.setTargetAtTime(on ? 1 : 0, now, 0.05);
+          this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(on ? level : 0, now, RAMP_TC);
+        }
         break;
     }
   }
@@ -367,10 +415,19 @@ export class FxChain {
   getSubCenter(): number { return this.subBand.frequency.value; }
 
   // FREEZE feedback — controls how "infinite" the loop is
-  setFreezeFeedback(fb: number): void {
-    this.freezeFb.gain.setTargetAtTime(Math.max(0, Math.min(0.99, fb)), this.ctx.currentTime, 0.08);
+  /** FREEZE has no feedback param in the worklet implementation
+   *  (it's a real capture, not a decaying feedback loop). The HOLD
+   *  slider in the modal now maps to the freeze wet mix. */
+  setFreezeFeedback(v: number): void {
+    if (this.freezeWorklet) {
+      this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(
+        Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.08
+      );
+    }
   }
-  getFreezeFeedback(): number { return this.freezeFb.gain.value; }
+  getFreezeFeedback(): number {
+    return this.freezeWorklet?.parameters.get("mix")?.value ?? 0.7;
+  }
 
   // Per-effect wet level override (so the modal can expose AMOUNT)
   setEffectLevel(id: EffectId, level: number): void {
@@ -384,7 +441,11 @@ export class FxChain {
       case "delay":   this.delaySend.gain.setTargetAtTime(v, now, RAMP_TC); break;
       case "sub":     this.subSend.gain.setTargetAtTime(v, now, RAMP_TC); break;
       case "comb":    this.combSend.gain.setTargetAtTime(v, now, RAMP_TC); break;
-      case "freeze":  this.freezeWet.gain.setTargetAtTime(v, now, RAMP_TC); break;
+      case "freeze":
+        if (this.freezeWorklet) {
+          this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(v, now, RAMP_TC);
+        }
+        break;
       // TAPE and WOW are serial inserts — no "wet level" concept.
       case "tape":
       case "wow":
@@ -407,24 +468,60 @@ export class FxChain {
     this.subLow.frequency.setTargetAtTime(subCenter * 1.5, now, 0.05);
   }
 
-  // ── Impulse + curve generators ─────────────────────────────────────
+    // ── Impulse + curve generators ────────────────────────────────────
 
-  private static makeImpulse(
-    ctx: AudioContext,
-    seconds: number,
-    decayExp: number,
-    preDelay: number,
-  ): AudioBuffer {
+  /**
+   * Hand-authored hall impulse response: early reflections as a set
+   * of discrete exponentially-weighted echoes in the first 90 ms,
+   * then a diffuse noise tail that decays exponentially over
+   * `seconds`. The early reflections give the hall a "position" —
+   * you hear walls and size — and the tail gives it depth.
+   */
+  private static makeHallImpulse(ctx: AudioContext, seconds: number): AudioBuffer {
     const rate = ctx.sampleRate;
     const length = Math.floor(seconds * rate);
-    const preSamples = Math.floor(preDelay * rate);
     const buffer = ctx.createBuffer(2, length, rate);
+
+    // Early reflection positions (seconds) and amplitudes per channel.
+    // The L/R asymmetry gives stereo width without decorrelation.
+    const earlyL = [
+      { t: 0.012, a: 0.55 },
+      { t: 0.024, a: 0.42 },
+      { t: 0.041, a: 0.35 },
+      { t: 0.063, a: 0.28 },
+      { t: 0.082, a: 0.22 },
+    ];
+    const earlyR = [
+      { t: 0.014, a: 0.52 },
+      { t: 0.029, a: 0.38 },
+      { t: 0.047, a: 0.33 },
+      { t: 0.068, a: 0.25 },
+      { t: 0.089, a: 0.20 },
+    ];
+
+    const lateStart = Math.floor(0.09 * rate); // tail begins at 90 ms
     for (let ch = 0; ch < 2; ch++) {
       const data = buffer.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        if (i < preSamples) { data[i] = 0; continue; }
-        const t = (i - preSamples) / (length - preSamples);
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decayExp);
+      // Diffuse noise tail
+      for (let i = lateStart; i < length; i++) {
+        const t = (i - lateStart) / (length - lateStart);
+        // Slightly curved decay — exp(-4t) gives a dense but natural fall
+        const env = Math.exp(-3.2 * t);
+        data[i] = (Math.random() * 2 - 1) * env * 0.35;
+      }
+      // Early reflections — add them on top
+      const early = ch === 0 ? earlyL : earlyR;
+      for (const ref of early) {
+        const idx = Math.floor(ref.t * rate);
+        if (idx < length) {
+          // Small 5-sample burst at each early reflection point
+          for (let j = 0; j < 5; j++) {
+            const off = idx + j;
+            if (off < length) {
+              data[off] += ref.a * (1 - j * 0.15);
+            }
+          }
+        }
       }
     }
     return buffer;
