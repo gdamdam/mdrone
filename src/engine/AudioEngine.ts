@@ -301,6 +301,9 @@ export class AudioEngine {
     }
 
     const now = this.ctx.currentTime;
+    this.fxChain.restoreEnabledEffects();
+    this.wetSend.gain.cancelScheduledValues(now);
+    this.wetSend.gain.setTargetAtTime(this.air * 0.8, now, 0.05);
 
     // Build voices for every active layer. Each layer gets its own
     // per-layer gain node so levels can be set independently, and each
@@ -357,6 +360,10 @@ export class AudioEngine {
       gain.gain.setValueAtTime(gain.gain.value, now);
       gain.gain.linearRampToValueAtTime(0, now + release);
     }
+    this.wetSend.gain.cancelScheduledValues(now);
+    this.wetSend.gain.setValueAtTime(this.wetSend.gain.value, now);
+    this.wetSend.gain.linearRampToValueAtTime(0, now + release);
+    this.fxChain.releaseTails();
 
     // Snapshot all layer voices and clear the maps so a re-entrant
     // startDrone doesn't collide with the still-fading voices.

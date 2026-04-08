@@ -468,6 +468,22 @@ export class FxChain {
     return this.levels[id];
   }
 
+  releaseTails(): void {
+    const now = this.ctx.currentTime;
+    this.delayFb.gain.setTargetAtTime(0, now, 0.05);
+    this.combFb.gain.setTargetAtTime(0, now, 0.05);
+    if (this.freezeWorklet) {
+      this.freezeWorklet.parameters.get("active")!.setTargetAtTime(0, now, 0.03);
+      this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(0, now, 0.05);
+    }
+  }
+
+  restoreEnabledEffects(): void {
+    for (const id of ALL_EFFECTS) {
+      if (this.enabled[id]) this.setEffect(id, true);
+    }
+  }
+
   /**
    * Retune the COMB filter and (re-center the SUB bandpass) when the
    * drone root changes. Called by AudioEngine from setDroneFreq().
