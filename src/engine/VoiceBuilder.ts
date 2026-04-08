@@ -25,6 +25,8 @@
 
 export type VoiceType = "tanpura" | "reed" | "metal" | "air";
 
+export const ALL_VOICE_TYPES: readonly VoiceType[] = ["tanpura", "reed", "metal", "air"] as const;
+
 export interface Voice {
   setFreq(hz: number, glideSec: number): void;
   /** 0..1 normalized drift amount — mapped to per-voice depth internally. */

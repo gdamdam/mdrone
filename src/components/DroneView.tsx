@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
-import type { VoiceType } from "../engine/VoiceBuilder";
+import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
+import type { EffectId } from "../engine/FxChain";
+import { PRESETS, applyPreset } from "../engine/presets";
 import type { PitchClass, ScaleId } from "../types";
 import { FxBar } from "./FxBar";
 
@@ -141,12 +143,50 @@ export function DroneView({ engine }: DroneViewProps) {
   const [root, setRoot] = useState<PitchClass>("A");
   const [octave, setOctave] = useState(3);
   const [scale, setScale] = useState<ScaleId>("dorian");
-  const [voiceType, setVoiceTypeState] = useState<VoiceType>(() => engine?.getVoiceType() ?? "tanpura");
+  const [voiceLayers, setVoiceLayersState] = useState<Record<VoiceType, boolean>>(
+    () => engine?.getVoiceLayers() ?? { tanpura: true, reed: false, metal: false, air: false }
+  );
+  const [voiceLevels, setVoiceLevelsState] = useState<Record<VoiceType, number>>(
+    () => ({
+      tanpura: engine?.getVoiceLevel("tanpura") ?? 1,
+      reed: engine?.getVoiceLevel("reed") ?? 1,
+      metal: engine?.getVoiceLevel("metal") ?? 1,
+      air: engine?.getVoiceLevel("air") ?? 1,
+    })
+  );
+
+  // Effect on/off state lives here (lifted from FxBar) so presets
+  // can toggle effects alongside everything else.
+  const [effectStates, setEffectStatesState] = useState<Record<EffectId, boolean>>(
+    () => engine?.getEffectStates() ?? {
+      tape: false, wow: false, plate: false, hall: false,
+      shimmer: false, delay: false, sub: false, comb: false, freeze: false,
+    }
+  );
+  const setEffectEnabled = useCallback((id: EffectId, on: boolean) => {
+    setEffectStatesState((prev) => ({ ...prev, [id]: on }));
+    engine?.setEffect(id, on);
+  }, [engine]);
+  const toggleEffect = useCallback((id: EffectId) => {
+    setEffectStatesState((prev) => {
+      const next = !prev[id];
+      engine?.setEffect(id, next);
+      return { ...prev, [id]: next };
+    });
+  }, [engine]);
   const [playing, setPlaying] = useState(false);
 
-  const setVoiceType = useCallback((type: VoiceType) => {
-    setVoiceTypeState(type);
-    engine?.setVoiceType(type);
+  const toggleVoiceLayer = useCallback((type: VoiceType) => {
+    setVoiceLayersState((prev) => {
+      const next = { ...prev, [type]: !prev[type] };
+      engine?.setVoiceLayer(type, next[type]);
+      return next;
+    });
+  }, [engine]);
+
+  const setVoiceLevel = useCallback((type: VoiceType, level: number) => {
+    setVoiceLevelsState((prev) => ({ ...prev, [type]: level }));
+    engine?.setVoiceLevel(type, level);
   }, [engine]);
 
   const [drift, setDriftState] = useState(() => engine?.getDrift() ?? 0.3);
@@ -196,6 +236,10 @@ export function DroneView({ engine }: DroneViewProps) {
     engine.setLfoShape(lfoShape);
     engine.setLfoRate(lfoRate);
     engine.setLfoAmount(lfoAmount);
+    for (const t of ALL_VOICE_TYPES) {
+      engine.setVoiceLayer(t, voiceLayers[t]);
+      engine.setVoiceLevel(t, voiceLevels[t]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine]);
 
@@ -298,10 +342,50 @@ export function DroneView({ engine }: DroneViewProps) {
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ok */ }
   }, []);
 
+    // Preset application — wires all engine + UI state together.
+  const handlePreset = useCallback((presetId: string) => {
+    const preset = PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    applyPreset(engine, preset, {
+      setVoiceLayers: (m) => setVoiceLayersState(m),
+      setVoiceLevels: (m) => setVoiceLevelsState(m),
+      setDrift,
+      setAir,
+      setTime,
+      setSub,
+      setBloom,
+      setGlide,
+      setLfoShape,
+      setLfoRate,
+      setLfoAmount,
+      setClimate,
+      setScale,
+      setEffectEnabled,
+    });
+  }, [engine, setDrift, setAir, setTime, setSub, setBloom, setGlide,
+      setLfoShape, setLfoRate, setLfoAmount, setClimate, setEffectEnabled]);
+
   return (
     <div className="drone-layout">
-      {/* ── Left column: tonic + mode + macros ─────────────────── */}
+      {/* ── Left column: presets + tonic + mode + timbre + macros ─── */}
       <div className="drone-left">
+        <div className="panel">
+          <div className="panel-label">PRESETS · tap to load</div>
+          <div className="preset-grid">
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => handlePreset(p.id)}
+                className="preset-btn"
+                title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
+              >
+                <span className="preset-btn-name">{p.name}</span>
+                <span className="preset-btn-attr">{p.attribution}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="panel">
           <div className="panel-label">TONIC</div>
           <div className="tonic-wheel">
@@ -352,18 +436,34 @@ export function DroneView({ engine }: DroneViewProps) {
         </div>
 
         <div className="panel">
-          <div className="panel-label">TIMBRE</div>
+          <div className="panel-label">TIMBRE · tap to layer</div>
           <div className="timbre-grid">
             {VOICES.map((v) => (
               <button
                 key={v.id}
-                onClick={() => setVoiceType(v.id)}
-                className={v.id === voiceType ? "timbre-btn timbre-btn-active" : "timbre-btn"}
+                onClick={() => toggleVoiceLayer(v.id)}
+                className={voiceLayers[v.id] ? "timbre-btn timbre-btn-active" : "timbre-btn"}
                 title={v.hint}
               >
                 <span className="timbre-btn-icon">{v.icon}</span>
                 <span className="timbre-btn-label">{v.label}</span>
               </button>
+            ))}
+          </div>
+          {/* Per-layer level sliders — only shown for active layers. */}
+          <div className="layer-levels">
+            {VOICES.map((v) => voiceLayers[v.id] && (
+              <div key={v.id} className="layer-level-row">
+                <span className="layer-level-label">{v.label}</span>
+                <input
+                  type="range" min={0} max={1} step={0.01}
+                  value={voiceLevels[v.id]}
+                  onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
+                  className="macro-slider"
+                  title={`${v.label} mix level`}
+                />
+                <span className="layer-level-value">{Math.round(voiceLevels[v.id] * 100)}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -474,7 +574,7 @@ export function DroneView({ engine }: DroneViewProps) {
         </div>
 
         {/* Effects chain — mpump-kaos-style toggle row below the XY pad */}
-        <FxBar engine={engine} />
+        <FxBar engine={engine} states={effectStates} onToggle={toggleEffect} />
       </div>
     </div>
   );

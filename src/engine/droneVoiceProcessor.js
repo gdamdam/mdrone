@@ -136,11 +136,16 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       this.pluckCountdown = 2.5 + this.rng() * 2;
     }
 
+    // Denormal anti-burn offset — keeps the feedback loop above the
+    // denormal threshold (~1e-38) which would otherwise cause 10-100x
+    // CPU slowdowns on x86 as samples decay toward zero.
+    const ANTI_DENORMAL = 1e-25;
+
     for (let i = 0; i < n; i++) {
       // Read current sample, average with next for one-pole lowpass
       const cur = this.ksBuf[this.ksIdx];
       const nxt = this.ksBuf[(this.ksIdx + 1) % delayLen];
-      let y = (cur + nxt) * 0.5;
+      let y = (cur + nxt) * 0.5 + ANTI_DENORMAL;
       // Additional gentle lowpass smoothing (string body)
       this.ksLast = this.ksLast * 0.2 + y * 0.8;
       y = this.ksLast * damping;
@@ -154,7 +159,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Right channel — independent delay line with slight offset
       const curR = this.ksBufR[this.ksIdxR];
       const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
-      let yR = (curR + nxtR) * 0.5;
+      let yR = (curR + nxtR) * 0.5 + ANTI_DENORMAL;
       this.ksLastR = this.ksLastR * 0.2 + yR * 0.8;
       yR = this.ksLastR * damping;
       const jyR = Math.tanh(jawK * yR) + jawMix * Math.sin(jawK * 2.1 * yR);

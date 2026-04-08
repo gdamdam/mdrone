@@ -366,6 +366,81 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   letter-spacing: 1px;
 }
 
+/* Per-layer level sliders below the TIMBRE grid */
+.layer-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.layer-level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.layer-level-label {
+  flex-shrink: 0;
+  min-width: 52px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--preview);
+  text-transform: uppercase;
+}
+
+.layer-level-value {
+  flex-shrink: 0;
+  min-width: 26px;
+  text-align: right;
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+/* Preset buttons — a small grid of named scenes */
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  color: var(--text);
+  border: 1px solid var(--border);
+  text-align: left;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+  cursor: pointer;
+}
+
+.preset-btn:hover {
+  border-color: color-mix(in srgb, var(--preview) 35%, var(--border));
+  background: color-mix(in srgb, var(--preview) 5%, var(--bg-cell));
+}
+
+.preset-btn-name {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--preview);
+}
+
+.preset-btn-attr {
+  font-size: 8px;
+  color: var(--text-dim);
+  opacity: 0.8;
+  font-style: italic;
+}
+
 /* Macro rows (DRIFT / AIR / TIME / LFO rate/depth) */
 .macro-row {
   display: flex;

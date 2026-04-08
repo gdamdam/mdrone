@@ -18,7 +18,7 @@
 
 import { FxChain } from "./FxChain";
 import type { EffectId } from "./FxChain";
-import { buildVoice, type Voice, type VoiceType } from "./VoiceBuilder";
+import { buildVoice, ALL_VOICE_TYPES, type Voice, type VoiceType } from "./VoiceBuilder";
 // Vite `?url` import — returns a content-addressable URL at build time,
 // served directly in dev. Used with audioWorklet.addModule() to register
 // the DroneVoiceProcessor.
@@ -27,14 +27,22 @@ import droneWorkletUrl from "./droneVoiceProcessor.js?url";
 export class AudioEngine {
   ctx: AudioContext;
 
-  // Drone voice stack — one Voice per interval from the root. Voice is
-  // an abstraction over the concrete oscillator/filter/noise nodes so
-  // the same engine code works for SAW, SINE, ORGAN, CHOIR, BELL, NOISE.
-  private droneVoices: Voice[] = [];
+  // Drone voice stack — one Voice per interval from the root, PER
+  // active voice layer. Any combination of voice types can play
+  // simultaneously (Stars of the Lid layering, Eno multi-loop).
+  // Each active layer has its own level gain node feeding into
+  // droneVoiceGain, so layers can be mixed independently.
+  private droneVoicesByLayer: Map<VoiceType, Voice[]> = new Map();
+  private layerGains: Map<VoiceType, GainNode> = new Map();
+  private layerLevels: Record<VoiceType, number> = {
+    tanpura: 1, reed: 1, metal: 1, air: 1,
+  };
+  private voiceLayers: Record<VoiceType, boolean> = {
+    tanpura: true, reed: false, metal: false, air: false,
+  };
   private droneIntervalsCents: number[] = [0];
   private droneRootFreq = 220;
   private droneVoiceGain: GainNode;
-  private voiceType: VoiceType = "tanpura"; // authored default — the archetypal drone instrument
 
   // Worklet readiness — loaded once in the constructor; startDrone
   // queues if the user interacts before the module registers.
@@ -269,16 +277,12 @@ export class AudioEngine {
     this.droneIntervalsCents = intervalsCents.length > 0 ? intervalsCents : [0];
     this.fxChain.setRootFreq(freq);
 
-    // If the worklet hasn't registered yet, queue the call and retry
-    // as soon as the module loads. In practice this fires on the very
-    // first interaction only.
     if (!this.isWorkletReady) {
       this.pendingStart = () => this.startDrone(freq, intervalsCents);
       return;
     }
 
     if (this.droneOn) {
-      // Already playing: retune root and rebuild intervals if changed.
       this.setDroneFreq(freq);
       this.rebuildIntervals();
       return;
@@ -286,13 +290,19 @@ export class AudioEngine {
 
     const now = this.ctx.currentTime;
 
-    // Main voice stack — build via VoiceBuilder using the current type.
-    // drift is now passed as a 0..1 amount directly; the worklet maps it
-    // to per-voice depth internally.
-    for (const c of this.droneIntervalsCents) {
-      this.droneVoices.push(
-        buildVoice(this.voiceType, this.ctx, this.droneVoiceGain, freq, c, this.drift, now)
-      );
+    // Build voices for every active layer. Each layer gets its own
+    // per-layer gain node so levels can be set independently, and each
+    // layer contributes one voice per interval in the current chord.
+    for (const type of ALL_VOICE_TYPES) {
+      if (!this.voiceLayers[type]) continue;
+      const layerGain = this.ensureLayerGain(type);
+      const voices: Voice[] = [];
+      for (const c of this.droneIntervalsCents) {
+        voices.push(
+          buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now)
+        );
+      }
+      this.droneVoicesByLayer.set(type, voices);
     }
 
     // Sub octave — a separate triangle pair one octave below the root
@@ -335,15 +345,21 @@ export class AudioEngine {
       gain.gain.linearRampToValueAtTime(0, now + release);
     }
 
-    const voices = this.droneVoices;
+    // Snapshot all layer voices and clear the maps so a re-entrant
+    // startDrone doesn't collide with the still-fading voices.
+    const allVoices: Voice[] = [];
+    for (const vs of this.droneVoicesByLayer.values()) {
+      for (const v of vs) allVoices.push(v);
+    }
+    this.droneVoicesByLayer.clear();
+
     const sub = this.subOscs;
     const shimmer = this.shimmerOscs;
-    this.droneVoices = [];
     this.subOscs = null;
     this.shimmerOscs = null;
 
     setTimeout(() => {
-      for (const v of voices) v.stop();
+      for (const v of allVoices) v.stop();
       if (sub) {
         try { sub.a.stop(); sub.a.disconnect(); } catch { /* ok */ }
         try { sub.b.stop(); sub.b.disconnect(); } catch { /* ok */ }
@@ -357,20 +373,21 @@ export class AudioEngine {
     this.droneOn = false;
   }
 
-  /** Retune the whole stack to a new root frequency. Glide time is
-   * driven by the GLIDE macro (0.05 s → 8 s exponential). */
+  /** Retune every layer's voice stack to a new root frequency.
+   *  Glide time is driven by the GLIDE macro. */
   setDroneFreq(freq: number): void {
     this.droneRootFreq = freq;
     this.fxChain.setRootFreq(freq);
-    if (this.droneVoices.length === 0) return;
     const now = this.ctx.currentTime;
     const glide = this.glideTime();
 
-    // Main interval stack — each Voice retunes to its own interval
-    for (let i = 0; i < this.droneVoices.length; i++) {
-      const interval = this.droneIntervalsCents[i] ?? 0;
-      const target = freq * Math.pow(2, interval / 1200);
-      this.droneVoices[i].setFreq(target, glide);
+    // Every layer — each Voice in that layer retunes to its interval
+    for (const voices of this.droneVoicesByLayer.values()) {
+      for (let i = 0; i < voices.length; i++) {
+        const interval = this.droneIntervalsCents[i] ?? 0;
+        const target = freq * Math.pow(2, interval / 1200);
+        voices[i].setFreq(target, glide);
+      }
     }
     // Sub / shimmer are still plain osc pairs (fixed type by design)
     if (this.subOscs) this.glideOscPair(this.subOscs, freq * 0.5, now, glide);
@@ -407,30 +424,80 @@ export class AudioEngine {
    */
   private rebuildIntervals(): void {
     const now = this.ctx.currentTime;
-    const old = this.droneVoices;
-    const fresh: Voice[] = [];
-    for (const c of this.droneIntervalsCents) {
-      fresh.push(
-        buildVoice(this.voiceType, this.ctx, this.droneVoiceGain, this.droneRootFreq, c, this.drift, now)
-      );
+    // Snapshot the current layer voices so we can fade+stop them
+    // after the new stack has settled.
+    const toStop: Voice[] = [];
+    for (const vs of this.droneVoicesByLayer.values()) {
+      for (const v of vs) toStop.push(v);
     }
-    this.droneVoices = fresh;
-    setTimeout(() => { for (const v of old) v.stop(); }, 400);
+    this.droneVoicesByLayer.clear();
+
+    // Rebuild for all active layers × all intervals
+    for (const type of ALL_VOICE_TYPES) {
+      if (!this.voiceLayers[type]) continue;
+      const layerGain = this.ensureLayerGain(type);
+      const voices: Voice[] = [];
+      for (const c of this.droneIntervalsCents) {
+        voices.push(
+          buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now)
+        );
+      }
+      this.droneVoicesByLayer.set(type, voices);
+    }
+
+    setTimeout(() => { for (const v of toStop) v.stop(); }, 400);
     this.droneVoiceGain.gain.cancelScheduledValues(now);
     this.droneVoiceGain.gain.setTargetAtTime(this.voiceStackGain(), now, 0.2);
   }
 
-  /**
-   * Swap the timbre of the main voice stack. Rebuilds the voices with
-   * the new type using the same crossfade as mode changes — no audible
-   * dropout between SAW/SINE/ORGAN/CHOIR/BELL/NOISE.
-   */
-  setVoiceType(type: VoiceType): void {
-    if (type === this.voiceType) return;
-    this.voiceType = type;
+  // ── Voice layering API ────────────────────────────────────────────
+  /** Enable or disable a voice layer. Any combination can be active. */
+  setVoiceLayer(type: VoiceType, on: boolean): void {
+    if (this.voiceLayers[type] === on) return;
+    this.voiceLayers[type] = on;
     if (this.droneOn) this.rebuildIntervals();
   }
-  getVoiceType(): VoiceType { return this.voiceType; }
+  getVoiceLayer(type: VoiceType): boolean { return this.voiceLayers[type]; }
+  getVoiceLayers(): Record<VoiceType, boolean> { return { ...this.voiceLayers }; }
+
+  /** Set a layer's mix level 0..1 (live, ramped). */
+  setVoiceLevel(type: VoiceType, level: number): void {
+    const v = Math.max(0, Math.min(1, level));
+    this.layerLevels[type] = v;
+    const gain = this.layerGains.get(type);
+    if (gain) {
+      const now = this.ctx.currentTime;
+      gain.gain.setTargetAtTime(v, now, 0.08);
+    }
+  }
+  getVoiceLevel(type: VoiceType): number { return this.layerLevels[type]; }
+
+  /** Ensure a GainNode exists for a layer and is wired to droneVoiceGain. */
+  private ensureLayerGain(type: VoiceType): GainNode {
+    let g = this.layerGains.get(type);
+    if (!g) {
+      g = this.ctx.createGain();
+      g.gain.value = this.layerLevels[type];
+      g.connect(this.droneVoiceGain);
+      this.layerGains.set(type, g);
+    }
+    return g;
+  }
+
+  /** Compatibility shim — pick a single voice, turning off the others. */
+  setVoiceType(type: VoiceType): void {
+    for (const t of ALL_VOICE_TYPES) {
+      this.voiceLayers[t] = t === type;
+    }
+    if (this.droneOn) this.rebuildIntervals();
+  }
+  /** First active layer, for legacy callers that still want a scalar. */
+  getVoiceType(): VoiceType {
+    for (const t of ALL_VOICE_TYPES) {
+      if (this.voiceLayers[t]) return t;
+    }
+    return "tanpura";
+  }
 
   /** Sub pair — triangle waves one octave below for a clean low-end bloom. */
   private buildSubPair(freq: number, startAt: number) {
@@ -612,13 +679,15 @@ export class AudioEngine {
   }
 
   // ── Macro setters ─────────────────────────────────────────────────
-  /** DRIFT 0..1 — normalized drift amount. Voices map to their own
-   *  appropriate depth; sub/shimmer keep the legacy cent spread. */
+  /** DRIFT 0..1 — normalized drift amount. Voices across all active
+   *  layers get the new drift; sub/shimmer keep the legacy cent spread. */
   setDrift(v: number): void {
     this.drift = Math.max(0, Math.min(1, v));
     const spread = this.drift * 25;
     const now = this.ctx.currentTime;
-    for (const voice of this.droneVoices) voice.setDrift(this.drift);
+    for (const voices of this.droneVoicesByLayer.values()) {
+      for (const voice of voices) voice.setDrift(this.drift);
+    }
     const apply = (pair: { a: OscillatorNode; b: OscillatorNode }) => {
       pair.a.detune.setTargetAtTime(-spread, now, 0.05);
       pair.b.detune.setTargetAtTime(spread, now, 0.05);

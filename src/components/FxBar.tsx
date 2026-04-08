@@ -22,6 +22,10 @@ const LONG_PRESS_MS = 420;
 
 interface FxBarProps {
   engine: AudioEngine | null;
+  /** Effect on/off state — owned by DroneView so presets can set it. */
+  states: Record<EffectId, boolean>;
+  /** Called when the user taps a button (short click). */
+  onToggle: (id: EffectId) => void;
 }
 
 interface FxDef {
@@ -88,28 +92,13 @@ const FX_DEFS: FxDef[] = [
   },
 ];
 
-export function FxBar({ engine }: FxBarProps) {
-  // Local mirror of the engine's effect states — toggled on click.
-  const [states, setStates] = useState<Record<EffectId, boolean>>(() =>
-    engine?.getEffectStates() ?? {
-      plate: false, hall: false, shimmer: false, delay: false,
-      tape: false, wow: false, sub: false, comb: false, freeze: false,
-    }
-  );
+export function FxBar({ engine, states, onToggle }: FxBarProps) {
   const [modalFx, setModalFx] = useState<EffectId | null>(null);
 
   // Long-press gates a toggle — if the hold fires, open the modal and
   // swallow the subsequent click so the effect doesn't flip state.
   const longPressTimerRef = useRef<number | null>(null);
   const longPressFiredRef = useRef(false);
-
-  const toggle = useCallback((id: EffectId) => {
-    setStates((s) => {
-      const next = !s[id];
-      engine?.setEffect(id, next);
-      return { ...s, [id]: next };
-    });
-  }, [engine]);
 
   const handlePointerDown = useCallback((id: EffectId) => {
     longPressFiredRef.current = false;
@@ -134,8 +123,8 @@ export function FxBar({ engine }: FxBarProps) {
       longPressFiredRef.current = false;
       return; // long-press opened the modal — don't toggle
     }
-    toggle(id);
-  }, [toggle]);
+    onToggle(id);
+  }, [onToggle]);
 
   return (
     <div className="panel fx-bar-panel">
