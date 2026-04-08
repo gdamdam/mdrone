@@ -157,6 +157,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   { engine }: DroneViewProps,
   ref,
 ) {
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [root, setRoot] = useState<PitchClass>("A");
   const [octave, setOctave] = useState(3);
   const [scale, setScale] = useState<ScaleId>("dorian");
@@ -363,6 +364,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   const handlePreset = useCallback((presetId: string) => {
     const preset = PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
+    setActivePresetId(presetId);
     applyPreset(engine, preset, {
       setVoiceLayers: (m) => setVoiceLayersState(m),
       setVoiceLevels: (m) => setVoiceLevelsState(m),
@@ -478,7 +480,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <button
                 key={p.id}
                 onClick={() => handlePreset(p.id)}
-                className="preset-btn"
+                className={activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
                 title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
               >
                 <span className="preset-btn-name">{p.name}</span>

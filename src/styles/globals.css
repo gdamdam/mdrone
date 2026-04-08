@@ -483,6 +483,25 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   background: color-mix(in srgb, var(--preview) 5%, var(--bg-cell));
 }
 
+.preset-btn-active {
+  background: var(--preview);
+  border-color: var(--preview);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--preview) 38%, transparent);
+}
+
+.preset-btn-active .preset-btn-name,
+.preset-btn-active .preset-btn-attr {
+  color: #160c06;
+}
+
+.preset-btn-active .preset-btn-name {
+  color: #160c06;
+}
+
+.preset-btn-active .preset-btn-attr {
+  opacity: 0.9;
+}
+
 .preset-btn-name {
   font-size: 10px;
   font-weight: 800;
