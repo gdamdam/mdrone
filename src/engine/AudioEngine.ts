@@ -48,7 +48,7 @@ export class AudioEngine {
   // Worklet readiness — loaded once in the constructor; startDrone
   // queues if the user interacts before the module registers.
   private isWorkletReady = false;
-  private pendingStart: (() => void) | null = null;
+  private pendingStart: { freq: number; intervalsCents: number[] } | null = null;
 
   // Sub octave voice (DEPTH macro) — one triangle pair at root/2.
   private subOscs: { a: OscillatorNode; b: OscillatorNode } | null = null;
@@ -249,9 +249,9 @@ export class AudioEngine {
         this.isWorkletReady = true;
         this.fxChain.onWorkletReady();
         if (this.pendingStart) {
-          const fn = this.pendingStart;
+          const pending = this.pendingStart;
           this.pendingStart = null;
-          fn();
+          this.startDrone(pending.freq, pending.intervalsCents);
         }
       })
       .catch((err) => {
@@ -285,7 +285,10 @@ export class AudioEngine {
     this.fxChain.setRootFreq(freq);
 
     if (!this.isWorkletReady) {
-      this.pendingStart = () => this.startDrone(freq, intervalsCents);
+      this.pendingStart = {
+        freq,
+        intervalsCents: [...this.droneIntervalsCents],
+      };
       return;
     }
 
@@ -342,6 +345,7 @@ export class AudioEngine {
   }
 
   stopDrone(): void {
+    this.pendingStart = null;
     if (!this.droneOn) return;
     const now = this.ctx.currentTime;
     const release = 0.6;
@@ -565,6 +569,22 @@ export class AudioEngine {
     return Promise.resolve();
   }
 
+  getRecordingSupport(): { supported: boolean; reason?: string } {
+    if (typeof MediaRecorder === "undefined") {
+      return { supported: false, reason: "This browser does not support MediaRecorder." };
+    }
+    const supportsWebm =
+      MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ||
+      MediaRecorder.isTypeSupported("audio/webm");
+    if (!supportsWebm) {
+      return {
+        supported: false,
+        reason: "This browser cannot export the WebM audio stream mdrone uses for WAV rendering.",
+      };
+    }
+    return { supported: true };
+  }
+
   // ── Master WAV recording ──────────────────────────────────────────
   private recDest: MediaStreamAudioDestinationNode | null = null;
   private recorder: MediaRecorder | null = null;
@@ -581,6 +601,10 @@ export class AudioEngine {
    */
   async startMasterRecording(): Promise<void> {
     if (this.recorder) return;
+    const support = this.getRecordingSupport();
+    if (!support.supported) {
+      throw new Error(support.reason ?? "Master recording is unavailable in this browser.");
+    }
     if (this.ctx.state === "suspended") await this.ctx.resume();
     this.recDest = this.ctx.createMediaStreamDestination();
     this.analyser.connect(this.recDest);

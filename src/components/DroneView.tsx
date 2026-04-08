@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
 import type { EffectId } from "../engine/FxChain";
 import { PRESETS, applyPreset } from "../engine/presets";
+import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass, ScaleId } from "../types";
 import { FxBar } from "./FxBar";
 
@@ -131,6 +140,11 @@ interface DroneViewProps {
   engine: AudioEngine | null;
 }
 
+export interface DroneViewHandle {
+  getSnapshot(): DroneSessionSnapshot;
+  applySnapshot(snapshot: DroneSessionSnapshot): void;
+}
+
 /**
  * DroneView — the instrument. Prototype layout:
  *   [tonic dial + mode picker]        [climate XY surface]
@@ -139,7 +153,10 @@ interface DroneViewProps {
  * No transport button — the drone is on whenever there's a root set.
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
-export function DroneView({ engine }: DroneViewProps) {
+export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
+  { engine }: DroneViewProps,
+  ref,
+) {
   const [root, setRoot] = useState<PitchClass>("A");
   const [octave, setOctave] = useState(3);
   const [scale, setScale] = useState<ScaleId>("dorian");
@@ -365,6 +382,91 @@ export function DroneView({ engine }: DroneViewProps) {
   }, [engine, setDrift, setAir, setTime, setSub, setBloom, setGlide,
       setLfoShape, setLfoRate, setLfoAmount, setClimate, setEffectEnabled]);
 
+  useImperativeHandle(ref, () => ({
+    getSnapshot() {
+      return {
+        root,
+        octave,
+        scale,
+        voiceLayers: { ...voiceLayers },
+        voiceLevels: { ...voiceLevels },
+        effects: { ...effectStates },
+        drift,
+        air,
+        time,
+        sub,
+        bloom,
+        glide,
+        climateX: climate.x,
+        climateY: climate.y,
+        lfoShape,
+        lfoRate,
+        lfoAmount,
+      };
+    },
+    applySnapshot(snapshot) {
+      setRoot(snapshot.root);
+      setOctave(snapshot.octave);
+      setScale(snapshot.scale);
+      setVoiceLayersState({ ...snapshot.voiceLayers });
+      setVoiceLevelsState({ ...snapshot.voiceLevels });
+      setEffectStatesState({ ...snapshot.effects });
+      setDriftState(snapshot.drift);
+      setAirState(snapshot.air);
+      setTimeState(snapshot.time);
+      setSubState(snapshot.sub);
+      setBloomState(snapshot.bloom);
+      setGlideState(snapshot.glide);
+      setClimateState({ x: snapshot.climateX, y: snapshot.climateY });
+      setLfoShapeState(snapshot.lfoShape);
+      setLfoRateState(snapshot.lfoRate);
+      setLfoAmountState(snapshot.lfoAmount);
+
+      if (!engine) return;
+
+      engine.setIntervals(scaleById(snapshot.scale).intervalsCents);
+      for (const type of ALL_VOICE_TYPES) {
+        engine.setVoiceLayer(type, snapshot.voiceLayers[type]);
+        engine.setVoiceLevel(type, snapshot.voiceLevels[type]);
+      }
+      for (const id of Object.keys(snapshot.effects) as EffectId[]) {
+        engine.setEffect(id, snapshot.effects[id]);
+      }
+      engine.setDrift(snapshot.drift);
+      engine.setAir(snapshot.air);
+      engine.setTime(snapshot.time);
+      engine.setSub(snapshot.sub);
+      engine.setBloom(snapshot.bloom);
+      engine.setGlide(snapshot.glide);
+      engine.setClimateX(snapshot.climateX);
+      engine.setClimateY(snapshot.climateY);
+      engine.setLfoShape(snapshot.lfoShape);
+      engine.setLfoRate(snapshot.lfoRate);
+      engine.setLfoAmount(snapshot.lfoAmount);
+      if (playing) engine.setDroneFreq(pitchToFreq(snapshot.root, snapshot.octave));
+    },
+  }), [
+    air,
+    bloom,
+    climate.x,
+    climate.y,
+    drift,
+    effectStates,
+    engine,
+    glide,
+    lfoAmount,
+    lfoRate,
+    lfoShape,
+    octave,
+    playing,
+    root,
+    scale,
+    sub,
+    time,
+    voiceLayers,
+    voiceLevels,
+  ]);
+
   return (
     <div className="drone-layout">
       {/* ── Left column: presets + tonic + mode + timbre + macros ─── */}
@@ -578,7 +680,7 @@ export function DroneView({ engine }: DroneViewProps) {
       </div>
     </div>
   );
-}
+});
 
 /** Horizontal macro slider with icon + label + live value readout. */
 function Macro({

@@ -49,7 +49,7 @@ const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
   comb:
     "Resonant comb filter tuned to the drone root. Short delay with high feedback creates a pitched metallic ring that sings along with the tonic. Adds harmonic specificity and Karplus-Strong character.",
   freeze:
-    "Captures the current moment as a self-sustaining delay loop. Toggle on and the signal at that instant keeps circulating at 0.95 feedback. Toggle off and the loop decays naturally. The performance gesture of drone music.",
+    "Captures the current moment as a self-sustaining loop. Toggle on to latch the buffer, toggle off to release it. The control here adjusts how strongly the frozen layer sits in the mix.",
 };
 
 export function FxModal({ engine, effectId, onClose }: FxModalProps) {
@@ -101,7 +101,7 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
     case "sub":
       return <SubParams engine={engine} fx={fx} />;
     case "freeze":
-      return <FreezeParams engine={engine} fx={fx} />;
+      return <FreezeParams fx={fx} />;
     case "plate":
     case "hall":
     case "shimmer":
@@ -163,7 +163,7 @@ function AmountOnly({
   fx: FxChainLike;
   defaultValue: number;
 }) {
-  const [amount, setAmount] = useState(defaultValue);
+  const [amount, setAmount] = useState(() => fx?.getEffectLevel(effectId) ?? defaultValue);
   return (
     <ParamSlider
       label="AMOUNT"
@@ -174,7 +174,7 @@ function AmountOnly({
       unit=""
       onChange={(v) => {
         setAmount(v);
-        if (engine && fx && engine.isEffect(effectId)) fx.setEffectLevel(effectId, v);
+        if (engine && fx) fx.setEffectLevel(effectId, v);
       }}
     />
   );
@@ -247,22 +247,21 @@ function SubParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike
   );
 }
 
-function FreezeParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
-  const [fb, setFb] = useState(() => fx?.getFreezeFeedback() ?? 0.95);
+function FreezeParams({ fx }: { fx: FxChainLike }) {
+  const [mix, setMix] = useState(() => fx?.getFreezeFeedback() ?? 0.7);
   return (
     <>
       <ParamSlider
-        label="HOLD"
-        value={fb}
-        min={0.5}
-        max={0.99}
-        step={0.001}
+        label="MIX"
+        value={mix}
+        min={0}
+        max={1}
+        step={0.01}
         unit=""
-        onChange={(v) => { setFb(v); fx?.setFreezeFeedback(v); }}
+        onChange={(v) => { setMix(v); fx?.setFreezeFeedback(v); }}
       />
-      <AmountOnly engine={engine} effectId="freeze" fx={fx} defaultValue={0.7} />
       <div className="fx-modal-hint">
-        HOLD near 0.99 = infinite sustain. Below 0.9 = slowly decaying capture.
+        Higher MIX brings the frozen layer forward; lower MIX tucks it behind the dry drone.
       </div>
     </>
   );

@@ -117,6 +117,10 @@ export class FxChain {
     plate: false, hall: false, shimmer: false, delay: false,
     tape: false, wow: false, sub: false, comb: false, freeze: false,
   };
+  private levels: Record<EffectId, number> = { ...ON_LEVELS };
+  private delayFeedback = 0.58;
+  private combFeedback = 0.85;
+  private freezeMix = ON_LEVELS.freeze;
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
@@ -325,6 +329,7 @@ export class FxChain {
     });
     // Freeze starts inactive (active=0) — flip to 1 in setEffect
     this.freezeWorklet.parameters.get("active")!.setValueAtTime(0, this.ctx.currentTime);
+    this.freezeWorklet.parameters.get("mix")!.setValueAtTime(0, this.ctx.currentTime);
     this.freezeSend.connect(this.freezeWorklet).connect(this.wetOut);
 
     // If any of these effects were toggled on before the worklet
@@ -340,7 +345,7 @@ export class FxChain {
   setEffect(id: EffectId, on: boolean): void {
     this.enabled[id] = on;
     const now = this.ctx.currentTime;
-    const level = on ? ON_LEVELS[id] : 0;
+    const level = on ? this.levels[id] : 0;
 
     switch (id) {
       case "plate":
@@ -356,7 +361,7 @@ export class FxChain {
         this.delaySend.gain.setTargetAtTime(level, now, RAMP_TC);
         // Also ramp feedback — the loop is only "alive" when the
         // effect is on, which kills the denormal-click problem.
-        this.delayFb.gain.setTargetAtTime(on ? 0.58 : 0, now, RAMP_TC);
+        this.delayFb.gain.setTargetAtTime(on ? this.delayFeedback : 0, now, RAMP_TC);
         break;
       case "tape":
         this.tapeBypass.gain.setTargetAtTime(on ? 0 : 1, now, RAMP_TC);
@@ -371,7 +376,7 @@ export class FxChain {
         break;
       case "comb":
         this.combSend.gain.setTargetAtTime(level, now, RAMP_TC);
-        this.combFb.gain.setTargetAtTime(on ? 0.85 : 0, now, RAMP_TC);
+        this.combFb.gain.setTargetAtTime(on ? this.combFeedback : 0, now, RAMP_TC);
         break;
       case "freeze":
         // Drive the worklet's `active` AudioParam — the processor
@@ -379,7 +384,7 @@ export class FxChain {
         // internally. When off, it bypasses and resumes writing.
         if (this.freezeWorklet) {
           this.freezeWorklet.parameters.get("active")!.setTargetAtTime(on ? 1 : 0, now, 0.05);
-          this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(on ? level : 0, now, RAMP_TC);
+          this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(on ? this.freezeMix : 0, now, RAMP_TC);
         }
         break;
     }
@@ -396,15 +401,17 @@ export class FxChain {
   }
   getDelayTime(): number { return this.delayNode.delayTime.value; }
   setDelayFeedback(fb: number): void {
-    this.delayFb.gain.setTargetAtTime(Math.max(0, Math.min(0.95, fb)), this.ctx.currentTime, 0.05);
+    this.delayFeedback = Math.max(0, Math.min(0.95, fb));
+    this.delayFb.gain.setTargetAtTime(this.enabled.delay ? this.delayFeedback : 0, this.ctx.currentTime, 0.05);
   }
-  getDelayFeedback(): number { return this.delayFb.gain.value; }
+  getDelayFeedback(): number { return this.delayFeedback; }
 
   // COMB
   setCombFeedback(fb: number): void {
-    this.combFb.gain.setTargetAtTime(Math.max(0, Math.min(0.98, fb)), this.ctx.currentTime, 0.05);
+    this.combFeedback = Math.max(0, Math.min(0.98, fb));
+    this.combFb.gain.setTargetAtTime(this.enabled.comb ? this.combFeedback : 0, this.ctx.currentTime, 0.05);
   }
-  getCombFeedback(): number { return this.combFb.gain.value; }
+  getCombFeedback(): number { return this.combFeedback; }
 
   // SUB — center frequency (ignored if root-tracking kicks in afterwards)
   setSubCenter(hz: number): void {
@@ -419,31 +426,35 @@ export class FxChain {
    *  (it's a real capture, not a decaying feedback loop). The HOLD
    *  slider in the modal now maps to the freeze wet mix. */
   setFreezeFeedback(v: number): void {
+    this.freezeMix = Math.max(0, Math.min(1, v));
+    this.levels.freeze = this.freezeMix;
     if (this.freezeWorklet) {
       this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(
-        Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.08
+        this.enabled.freeze ? this.freezeMix : 0, this.ctx.currentTime, 0.08
       );
     }
   }
   getFreezeFeedback(): number {
-    return this.freezeWorklet?.parameters.get("mix")?.value ?? 0.7;
+    return this.freezeMix;
   }
 
   // Per-effect wet level override (so the modal can expose AMOUNT)
   setEffectLevel(id: EffectId, level: number): void {
-    if (!this.enabled[id]) return;
     const v = Math.max(0, Math.min(1, level));
+    this.levels[id] = v;
+    if (id === "freeze") this.freezeMix = v;
     const now = this.ctx.currentTime;
+    const audible = this.enabled[id] ? v : 0;
     switch (id) {
-      case "plate":   this.plateSend.gain.setTargetAtTime(v, now, RAMP_TC); break;
-      case "hall":    this.hallSend.gain.setTargetAtTime(v, now, RAMP_TC); break;
-      case "shimmer": this.shimmerSend.gain.setTargetAtTime(v, now, RAMP_TC); break;
-      case "delay":   this.delaySend.gain.setTargetAtTime(v, now, RAMP_TC); break;
-      case "sub":     this.subSend.gain.setTargetAtTime(v, now, RAMP_TC); break;
-      case "comb":    this.combSend.gain.setTargetAtTime(v, now, RAMP_TC); break;
+      case "plate":   this.plateSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
+      case "hall":    this.hallSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
+      case "shimmer": this.shimmerSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
+      case "delay":   this.delaySend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
+      case "sub":     this.subSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
+      case "comb":    this.combSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
       case "freeze":
         if (this.freezeWorklet) {
-          this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(v, now, RAMP_TC);
+          this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(audible, now, RAMP_TC);
         }
         break;
       // TAPE and WOW are serial inserts — no "wet level" concept.
@@ -451,6 +462,10 @@ export class FxChain {
       case "wow":
         break;
     }
+  }
+
+  getEffectLevel(id: EffectId): number {
+    return this.levels[id];
   }
 
   /**

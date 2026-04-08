@@ -5,4 +5,6 @@ export const APP_VERSION = "0.0.1";
 export const STORAGE_KEYS = {
   palette: "mdrone-palette",
   darkMode: "mdrone-dark",
+  sessions: "mdrone-sessions",
+  currentSessionId: "mdrone-current-session-id",
 } as const;

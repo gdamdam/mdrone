@@ -1,14 +1,24 @@
 import type { ViewMode } from "../types";
 import { APP_VERSION } from "../config";
+import type { SavedSession } from "../session";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 
 interface HeaderProps {
   viewMode: ViewMode;
   setViewMode: (m: ViewMode) => void;
+  sessions: SavedSession[];
+  currentSessionId: string | null;
+  currentSessionName: string;
+  onLoadSession: (id: string) => void;
+  onSaveSession: () => void;
+  onRenameSession: () => void;
   onToggleRec: () => void;
   isRec: boolean;
   recTimeMs: number;
+  recordingSupported: boolean;
+  recordingTitle: string;
+  recordingBusy: boolean;
 }
 
 /**
@@ -18,9 +28,18 @@ interface HeaderProps {
 export function Header({
   viewMode,
   setViewMode,
+  sessions,
+  currentSessionId,
+  currentSessionName,
+  onLoadSession,
+  onSaveSession,
+  onRenameSession,
   onToggleRec,
   isRec,
   recTimeMs,
+  recordingSupported,
+  recordingTitle,
+  recordingBusy,
 }: HeaderProps) {
   return (
     <header className="header">
@@ -48,17 +67,50 @@ export function Header({
         ))}
       </div>
 
+      <div className="header-session">
+        <span className="header-session-name" title={`Current session: ${currentSessionName}`}>
+          {currentSessionName}
+        </span>
+        <div className="header-session-controls">
+          <select
+            value={currentSessionId ?? ""}
+            onChange={(e) => {
+              if (e.target.value) onLoadSession(e.target.value);
+            }}
+            className="header-select"
+            title="Load a saved session"
+            disabled={sessions.length === 0}
+          >
+            <option value="">
+              {sessions.length === 0 ? "No saved sessions" : "Load session..."}
+            </option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>
+                {session.name}
+              </option>
+            ))}
+          </select>
+          <button className="header-btn" onClick={onSaveSession} title="Save the current session">
+            SAVE
+          </button>
+          <button className="header-btn" onClick={onRenameSession} title="Rename the current session">
+            RENAME
+          </button>
+        </div>
+      </div>
+
       {/* Master record — captures the drone output as a WAV */}
       <button
         className={isRec ? "header-btn header-btn-rec" : "header-btn"}
         onClick={onToggleRec}
-        title={
-          isRec
-            ? "Stop master recording and download the WAV"
-            : "Record the full master output as a WAV file"
-        }
+        title={recordingTitle}
+        disabled={!recordingSupported || recordingBusy}
       >
-        {isRec
+        {!recordingSupported
+          ? "REC N/A"
+          : recordingBusy
+            ? "REC..."
+            : isRec
           ? `■ ${Math.floor(recTimeMs / 60000)}:${String(
               Math.floor((recTimeMs / 1000) % 60)
             ).padStart(2, "0")}`
