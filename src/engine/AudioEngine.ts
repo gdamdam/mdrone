@@ -513,6 +513,29 @@ export class AudioEngine {
     }
   }
 
+  applyDroneScene(
+    layers: Record<VoiceType, boolean>,
+    levels: Record<VoiceType, number>,
+    intervalsCents: number[],
+  ): void {
+    this.voiceUpdateDepth++;
+    try {
+      this.droneIntervalsCents = intervalsCents.length > 0 ? [...intervalsCents] : [0];
+      for (const type of ALL_VOICE_TYPES) {
+        this.voiceLayers[type] = layers[type];
+        this.layerLevels[type] = Math.max(0, Math.min(1, levels[type]));
+        const gain = this.layerGains.get(type);
+        if (gain) {
+          gain.gain.setTargetAtTime(this.layerLevels[type], this.ctx.currentTime, 0.08);
+        }
+      }
+      this.voiceRebuildPending = true;
+    } finally {
+      this.voiceUpdateDepth--;
+      this.flushVoiceRebuild();
+    }
+  }
+
   /** Ensure a GainNode exists for a layer and is wired to droneVoiceGain. */
   private ensureLayerGain(type: VoiceType): GainNode {
     let g = this.layerGains.get(type);

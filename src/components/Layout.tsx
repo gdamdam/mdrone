@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
-import type { ViewMode } from "../types";
+import type { PitchClass, ViewMode } from "../types";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
+import { PRESETS, SAFE_RANDOM_PRESET_IDS, createSafeRandomScene } from "../engine/presets";
 import {
   loadCurrentSessionId,
   loadSessions,
@@ -20,6 +21,13 @@ interface LayoutProps {
 }
 
 const DEFAULT_SESSION_NAME = "Untitled Session";
+const STARTUP_PRESET_IDS = SAFE_RANDOM_PRESET_IDS;
+const STARTUP_TONICS: PitchClass[] = ["C", "D", "F", "G", "A"];
+const STARTUP_OCTAVE = 2;
+const RANDOM_SCENE_TONICS: PitchClass[] = [
+  "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
+const RANDOM_SCENE_OCTAVES = [2, 3] as const;
 
 function captureMixerSnapshot(engine: AudioEngine): MixerSessionSnapshot {
   return {
@@ -65,7 +73,11 @@ export function Layout({ engine }: LayoutProps) {
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>(loadSessions);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => loadCurrentSessionId());
   const [currentSessionName, setCurrentSessionName] = useState(DEFAULT_SESSION_NAME);
+  const [currentPresetName, setCurrentPresetName] = useState<string>("Random Scene");
   const [mixerSyncToken, setMixerSyncToken] = useState(0);
+  const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
+  const [headerOctave, setHeaderOctave] = useState(2);
+  const [headerHolding, setHeaderHolding] = useState(false);
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
   const initSessionRef = useRef(false);
@@ -92,6 +104,14 @@ export function Layout({ engine }: LayoutProps) {
     initSessionRef.current = true;
 
     if (!currentSessionId) {
+      const startupPresets = STARTUP_PRESET_IDS
+        .map((id) => PRESETS.find((preset) => preset.id === id) ?? null)
+        .filter((preset): preset is (typeof PRESETS)[number] => preset !== null);
+      const presetPool = startupPresets.length > 0 ? startupPresets : PRESETS;
+      const randomPreset = presetPool[Math.floor(Math.random() * presetPool.length)];
+      const randomTonic = STARTUP_TONICS[Math.floor(Math.random() * STARTUP_TONICS.length)];
+      droneViewRef.current?.startImmediate(randomTonic, STARTUP_OCTAVE, randomPreset.id);
+      setCurrentPresetName(randomPreset.name);
       saveCurrentSessionId(null);
       return;
     }
@@ -108,6 +128,10 @@ export function Layout({ engine }: LayoutProps) {
     applyMixerSnapshot(engine, session.mixer);
     setMixerSyncToken((value) => value + 1);
     setCurrentSessionName(session.name);
+    const preset = session.drone.activePresetId
+      ? PRESETS.find((item) => item.id === session.drone.activePresetId) ?? null
+      : null;
+    setCurrentPresetName(preset?.name ?? "Custom Session");
   }, [currentSessionId, engine]);
 
   const persistSessions = (sessions: SavedSession[]) => {
@@ -181,8 +205,40 @@ export function Layout({ engine }: LayoutProps) {
     setMixerSyncToken((value) => value + 1);
     setCurrentSessionId(session.id);
     setCurrentSessionName(session.name);
+    const preset = session.drone.activePresetId
+      ? PRESETS.find((item) => item.id === session.drone.activePresetId) ?? null
+      : null;
+    setCurrentPresetName(preset?.name ?? "Custom Session");
     saveCurrentSessionId(session.id);
   };
+
+  const handleChangeTonic = (tonic: PitchClass) => {
+    droneViewRef.current?.setRoot(tonic);
+  };
+
+  const handleChangeOctave = (octave: number) => {
+    droneViewRef.current?.setOctave(octave);
+  };
+
+  const handleToggleHold = () => {
+    droneViewRef.current?.togglePlay();
+  };
+
+  const handleRandomScene = () => {
+    const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
+    const randomOctave =
+      RANDOM_SCENE_OCTAVES[Math.floor(Math.random() * RANDOM_SCENE_OCTAVES.length)];
+    const { preset, snapshot } = createSafeRandomScene(randomTonic, randomOctave);
+    droneViewRef.current?.applySnapshot(snapshot);
+    setCurrentSessionId(null);
+    setCurrentSessionName(DEFAULT_SESSION_NAME);
+    setCurrentPresetName(preset.name);
+    saveCurrentSessionId(null);
+  };
+
+  const displayText = currentSessionId
+    ? currentSessionName
+    : currentPresetName || "Random Scene";
 
   const recordingSupport = engine.getRecordingSupport();
   const recordingTitle = !recordingSupport.supported
@@ -236,7 +292,15 @@ export function Layout({ engine }: LayoutProps) {
         onLoadSession={handleLoadSession}
         onSaveSession={handleSaveSession}
         onRenameSession={handleRenameSession}
+        displayText={displayText}
+        tonic={headerTonic}
+        octave={headerOctave}
+        onChangeTonic={handleChangeTonic}
+        onChangeOctave={handleChangeOctave}
+        onToggleHold={handleToggleHold}
+        holding={headerHolding}
         onToggleRec={handleToggleRec}
+        onRandomScene={handleRandomScene}
         isRec={isRec}
         recTimeMs={recTimeMs}
         recordingSupported={recordingSupport.supported}
@@ -249,7 +313,18 @@ export function Layout({ engine }: LayoutProps) {
           className={viewMode === "drone" ? "view-panel view-panel-active" : "view-panel"}
           aria-hidden={viewMode !== "drone"}
         >
-          <DroneView ref={droneViewRef} engine={engine} />
+          <DroneView
+            ref={droneViewRef}
+            engine={engine}
+            onTransportChange={setHeaderHolding}
+            onTonicChange={(root, octave) => {
+              setHeaderTonic(root);
+              setHeaderOctave(octave);
+            }}
+            onPresetChange={(_presetId, presetName) => {
+              setCurrentPresetName(presetName ?? "Custom Scene");
+            }}
+          />
         </section>
         <section
           className={viewMode === "mixer" ? "view-panel view-panel-active" : "view-panel"}

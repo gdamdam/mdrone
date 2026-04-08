@@ -4,6 +4,7 @@ import type { VoiceType } from "./engine/VoiceBuilder";
 import type { PitchClass, ScaleId } from "./types";
 
 export interface DroneSessionSnapshot {
+  activePresetId: string | null;
   root: PitchClass;
   octave: number;
   scale: ScaleId;

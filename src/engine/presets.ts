@@ -23,6 +23,7 @@ import type { EffectId } from "./FxChain";
 import type { VoiceType } from "./VoiceBuilder";
 import { ALL_VOICE_TYPES } from "./VoiceBuilder";
 import type { ScaleId } from "../types";
+import type { DroneSessionSnapshot } from "../session";
 
 export interface Preset {
   id: string;
@@ -52,6 +53,31 @@ export interface Preset {
 
   scale: ScaleId;
 }
+
+const SCALE_INTERVALS: Record<ScaleId, number[]> = {
+  drone: [0],
+  major: [0, 400, 700],
+  minor: [0, 300, 700],
+  dorian: [0, 300, 700, 1000],
+  phrygian: [0, 100, 700],
+  just5: [0, 386.31, 701.96],
+  pentatonic: [0, 200, 700],
+};
+
+export const SAFE_RANDOM_PRESET_IDS = [
+  "tanpura-drone",
+  "shruti-box",
+  "malone-organ",
+  "dream-house",
+  "deep-listening",
+  "stone-organ",
+  "stars-of-the-lid",
+  "eno-airport",
+  "buddhist-monk-drone",
+  "tibetan-bowl",
+  "coil-time-machines",
+  "windscape",
+] as const;
 
 /**
  * The preset library — 9 authored scenes. Each one is a reference to
@@ -104,7 +130,7 @@ export const PRESETS: Preset[] = [
   },
   {
     id: "malone-organ",
-    name: "Kali Malone Organ",
+    name: "Kali Organ",
     attribution: "Minimalist pipe organ · Kali Malone",
     hint: "Reed + metal ranks stacked at just 5-limit intervals, slow bloom, hall + tape for the church space. Cathedral drone with Kali Malone's stillness.",
     voiceLayers: ["reed", "metal"],
@@ -188,7 +214,7 @@ export const PRESETS: Preset[] = [
   },
   {
     id: "stars-of-the-lid",
-    name: "Stars of the Lid",
+    name: "Nitrous Oxide",
     attribution: "Ambient cinematic · Wiltzie / McBride",
     hint: "Tanpura + metal + air layered with slow bloom, shimmer reverb, and delay. Cinematic, drifting, never fully present — the Stars of the Lid signature.",
     voiceLayers: ["tanpura", "metal", "air"],
@@ -209,7 +235,7 @@ export const PRESETS: Preset[] = [
   },
   {
     id: "radigue-drift",
-    name: "Radigue Drift",
+    name: "Radig Drift",
     attribution: "ARP 2500 minimalism · Éliane Radigue",
     hint: "Tanpura + air with maximum drift, comb resonator, freeze loop. Near-silence that keeps evolving — Radigue's instability filter technique in a browser.",
     voiceLayers: ["tanpura", "air"],
@@ -230,7 +256,7 @@ export const PRESETS: Preset[] = [
   },
   {
     id: "eno-airport",
-    name: "Eno Airport",
+    name: "Terminal Airport",
     attribution: "Ambient 1 · Brian Eno",
     hint: "Reed + air + metal at just intervals, slow glide, gentle hall + shimmer. Airy, floating, incommensurate motion — Music for Airports in one tap.",
     voiceLayers: ["reed", "air", "metal"],
@@ -251,7 +277,7 @@ export const PRESETS: Preset[] = [
   },
   {
     id: "buddhist-monk-drone",
-    name: "Buddhist Monk Drone",
+    name: "Low Chant",
     attribution: "Gyuto-inspired chant · ritual overtone drone",
     hint: "Low, centered reed body with a faint air breath and restrained bowl-metal halo. Built to suggest the very low fundamental and audible overtone shimmer associated with Tibetan monastic chant, without turning into a bright choir pad.",
     voiceLayers: ["reed", "metal", "air"],
@@ -314,7 +340,7 @@ export const PRESETS: Preset[] = [
   },
   {
     id: "nww-soliloquy",
-    name: "Soliloquy",
+    name: "Lilith Drift",
     attribution: "Nurse With Wound-inspired · feedback hum drift",
     hint: "Dark suspended feedback-hum atmosphere with unstable air, comb resonance, tape haze, and a faint frozen seam. More room tone and spectral drift than melody, inspired by Soliloquy for Lilith's hovering feedback worlds.",
     voiceLayers: ["air", "metal", "tanpura"],
@@ -404,6 +430,86 @@ const ALL_EFFECT_IDS: EffectId[] = [
   "tape", "wow", "plate", "hall", "shimmer", "delay", "sub", "comb", "freeze",
 ];
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function jitter(value: number, spread: number, min = 0, max = 1, random = Math.random): number {
+  return clamp(value + (random() * 2 - 1) * spread, min, max);
+}
+
+export function createPresetVariation(
+  preset: Preset,
+  root: DroneSessionSnapshot["root"],
+  octave: number,
+  random = Math.random,
+): DroneSessionSnapshot {
+  const voiceLayers: Record<VoiceType, boolean> = {
+    tanpura: false,
+    reed: false,
+    metal: false,
+    air: false,
+  };
+  const voiceLevels: Record<VoiceType, number> = {
+    tanpura: 1,
+    reed: 1,
+    metal: 1,
+    air: 1,
+  };
+
+  for (const type of preset.voiceLayers) {
+    voiceLayers[type] = true;
+  }
+  for (const type of ALL_VOICE_TYPES) {
+    const base = preset.voiceLevels?.[type] ?? (voiceLayers[type] ? 1 : 0);
+    voiceLevels[type] = voiceLayers[type]
+      ? jitter(base, 0.1, 0.08, 1, random)
+      : 0;
+  }
+
+  const effects = Object.fromEntries(
+    ALL_EFFECT_IDS.map((id) => [id, preset.effects.includes(id)])
+  ) as Record<EffectId, boolean>;
+
+  return {
+    activePresetId: preset.id,
+    root,
+    octave,
+    scale: preset.scale,
+    voiceLayers,
+    voiceLevels,
+    effects,
+    drift: jitter(preset.drift, 0.08, 0, 0.88, random),
+    air: jitter(preset.air, 0.08, 0.12, 0.82, random),
+    time: jitter(preset.time, 0.07, 0.03, 0.72, random),
+    sub: jitter(preset.sub, 0.08, 0, 0.78, random),
+    bloom: jitter(preset.bloom, 0.08, 0.08, 0.88, random),
+    glide: jitter(preset.glide, 0.08, 0.04, 0.72, random),
+    climateX: jitter(preset.climateX, 0.07, 0.08, 0.82, random),
+    climateY: jitter(preset.climateY, 0.07, 0.06, 0.78, random),
+    lfoShape: preset.lfoShape,
+    lfoRate: jitter(preset.lfoRate, Math.max(0.03, preset.lfoRate * 0.18), 0.03, 0.72, random),
+    lfoAmount: jitter(preset.lfoAmount, 0.06, 0, 0.3, random),
+  };
+}
+
+export function createSafeRandomScene(
+  root: DroneSessionSnapshot["root"],
+  octave: number,
+  random = Math.random,
+): { preset: Preset; snapshot: DroneSessionSnapshot } {
+  const safePresets = SAFE_RANDOM_PRESET_IDS
+    .map((id) => PRESETS.find((preset) => preset.id === id) ?? null)
+    .filter((preset): preset is Preset => preset !== null);
+  const presetPool = safePresets.length > 0 ? safePresets : PRESETS;
+  const preset = presetPool[Math.floor(random() * presetPool.length)];
+
+  return {
+    preset,
+    snapshot: createPresetVariation(preset, root, octave, random),
+  };
+}
+
 /**
  * DroneView-side state setters that a preset needs to update so the
  * UI reflects the new scene. These are passed in from the component
@@ -443,9 +549,6 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   }
   ui.setVoiceLayers(layers);
   ui.setVoiceLevels(levels);
-  if (engine) {
-    engine.applyVoiceState(layers, levels);
-  }
 
   // Macros
   ui.setDrift(preset.drift);
@@ -465,6 +568,10 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
 
   // Mode (scale)
   ui.setScale(preset.scale);
+
+  if (engine) {
+    engine.applyDroneScene(layers, levels, SCALE_INTERVALS[preset.scale] ?? [0]);
+  }
 
   // Effects — turn on the listed ones, off the rest
   const active = new Set(preset.effects);

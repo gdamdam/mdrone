@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AudioEngine } from "./engine/AudioEngine";
 import { Layout } from "./components/Layout";
+import { StartGate } from "./components/StartGate";
 import { applyPalette, loadPaletteId, PALETTES } from "./themes";
 
 /**
@@ -19,7 +20,7 @@ function getEngine(): AudioEngine {
 }
 
 export function App() {
-  const engine = getEngine();
+  const [started, setStarted] = useState(false);
 
   useEffect(() => {
     const id = loadPaletteId();
@@ -27,5 +28,18 @@ export function App() {
     applyPalette(palette);
   }, []);
 
+  if (!started) {
+    return (
+      <StartGate
+        onStart={async () => {
+          const engine = getEngine();
+          await engine.resume();
+          setStarted(true);
+        }}
+      />
+    );
+  }
+
+  const engine = getEngine();
   return <Layout engine={engine} />;
 }

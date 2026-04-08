@@ -139,11 +139,19 @@ const VOICES: VoiceDef[] = [
 
 interface DroneViewProps {
   engine: AudioEngine | null;
+  onTransportChange?: (playing: boolean) => void;
+  onTonicChange?: (root: PitchClass, octave: number) => void;
+  onPresetChange?: (presetId: string | null, presetName: string | null) => void;
 }
 
 export interface DroneViewHandle {
   getSnapshot(): DroneSessionSnapshot;
   applySnapshot(snapshot: DroneSessionSnapshot): void;
+  togglePlay(): void;
+  setRoot(root: PitchClass): void;
+  setOctave(octave: number): void;
+  applyPresetById(presetId: string): void;
+  startImmediate(root: PitchClass, octave: number, presetId?: string): void;
 }
 
 /**
@@ -155,12 +163,12 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange }: DroneViewProps,
   ref,
 ) {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [root, setRoot] = useState<PitchClass>("A");
-  const [octave, setOctave] = useState(3);
+  const [octave, setOctave] = useState(2);
   const [scale, setScale] = useState<ScaleId>("dorian");
   const [voiceLayers, setVoiceLayersState] = useState<Record<VoiceType, boolean>>(
     () => engine?.getVoiceLayers() ?? { tanpura: true, reed: false, metal: false, air: false }
@@ -385,9 +393,23 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   }, [engine, setDrift, setAir, setTime, setSub, setBloom, setGlide,
       setLfoShape, setLfoRate, setLfoAmount, setClimate, setEffectEnabled]);
 
+  useEffect(() => {
+    const preset = activePresetId ? PRESETS.find((p) => p.id === activePresetId) ?? null : null;
+    onPresetChange?.(activePresetId, preset?.name ?? null);
+  }, [activePresetId, onPresetChange]);
+
+  useEffect(() => {
+    onTransportChange?.(playing);
+  }, [onTransportChange, playing]);
+
+  useEffect(() => {
+    onTonicChange?.(root, octave);
+  }, [octave, onTonicChange, root]);
+
   useImperativeHandle(ref, () => ({
     getSnapshot() {
       return {
+        activePresetId,
         root,
         octave,
         scale,
@@ -408,6 +430,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       };
     },
     applySnapshot(snapshot) {
+      setActivePresetId(snapshot.activePresetId ?? null);
       setRoot(snapshot.root);
       setOctave(snapshot.octave);
       setScale(snapshot.scale);
@@ -427,8 +450,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
       if (!engine) return;
 
-      engine.setIntervals(scaleById(snapshot.scale).intervalsCents);
-      engine.applyVoiceState(snapshot.voiceLayers, snapshot.voiceLevels);
+      engine.applyDroneScene(
+        snapshot.voiceLayers,
+        snapshot.voiceLevels,
+        scaleById(snapshot.scale).intervalsCents,
+      );
       for (const id of Object.keys(snapshot.effects) as EffectId[]) {
         engine.setEffect(id, snapshot.effects[id]);
       }
@@ -445,7 +471,35 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       engine.setLfoAmount(snapshot.lfoAmount);
       if (playing) engine.setDroneFreq(pitchToFreq(snapshot.root, snapshot.octave));
     },
+    togglePlay,
+    setRoot(nextRoot) {
+      setRoot(nextRoot);
+    },
+    setOctave(nextOctave) {
+      setOctave(Math.max(1, Math.min(6, nextOctave)));
+    },
+    applyPresetById(presetId) {
+      handlePreset(presetId);
+    },
+    startImmediate(nextRoot, nextOctave, presetId) {
+      const clampedOctave = Math.max(1, Math.min(6, nextOctave));
+      let nextScale = scale;
+      if (presetId) {
+        const preset = PRESETS.find((item) => item.id === presetId);
+        if (preset) {
+          nextScale = preset.scale;
+          handlePreset(presetId);
+        }
+      }
+      setRoot(nextRoot);
+      setOctave(clampedOctave);
+      setPlaying(true);
+      if (!engine) return;
+      const freq = pitchToFreq(nextRoot, clampedOctave);
+      engine.startDrone(freq, scaleById(nextScale).intervalsCents);
+    },
   }), [
+    activePresetId,
     air,
     bloom,
     climate.x,
@@ -463,6 +517,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     scale,
     sub,
     time,
+    togglePlay,
+    handlePreset,
     voiceLayers,
     voiceLevels,
   ]);
@@ -486,39 +542,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               </button>
             ))}
           </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-label">TONIC</div>
-          <div className="tonic-wheel">
-            {PITCH_CLASSES.map((pc) => (
-              <button
-                key={pc}
-                onClick={() => setRoot(pc)}
-                className={pc === root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
-                title={`Set root to ${pc}${octave}`}
-              >
-                {pc}
-              </button>
-            ))}
-          </div>
-
-          <div className="tonic-meta">
-            <div className="octave-group">
-              <button className="octave-btn" onClick={() => setOctave((o) => Math.max(1, o - 1))}>−</button>
-              <span className="octave-label">OCT {octave}</span>
-              <button className="octave-btn" onClick={() => setOctave((o) => Math.min(6, o + 1))}>+</button>
-            </div>
-            <span className="freq-readout">{freq.toFixed(1)} Hz</span>
-          </div>
-
-          <button
-            className={playing ? "play-btn play-btn-active" : "play-btn"}
-            onClick={togglePlay}
-            title={playing ? "Stop the drone (Space)" : "Start the drone at the selected tonic (Space)"}
-          >
-            {playing ? "■ HOLDING" : "▶ HOLD"}
-          </button>
         </div>
 
         <div className="panel">
