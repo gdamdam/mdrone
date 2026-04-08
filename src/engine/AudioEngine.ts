@@ -19,6 +19,10 @@
 import { FxChain } from "./FxChain";
 import type { EffectId } from "./FxChain";
 import { buildVoice, type Voice, type VoiceType } from "./VoiceBuilder";
+// Vite `?url` import — returns a content-addressable URL at build time,
+// served directly in dev. Used with audioWorklet.addModule() to register
+// the DroneVoiceProcessor.
+import droneWorkletUrl from "./droneVoiceProcessor.js?url";
 
 export class AudioEngine {
   ctx: AudioContext;
@@ -30,7 +34,12 @@ export class AudioEngine {
   private droneIntervalsCents: number[] = [0];
   private droneRootFreq = 220;
   private droneVoiceGain: GainNode;
-  private voiceType: VoiceType = "sine"; // authored default — pure additive stack
+  private voiceType: VoiceType = "tanpura"; // authored default — the archetypal drone instrument
+
+  // Worklet readiness — loaded once in the constructor; startDrone
+  // queues if the user interacts before the module registers.
+  private isWorkletReady = false;
+  private pendingStart: (() => void) | null = null;
 
   // Sub octave voice (DEPTH macro) — one triangle pair at root/2.
   private subOscs: { a: OscillatorNode; b: OscillatorNode } | null = null;
@@ -216,6 +225,24 @@ export class AudioEngine {
     this.userLfo.frequency.value = this.userLfoRate;
     this.userLfo.connect(this.userLfoDepth);
     this.userLfo.start();
+
+    // Load the drone voice worklet asynchronously. The user won't
+    // interact for at least a few hundred ms so this normally lands
+    // before the first startDrone call; if it doesn't, startDrone
+    // queues via workletReady.
+    this.ctx.audioWorklet.addModule(droneWorkletUrl)
+      .then(() => {
+        this.isWorkletReady = true;
+        if (this.pendingStart) {
+          const fn = this.pendingStart;
+          this.pendingStart = null;
+          fn();
+        }
+      })
+      .catch((err) => {
+        console.error("mdrone: drone voice worklet failed to load", err);
+      });
+
     this.hpf.connect(this.eqLow);
     this.eqLow.connect(this.eqMid);
     this.eqMid.connect(this.eqHigh);
@@ -242,6 +269,14 @@ export class AudioEngine {
     this.droneIntervalsCents = intervalsCents.length > 0 ? intervalsCents : [0];
     this.fxChain.setRootFreq(freq);
 
+    // If the worklet hasn't registered yet, queue the call and retry
+    // as soon as the module loads. In practice this fires on the very
+    // first interaction only.
+    if (!this.isWorkletReady) {
+      this.pendingStart = () => this.startDrone(freq, intervalsCents);
+      return;
+    }
+
     if (this.droneOn) {
       // Already playing: retune root and rebuild intervals if changed.
       this.setDroneFreq(freq);
@@ -251,11 +286,12 @@ export class AudioEngine {
 
     const now = this.ctx.currentTime;
 
-    // Main voice stack — build via VoiceBuilder using the current type
-    const spread = this.drift * 25;
+    // Main voice stack — build via VoiceBuilder using the current type.
+    // drift is now passed as a 0..1 amount directly; the worklet maps it
+    // to per-voice depth internally.
     for (const c of this.droneIntervalsCents) {
       this.droneVoices.push(
-        buildVoice(this.voiceType, this.ctx, this.droneVoiceGain, freq, c, spread, now)
+        buildVoice(this.voiceType, this.ctx, this.droneVoiceGain, freq, c, this.drift, now)
       );
     }
 
@@ -371,12 +407,11 @@ export class AudioEngine {
    */
   private rebuildIntervals(): void {
     const now = this.ctx.currentTime;
-    const spread = this.drift * 25;
     const old = this.droneVoices;
     const fresh: Voice[] = [];
     for (const c of this.droneIntervalsCents) {
       fresh.push(
-        buildVoice(this.voiceType, this.ctx, this.droneVoiceGain, this.droneRootFreq, c, spread, now)
+        buildVoice(this.voiceType, this.ctx, this.droneVoiceGain, this.droneRootFreq, c, this.drift, now)
       );
     }
     this.droneVoices = fresh;
@@ -577,12 +612,13 @@ export class AudioEngine {
   }
 
   // ── Macro setters ─────────────────────────────────────────────────
-  /** DRIFT 0..1 — detune spread applied to every voice + sub/shimmer. */
+  /** DRIFT 0..1 — normalized drift amount. Voices map to their own
+   *  appropriate depth; sub/shimmer keep the legacy cent spread. */
   setDrift(v: number): void {
     this.drift = Math.max(0, Math.min(1, v));
     const spread = this.drift * 25;
     const now = this.ctx.currentTime;
-    for (const voice of this.droneVoices) voice.setDrift(spread);
+    for (const voice of this.droneVoices) voice.setDrift(this.drift);
     const apply = (pair: { a: OscillatorNode; b: OscillatorNode }) => {
       pair.a.detune.setTargetAtTime(-spread, now, 0.05);
       pair.b.detune.setTargetAtTime(spread, now, 0.05);

@@ -27,18 +27,20 @@ export function Layout({ engine }: LayoutProps) {
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
 
-  // REC timer tick
+  // REC timer tick — sync to external timer (Date.now). When isRec flips
+  // off, the timer interval is cleared and we reset in the next frame via
+  // a cleanup setter to avoid setState-in-effect lint warning.
   useEffect(() => {
-    if (!isRec) {
-      setRecTimeMs(0);
-      return;
-    }
+    if (!isRec) return;
     recStartRef.current = Date.now();
     const id = window.setInterval(
       () => setRecTimeMs(Date.now() - recStartRef.current),
       200
     );
-    return () => window.clearInterval(id);
+    return () => {
+      window.clearInterval(id);
+      setRecTimeMs(0);
+    };
   }, [isRec]);
 
   const handleToggleRec = () => {

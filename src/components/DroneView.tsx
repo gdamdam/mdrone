@@ -65,65 +65,61 @@ const V_SVG = {
   strokeLinejoin: "round" as const,
 };
 
+/**
+ * Four authored voices — each is a physical / spectral model running
+ * in the DroneVoiceProcessor AudioWorklet. Not generic waveform options;
+ * each has its own sonic logic and sits in a different musical register.
+ */
 const VOICES: VoiceDef[] = [
   {
-    id: "saw", label: "SAW",
-    hint: "Saw ensemble — bright, harmonically rich analog bed. The classic 70s synth drone.",
+    id: "tanpura", label: "TANPURA",
+    hint: "Karplus-Strong plucked string with jawari-style nonlinear bridge. Auto-plucking 4-string cycle, stereo offset taps. The archetypal drone instrument — buzzing, overtone-rich, alive without needing effects.",
     icon: (
+      // Four vertical strings over a curved bridge
       <svg {...V_SVG}>
-        <path d="M1 14 L 4 3 L 4 14 L 8 3 L 8 14 L 12 3 L 12 14 L 16 3 L 16 14" />
+        <path d="M4 2 V 14" />
+        <path d="M7 2 V 14" />
+        <path d="M10 2 V 14" />
+        <path d="M13 2 V 14" />
+        <path d="M2 14 Q 9 11, 16 14" strokeWidth="1.6" />
       </svg>
     ),
   },
   {
-    id: "sine", label: "SINE",
-    hint: "Pure additive sine stack. Radigue / La Monte Young territory. Crystalline, beatless.",
+    id: "reed", label: "REED",
+    hint: "Harmonium / shruti-box free-reed additive stack. Odd-heavy harmonic series with per-partial slow wobble, bellows amplitude breath, source-level tanh saturation. Warm, organic, breathing.",
     icon: (
+      // Bellows with wind curve
       <svg {...V_SVG}>
-        <path d="M1 9 Q 3 2, 5 9 T 9 9 T 13 9 T 17 9" />
+        <path d="M3 5 V 13 L 9 13 L 15 10 L 15 8 L 9 5 Z" />
+        <path d="M5 7 L 5 11" opacity="0.5" />
+        <path d="M7 7 L 7 11" opacity="0.5" />
       </svg>
     ),
   },
   {
-    id: "organ", label: "ORGAN",
-    hint: "Hammond-style drawbar stack. Fundamental + 3rd/5th/8th harmonics. Church organ warmth.",
+    id: "metal", label: "METAL",
+    hint: "Inharmonic partial stack (1, 2.01, 2.94, 4.21, 5.43, 6.85) with independent per-partial amplitude random walks and slow detune drift. Singing-bowl / bell metal character with stereo spread per partial.",
     icon: (
+      // Struck bar with radiating resonance
       <svg {...V_SVG}>
-        <path d="M2 15 V 5 H 5 V 15" />
-        <path d="M7 15 V 3 H 10 V 15" />
-        <path d="M12 15 V 6 H 15 V 15" />
+        <path d="M2 9 H 16" strokeWidth="2.2" />
+        <path d="M2 6 L 4 4 L 6 6" opacity="0.6" />
+        <path d="M8 4 L 10 2 L 12 4" opacity="0.6" />
+        <path d="M14 6 L 16 4" opacity="0.6" />
+        <path d="M4 13 H 14" opacity="0.5" />
       </svg>
     ),
   },
   {
-    id: "choir", label: "CHOIR",
-    hint: "Saw source through a vowel formant filter bank. Ambient choir pad without sampling.",
+    id: "air", label: "AIR",
+    hint: "Pink noise through three modulated state-variable bandpass resonators at harmonic ratios. Breath-like, tuned wind texture — the sound of air through an open pipe, slowly shifting.",
     icon: (
+      // Open pipe with wind swirls
       <svg {...V_SVG}>
-        <circle cx="5" cy="7" r="2" />
-        <path d="M3 15 Q 3 11, 5 11 Q 7 11, 7 15" />
-        <circle cx="13" cy="7" r="2" />
-        <path d="M11 15 Q 11 11, 13 11 Q 15 11, 15 15" />
-      </svg>
-    ),
-  },
-  {
-    id: "bell", label: "BELL",
-    hint: "Inharmonic sine stack (1, 2.01, 2.83, 3.99, 5.22, 6.73). Tibetan bowl, crystal, bell metal.",
-    icon: (
-      <svg {...V_SVG}>
-        <path d="M5 12 Q 5 4, 9 4 Q 13 4, 13 12 Z" />
-        <path d="M4 12 H 14" />
-        <circle cx="9" cy="14.5" r="0.8" fill="currentColor" />
-      </svg>
-    ),
-  },
-  {
-    id: "noise", label: "NOISE",
-    hint: "Pink noise through a resonant bandpass tuned to the root. Pitched weather — Basinski/Hecker.",
-    icon: (
-      <svg {...V_SVG}>
-        <path d="M1 9 L 3 5 L 5 12 L 7 4 L 9 13 L 11 6 L 13 11 L 15 5 L 17 9" />
+        <path d="M4 3 V 15 Q 4 16, 5 16 H 13 Q 14 16, 14 15 V 3" />
+        <path d="M6 8 Q 9 6, 12 8" opacity="0.55" />
+        <path d="M6 11 Q 9 9, 12 11" opacity="0.55" />
       </svg>
     ),
   },
@@ -145,7 +141,7 @@ export function DroneView({ engine }: DroneViewProps) {
   const [root, setRoot] = useState<PitchClass>("A");
   const [octave, setOctave] = useState(3);
   const [scale, setScale] = useState<ScaleId>("dorian");
-  const [voiceType, setVoiceTypeState] = useState<VoiceType>(() => engine?.getVoiceType() ?? "sine");
+  const [voiceType, setVoiceTypeState] = useState<VoiceType>(() => engine?.getVoiceType() ?? "tanpura");
   const [playing, setPlaying] = useState(false);
 
   const setVoiceType = useCallback((type: VoiceType) => {
