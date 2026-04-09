@@ -3,64 +3,17 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
-  useState,
 } from "react";
-import type { AudioEngine, EngineSceneMutation } from "../engine/AudioEngine";
-import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
-import type { EffectId } from "../engine/FxChain";
-import { PRESETS, applyPreset } from "../engine/presets";
+import type { AudioEngine } from "../engine/AudioEngine";
+import type { VoiceType } from "../engine/VoiceBuilder";
+import { PRESETS } from "../engine/presets";
 import { VuMeter } from "./VuMeter";
 import type { DroneSessionSnapshot } from "../session";
-import type { PitchClass, ScaleId } from "../types";
+import type { PitchClass } from "../types";
 import { FxBar } from "./FxBar";
-
-/** 12 pitch classes arranged around the tonic wheel. */
-const PITCH_CLASSES: PitchClass[] = [
-  "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
-];
-
-/** Frequency for a pitch class + octave — A4 = 440 Hz reference. */
-function pitchToFreq(pc: PitchClass, octave: number): number {
-  const idx = PITCH_CLASSES.indexOf(pc);
-  const semitonesFromA4 = idx - 9 + (octave - 4) * 12;
-  return 440 * Math.pow(2, semitonesFromA4 / 12);
-}
-
-function freqToPitch(freq: number): { pitchClass: PitchClass; octave: number } {
-  const midi = Math.round(69 + 12 * Math.log2(freq / 440));
-  const pitchClass = PITCH_CLASSES[((midi % 12) + 12) % 12];
-  const octave = Math.max(1, Math.min(6, Math.floor(midi / 12) - 1));
-  return { pitchClass, octave };
-}
-
-/**
- * Curated mode list — each scale exposes a small set of intervals (in
- * CENTS from the root) that the drone stacks on top of the root voice.
- * Equal-tempered modes use 100 × semitones. Just 5-limit uses the
- * exact integer ratios (1/1, 5/4, 3/2) expressed in cents so you hear
- * the beatless purity instead of equal-tempered thirds/fifths.
- */
-interface Scale {
-  id: ScaleId;
-  label: string;
-  intervalsCents: number[]; // 0 (root) is always included
-}
-
-const SCALES: Scale[] = [
-  { id: "drone",      label: "Drone",      intervalsCents: [0] },                 // single-note ritual drone
-  { id: "major",      label: "Major",      intervalsCents: [0, 400, 700] },          // 1 · M3 · P5
-  { id: "minor",      label: "Minor",      intervalsCents: [0, 300, 700] },          // 1 · m3 · P5
-  { id: "dorian",     label: "Dorian",     intervalsCents: [0, 300, 700, 1000] },    // 1 · m3 · P5 · m7
-  { id: "phrygian",   label: "Phrygian",   intervalsCents: [0, 100, 700] },          // 1 · m2 · P5 (tense)
-  { id: "just5",      label: "Just 5-limit", intervalsCents: [0, 386.31, 701.96] },  // 1/1 · 5/4 · 3/2
-  { id: "pentatonic", label: "Pentatonic", intervalsCents: [0, 200, 700] },          // 1 · M2 · P5
-];
-
-function scaleById(id: ScaleId): Scale {
-  return SCALES.find((s) => s.id === id) ?? SCALES[0];
-}
+import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
+import { useDroneScene } from "../scene/useDroneScene";
 
 /** Voice timbre list — each entry has an id, label, hint, and inline SVG.
  * Icons are defined inline (not as separate components) to avoid React
@@ -174,169 +127,38 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   { engine, onTransportChange, onTonicChange, onPresetChange }: DroneViewProps,
   ref,
 ) {
-  const [activePresetId, setActivePresetId] = useState<string | null>(null);
-  const [presetMorph, setPresetMorph] = useState(() => engine?.getPresetMorph() ?? 0.25);
-  const [presetEvolve, setPresetEvolve] = useState(() => engine?.getEvolve() ?? 0);
-  const [pluckRate, setPluckRate] = useState(() => engine?.getTanpuraPluckRate() ?? 1);
-  const [root, setRoot] = useState<PitchClass>("A");
-  const [octave, setOctave] = useState(2);
-  const [scale, setScale] = useState<ScaleId>("dorian");
-  const [voiceLayers, setVoiceLayersState] = useState<Record<VoiceType, boolean>>(
-    () => engine?.getVoiceLayers() ?? { tanpura: true, reed: false, metal: false, air: false }
-  );
-  const [voiceLevels, setVoiceLevelsState] = useState<Record<VoiceType, number>>(
-    () => ({
-      tanpura: engine?.getVoiceLevel("tanpura") ?? 1,
-      reed: engine?.getVoiceLevel("reed") ?? 1,
-      metal: engine?.getVoiceLevel("metal") ?? 1,
-      air: engine?.getVoiceLevel("air") ?? 1,
-    })
-  );
-
-  // Effect on/off state lives here (lifted from FxBar) so presets
-  // can toggle effects alongside everything else.
-  const [effectStates, setEffectStatesState] = useState<Record<EffectId, boolean>>(
-    () => engine?.getEffectStates() ?? {
-      tape: false, wow: false, plate: false, hall: false,
-      shimmer: false, delay: false, sub: false, comb: false, freeze: false,
-    }
-  );
-  const setEffectEnabled = useCallback((id: EffectId, on: boolean) => {
-    setEffectStatesState((prev) => ({ ...prev, [id]: on }));
-    engine?.setEffect(id, on);
-  }, [engine]);
-  const toggleEffect = useCallback((id: EffectId) => {
-    setEffectStatesState((prev) => {
-      const next = !prev[id];
-      engine?.setEffect(id, next);
-      return { ...prev, [id]: next };
-    });
-  }, [engine]);
-  const [playing, setPlaying] = useState(false);
-
-  const toggleVoiceLayer = useCallback((type: VoiceType) => {
-    setVoiceLayersState((prev) => {
-      const next = { ...prev, [type]: !prev[type] };
-      engine?.setVoiceLayer(type, next[type]);
-      return next;
-    });
-  }, [engine]);
-
-  const setVoiceLevel = useCallback((type: VoiceType, level: number) => {
-    setVoiceLevelsState((prev) => ({ ...prev, [type]: level }));
-    engine?.setVoiceLevel(type, level);
-  }, [engine]);
-
-  const [drift, setDriftState] = useState(() => engine?.getDrift() ?? 0.3);
-  const [air, setAirState] = useState(() => engine?.getAir() ?? 0.4);
-  const [time, setTimeState] = useState(() => engine?.getTime() ?? 0.5);
-  const [sub, setSubState] = useState(() => engine?.getSub() ?? 0);
-  const [bloom, setBloomState] = useState(() => engine?.getBloom() ?? 0.15);
-  const [glide, setGlideState] = useState(() => engine?.getGlide() ?? 0.15);
-
-  // Push macros to the engine whenever they change or the engine arrives.
-  const setDrift = useCallback((v: number) => {
-    setDriftState(v);
-    engine?.setDrift(v);
-  }, [engine]);
-  const setAir = useCallback((v: number) => {
-    setAirState(v);
-    engine?.setAir(v);
-  }, [engine]);
-  const setTime = useCallback((v: number) => {
-    setTimeState(v);
-    engine?.setTime(v);
-  }, [engine]);
-  const setSub = useCallback((v: number) => {
-    setSubState(v);
-    engine?.setSub(v);
-  }, [engine]);
-  const setBloom = useCallback((v: number) => {
-    setBloomState(v);
-    engine?.setBloom(v);
-  }, [engine]);
-  const setGlide = useCallback((v: number) => {
-    setGlideState(v);
-    engine?.setGlide(v);
-  }, [engine]);
-
-  // When the engine first becomes available, push current slider state down.
-  useEffect(() => {
-    if (!engine) return;
-    engine.setDrift(drift);
-    engine.setAir(air);
-    engine.setTime(time);
-    engine.setSub(sub);
-    engine.setBloom(bloom);
-    engine.setGlide(glide);
-    engine.setClimateX(climate.x);
-    engine.setClimateY(climate.y);
-    engine.setLfoShape(lfoShape);
-    engine.setLfoRate(lfoRate);
-    engine.setLfoAmount(lfoAmount);
-    engine.setPresetMorph(presetMorph);
-    engine.setEvolve(presetEvolve);
-    engine.setTanpuraPluckRate(pluckRate);
-    for (const t of ALL_VOICE_TYPES) {
-      engine.setVoiceLayer(t, voiceLayers[t]);
-      engine.setVoiceLevel(t, voiceLevels[t]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine]);
-
-  // Climate XY position (0..1 on each axis) — pushed live into engine
-  const [climate, setClimateState] = useState(() => ({
-    x: engine?.getClimateX() ?? 0.5,
-    y: engine?.getClimateY() ?? 0.5,
-  }));
-  const setClimate = useCallback((x: number, y: number) => {
-    setClimateState({ x, y });
-    engine?.setClimateX(x);
-    engine?.setClimateY(y);
-  }, [engine]);
-
-  // LFO state
-  const [lfoShape, setLfoShapeState] = useState<OscillatorType>(() => engine?.getLfoShape() ?? "sine");
-  const [lfoRate, setLfoRateState] = useState(() => engine?.getLfoRate() ?? 0.4);
-  const [lfoAmount, setLfoAmountState] = useState(() => engine?.getLfoAmount() ?? 0);
-  const setLfoShape = useCallback((s: OscillatorType) => {
-    setLfoShapeState(s);
-    engine?.setLfoShape(s);
-  }, [engine]);
-  const setLfoRate = useCallback((v: number) => {
-    setLfoRateState(v);
-    engine?.setLfoRate(v);
-  }, [engine]);
-  const setLfoAmount = useCallback((v: number) => {
-    setLfoAmountState(v);
-    engine?.setLfoAmount(v);
-  }, [engine]);
-
-  const freq = useMemo(() => pitchToFreq(root, octave), [root, octave]);
-
-  // Push tonic changes to the engine whenever root/octave change and the drone is on
-  useEffect(() => {
-    if (!engine || !playing) return;
-    engine.setDroneFreq(freq);
-  }, [engine, playing, freq]);
-
-  // Push mode (interval set) changes to the engine live — rebuilds the
-  // stack without dropping the root voice.
-  useEffect(() => {
-    if (!engine) return;
-    engine.setIntervals(scaleById(scale).intervalsCents);
-  }, [engine, scale]);
-
-  const togglePlay = useCallback(() => {
-    if (!engine) return;
-    if (playing) {
-      engine.stopDrone();
-      setPlaying(false);
-    } else {
-      engine.startDrone(freq, scaleById(scale).intervalsCents);
-      setPlaying(true);
-    }
-  }, [engine, playing, freq, scale]);
+  const {
+    state,
+    setRoot,
+    setOctave,
+    setScale,
+    setPresetMorph,
+    setPresetEvolve,
+    setPluckRate,
+    toggleVoiceLayer,
+    setVoiceLevel,
+    setDrift,
+    setAir,
+    setTime,
+    setSub,
+    setBloom,
+    setGlide,
+    setLfoShape,
+    setLfoRate,
+    setLfoAmount,
+    setClimate,
+    toggleEffect,
+    togglePlay,
+    handlePreset,
+    getSnapshot,
+    applySnapshot,
+    startImmediate,
+  } = useDroneScene({
+    engine,
+    onTransportChange,
+    onTonicChange,
+    onPresetChange,
+  });
 
   // Spacebar toggles HOLD — ignored while typing into an input/textarea
   useEffect(() => {
@@ -383,208 +205,24 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ok */ }
   }, []);
 
-    // Preset application — wires all engine + UI state together.
-  const handlePreset = useCallback((presetId: string) => {
-    const preset = PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    setActivePresetId(presetId);
-    applyPreset(engine, preset, {
-      setVoiceLayers: (m) => setVoiceLayersState(m),
-      setVoiceLevels: (m) => setVoiceLevelsState(m),
-      setDrift,
-      setAir,
-      setTime,
-      setSub,
-      setBloom,
-      setGlide,
-      setLfoShape,
-      setLfoRate,
-      setLfoAmount,
-      setClimate,
-      setScale,
-      setEffectEnabled,
-    });
-  }, [engine, setDrift, setAir, setTime, setSub, setBloom, setGlide,
-      setLfoShape, setLfoRate, setLfoAmount, setClimate, setEffectEnabled]);
-
-  useEffect(() => {
-    const preset = activePresetId ? PRESETS.find((p) => p.id === activePresetId) ?? null : null;
-    onPresetChange?.(activePresetId, preset?.name ?? null);
-  }, [activePresetId, onPresetChange]);
-
-  useEffect(() => {
-    onTransportChange?.(playing);
-  }, [onTransportChange, playing]);
-
-  useEffect(() => {
-    onTonicChange?.(root, octave);
-  }, [octave, onTonicChange, root]);
-
-  useEffect(() => {
-    if (!engine) return;
-    return engine.subscribeSceneMutations((mutation: EngineSceneMutation) => {
-      if (mutation.rootFreq !== undefined) {
-        const nextPitch = freqToPitch(mutation.rootFreq);
-        setRoot(nextPitch.pitchClass);
-        setOctave(nextPitch.octave);
-      }
-      if (mutation.drift !== undefined) setDriftState(mutation.drift);
-      if (mutation.sub !== undefined) setSubState(mutation.sub);
-      if (mutation.bloom !== undefined) setBloomState(mutation.bloom);
-      if (mutation.climateX !== undefined || mutation.climateY !== undefined) {
-        setClimateState((prev) => ({
-          x: mutation.climateX ?? prev.x,
-          y: mutation.climateY ?? prev.y,
-        }));
-      }
-    });
-  }, [engine]);
-
   useImperativeHandle(ref, () => ({
-    getSnapshot() {
-      return {
-        activePresetId,
-        playing,
-        root,
-        octave,
-        scale,
-        voiceLayers: { ...voiceLayers },
-        voiceLevels: { ...voiceLevels },
-        effects: { ...effectStates },
-        drift,
-        air,
-        time,
-        sub,
-        bloom,
-        glide,
-        climateX: climate.x,
-        climateY: climate.y,
-        lfoShape,
-        lfoRate,
-        lfoAmount,
-        presetMorph,
-        evolve: presetEvolve,
-        pluckRate,
-        presetTrim: engine?.getPresetTrim() ?? 1,
-      };
-    },
-    applySnapshot(snapshot) {
-      const shouldPlay = snapshot.playing ?? false;
-      const nextFreq = pitchToFreq(snapshot.root, snapshot.octave);
-      const nextIntervals = scaleById(snapshot.scale).intervalsCents;
-
-      if (engine && playing && !shouldPlay) {
-        engine.stopDrone();
-      }
-
-      setActivePresetId(snapshot.activePresetId ?? null);
-      setPlaying(shouldPlay);
-      setRoot(snapshot.root);
-      setOctave(snapshot.octave);
-      setScale(snapshot.scale);
-      setVoiceLayersState({ ...snapshot.voiceLayers });
-      setVoiceLevelsState({ ...snapshot.voiceLevels });
-      setEffectStatesState({ ...snapshot.effects });
-      setDriftState(snapshot.drift);
-      setAirState(snapshot.air);
-      setTimeState(snapshot.time);
-      setSubState(snapshot.sub);
-      setBloomState(snapshot.bloom);
-      setGlideState(snapshot.glide);
-      setClimateState({ x: snapshot.climateX, y: snapshot.climateY });
-      setLfoShapeState(snapshot.lfoShape);
-      setLfoRateState(snapshot.lfoRate);
-      setLfoAmountState(snapshot.lfoAmount);
-      setPresetMorph(snapshot.presetMorph);
-      setPresetEvolve(snapshot.evolve);
-      setPluckRate(snapshot.pluckRate);
-
-      if (!engine) return;
-
-      engine.applyDroneScene(
-        snapshot.voiceLayers,
-        snapshot.voiceLevels,
-        nextIntervals,
-      );
-      for (const id of Object.keys(snapshot.effects) as EffectId[]) {
-        engine.setEffect(id, snapshot.effects[id]);
-      }
-      engine.setDrift(snapshot.drift);
-      engine.setAir(snapshot.air);
-      engine.setTime(snapshot.time);
-      engine.setSub(snapshot.sub);
-      engine.setBloom(snapshot.bloom);
-      engine.setGlide(snapshot.glide);
-      engine.setClimateX(snapshot.climateX);
-      engine.setClimateY(snapshot.climateY);
-      engine.setLfoShape(snapshot.lfoShape);
-      engine.setLfoRate(snapshot.lfoRate);
-      engine.setLfoAmount(snapshot.lfoAmount);
-      engine.setPresetMorph(snapshot.presetMorph);
-      engine.setEvolve(snapshot.evolve);
-      engine.setTanpuraPluckRate(snapshot.pluckRate);
-      engine.setPresetTrim(snapshot.presetTrim);
-      if (shouldPlay) {
-        // Always call startDrone — its "already on" branch just retunes
-        // and rebuilds, so it's safe regardless of the stale React
-        // `playing` closure. Branching on `playing` here was dropping the
-        // start when applySnapshot ran during app boot from a shared link.
-        engine.startDrone(nextFreq, nextIntervals);
-      }
-    },
+    getSnapshot,
+    applySnapshot,
     togglePlay,
-    setRoot(nextRoot) {
-      setRoot(nextRoot);
-    },
-    setOctave(nextOctave) {
-      setOctave(Math.max(1, Math.min(6, nextOctave)));
-    },
+    setRoot,
+    setOctave,
     applyPresetById(presetId) {
       handlePreset(presetId);
     },
-    startImmediate(nextRoot, nextOctave, presetId) {
-      const clampedOctave = Math.max(1, Math.min(6, nextOctave));
-      let nextScale = scale;
-      if (presetId) {
-        const preset = PRESETS.find((item) => item.id === presetId);
-        if (preset) {
-          nextScale = preset.scale;
-          handlePreset(presetId);
-        }
-      }
-      setRoot(nextRoot);
-      setOctave(clampedOctave);
-      setPlaying(true);
-      if (!engine) return;
-      const freq = pitchToFreq(nextRoot, clampedOctave);
-      engine.startDrone(freq, scaleById(nextScale).intervalsCents);
-    },
+    startImmediate,
   }), [
-    activePresetId,
-    air,
-    bloom,
-    climate.x,
-    climate.y,
-    drift,
-    effectStates,
-    engine,
-    glide,
-    lfoAmount,
-    lfoRate,
-    lfoShape,
-    octave,
-    playing,
-    pluckRate,
-    presetEvolve,
-    presetMorph,
-    root,
-    scale,
-    sub,
-    time,
+    applySnapshot,
+    getSnapshot,
+    setOctave,
+    setRoot,
+    startImmediate,
     togglePlay,
     handlePreset,
-    voiceLayers,
-    voiceLevels,
   ]);
 
   return (
@@ -598,7 +236,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <button
                 key={p.id}
                 onClick={() => handlePreset(p.id)}
-                className={activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
+                className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
                 title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
               >
                 <span className="preset-btn-name">{p.name}</span>
@@ -613,7 +251,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               min={0}
               max={1}
               step={0.01}
-              value={presetMorph}
+              value={state.presetMorph}
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
                 setPresetMorph(v);
@@ -622,7 +260,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               className="preset-morph-slider"
               title="How slowly the drone morphs between presets. 0 = snap, 1 = glacial (~6 s macros, 4× bloom crossfade)."
             />
-            <span className="preset-morph-value">{Math.round(presetMorph * 100)}%</span>
+            <span className="preset-morph-value">{Math.round(state.presetMorph * 100)}%</span>
           </div>
           <div className="preset-morph-row">
             <span className="preset-morph-label">EVOLVE</span>
@@ -631,7 +269,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               min={0}
               max={1}
               step={0.01}
-              value={presetEvolve}
+              value={state.evolve}
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
                 setPresetEvolve(v);
@@ -640,7 +278,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               className="preset-morph-slider"
               title="How much the drone evolves itself during play. 0 = static · 0.4 = gentle atmosphere drift · 0.7 = + occasional tonic walks (P4/P5) · 1 = active drift + note walks."
             />
-            <span className="preset-morph-value">{Math.round(presetEvolve * 100)}%</span>
+            <span className="preset-morph-value">{Math.round(state.evolve * 100)}%</span>
           </div>
           <div className="preset-morph-row">
             <span className="preset-morph-label">PLUCK</span>
@@ -649,7 +287,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               min={0.2}
               max={4}
               step={0.05}
-              value={pluckRate}
+              value={state.pluckRate}
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
                 setPluckRate(v);
@@ -658,7 +296,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               className="preset-morph-slider"
               title="Tanpura re-pluck rate. 0.2× = ~15 s between strings (very slow), 1× = traditional ~3 s cycle, 4× = rapid plucking. Only affects the tanpura voice."
             />
-            <span className="preset-morph-value">{pluckRate.toFixed(1)}×</span>
+            <span className="preset-morph-value">{state.pluckRate.toFixed(1)}×</span>
           </div>
         </div>
 
@@ -669,8 +307,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <button
                 key={pc}
                 onClick={() => setRoot(pc)}
-                className={pc === root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
-                title={`Set root to ${pc}${octave}`}
+                className={pc === state.root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
+                title={`Set root to ${pc}${state.octave}`}
               >
                 {pc}
               </button>
@@ -685,7 +323,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <button
                 key={s.id}
                 onClick={() => setScale(s.id)}
-                className={s.id === scale ? "scale-btn scale-btn-active" : "scale-btn"}
+                className={s.id === state.scale ? "scale-btn scale-btn-active" : "scale-btn"}
                 title={`Modal set: ${s.label} — biases the harmonic voices that fit the tonic`}
               >
                 {s.label}
@@ -701,7 +339,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <button
                 key={v.id}
                 onClick={() => toggleVoiceLayer(v.id)}
-                className={voiceLayers[v.id] ? "timbre-btn timbre-btn-active" : "timbre-btn"}
+                className={state.voiceLayers[v.id] ? "timbre-btn timbre-btn-active" : "timbre-btn"}
                 title={v.hint}
               >
                 <span className="timbre-btn-icon">{v.icon}</span>
@@ -711,17 +349,17 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </div>
           {/* Per-layer level sliders — only shown for active layers. */}
           <div className="layer-levels">
-            {VOICES.map((v) => voiceLayers[v.id] && (
+            {VOICES.map((v) => state.voiceLayers[v.id] && (
               <div key={v.id} className="layer-level-row">
                 <span className="layer-level-label">{v.label}</span>
                 <input
                   type="range" min={0} max={1} step={0.01}
-                  value={voiceLevels[v.id]}
+                  value={state.voiceLevels[v.id]}
                   onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
                   className="macro-slider"
                   title={`${v.label} mix level`}
                 />
-                <span className="layer-level-value">{Math.round(voiceLevels[v.id] * 100)}</span>
+                <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
               </div>
             ))}
           </div>
@@ -731,46 +369,46 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           <div className="panel-label">MACROS</div>
           <Macro
             label="DRIFT"
-            value={drift}
+            value={state.drift}
             onChange={setDrift}
             icon={<IconDrift />}
             title="Drift — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
           />
           <Macro
             label="AIR"
-            value={air}
+            value={state.air}
             onChange={setAir}
             icon={<IconAir />}
             title="Air — wet send into the atmosphere chain (reverb + space)"
           />
           <Macro
             label="TIME"
-            value={time}
+            value={state.time}
             onChange={setTime}
             icon={<IconTime />}
             title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
           />
           <Macro
             label="SUB"
-            value={sub}
+            value={state.sub}
             onChange={setSub}
             icon={<IconSub />}
             title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
           />
           <Macro
             label="BLOOM"
-            value={bloom}
+            value={state.bloom}
             onChange={setBloom}
             icon={<IconBloom />}
-            displayValue={`${(0.3 + bloom * 9.7).toFixed(1)}s`}
+            displayValue={`${(0.3 + state.bloom * 9.7).toFixed(1)}s`}
             title="Bloom — attack time on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
           />
           <Macro
             label="GLIDE"
-            value={glide}
+            value={state.glide}
             onChange={setGlide}
             icon={<IconGlide />}
-            displayValue={`${(0.05 * Math.pow(160, glide)).toFixed(2)}s`}
+            displayValue={`${(0.05 * Math.pow(160, state.glide)).toFixed(2)}s`}
             title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
           />
         </div>
@@ -782,7 +420,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <button
                 key={s}
                 onClick={() => setLfoShape(s)}
-                className={s === lfoShape ? "lfo-shape-btn lfo-shape-btn-active" : "lfo-shape-btn"}
+                className={s === state.lfoShape ? "lfo-shape-btn lfo-shape-btn-active" : "lfo-shape-btn"}
                 title={`LFO wave shape: ${s}`}
               >
                 <IconShape shape={s} />
@@ -791,15 +429,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </div>
           <Macro
             label="RATE"
-            value={(Math.log(lfoRate / 0.05) / Math.log(160))}
+            value={(Math.log(state.lfoRate / 0.05) / Math.log(160))}
             onChange={(v) => setLfoRate(0.05 * Math.pow(160, v))}
             icon={<IconRate />}
-            displayValue={`${lfoRate.toFixed(2)} Hz`}
+            displayValue={`${state.lfoRate.toFixed(2)} Hz`}
             title="LFO rate — speed of the breathing/tremolo. 0.05 Hz (very slow) to 8 Hz (fluttering)"
           />
           <Macro
             label="DEPTH"
-            value={lfoAmount}
+            value={state.lfoAmount}
             onChange={setLfoAmount}
             icon={<IconDepth />}
             title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
@@ -826,7 +464,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           >
             <div
               className="climate-cursor"
-              style={{ left: `${climate.x * 100}%`, bottom: `${climate.y * 100}%` }}
+              style={{ left: `${state.climateX * 100}%`, bottom: `${state.climateY * 100}%` }}
             />
             <span className="climate-axis climate-axis-x-left">DARK</span>
             <span className="climate-axis climate-axis-x-right">BRIGHT</span>
@@ -836,7 +474,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         </div>
 
         {/* Effects chain — mpump-kaos-style toggle row below the XY pad */}
-        <FxBar engine={engine} states={effectStates} onToggle={toggleEffect} />
+        <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
       </div>
     </div>
   );

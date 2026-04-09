@@ -18,6 +18,7 @@ dist-ssr
 *.log
 coverage
 *.tsbuildinfo
+.test-dist
 
 # Local project knowledge — gitignored by design
 misc/

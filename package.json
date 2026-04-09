@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "tsc -p tsconfig.test.json && node scripts/fix-test-imports.mjs && node --test tests/*.test.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist --dotfiles -b gh-pages"
   },
