@@ -1,6 +1,10 @@
 <h1 align="center">mdrone</h1>
 <p align="center"><strong>Hold a note. Shape the air. Save the atmosphere.</strong><br><br>A browser drone instrument for long tones, harmonic beds, and slow-moving space.<br>Pick a tonic, build a timbre stack, drift it through weather and effects.<br>No install. No account. Free.</p>
 
+<p align="center">
+  <a href="https://mdrone.mpump.live/">https://mdrone.mpump.live/</a>
+</p>
+
 ---
 
 mdrone is a browser instrument for sustained sound.
@@ -10,6 +14,7 @@ It starts quickly, sounds physical, and stays focused on one job: sustained harm
 - **Hold a drone in the browser** — tonic, mode, timbre layers, climate, and master bus are ready right away.
 - **Shape the sound slowly** — drift, air, time, sub, bloom, glide, breathing LFO, and a large XY climate surface.
 - **Build real texture** — four authored voice models and a nine-effect chain, including worklet-based plate, shimmer, and freeze.
+- **Let the drone evolve** — preset morphing, self-evolution, tanpura pluck-rate control, random scene generation, and a dedicated listening view keep long tones alive.
 - **Save sessions locally** — store, load, and rename browser sessions without leaving the app.
 - **Record the master** — export the final stereo output as WAV when the browser supports the recording path.
 
@@ -18,13 +23,16 @@ The core idea is simple: mdrone owns sustain.
 Go deeper if you want:
 - 4 authored voice engines
 - 9 effects
+- 16 authored presets
+- 14 Meditate visualizers
+- Web MIDI note input
 - saved browser sessions
 - WAV master recording
 - mixer matched to the mpump / mloop family vocabulary
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.0.1-blue" alt="Version">
-  <img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License">
+  <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version"></a>
+  <a href="https://github.com/gdamdam/mdrone/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/Web%20Audio-API-FF6600" alt="Web Audio API">
   <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">
 </p>
@@ -35,8 +43,10 @@ Go deeper if you want:
 
 - **Start a drone in seconds** — choose a tonic, mode, octave, and press HOLD.
 - **Layer timbres** — combine tanpura, reed, metal, and air voices with independent levels.
-- **Push the room around** — use DRIFT, AIR, TIME, SUB, BLOOM, GLIDE, breathing LFO, and the XY climate surface.
-- **Build atmosphere fast** — plate, hall, shimmer, delay, tape, wow, sub, comb, and freeze are all one tap away, with long-press settings.
+- **Push the room around** — use DRIFT, AIR, TIME, SUB, BLOOM, GLIDE, breathing LFO, MORPH, EVOLVE, PLUCK, and the XY climate surface.
+- **Build atmosphere fast** — plate, hall, shimmer, delay, tape, wow, sub, comb, and freeze are all one tap away, with long-press effect settings.
+- **Listen inside the drone** — switch to MEDITATE for analyser-driven visualizers that breathe with the sound.
+- **Play from hardware** — enable Web MIDI note input to retune the tonic from an external keyboard or controller.
 - **Save your scene** — keep named sessions in browser storage and come back to them later.
 - **Mix the output** — shape the final bus with HPF, 3-band EQ, glue, drive, limiter, and trim.
 
@@ -46,7 +56,7 @@ No install. No account. No personal tracking. Session data stays in your browser
 
 ## Table of Contents
 
-- [Two Views](#two-views)
+- [Three Views](#three-views)
 - [Audio Engine](#audio-engine)
 - [Voices And Effects](#voices-and-effects)
 - [Features](#features)
@@ -58,11 +68,12 @@ No install. No account. No personal tracking. Session data stays in your browser
 
 ---
 
-## Two Views
+## Three Views
 
 | View | Description |
 |---|---|
 | **DRONE** | Header tonic / octave / hold controls, preset library, mode selection, layered voice stack, macros, breathing LFO, climate XY pad, and effect strip with long-press configuration |
+| **MEDITATE** | Full-screen visualizer layer that breathes with the analyser output and turns the drone into a focused listening surface |
 | **MIXER** | Master bus with HPF, 3-band EQ, glue compressor, drive, limiter, ceiling, clip indicator, and final output trim |
 
 ---
@@ -75,9 +86,15 @@ All sound is synthesized in real time with the Web Audio API. No sample library 
 
 **Climate And Motion**: The climate XY pad maps brightness to the main filter cutoff and motion to filter-sweep depth. TIME controls the weather LFO rate. A separate user LFO adds breathing/tremolo on the voice gain.
 
-**Atmosphere Chain**: The dry signal and shimmer octave source feed a dedicated FX chain before the master bus. AIR controls the global wet return.
+**Atmosphere Chain**: The dry signal and shimmer octave source feed a fixed serial FX chain before the master bus. TAPE, WOW, SUB, COMB, DELAY, PLATE, HALL, SHIMMER, and FREEZE can be toggled independently, and long-press settings expose per-effect controls such as amount, feedback, resonance, sub center, and freeze mix. AIR controls the reverb-family wet return.
 
 **Master Bus**: HPF, 3-band EQ, glue compression, drive, limiter, trim, and analyser. The mixer vocabulary matches the wider mpump / mloop family so the three apps read like one system.
+
+**Preset Motion**: MORPH slows preset transitions into long crossfades, EVOLVE lets scenes slowly drift by themselves during playback, and PLUCK changes the tanpura re-pluck cycle without affecting the other voices.
+
+**Meditate View**: A separate visualizer surface reads the analyser and mood of the current drone, then drives multiple long-form canvases for focused listening rather than editing.
+
+**MIDI**: Web MIDI note-in can retune the current tonic and octave from external hardware keyboards or controllers. No MIDI output or clock sync is involved; it is purely a note-in performance control.
 
 **Recording**: The final post-limiter, post-trim master can be captured and rendered to WAV through the browser recording path when `MediaRecorder` plus WebM audio support are available.
 
@@ -114,18 +131,25 @@ All sound is synthesized in real time with the Web Audio API. No sample library 
 
 **Performance**
 - Header tonic selector, octave control, HOLD transport, and random scene trigger
-- 6 modal stacks: major, minor, dorian, phrygian, just 5-limit, pentatonic
+- 7 scale sets: drone, major, minor, dorian, phrygian, just 5-limit, pentatonic
 - 6 core macros: drift, air, time, sub, bloom, glide
 - Breathing LFO with sine, triangle, square, and sawtooth shapes
+- MORPH control for slow preset-to-preset transitions
+- EVOLVE control for self-moving long-form scenes
+- PLUCK control for tanpura re-pluck speed
 - Large XY climate pad for brightness and motion
 - Spacebar toggles HOLD
 - 16 authored presets inspired by drone traditions and ambient composers
+- Random startup scene and random scene generator
+- Web MIDI note-in for tonic / octave performance from external devices
 
 **Sound Design**
 - Layer any combination of the 4 voice engines
 - Per-layer level control
 - Long-press effect settings for amount, resonance, delay time, sub center, and freeze mix
 - Shimmer octave voice tied directly to the shimmer effect state
+- Serial atmosphere chain with tape, wow, sub, comb, delay, plate, hall, shimmer, and freeze
+- Preset-specific loudness trim so scenes stay in a usable range
 
 **Mixer**
 - HPF with quick OFF / 20 / 30 / 40 Hz stepping
@@ -136,9 +160,10 @@ All sound is synthesized in real time with the Web Audio API. No sample library 
 - Clip LED and final output trim
 
 **Interface**
-- Warm ember-led palette system
+- 3 warm palettes: Ember, Copper, Dusk
 - Responsive two-column layout that collapses for smaller screens
-- Sticky header with transport, tonic, random scene, sessions, and recording controls
+- Sticky header with transport, tonic, random scene, sessions, recording, and MIDI access
+- MEDITATE view with 14 analyser-driven visualizers and fullscreen mode
 - Session persistence via browser storage
 
 ---
@@ -152,6 +177,7 @@ mdrone supports named local sessions stored in `localStorage`.
 - **Rename** updates the saved session name in place
 
 Sessions include:
+- active preset id
 - tonic, octave, mode
 - voice layer on/off state and levels
 - macro values
@@ -182,8 +208,8 @@ mdrone/
   public/
     robots.txt          # search engines blocked from indexing deployments
   src/
-    components/         # React UI for drone, mixer, header, footer, effects
-    engine/             # Audio engine, voice builder, FX chain, worklet processors, presets
+    components/         # React UI for drone, meditate, mixer, header, footer, sessions, effects
+    engine/             # Audio engine, voice builder, FX chain, worklet processors, presets, MIDI input
     styles/             # global CSS
     App.tsx             # singleton engine bootstrap + theme init
     config.ts           # app version + storage keys
@@ -196,16 +222,46 @@ mdrone/
 
 ## Privacy
 
-mdrone does not require an account and does not need a backend to store your instrument state.
+mdrone does not use accounts, cookies, ads, or personal tracking.
 
-- Sessions are saved locally in your browser
-- Audio is synthesized locally in your browser
-- Search engines are blocked via `robots.txt` in deployments that serve the `public/` folder unchanged
+It keeps the instrument self-contained so the drone stays yours.
+
+### What mdrone does not collect
+
+- **No accounts**: no sign-up, no email, no profile
+- **No cookies**: no login cookies, no ad cookies, no analytics cookies
+- **No user IDs**: no persistent personal identifier assigned to you
+- **No fingerprinting**: no hidden identity built from your browser or device
+- **No third-party trackers**: no ad networks or embedded analytics scripts
+
+### What stays local
+
+- **Sessions** stay in your browser on your device via `localStorage`
+- **Audio** is synthesized locally in the browser with Web Audio and AudioWorklet
+- **Recordings** are rendered and downloaded locally in the browser when supported
+- **Open source**: full codebase on [GitHub](https://github.com/gdamdam/mdrone)
+
+### Hosting
+
+mdrone is hosted on [GitHub Pages](https://pages.github.com).
+
+Search engines are blocked via `robots.txt` in deployments that serve the `public/` folder unchanged.
+
+---
+
+Your drone stays on your device. Always.
 
 ---
 
 ## License
 
-mdrone is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**.
+[AGPL-3.0](LICENSE)
 
-If you modify mdrone and run it for users over a network, the AGPL requires that you also make the corresponding source available under the same license.
+## Trademark
+
+"mdrone" is an unregistered trademark of the author.
+Use of the name or logo for derivative projects or services may cause confusion and is not permitted.
+
+---
+
+Built with Claude Code. Design, architecture, UX, audio chain, and creative direction by [gdamdam](https://github.com/gdamdam).
