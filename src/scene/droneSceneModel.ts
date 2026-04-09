@@ -46,7 +46,7 @@ export function scaleById(id: ScaleId): Scale {
 export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSceneState {
   return {
     activePresetId: null,
-    playing: false,
+    playing: true, // default to playing — drone starts as soon as AudioContext resumes
     root: "A",
     octave: 2,
     scale: "dorian",

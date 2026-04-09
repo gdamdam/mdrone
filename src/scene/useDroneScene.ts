@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { AudioEngine, EngineSceneMutation } from "../engine/AudioEngine";
 import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
 import type { EffectId } from "../engine/FxChain";
@@ -217,6 +217,18 @@ export function useDroneScene({
     if (!engine || !state.playing) return;
     engine.setDroneFreq(freq);
   }, [engine, state.playing, freq]);
+
+  // Auto-start: fires once when the engine first becomes available and the
+  // scene wants to be playing. Used both by the normal startup path (after
+  // StartGate resumes the AudioContext) and by shared-link loads. Guarded
+  // by a ref so it never re-fires on later engine-availability changes.
+  const didAutostartRef = useRef(false);
+  useEffect(() => {
+    if (!engine || didAutostartRef.current) return;
+    if (!state.playing) return;
+    engine.startDrone(freq, scaleById(state.scale).intervalsCents);
+    didAutostartRef.current = true;
+  }, [engine, state.playing, freq, state.scale]);
 
   useEffect(() => {
     if (!engine) return;
