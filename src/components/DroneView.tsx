@@ -558,6 +558,22 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         </div>
 
         <div className="panel">
+          <div className="panel-label">TONIC</div>
+          <div className="tonic-wheel">
+            {PITCH_CLASSES.map((pc) => (
+              <button
+                key={pc}
+                onClick={() => setRoot(pc)}
+                className={pc === root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
+                title={`Set root to ${pc}${octave}`}
+              >
+                {pc}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel">
           <div className="panel-label">MODE</div>
           <div className="scale-grid">
             {SCALES.map((s) => (

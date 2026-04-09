@@ -70,13 +70,14 @@ export class AudioEngine {
 
   // Macro state — audible even without proper weather engine
   private drift = 0.3;                        // 0..1 → ±25¢ detune spread
-  private air = 0.4;                          // 0..1 → wet reverb send
+  private air = 0.6;                          // 0..1 → wet reverb send
   private time = 0.5;                         // 0..1 → LFO rate 0.02..2 Hz
   private glideAmount = 0.15;                 // 0..1 → 0.05..8 s tonic glide
 
   // Atmosphere send — drives the FxChain wet output level (AIR macro)
   private wetSend: GainNode;
   private fxChain: FxChain;
+  private presetTrim!: GainNode;
 
   // Slow LFO modulating the drone filter for movement
   private lfo: OscillatorNode | null = null;
@@ -143,10 +144,16 @@ export class AudioEngine {
     // FxChain handles all 9 drone effects. AIR scales its wet output.
     this.fxChain = new FxChain(this.ctx);
     this.wetSend = this.ctx.createGain();
-    this.wetSend.gain.value = this.air * 0.8;
-    // Drone voice + shimmer voice both feed the FxChain input
-    this.droneFilter.connect(this.fxChain.input);
-    this.shimmerVoiceGain.connect(this.fxChain.input);
+    this.wetSend.gain.value = 1;
+    this.fxChain.setAir(this.air);
+    // Preset trim — per-preset loudness normalization (A). Sits just
+    // before the FxChain input so it scales dry + wet together.
+    this.presetTrim = this.ctx.createGain();
+    this.presetTrim.gain.value = 1;
+    // Drone voice + shimmer voice both feed the FxChain input via trim
+    this.droneFilter.connect(this.presetTrim);
+    this.shimmerVoiceGain.connect(this.presetTrim);
+    this.presetTrim.connect(this.fxChain.input);
     this.fxChain.wetOut.connect(this.wetSend);
 
     // ── LFO on drone filter (TIME macro drives rate) ────────────────
@@ -444,18 +451,35 @@ export class AudioEngine {
    */
   private rebuildIntervals(): void {
     const now = this.ctx.currentTime;
-    // Snapshot the current layer voices so we can fade+stop them
-    // after the new stack has settled.
-    const toStop: Voice[] = [];
-    for (const vs of this.droneVoicesByLayer.values()) {
-      for (const v of vs) toStop.push(v);
+    const bloom = Math.max(0.3, this.bloomAttackTime());
+
+    // Retire the current layer gains with a fade-out. Each retiring
+    // gain keeps the old voices alive through the fade so we get a
+    // real per-voice cross-fade rather than a 400 ms hard swap.
+    const retiring: { gain: GainNode; voices: Voice[] }[] = [];
+    for (const [type, voices] of this.droneVoicesByLayer.entries()) {
+      const oldGain = this.layerGains.get(type);
+      if (oldGain) {
+        const cur = oldGain.gain.value;
+        oldGain.gain.cancelScheduledValues(now);
+        oldGain.gain.setValueAtTime(cur, now);
+        oldGain.gain.linearRampToValueAtTime(0.0001, now + bloom);
+        this.layerGains.delete(type);
+        retiring.push({ gain: oldGain, voices });
+      }
     }
     this.droneVoicesByLayer.clear();
 
-    // Rebuild for all active layers × all intervals
+    // Build fresh layer gains and voices with a matching fade-in.
     for (const type of ALL_VOICE_TYPES) {
       if (!this.voiceLayers[type]) continue;
-      const layerGain = this.ensureLayerGain(type);
+      const layerGain = this.ctx.createGain();
+      layerGain.gain.value = 0;
+      layerGain.connect(this.droneVoiceGain);
+      layerGain.gain.setValueAtTime(0, now);
+      layerGain.gain.linearRampToValueAtTime(this.layerLevels[type], now + bloom);
+      this.layerGains.set(type, layerGain);
+
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
         voices.push(
@@ -465,7 +489,18 @@ export class AudioEngine {
       this.droneVoicesByLayer.set(type, voices);
     }
 
-    setTimeout(() => { for (const v of toStop) v.stop(); }, 400);
+    // After the fade completes, stop the retired voices and drop
+    // their gain nodes. Small tail margin so the ramp fully lands.
+    const stopAtMs = bloom * 1000 + 150;
+    setTimeout(() => {
+      for (const r of retiring) {
+        for (const v of r.voices) {
+          try { v.stop(); } catch { /* ok */ }
+        }
+        try { r.gain.disconnect(); } catch { /* ok */ }
+      }
+    }, stopAtMs);
+
     this.droneVoiceGain.gain.cancelScheduledValues(now);
     this.droneVoiceGain.gain.setTargetAtTime(this.voiceStackGain(), now, 0.2);
   }
@@ -785,9 +820,16 @@ export class AudioEngine {
   setAir(v: number): void {
     this.air = Math.max(0, Math.min(1, v));
     const now = this.ctx.currentTime;
-    this.wetSend.gain.setTargetAtTime(this.air * 0.8, now, 0.08);
+    this.fxChain.setAir(this.air);
   }
   getAir(): number { return this.air; }
+
+  /** Per-preset loudness trim (A). 1.0 = unity; <1 quieter, >1 louder.
+   *  Clamped to a safe range so a broken preset can't blow the limiter. */
+  setPresetTrim(v: number): void {
+    const trim = Math.max(0.1, Math.min(4, v));
+    this.presetTrim.gain.setTargetAtTime(trim, this.ctx.currentTime, 0.08);
+  }
 
   // ── FxChain passthrough API ───────────────────────────────────────
   /**

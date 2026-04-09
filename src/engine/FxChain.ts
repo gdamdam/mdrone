@@ -56,15 +56,15 @@ const ALL_EFFECTS: EffectId[] = [
 const RAMP_TC = 0.12;
 
 const ON_LEVELS: Record<EffectId, number> = {
-  plate: 0.55,
-  hall: 0.45,
-  shimmer: 0.5,
-  delay: 0.42,
+  plate: 0.75,
+  hall: 0.7,
+  shimmer: 0.65,
+  delay: 0.65,
   tape: 1.0,    // serial insert — crossfade handles it
   wow: 1.0,     // serial insert — crossfade handles it
-  sub: 0.6,
-  comb: 0.4,
-  freeze: 0.7,
+  sub: 0.7,
+  comb: 0.6,
+  freeze: 0.8,
 };
 
 export class FxChain {
@@ -72,6 +72,10 @@ export class FxChain {
   public input: GainNode;
   public dryOut: GainNode;
   public wetOut: GainNode;
+  // Atmospheric sub-bus — plate, hall and shimmer feed here so the
+  // AIR macro only scales the reverb-family effects. Delay, sub,
+  // comb, freeze and the serial inserts run at unity into wetOut.
+  private airBus: GainNode;
 
   // TAPE insert (serial)
   private tapeBypass: GainNode;
@@ -127,6 +131,9 @@ export class FxChain {
     this.input = ctx.createGain();
     this.dryOut = ctx.createGain();
     this.wetOut = ctx.createGain();
+    this.airBus = ctx.createGain();
+    this.airBus.gain.value = 0.6;
+    this.airBus.connect(this.wetOut);
 
     // ── TAPE serial insert ──────────────────────────────────────────
     this.tapeBypass = ctx.createGain();
@@ -198,6 +205,7 @@ export class FxChain {
     // ── PLATE (worklet — created in onWorkletReady) ─────────────────
     this.plateSend = ctx.createGain();
     this.plateSend.gain.value = 0;
+    this.splitNode.connect(this.plateSend);
     // plateSend → plateWorklet → wetOut (wired after worklet loads)
 
     // ── HALL (native convolver with a richer impulse) ───────────────
@@ -208,11 +216,12 @@ export class FxChain {
     this.hallVerb.buffer = FxChain.makeHallImpulse(ctx, 4.8);
     this.hallSend = ctx.createGain();
     this.hallSend.gain.value = 0;
-    this.splitNode.connect(this.hallSend).connect(this.hallVerb).connect(this.wetOut);
+    this.splitNode.connect(this.hallSend).connect(this.hallVerb).connect(this.airBus);
 
     // ── SHIMMER (worklet — created in onWorkletReady) ───────────────
     this.shimmerSend = ctx.createGain();
     this.shimmerSend.gain.value = 0;
+    this.splitNode.connect(this.shimmerSend);
     // shimmerSend → shimmerWorklet → wetOut (wired after worklet loads)
 
     // ── TAPE DELAY ──────────────────────────────────────────────────
@@ -311,7 +320,7 @@ export class FxChain {
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
-    this.plateSend.connect(this.plateWorklet).connect(this.wetOut);
+    this.plateSend.connect(this.plateWorklet).connect(this.airBus);
 
     // ── Shimmer ──────────────────────────────────────────────────
     this.shimmerWorklet = new AudioWorkletNode(this.ctx, "fx-shimmer", {
@@ -319,7 +328,7 @@ export class FxChain {
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
-    this.shimmerSend.connect(this.shimmerWorklet).connect(this.wetOut);
+    this.shimmerSend.connect(this.shimmerWorklet).connect(this.airBus);
 
     // ── Freeze ───────────────────────────────────────────────────
     this.freezeWorklet = new AudioWorkletNode(this.ctx, "fx-freeze", {
@@ -388,6 +397,14 @@ export class FxChain {
         }
         break;
     }
+  }
+
+  /** AIR macro — scales only the atmospheric sub-bus (plate/hall/shimmer).
+   *  Delay/sub/comb/freeze/tape/wow run at unity so they're always audible
+   *  when toggled on, independent of AIR. */
+  setAir(v: number): void {
+    const a = Math.max(0, Math.min(1, v));
+    this.airBus.gain.setTargetAtTime(a, this.ctx.currentTime, 0.08);
   }
 
   isEffect(id: EffectId): boolean { return this.enabled[id]; }

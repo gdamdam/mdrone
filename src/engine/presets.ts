@@ -52,6 +52,10 @@ export interface Preset {
   effects: EffectId[]; // effects to enable (all others disabled)
 
   scale: ScaleId;
+
+  /** Optional per-preset loudness trim (A). Defaults to 1.0. Applied
+   *  on top of the auto-normalization so authors can fine-tune. */
+  gain?: number;
 }
 
 const SCALE_INTERVALS: Record<ScaleId, number[]> = {
@@ -548,6 +552,23 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
       levels[t] = preset.voiceLevels[t]!;
     }
   }
+
+  // (B) Auto-normalize active layer levels so that the sum of the
+  // active layers equals a fixed budget. This smooths out authoring
+  // accidents (e.g. 3 layers at 1.0 vs 1 layer at 1.0). The per-voice
+  // mix ratio is preserved — only the sum is normalized.
+  const ACTIVE_LEVEL_BUDGET = 1.4;
+  const activeSum = ALL_VOICE_TYPES.reduce(
+    (s, t) => s + (layers[t] ? levels[t] : 0),
+    0,
+  );
+  if (activeSum > 0.0001) {
+    const k = ACTIVE_LEVEL_BUDGET / activeSum;
+    for (const t of ALL_VOICE_TYPES) {
+      if (layers[t]) levels[t] = Math.max(0, Math.min(1, levels[t] * k));
+    }
+  }
+
   ui.setVoiceLayers(layers);
   ui.setVoiceLevels(levels);
 
@@ -571,6 +592,9 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   ui.setScale(preset.scale);
 
   if (engine) {
+    // (A) Apply per-preset loudness trim before the scene builds so
+    // the new voices come in at the corrected level.
+    engine.setPresetTrim(preset.gain ?? 1);
     engine.applyDroneScene(layers, levels, SCALE_INTERVALS[preset.scale] ?? [0]);
   }
 
