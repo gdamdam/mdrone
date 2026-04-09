@@ -61,6 +61,15 @@ export interface Preset {
   motionProfile: PresetMotionProfile;
 }
 
+export interface PresetMaterialProfile {
+  driftBias: Partial<Record<VoiceType, number>>;
+  levelWobble: Partial<Record<VoiceType, number>>;
+  wobbleRate: number;
+  pluckRange: readonly [number, number];
+  shimmerPulse: number;
+  subPulse: number;
+}
+
 export interface PresetMotionProfile {
   climateXRange: readonly [number, number];
   climateYRange: readonly [number, number];
@@ -91,10 +100,34 @@ export const DEFAULT_PRESET_MOTION_PROFILE: PresetMotionProfile = {
   texturePeriod: 5,
 };
 
+export const DEFAULT_PRESET_MATERIAL_PROFILE: PresetMaterialProfile = {
+  driftBias: { tanpura: 1, reed: 1, metal: 1, air: 1 },
+  levelWobble: { tanpura: 0.02, reed: 0.02, metal: 0.02, air: 0.025 },
+  wobbleRate: 0.85,
+  pluckRange: [0.96, 1.06],
+  shimmerPulse: 0.08,
+  subPulse: 0.06,
+};
+
 function motionProfile(overrides: Partial<PresetMotionProfile>): PresetMotionProfile {
   return {
     ...DEFAULT_PRESET_MOTION_PROFILE,
     ...overrides,
+  };
+}
+
+function materialProfile(overrides: Partial<PresetMaterialProfile>): PresetMaterialProfile {
+  return {
+    ...DEFAULT_PRESET_MATERIAL_PROFILE,
+    ...overrides,
+    driftBias: {
+      ...DEFAULT_PRESET_MATERIAL_PROFILE.driftBias,
+      ...overrides.driftBias,
+    },
+    levelWobble: {
+      ...DEFAULT_PRESET_MATERIAL_PROFILE.levelWobble,
+      ...overrides.levelWobble,
+    },
   };
 }
 
@@ -723,6 +756,139 @@ export const PRESETS: Preset[] = [
   },
 ];
 
+const PRESET_MATERIAL_PROFILES: Record<string, PresetMaterialProfile> = {
+  "tanpura-drone": materialProfile({
+    driftBias: { tanpura: 1.08 },
+    levelWobble: { tanpura: 0.012 },
+    wobbleRate: 0.48,
+    pluckRange: [0.94, 1.08],
+    shimmerPulse: 0.02,
+    subPulse: 0.02,
+  }),
+  "shruti-box": materialProfile({
+    driftBias: { reed: 1.05 },
+    levelWobble: { reed: 0.028 },
+    wobbleRate: 0.62,
+    subPulse: 0.07,
+  }),
+  "malone-organ": materialProfile({
+    driftBias: { reed: 0.9, metal: 1.05 },
+    levelWobble: { reed: 0.015, metal: 0.022 },
+    wobbleRate: 0.42,
+    pluckRange: [0.98, 1.02],
+    shimmerPulse: 0.03,
+    subPulse: 0.05,
+  }),
+  "dream-house": materialProfile({
+    driftBias: { reed: 0.82, air: 0.9 },
+    levelWobble: { reed: 0.008, air: 0.015 },
+    wobbleRate: 0.28,
+    pluckRange: [0.99, 1.01],
+    shimmerPulse: 0.01,
+    subPulse: 0.03,
+  }),
+  "deep-listening": materialProfile({
+    driftBias: { reed: 0.94, air: 1.05, tanpura: 1.04 },
+    levelWobble: { reed: 0.016, air: 0.022, tanpura: 0.01 },
+    wobbleRate: 0.54,
+    pluckRange: [0.95, 1.06],
+    shimmerPulse: 0.04,
+    subPulse: 0.05,
+  }),
+  "stone-organ": materialProfile({
+    driftBias: { reed: 0.84, metal: 0.98 },
+    levelWobble: { reed: 0.01, metal: 0.014 },
+    wobbleRate: 0.34,
+    pluckRange: [0.99, 1.02],
+    shimmerPulse: 0.01,
+    subPulse: 0.08,
+  }),
+  "stars-of-the-lid": materialProfile({
+    driftBias: { tanpura: 1.1, metal: 1.18, air: 1.06 },
+    levelWobble: { tanpura: 0.018, metal: 0.03, air: 0.026 },
+    wobbleRate: 0.9,
+    pluckRange: [0.9, 1.16],
+    shimmerPulse: 0.22,
+    subPulse: 0.08,
+  }),
+  "radigue-drift": materialProfile({
+    driftBias: { tanpura: 1.18, air: 1.24 },
+    levelWobble: { tanpura: 0.014, air: 0.03 },
+    wobbleRate: 0.72,
+    pluckRange: [0.9, 1.14],
+    shimmerPulse: 0.02,
+    subPulse: 0.04,
+  }),
+  "eno-airport": materialProfile({
+    driftBias: { reed: 1.02, air: 1.08, metal: 1.12 },
+    levelWobble: { reed: 0.02, air: 0.026, metal: 0.018 },
+    wobbleRate: 0.82,
+    shimmerPulse: 0.18,
+    subPulse: 0.05,
+  }),
+  "buddhist-monk-drone": materialProfile({
+    driftBias: { reed: 0.9, metal: 0.96, air: 1.02 },
+    levelWobble: { reed: 0.012, metal: 0.016, air: 0.018 },
+    wobbleRate: 0.4,
+    pluckRange: [0.98, 1.03],
+    shimmerPulse: 0.04,
+    subPulse: 0.09,
+  }),
+  "tibetan-bowl": materialProfile({
+    driftBias: { metal: 1.12, air: 1.02 },
+    levelWobble: { metal: 0.026, air: 0.014 },
+    wobbleRate: 0.7,
+    pluckRange: [0.98, 1.03],
+    shimmerPulse: 0.05,
+    subPulse: 0.04,
+  }),
+  "coil-time-machines": materialProfile({
+    driftBias: { reed: 0.86, metal: 0.92, air: 0.96 },
+    levelWobble: { reed: 0.008, metal: 0.01, air: 0.012 },
+    wobbleRate: 0.26,
+    pluckRange: [0.99, 1.01],
+    shimmerPulse: 0.02,
+    subPulse: 0.1,
+  }),
+  "nww-soliloquy": materialProfile({
+    driftBias: { air: 1.2, metal: 1.08, tanpura: 1.06 },
+    levelWobble: { air: 0.028, metal: 0.018, tanpura: 0.01 },
+    wobbleRate: 0.78,
+    pluckRange: [0.92, 1.1],
+    shimmerPulse: 0.04,
+    subPulse: 0.03,
+  }),
+  "doom-bloom": materialProfile({
+    driftBias: { reed: 0.98, metal: 1.04, tanpura: 1.02 },
+    levelWobble: { reed: 0.012, metal: 0.02, tanpura: 0.01 },
+    wobbleRate: 0.46,
+    pluckRange: [0.94, 1.07],
+    shimmerPulse: 0.02,
+    subPulse: 0.12,
+  }),
+  merzbient: materialProfile({
+    driftBias: { air: 1.28, metal: 1.18, reed: 1.04 },
+    levelWobble: { air: 0.04, metal: 0.028, reed: 0.016 },
+    wobbleRate: 1.18,
+    shimmerPulse: 0.08,
+    subPulse: 0.14,
+  }),
+  windscape: materialProfile({
+    driftBias: { air: 1.22, tanpura: 1.12 },
+    levelWobble: { air: 0.034, tanpura: 0.014 },
+    wobbleRate: 0.94,
+    pluckRange: [0.9, 1.12],
+    shimmerPulse: 0.03,
+    subPulse: 0.05,
+  }),
+};
+
+export function getPresetMaterialProfile(presetOrId: Preset | string | null): PresetMaterialProfile {
+  if (!presetOrId) return DEFAULT_PRESET_MATERIAL_PROFILE;
+  const id = typeof presetOrId === "string" ? presetOrId : presetOrId.id;
+  return PRESET_MATERIAL_PROFILES[id] ?? DEFAULT_PRESET_MATERIAL_PROFILE;
+}
+
 /** All effect ids the presets can toggle — used when clearing the
  *  chain before applying a new preset. */
 const ALL_EFFECT_IDS: EffectId[] = [
@@ -895,6 +1061,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     // the new voices come in at the corrected level.
     engine.setPresetTrim(preset.gain ?? 1);
     engine.setPresetMotionProfile(preset.motionProfile);
+    engine.setPresetMaterialProfile(getPresetMaterialProfile(preset));
     engine.applyDroneScene(layers, levels, SCALE_INTERVALS[preset.scale] ?? [0]);
   }
 

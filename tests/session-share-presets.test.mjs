@@ -9,7 +9,7 @@ const {
   encodeScenePayload,
   extractScenePayloadFromUrl,
 } = await import("../.test-dist/shareCodec.js");
-const { PRESETS, applyPreset } = await import("../.test-dist/engine/presets.js");
+const { PRESETS, applyPreset, getPresetMaterialProfile } = await import("../.test-dist/engine/presets.js");
 
 test("normalizePortableScene clamps and sanitizes decoded scene data", () => {
   const scene = normalizePortableScene({
@@ -152,6 +152,7 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   applyPreset({
     setPresetTrim: (value) => { engineState.presetTrim = value; },
     setPresetMotionProfile: (value) => { engineState.motionProfile = value; },
+    setPresetMaterialProfile: (value) => { engineState.materialProfile = value; },
     applyDroneScene: (layers, levels, intervals) => {
       engineState.layers = layers;
       engineState.levels = levels;
@@ -185,6 +186,7 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   assert.ok(effectCalls.some(([id, on]) => id === "delay" && on === false));
   assert.equal(engineState.presetTrim, preset.gain);
   assert.equal(engineState.motionProfile.tonicWalk, "gentle");
+  assert.ok(engineState.materialProfile.driftBias.metal > engineState.materialProfile.driftBias.air);
 });
 
 test("preset motion profiles preserve anchored vs unstable evolve behavior", () => {
@@ -196,4 +198,17 @@ test("preset motion profiles preserve anchored vs unstable evolve behavior", () 
   assert.equal(merzbient.motionProfile.tonicWalk, "restless");
   assert.ok(merzbient.motionProfile.macroStep > dreamHouse.motionProfile.macroStep);
   assert.deepEqual(airport.motionProfile.tonicIntervals, [-2, 2, -5, 5]);
+});
+
+test("preset material profiles distinguish stable tones from unstable weather", () => {
+  const dreamHouse = PRESETS.find((item) => item.id === "dream-house");
+  const merzbient = PRESETS.find((item) => item.id === "merzbient");
+  const tanpura = PRESETS.find((item) => item.id === "tanpura-drone");
+  const dreamHouseMaterial = getPresetMaterialProfile(dreamHouse);
+  const merzbientMaterial = getPresetMaterialProfile(merzbient);
+  const tanpuraMaterial = getPresetMaterialProfile(tanpura);
+
+  assert.ok((dreamHouseMaterial.levelWobble.reed ?? 0) < (merzbientMaterial.levelWobble.air ?? 0));
+  assert.ok(merzbientMaterial.wobbleRate > dreamHouseMaterial.wobbleRate);
+  assert.ok((tanpuraMaterial.pluckRange[1] - tanpuraMaterial.pluckRange[0]) > 0.1);
 });

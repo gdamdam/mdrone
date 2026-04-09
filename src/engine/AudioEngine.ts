@@ -14,7 +14,7 @@ import { MasterRecorder, type RecordingSupport } from "./MasterRecorder";
 import { MotionEngine } from "./MotionEngine";
 import { VoiceEngine } from "./VoiceEngine";
 import type { VoiceType } from "./VoiceBuilder";
-import type { PresetMotionProfile } from "./presets";
+import type { PresetMaterialProfile, PresetMotionProfile } from "./presets";
 import droneWorkletUrl from "./droneVoiceProcessor.js?url";
 import fxWorkletUrl from "./fxChainProcessor.js?url";
 
@@ -181,7 +181,12 @@ export class AudioEngine {
     this.motionEngine.setPresetMotionProfile(profile);
   }
 
+  setPresetMaterialProfile(profile: PresetMaterialProfile | null): void {
+    this.voiceEngine.setPresetMaterialProfile(profile);
+  }
+
   setEvolve(v: number): void {
+    this.voiceEngine.setEvolveAmount(v);
     this.motionEngine.setEvolve(v);
   }
 

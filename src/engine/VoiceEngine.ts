@@ -1,4 +1,6 @@
 import { FxChain } from "./FxChain";
+import type { PresetMaterialProfile } from "./presets";
+import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
 import { buildVoice, ALL_VOICE_TYPES, type Voice, type VoiceType } from "./VoiceBuilder";
 
 export class VoiceEngine {
@@ -32,6 +34,26 @@ export class VoiceEngine {
   private morphAmount = 0.25;
   private tanpuraPluckRate = 1;
   private readonly baseMacroTC = 0.4;
+
+  private presetMaterialProfile: PresetMaterialProfile = DEFAULT_PRESET_MATERIAL_PROFILE;
+  private evolveAmount = 0;
+  private materialInterval: number | null = null;
+  private materialStep = 0;
+  private materialLevelOffsets: Record<VoiceType, number> = {
+    tanpura: 0, reed: 0, metal: 0, air: 0,
+  };
+  private materialDriftScales: Record<VoiceType, number> = {
+    tanpura: 1, reed: 1, metal: 1, air: 1,
+  };
+  private readonly materialPhaseOffsets: Record<VoiceType, number> = {
+    tanpura: Math.random() * Math.PI * 2,
+    reed: Math.random() * Math.PI * 2,
+    metal: Math.random() * Math.PI * 2,
+    air: Math.random() * Math.PI * 2,
+  };
+  private materialPluckFactor = 1;
+  private materialSubFactor = 1;
+  private materialShimmerFactor = 1;
 
   constructor(ctx: AudioContext, fxChain: FxChain, wetSend: GainNode) {
     this.ctx = ctx;
@@ -84,7 +106,8 @@ export class VoiceEngine {
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
         const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now);
-        if (type === "tanpura") voice.setPluckRate(this.tanpuraPluckRate);
+        if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
+        voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);
       }
       this.droneVoicesByLayer.set(type, voices);
@@ -101,15 +124,16 @@ export class VoiceEngine {
 
     this.subVoiceGain.gain.cancelScheduledValues(now);
     this.subVoiceGain.gain.setValueAtTime(0, now);
-    this.subVoiceGain.gain.linearRampToValueAtTime(this.subAmount * 0.3, now + attack);
+    this.subVoiceGain.gain.linearRampToValueAtTime(this.effectiveSubGain(), now + attack);
 
     this.shimmerVoiceGain.gain.cancelScheduledValues(now);
     this.shimmerVoiceGain.gain.setValueAtTime(0, now);
     if (this.fxChain.isEffect("shimmer")) {
-      this.shimmerVoiceGain.gain.linearRampToValueAtTime(0.25, now + attack);
+      this.shimmerVoiceGain.gain.linearRampToValueAtTime(this.effectiveShimmerGain(), now + attack);
     }
 
     this.droneOn = true;
+    this.updateMaterialMotion();
   }
 
   stopDrone(): void {
@@ -152,6 +176,7 @@ export class VoiceEngine {
     }, (release + 0.1) * 1000);
 
     this.droneOn = false;
+    this.updateMaterialMotion();
   }
 
   setDroneFreq(freq: number): void {
@@ -191,7 +216,7 @@ export class VoiceEngine {
     this.layerLevels[type] = v;
     const gain = this.layerGains.get(type);
     if (gain) {
-      gain.gain.setTargetAtTime(v, this.ctx.currentTime, 0.08);
+      gain.gain.setTargetAtTime(this.effectiveLayerLevel(type), this.ctx.currentTime, 0.08);
     }
   }
 
@@ -208,7 +233,7 @@ export class VoiceEngine {
         this.layerLevels[type] = Math.max(0, Math.min(1, levels[type]));
         const gain = this.layerGains.get(type);
         if (gain) {
-          gain.gain.setTargetAtTime(this.layerLevels[type], this.ctx.currentTime, 0.08);
+          gain.gain.setTargetAtTime(this.effectiveLayerLevel(type), this.ctx.currentTime, 0.08);
         }
       }
       this.voiceRebuildPending = true;
@@ -231,7 +256,7 @@ export class VoiceEngine {
         this.layerLevels[type] = Math.max(0, Math.min(1, levels[type]));
         const gain = this.layerGains.get(type);
         if (gain) {
-          gain.gain.setTargetAtTime(this.layerLevels[type], this.ctx.currentTime, 0.08);
+          gain.gain.setTargetAtTime(this.effectiveLayerLevel(type), this.ctx.currentTime, 0.08);
         }
       }
       this.voiceRebuildPending = true;
@@ -257,17 +282,7 @@ export class VoiceEngine {
 
   setDrift(v: number): void {
     this.drift = Math.max(0, Math.min(1, v));
-    const spread = this.drift * 25;
-    const now = this.ctx.currentTime;
-    for (const voices of this.droneVoicesByLayer.values()) {
-      for (const voice of voices) voice.setDrift(this.drift);
-    }
-    const apply = (pair: { a: OscillatorNode; b: OscillatorNode }) => {
-      pair.a.detune.setTargetAtTime(-spread, now, 0.05);
-      pair.b.detune.setTargetAtTime(spread, now, 0.05);
-    };
-    if (this.subOscs) apply(this.subOscs);
-    if (this.shimmerOscs) apply(this.shimmerOscs);
+    this.applyDriftTargets();
   }
 
   getDrift(): number { return this.drift; }
@@ -275,7 +290,7 @@ export class VoiceEngine {
   setSub(v: number): void {
     this.subAmount = Math.max(0, Math.min(1, v));
     if (this.droneOn) {
-      this.subVoiceGain.gain.setTargetAtTime(this.subAmount * 0.3, this.ctx.currentTime, this.MACRO_TC);
+      this.subVoiceGain.gain.setTargetAtTime(this.effectiveSubGain(), this.ctx.currentTime, this.MACRO_TC);
     }
   }
 
@@ -299,18 +314,27 @@ export class VoiceEngine {
 
   getPresetMorph(): number { return this.morphAmount; }
 
+  setPresetMaterialProfile(profile: PresetMaterialProfile | null): void {
+    this.presetMaterialProfile = profile ?? DEFAULT_PRESET_MATERIAL_PROFILE;
+    this.resetMaterialState();
+    this.updateMaterialMotion();
+  }
+
+  setEvolveAmount(v: number): void {
+    this.evolveAmount = Math.max(0, Math.min(1, v));
+    this.updateMaterialMotion();
+  }
+
   setTanpuraPluckRate(v: number): void {
     this.tanpuraPluckRate = Math.max(0.2, Math.min(4, v));
-    for (const voices of this.droneVoicesByLayer.values()) {
-      for (const voice of voices) voice.setPluckRate(this.tanpuraPluckRate);
-    }
+    this.applyPluckTargets();
   }
 
   getTanpuraPluckRate(): number { return this.tanpuraPluckRate; }
 
   setShimmerEnabled(on: boolean): void {
     if (!this.droneOn) return;
-    this.shimmerVoiceGain.gain.setTargetAtTime(on ? 0.25 : 0, this.ctx.currentTime, 0.15);
+    this.shimmerVoiceGain.gain.setTargetAtTime(on ? this.effectiveShimmerGain() : 0, this.ctx.currentTime, 0.15);
   }
 
   private get MACRO_TC(): number {
@@ -366,13 +390,14 @@ export class VoiceEngine {
       layerGain.gain.value = 0;
       layerGain.connect(this.droneVoiceGain);
       layerGain.gain.setValueAtTime(0, now);
-      layerGain.gain.linearRampToValueAtTime(this.layerLevels[type], now + bloom);
+      layerGain.gain.linearRampToValueAtTime(this.effectiveLayerLevel(type), now + bloom);
       this.layerGains.set(type, layerGain);
 
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
         const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now);
-        if (type === "tanpura") voice.setPluckRate(this.tanpuraPluckRate);
+        if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
+        voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);
       }
       this.droneVoicesByLayer.set(type, voices);
@@ -396,7 +421,7 @@ export class VoiceEngine {
     let gain = this.layerGains.get(type);
     if (!gain) {
       gain = this.ctx.createGain();
-      gain.gain.value = this.layerLevels[type];
+      gain.gain.value = this.effectiveLayerLevel(type);
       gain.connect(this.droneVoiceGain);
       this.layerGains.set(type, gain);
     }
@@ -448,5 +473,136 @@ export class VoiceEngine {
     a.start(startAt);
     b.start(startAt);
     return { a, b };
+  }
+
+  private effectiveLayerLevel(type: VoiceType): number {
+    return Math.max(0, Math.min(1, this.layerLevels[type] + this.materialLevelOffsets[type]));
+  }
+
+  private effectiveLayerDrift(type: VoiceType): number {
+    return Math.max(0, Math.min(1, this.drift * this.materialDriftScales[type]));
+  }
+
+  private effectivePluckRate(): number {
+    return Math.max(0.2, Math.min(4, this.tanpuraPluckRate * this.materialPluckFactor));
+  }
+
+  private effectiveSubGain(): number {
+    return this.subAmount * 0.3 * this.materialSubFactor;
+  }
+
+  private effectiveShimmerGain(): number {
+    return 0.25 * this.materialShimmerFactor;
+  }
+
+  private applyLayerGainTargets(): void {
+    const now = this.ctx.currentTime;
+    for (const type of ALL_VOICE_TYPES) {
+      const gain = this.layerGains.get(type);
+      if (gain) gain.gain.setTargetAtTime(this.effectiveLayerLevel(type), now, 0.18);
+    }
+  }
+
+  private applyDriftTargets(): void {
+    const now = this.ctx.currentTime;
+    for (const type of ALL_VOICE_TYPES) {
+      const voices = this.droneVoicesByLayer.get(type);
+      if (!voices) continue;
+      const drift = this.effectiveLayerDrift(type);
+      for (const voice of voices) voice.setDrift(drift);
+    }
+    const spread = this.drift * 25 * this.averageDriftScale();
+    const apply = (pair: { a: OscillatorNode; b: OscillatorNode }) => {
+      pair.a.detune.setTargetAtTime(-spread, now, 0.05);
+      pair.b.detune.setTargetAtTime(spread, now, 0.05);
+    };
+    if (this.subOscs) apply(this.subOscs);
+    if (this.shimmerOscs) apply(this.shimmerOscs);
+  }
+
+  private applyPluckTargets(): void {
+    const tanpuraVoices = this.droneVoicesByLayer.get("tanpura");
+    if (!tanpuraVoices) return;
+    const rate = this.effectivePluckRate();
+    for (const voice of tanpuraVoices) voice.setPluckRate(rate);
+  }
+
+  private applySecondaryVoiceTargets(): void {
+    const now = this.ctx.currentTime;
+    if (!this.droneOn) return;
+    this.subVoiceGain.gain.setTargetAtTime(this.effectiveSubGain(), now, 0.22);
+    if (this.fxChain.isEffect("shimmer")) {
+      this.shimmerVoiceGain.gain.setTargetAtTime(this.effectiveShimmerGain(), now, 0.22);
+    }
+  }
+
+  private averageDriftScale(): number {
+    const values = ALL_VOICE_TYPES.map((type) => this.materialDriftScales[type]);
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  private updateMaterialMotion(): void {
+    const shouldRun = this.droneOn && this.evolveAmount > 0.12;
+    if (shouldRun && this.materialInterval == null) {
+      this.materialInterval = window.setInterval(() => {
+        this.materialStep++;
+        this.computeMaterialState();
+        this.applyLayerGainTargets();
+        this.applyDriftTargets();
+        this.applyPluckTargets();
+        this.applySecondaryVoiceTargets();
+      }, 2200);
+      return;
+    }
+
+    if (!shouldRun && this.materialInterval != null) {
+      window.clearInterval(this.materialInterval);
+      this.materialInterval = null;
+    }
+
+    if (!shouldRun) {
+      this.resetMaterialState();
+      this.applyLayerGainTargets();
+      this.applyDriftTargets();
+      this.applyPluckTargets();
+      this.applySecondaryVoiceTargets();
+    }
+  }
+
+  private computeMaterialState(): void {
+    const intensity = Math.max(0, Math.min(1, (this.evolveAmount - 0.12) / 0.88));
+    const profile = this.presetMaterialProfile;
+
+    for (const type of ALL_VOICE_TYPES) {
+      const wobble = profile.levelWobble[type] ?? 0;
+      const phase = this.materialPhaseOffsets[type] + this.materialStep * profile.wobbleRate;
+      const randomNudge = (Math.random() - 0.5) * wobble * 0.4 * intensity;
+      this.materialLevelOffsets[type] = Math.max(
+        -wobble,
+        Math.min(wobble, Math.sin(phase) * wobble * intensity + randomNudge),
+      );
+
+      const driftBias = profile.driftBias[type] ?? 1;
+      const driftMotion = 1 + Math.sin(phase * 0.8 + 0.7) * 0.16 * intensity;
+      this.materialDriftScales[type] = Math.max(0.35, Math.min(1.8, driftBias * driftMotion));
+    }
+
+    const [pluckMin, pluckMax] = profile.pluckRange;
+    const pluckBlend = (Math.sin(this.materialStep * profile.wobbleRate * 0.85 + 0.4) + 1) * 0.5;
+    const pluckMotion = pluckMin + (pluckMax - pluckMin) * pluckBlend;
+    this.materialPluckFactor = 1 + (pluckMotion - 1) * intensity;
+
+    this.materialSubFactor = 1 + Math.sin(this.materialStep * profile.wobbleRate * 0.52 + 1.1)
+      * profile.subPulse * intensity;
+    this.materialShimmerFactor = 1 + Math.sin(this.materialStep * profile.wobbleRate * 0.94 + 2.1)
+      * profile.shimmerPulse * intensity;
+  }
+
+  private resetMaterialState(): void {
+    this.materialLevelOffsets = { tanpura: 0, reed: 0, metal: 0, air: 0 };
+    this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1 };
+    this.materialPluckFactor = 1;
+    this.materialSubFactor = 1;
+    this.materialShimmerFactor = 1;
   }
 }

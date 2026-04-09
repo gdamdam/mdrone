@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer } from "react";
 import type { AudioEngine, EngineSceneMutation } from "../engine/AudioEngine";
 import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
 import type { EffectId } from "../engine/FxChain";
-import { PRESETS, applyPreset } from "../engine/presets";
+import { PRESETS, applyPreset, getPresetMaterialProfile } from "../engine/presets";
 import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
 import {
@@ -189,6 +189,7 @@ export function useDroneScene({
       ? PRESETS.find((item) => item.id === state.activePresetId) ?? null
       : null;
     engine.setPresetMotionProfile(preset?.motionProfile ?? null);
+    engine.setPresetMaterialProfile(getPresetMaterialProfile(preset));
     engine.setDrift(state.drift);
     engine.setAir(state.air);
     engine.setTime(state.time);
@@ -329,6 +330,7 @@ export function useDroneScene({
       ? PRESETS.find((item) => item.id === snapshot.activePresetId) ?? null
       : null;
     engine.setPresetMotionProfile(preset?.motionProfile ?? null);
+    engine.setPresetMaterialProfile(getPresetMaterialProfile(preset));
     engine.applyDroneScene(snapshot.voiceLayers, snapshot.voiceLevels, nextIntervals);
     for (const id of Object.keys(snapshot.effects) as EffectId[]) {
       engine.setEffect(id, snapshot.effects[id]);
@@ -361,6 +363,7 @@ export function useDroneScene({
       if (preset) {
         nextScale = preset.scale;
         engine?.setPresetMotionProfile(preset.motionProfile);
+        engine?.setPresetMaterialProfile(getPresetMaterialProfile(preset));
         handlePreset(presetId);
       }
     }
