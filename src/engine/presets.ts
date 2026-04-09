@@ -463,14 +463,14 @@ export const PRESETS: Preset[] = [
   {
     id: "eno-airport",
     name: "Terminal Airport",
-    attribution: "Terminal ambience · pale bright bloom",
-    hint: "Reed + air + a trace of metal, pentatonic, with the longest decays in the library. Sparse, pale-bright — the sunlit-departure-lounge feel of Brian Eno's Music for Airports.",
-    voiceLayers: ["reed", "air", "metal"],
-    voiceLevels: { reed: 0.85, air: 0.55, metal: 0.18 },
-    drift: 0.16,
+    attribution: "Pure 5-limit ambient · long sunlit decay",
+    hint: "Reed (harmonic stack) and a soft air bed in a deep hall + plate room. Just-intonation intervals keep everything beating-free. The long-decay vowel-pad feel of Brian Eno's Music for Airports — no shimmer, no bells, no dissonance.",
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 1, air: 0.25 },
+    drift: 0.12,      // low for smooth harmonics, no partial clash
     air: 0.52,
     time: 0.08,
-    sub: 0.14,
+    sub: 0.18,
     bloom: 0.82,      // Eno's defining long decays
     glide: 0.6,
     lfoShape: "sine",
@@ -478,21 +478,26 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.06,
     climateX: 0.56,
     climateY: 0.16,
-    effects: ["hall", "shimmer", "tape"],
-    scale: "pentatonic",
+    // hall + plate + tape: no shimmer (its pitch-shifted copies were
+    // reading as cold/dissonant — wrong for 1978 Eno).
+    effects: ["hall", "plate", "tape"],
+    // just5 instead of pentatonic: pentatonic's M2 (200¢) beats against
+    // the root and 5th. just5 is root + 5-limit major 3rd + 5th — fully
+    // consonant, beating-free, warm.
+    scale: "just5",
     gain: 0.98,
     motionProfile: motionProfile({
       climateXRange: [0.48, 0.66],
       climateYRange: [0.1, 0.22],
       bloomRange: [0.74, 0.92],
       timeRange: [0.04, 0.1],
-      driftRange: [0.1, 0.22],
-      subRange: [0.08, 0.2],
-      macroStep: 0.62,
+      driftRange: [0.08, 0.18],
+      subRange: [0.1, 0.22],
+      macroStep: 0.58,
       tonicWalk: "rare",
-      tonicIntervals: [-2, 2, -5, 5],
-      tonicFloor: 0.52,
-      textureFloor: 0.7,
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.56,
+      textureFloor: 0.72,
       texturePeriod: 5,
     }),
   },
