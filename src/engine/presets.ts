@@ -370,7 +370,10 @@ export const PRESETS: Preset[] = [
       bloomRange: [0.56, 0.7],
       timeRange: [0.02, 0.06],
       driftRange: [0.05, 0.12],
-      subRange: [0.46, 0.64],
+      // subRange capped — no comb or sub effect here so it's already
+      // safer than the chained presets, but we trim to 0.52 max as a
+      // library-wide "no hot sub on evolve" rule.
+      subRange: [0.4, 0.52],
       macroStep: 0.34,
       tonicWalk: "none",
       tonicIntervals: [],
@@ -394,14 +397,16 @@ export const PRESETS: Preset[] = [
     glide: 0.55,
     lfoShape: "sine",
     lfoRate: 0.04,    // ~25 s swell period — the SOTL breath
-    lfoAmount: 0.24,  // strong amplitude swell — the defining feature
+    lfoAmount: 0.18,  // strong amplitude swell but safe — ±18% around unity
     climateX: 0.42,
     climateY: 0.22,
     // plate + hall only: no shimmer (wrong for SOTL), no tape — the
     // signature is dry orchestral bloom, not tape-coloured.
     effects: ["plate", "hall"],
     scale: "minor",
-    gain: 0.98,
+    // gain cut to leave headroom for the amplitude swell peaks; 0.98
+    // with ±24% lfo was clipping at the top of the breath.
+    gain: 0.88,
     motionProfile: motionProfile({
       climateXRange: [0.36, 0.5],
       climateYRange: [0.14, 0.3],
@@ -498,10 +503,10 @@ export const PRESETS: Preset[] = [
     hint: "Deep reed fundamental with a prominent inharmonic metal halo above — the defining overtone shimmer of Gyuto-style throat singing. Comb resonance locks the harmonics to the root.",
     voiceLayers: ["reed", "metal", "air"],
     voiceLevels: { reed: 1, metal: 0.5, air: 0.14 },
-    drift: 0.1,
+    drift: 0.1,       // low drift keeps reed stable under comb
     air: 0.42,
     time: 0.05,
-    sub: 0.58,
+    sub: 0.42,        // trimmed from 0.58 — comb amplifies LF at peak
     bloom: 0.5,
     glide: 0.22,
     lfoShape: "sine",
@@ -518,8 +523,11 @@ export const PRESETS: Preset[] = [
       bloomRange: [0.44, 0.58],
       timeRange: [0.03, 0.07],
       driftRange: [0.08, 0.14],
-      subRange: [0.5, 0.68],
-      macroStep: 0.32,
+      // sub capped below the comb "safe" ceiling — buddhist-monk has
+      // comb in its FX chain, so sub walking high would drive the
+      // 0.85 feedback loop into clipping peaks.
+      subRange: [0.32, 0.46],
+      macroStep: 0.3,
       tonicWalk: "none",
       tonicIntervals: [],
       tonicFloor: 1,
@@ -533,11 +541,11 @@ export const PRESETS: Preset[] = [
     attribution: "Ritual metal · singing bowl",
     hint: "Grounded singing-bowl resonance in a reflective room. Bowl modes with a small air bed underneath — circular, resonant, not a bright bell.",
     voiceLayers: ["metal", "air"],
-    voiceLevels: { metal: 1, air: 0.22 },
-    drift: 0.1,
+    voiceLevels: { metal: 1, air: 0.28 },
+    drift: 0.08,      // tamer drift so metal modes don't wander quiet
     air: 0.5,
     time: 0.06,
-    sub: 0.2,
+    sub: 0.5,         // sub effect gives the bowl a phantom fundamental
     bloom: 0.4,
     glide: 0.18,
     lfoShape: "sine",
@@ -545,17 +553,26 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.04,
     climateX: 0.36,
     climateY: 0.1,
-    effects: ["plate", "hall"],
+    // `sub` effect added: its 110 Hz bandpass + saturator feeds a phantom
+    // fundamental that the sparse inharmonic metal modes can't produce on
+    // their own. This is what lets the bowl sit in the mix.
+    effects: ["plate", "hall", "sub"],
     scale: "drone",
-    gain: 1.05,
+    // Metal voice is structurally quiet (6 sparse inharmonic modes vs
+    // reed's ~12 harmonic partials), so we compensate at preset gain on
+    // top of the sub-effect body boost.
+    gain: 1.5,
     motionProfile: motionProfile({
       climateXRange: [0.28, 0.42],
       climateYRange: [0.06, 0.14],
       bloomRange: [0.32, 0.48],
       timeRange: [0.03, 0.08],
       driftRange: [0.06, 0.16],
-      subRange: [0.12, 0.26],
-      macroStep: 0.54,
+      // sub walk kept around the new static value (0.5). Prevents evolve
+      // from dipping the bowl back into inaudibility while capping at 0.6
+      // to leave headroom under the sub-effect saturator.
+      subRange: [0.38, 0.6],
+      macroStep: 0.5,
       tonicWalk: "rare",
       tonicIntervals: [-5, 7],
       tonicFloor: 0.62,
@@ -573,7 +590,7 @@ export const PRESETS: Preset[] = [
     drift: 0.08,
     air: 0.38,
     time: 0.04,
-    sub: 0.75,
+    sub: 0.62,        // was 0.75 — still narcotic but no LF buildup under wow
     bloom: 0.78,
     glide: 0.48,
     lfoShape: "sine",
@@ -590,8 +607,11 @@ export const PRESETS: Preset[] = [
       bloomRange: [0.68, 0.88],
       timeRange: [0.02, 0.06],
       driftRange: [0.05, 0.1],
-      subRange: [0.64, 0.84],
-      macroStep: 0.26,
+      // subRange walks around the new safer static value (0.62). No sub
+      // effect here, but wow modulates delays so high sub amplifies LF
+      // pumping under the flange.
+      subRange: [0.5, 0.68],
+      macroStep: 0.24,
       tonicWalk: "none",
       tonicIntervals: [],
       tonicFloor: 1,
@@ -605,15 +625,15 @@ export const PRESETS: Preset[] = [
     attribution: "Feedback hum · no clear source",
     hint: "Pure spectral texture — air and metal drifting through comb + tape + hall, no identifiable pitched sources. Nurse With Wound's Soliloquy for Lilith.",
     voiceLayers: ["air", "metal"],
-    voiceLevels: { air: 1, metal: 0.28 },
-    // drift 0.34 — previously 0.55 caused the air Q-walks + metal
-    // partial walks to drive the comb resonance into clipping peaks.
-    // Dropping tanpura removed one source of that chaos; we can run
-    // drift a touch higher than 0.28 without reintroducing the issue.
-    drift: 0.34,
-    air: 0.55,
-    time: 0.12,
-    sub: 0.12,        // kept low so comb has less LF to amplify at peak
+    voiceLevels: { air: 1, metal: 0.24 },
+    // drift 0.26 — sits just under the 0.28 "safe comb" threshold. At
+    // 0.34 the metal partial walks were still close enough to drive the
+    // comb's 0.85 feedback into clipping peaks. Historically the author
+    // noted drift 0.55 originally caused the same failure.
+    drift: 0.26,
+    air: 0.48,        // trimmed — less wet into hall = less feedback pressure
+    time: 0.09,
+    sub: 0.1,         // extra low so comb has minimal LF to amplify at peak
     bloom: 0.82,
     glide: 0.55,
     lfoShape: "sine",
@@ -623,15 +643,17 @@ export const PRESETS: Preset[] = [
     climateY: 0.2,
     effects: ["tape", "comb", "hall"],
     scale: "drone",
-    gain: 0.85,
+    gain: 0.8,
     motionProfile: motionProfile({
       climateXRange: [0.16, 0.3],
       climateYRange: [0.12, 0.28],
       bloomRange: [0.72, 0.9],
-      timeRange: [0.08, 0.18],
-      driftRange: [0.22, 0.44],
-      subRange: [0.04, 0.18],
-      macroStep: 0.88,
+      timeRange: [0.06, 0.12],
+      // drift capped at 0.28 — the "safe comb" ceiling. Previously 0.44
+      // let evolve walk drift straight into clipping territory.
+      driftRange: [0.18, 0.28],
+      subRange: [0.04, 0.14],
+      macroStep: 0.72,
       tonicWalk: "gentle",
       tonicIntervals: [-1, 1, -5, 5],
       tonicFloor: 0.44,
@@ -649,7 +671,9 @@ export const PRESETS: Preset[] = [
     drift: 0.22,
     air: 0.32,
     time: 0.05,
-    sub: 0.88,
+    // sub macro 0.88 was pushing the sub-effect saturator way past the
+    // breaking point — doom character wants pressure, not collapse.
+    sub: 0.72,
     bloom: 0.88,
     glide: 0.22,
     lfoShape: "sine",
@@ -659,15 +683,17 @@ export const PRESETS: Preset[] = [
     climateY: 0.08,
     effects: ["hall", "tape", "sub"],
     scale: "drone",
-    gain: 0.9,
+    gain: 0.85,
     motionProfile: motionProfile({
       climateXRange: [0.06, 0.14],
       climateYRange: [0.05, 0.1],
       bloomRange: [0.8, 0.96],
       timeRange: [0.03, 0.07],
       driftRange: [0.12, 0.22],
-      subRange: [0.76, 0.94],
-      macroStep: 0.38,
+      // sub effect saturator is ON — walking sub past ~0.8 pushes the
+      // waveshaper past its stable zone and "destroys" the sound.
+      subRange: [0.56, 0.78],
+      macroStep: 0.32,
       tonicWalk: "rare",
       tonicIntervals: [-5, 5],
       tonicFloor: 0.7,
@@ -682,10 +708,10 @@ export const PRESETS: Preset[] = [
     hint: "Dense air texture with inharmonic metal crackle — Merzbow's ambient side. No pitched source, just spectral weather with tape wear, comb glare and freeze sustain underneath.",
     voiceLayers: ["air", "metal"],
     voiceLevels: { air: 1, metal: 0.55 },
-    drift: 0.68,
+    drift: 0.52,      // trimmed — comb resonance sweeps with high drift
     air: 0.62,
     time: 0.22,
-    sub: 0.55,
+    sub: 0.32,        // trimmed — less LF into comb's 0.85 feedback loop
     bloom: 0.55,
     glide: 0.22,
     lfoShape: "triangle",
@@ -705,9 +731,11 @@ export const PRESETS: Preset[] = [
       climateYRange: [0.34, 0.62],
       bloomRange: [0.46, 0.64],
       timeRange: [0.12, 0.3],
-      driftRange: [0.52, 0.82],
-      subRange: [0.4, 0.68],
-      macroStep: 1.28,
+      // drift + sub capped so evolve can't walk them into comb's
+      // clipping zone (same safe pattern as nww/permafrost).
+      driftRange: [0.36, 0.56],
+      subRange: [0.22, 0.38],
+      macroStep: 1.1,
       tonicWalk: "restless",
       tonicIntervals: [-1, 1, -2, 2, -5, 5],
       tonicFloor: 0.34,
@@ -718,32 +746,35 @@ export const PRESETS: Preset[] = [
   {
     id: "windscape",
     name: "Permafrost",
-    attribution: "Arctic sub drone · frozen wind field",
-    hint: "Air as a wind-field texture over a deep reed rumble. Heavy sub weight, slow spectral motion, comb-tuned to the root — Thomas Köner's deep-cold stillness.",
+    attribution: "Arctic wind field · cold resonance",
+    hint: "Air as a wind-field texture over a soft reed rumble. Comb + wow give it a frozen howl, tape a worn edge — Thomas Köner's deep-cold stillness. Sub + drift kept low because comb has 0.85 feedback and will blow up if fed too much low-end energy.",
     voiceLayers: ["air", "reed"],
-    voiceLevels: { air: 1, reed: 0.25 },
-    drift: 0.36,
-    air: 0.52,
+    voiceLevels: { air: 1, reed: 0.22 },
+    // drift + sub deliberately held below the "safe comb" threshold
+    // (same pattern as nww-soliloquy). Going higher walks the reed
+    // partials straight into the comb's resonant peak and clips the chain.
+    drift: 0.22,
+    air: 0.5,
     time: 0.12,
-    sub: 0.56,
-    bloom: 0.62,
+    sub: 0.2,
+    bloom: 0.6,
     glide: 0.32,
     lfoShape: "sine",
     lfoRate: 0.06,
-    lfoAmount: 0.08,
-    climateX: 0.2,
+    lfoAmount: 0.06,
+    climateX: 0.22,
     climateY: 0.22,
     effects: ["hall", "comb", "wow", "tape"],
     scale: "drone",
-    gain: 0.98,
+    gain: 0.88,
     motionProfile: motionProfile({
-      climateXRange: [0.14, 0.28],
+      climateXRange: [0.16, 0.3],
       climateYRange: [0.14, 0.32],
-      bloomRange: [0.52, 0.72],
+      bloomRange: [0.5, 0.7],
       timeRange: [0.08, 0.18],
-      driftRange: [0.26, 0.46],
-      subRange: [0.44, 0.68],
-      macroStep: 0.82,
+      driftRange: [0.14, 0.28],
+      subRange: [0.1, 0.26],
+      macroStep: 0.78,
       tonicWalk: "rare",
       tonicIntervals: [-5, 5],
       tonicFloor: 0.56,
@@ -834,9 +865,12 @@ const PRESET_MATERIAL_PROFILES: Record<string, PresetMaterialProfile> = {
     subPulse: 0.09,
   }),
   "tibetan-bowl": materialProfile({
-    driftBias: { metal: 1.12, air: 1.02 },
-    levelWobble: { metal: 0.026, air: 0.014 },
-    wobbleRate: 0.7,
+    // Lower wobble so the sparse metal modes stay consistently present
+    // — previously 0.026 could drop partials to near-zero and make the
+    // bowl feel quieter than the rest of the library.
+    driftBias: { metal: 0.85, air: 0.9 },
+    levelWobble: { metal: 0.01, air: 0.008 },
+    wobbleRate: 0.45,
     pluckRange: [0.98, 1.03],
     shimmerPulse: 0.05,
     subPulse: 0.04,
