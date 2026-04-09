@@ -788,8 +788,48 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   align-items: start;
 }
 
+.preset-panel-wide {
+  grid-column: 1 / -1;
+  width: min(100%, 980px);
+  justify-self: center;
+}
+
+.preset-vu {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: -2px 0 12px;
+}
+
+.preset-lower-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.1fr)
+    minmax(200px, 0.72fr)
+    minmax(200px, 0.82fr)
+    minmax(220px, 0.95fr)
+    minmax(260px, 1.1fr);
+  gap: 14px;
+  margin-top: 12px;
+  align-items: start;
+}
+
+.preset-controls-col,
+.preset-tonic-col,
+.preset-mode-col,
+.preset-breathe-col,
+.preset-macros-col {
+  min-width: 0;
+}
+
 @media (max-width: 760px) {
   .drone-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .preset-lower-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -805,6 +845,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   margin-bottom: 12px;
+}
+
+.tonic-wheel-compact {
+  margin-bottom: 0;
 }
 
 .tonic-cell {
@@ -888,6 +932,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
+}
+
+.scale-grid-compact {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .scale-btn {
@@ -988,17 +1036,18 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* Preset buttons — a small grid of named scenes */
 .preset-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .preset-btn {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: 6px;
+  gap: 10px;
+  min-height: 72px;
+  padding: 10px 12px;
+  border-radius: 8px;
   background: var(--bg-cell);
   color: var(--text);
   border: 1px solid var(--border);
@@ -1009,8 +1058,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 /* Glyph icons — SVG used as mask, colour driven by background-color */
 .preset-btn-icon {
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
   background-color: var(--preview);
   mask-image: var(--icon);
@@ -1031,7 +1080,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .preset-btn-meta {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -1060,17 +1109,30 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .preset-btn-name {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.5px;
   color: var(--preview);
 }
 
 .preset-btn-attr {
-  font-size: 8px;
+  font-size: 9px;
   color: var(--text-dim);
   opacity: 0.8;
   font-style: italic;
+  line-height: 1.3;
+}
+
+@media (max-width: 920px) {
+  .preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .preset-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Macro rows (DRIFT / AIR / TIME / LFO rate/depth) */

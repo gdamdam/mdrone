@@ -227,118 +227,204 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
   return (
     <div className="drone-layout">
-      {/* ── Left column: presets + tonic + mode + timbre + macros ─── */}
+      <div className="panel preset-panel preset-panel-wide">
+        <div className="panel-label">PRESETS · tap to load</div>
+        <div className="preset-vu">
+          <VuMeter analyser={engine?.getAnalyser() ?? null} width={260} height={10} />
+        </div>
+        <div className="preset-grid">
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => handlePreset(p.id)}
+              className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
+              title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
+            >
+              <span
+                className="preset-btn-icon"
+                style={{ ["--icon" as string]: `url(/preset-icons/${p.id}.svg)` } as React.CSSProperties}
+                aria-hidden="true"
+              />
+              <span className="preset-btn-meta">
+                <span className="preset-btn-name">{p.name}</span>
+                <span className="preset-btn-attr">{p.attribution}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="preset-lower-grid">
+          <div className="preset-controls-col">
+            <div className="preset-morph-row">
+              <span className="preset-morph-label">MORPH</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={state.presetMorph}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  setPresetMorph(v);
+                  engine?.setPresetMorph(v);
+                }}
+                className="preset-morph-slider"
+                title="How slowly the drone morphs between presets. 0 = snap, 1 = glacial (~6 s macros, 4× bloom crossfade)."
+              />
+              <span className="preset-morph-value">{Math.round(state.presetMorph * 100)}%</span>
+            </div>
+            <div className="preset-morph-row">
+              <span className="preset-morph-label">EVOLVE</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={state.evolve}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  setPresetEvolve(v);
+                  engine?.setEvolve(v);
+                }}
+                className="preset-morph-slider"
+                title="How much the drone evolves itself during play. 0 = static · 0.4 = gentle atmosphere drift · 0.7 = + occasional tonic walks (P4/P5) · 1 = active drift + note walks."
+              />
+              <span className="preset-morph-value">{Math.round(state.evolve * 100)}%</span>
+            </div>
+            <div className="preset-morph-row">
+              <span className="preset-morph-label">PLUCK</span>
+              <input
+                type="range"
+                min={0.2}
+                max={4}
+                step={0.05}
+                value={state.pluckRate}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  setPluckRate(v);
+                  engine?.setTanpuraPluckRate(v);
+                }}
+                className="preset-morph-slider"
+                title="Tanpura re-pluck rate. 0.2× = ~15 s between strings (very slow), 1× = traditional ~3 s cycle, 4× = rapid plucking. Only affects the tanpura voice."
+              />
+              <span className="preset-morph-value">{state.pluckRate.toFixed(1)}×</span>
+            </div>
+          </div>
+
+          <div className="preset-tonic-col">
+            <div className="panel-label">TONIC</div>
+            <div className="tonic-wheel tonic-wheel-compact">
+              {PITCH_CLASSES.map((pc) => (
+                <button
+                  key={pc}
+                  onClick={() => setRoot(pc)}
+                  className={pc === state.root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
+                  title={`Set root to ${pc}${state.octave}`}
+                >
+                  {pc}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="preset-mode-col">
+            <div className="panel-label">MODE</div>
+            <div className="scale-grid scale-grid-compact">
+              {SCALES.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setScale(s.id)}
+                  className={s.id === state.scale ? "scale-btn scale-btn-active" : "scale-btn"}
+                  title={`Modal set: ${s.label} — biases the harmonic voices that fit the tonic`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="preset-breathe-col">
+            <div className="panel-label">LFO · BREATHING</div>
+            <div className="lfo-shape-row">
+              {(["sine", "triangle", "square", "sawtooth"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setLfoShape(s)}
+                  className={s === state.lfoShape ? "lfo-shape-btn lfo-shape-btn-active" : "lfo-shape-btn"}
+                  title={`LFO wave shape: ${s}`}
+                >
+                  <IconShape shape={s} />
+                </button>
+              ))}
+            </div>
+            <Macro
+              label="RATE"
+              value={(Math.log(state.lfoRate / 0.05) / Math.log(160))}
+              onChange={(v) => setLfoRate(0.05 * Math.pow(160, v))}
+              icon={<IconRate />}
+              displayValue={`${state.lfoRate.toFixed(2)} Hz`}
+              title="LFO rate — speed of the breathing/tremolo. 0.05 Hz (very slow) to 8 Hz (fluttering)"
+            />
+            <Macro
+              label="DEPTH"
+              value={state.lfoAmount}
+              onChange={setLfoAmount}
+              icon={<IconDepth />}
+              title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
+            />
+          </div>
+
+          <div className="preset-macros-col">
+            <div className="panel-label">MACROS</div>
+            <Macro
+              label="DRIFT"
+              value={state.drift}
+              onChange={setDrift}
+              icon={<IconDrift />}
+              title="Drift — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
+            />
+            <Macro
+              label="AIR"
+              value={state.air}
+              onChange={setAir}
+              icon={<IconAir />}
+              title="Air — wet send into the atmosphere chain (reverb + space)"
+            />
+            <Macro
+              label="TIME"
+              value={state.time}
+              onChange={setTime}
+              icon={<IconTime />}
+              title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
+            />
+            <Macro
+              label="SUB"
+              value={state.sub}
+              onChange={setSub}
+              icon={<IconSub />}
+              title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
+            />
+            <Macro
+              label="BLOOM"
+              value={state.bloom}
+              onChange={setBloom}
+              icon={<IconBloom />}
+              displayValue={`${(0.3 + state.bloom * 9.7).toFixed(1)}s`}
+              title="Bloom — attack time on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
+            />
+            <Macro
+              label="GLIDE"
+              value={state.glide}
+              onChange={setGlide}
+              icon={<IconGlide />}
+              displayValue={`${(0.05 * Math.pow(160, state.glide)).toFixed(2)}s`}
+              title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Left column: timbre ─── */}
       <div className="drone-left">
-        <div className="panel">
-          <div className="panel-label">PRESETS · tap to load</div>
-          <div className="preset-grid">
-            {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => handlePreset(p.id)}
-                className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
-                title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
-              >
-                <span
-                  className="preset-btn-icon"
-                  style={{ ["--icon" as string]: `url(/preset-icons/${p.id}.svg)` } as React.CSSProperties}
-                  aria-hidden="true"
-                />
-                <span className="preset-btn-meta">
-                  <span className="preset-btn-name">{p.name}</span>
-                  <span className="preset-btn-attr">{p.attribution}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-          <div className="preset-morph-row">
-            <span className="preset-morph-label">MORPH</span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={state.presetMorph}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                setPresetMorph(v);
-                engine?.setPresetMorph(v);
-              }}
-              className="preset-morph-slider"
-              title="How slowly the drone morphs between presets. 0 = snap, 1 = glacial (~6 s macros, 4× bloom crossfade)."
-            />
-            <span className="preset-morph-value">{Math.round(state.presetMorph * 100)}%</span>
-          </div>
-          <div className="preset-morph-row">
-            <span className="preset-morph-label">EVOLVE</span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={state.evolve}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                setPresetEvolve(v);
-                engine?.setEvolve(v);
-              }}
-              className="preset-morph-slider"
-              title="How much the drone evolves itself during play. 0 = static · 0.4 = gentle atmosphere drift · 0.7 = + occasional tonic walks (P4/P5) · 1 = active drift + note walks."
-            />
-            <span className="preset-morph-value">{Math.round(state.evolve * 100)}%</span>
-          </div>
-          <div className="preset-morph-row">
-            <span className="preset-morph-label">PLUCK</span>
-            <input
-              type="range"
-              min={0.2}
-              max={4}
-              step={0.05}
-              value={state.pluckRate}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                setPluckRate(v);
-                engine?.setTanpuraPluckRate(v);
-              }}
-              className="preset-morph-slider"
-              title="Tanpura re-pluck rate. 0.2× = ~15 s between strings (very slow), 1× = traditional ~3 s cycle, 4× = rapid plucking. Only affects the tanpura voice."
-            />
-            <span className="preset-morph-value">{state.pluckRate.toFixed(1)}×</span>
-          </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-label">TONIC</div>
-          <div className="tonic-wheel">
-            {PITCH_CLASSES.map((pc) => (
-              <button
-                key={pc}
-                onClick={() => setRoot(pc)}
-                className={pc === state.root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
-                title={`Set root to ${pc}${state.octave}`}
-              >
-                {pc}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-label">MODE</div>
-          <div className="scale-grid">
-            {SCALES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setScale(s.id)}
-                className={s.id === state.scale ? "scale-btn scale-btn-active" : "scale-btn"}
-                title={`Modal set: ${s.label} — biases the harmonic voices that fit the tonic`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="panel">
           <div className="panel-label">TIMBRE · tap to layer</div>
           <div className="timbre-grid">
@@ -372,93 +458,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </div>
         </div>
 
-        <div className="panel">
-          <div className="panel-label">MACROS</div>
-          <Macro
-            label="DRIFT"
-            value={state.drift}
-            onChange={setDrift}
-            icon={<IconDrift />}
-            title="Drift — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
-          />
-          <Macro
-            label="AIR"
-            value={state.air}
-            onChange={setAir}
-            icon={<IconAir />}
-            title="Air — wet send into the atmosphere chain (reverb + space)"
-          />
-          <Macro
-            label="TIME"
-            value={state.time}
-            onChange={setTime}
-            icon={<IconTime />}
-            title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
-          />
-          <Macro
-            label="SUB"
-            value={state.sub}
-            onChange={setSub}
-            icon={<IconSub />}
-            title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
-          />
-          <Macro
-            label="BLOOM"
-            value={state.bloom}
-            onChange={setBloom}
-            icon={<IconBloom />}
-            displayValue={`${(0.3 + state.bloom * 9.7).toFixed(1)}s`}
-            title="Bloom — attack time on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
-          />
-          <Macro
-            label="GLIDE"
-            value={state.glide}
-            onChange={setGlide}
-            icon={<IconGlide />}
-            displayValue={`${(0.05 * Math.pow(160, state.glide)).toFixed(2)}s`}
-            title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
-          />
-        </div>
-
-        <div className="panel">
-          <div className="panel-label">LFO · BREATHING</div>
-          <div className="lfo-shape-row">
-            {(["sine", "triangle", "square", "sawtooth"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setLfoShape(s)}
-                className={s === state.lfoShape ? "lfo-shape-btn lfo-shape-btn-active" : "lfo-shape-btn"}
-                title={`LFO wave shape: ${s}`}
-              >
-                <IconShape shape={s} />
-              </button>
-            ))}
-          </div>
-          <Macro
-            label="RATE"
-            value={(Math.log(state.lfoRate / 0.05) / Math.log(160))}
-            onChange={(v) => setLfoRate(0.05 * Math.pow(160, v))}
-            icon={<IconRate />}
-            displayValue={`${state.lfoRate.toFixed(2)} Hz`}
-            title="LFO rate — speed of the breathing/tremolo. 0.05 Hz (very slow) to 8 Hz (fluttering)"
-          />
-          <Macro
-            label="DEPTH"
-            value={state.lfoAmount}
-            onChange={setLfoAmount}
-            icon={<IconDepth />}
-            title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
-          />
-        </div>
       </div>
 
       {/* ── Right column: large climate XY surface + effects ───── */}
       <div className="drone-right">
+        {/* Effects chain — mpump-kaos-style toggle row above the XY pad */}
+        <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
+
         <div className="panel climate-panel">
           <div className="panel-label">CLIMATE</div>
-          <div className="climate-vu">
-            <VuMeter analyser={engine?.getAnalyser() ?? null} width={260} height={10} />
-          </div>
           <div
             ref={xyRef}
             className="climate-xy"
@@ -479,9 +487,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             <span className="climate-axis climate-axis-y-bot">STILL</span>
           </div>
         </div>
-
-        {/* Effects chain — mpump-kaos-style toggle row below the XY pad */}
-        <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
       </div>
     </div>
   );
