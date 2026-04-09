@@ -1,0 +1,144 @@
+import type { AudioEngine } from "../engine/AudioEngine";
+import type { EffectId } from "../engine/FxChain";
+import type { DroneSessionSnapshot } from "../session";
+import type { PitchClass, ScaleId } from "../types";
+import type { VoiceType } from "../engine/VoiceBuilder";
+
+export const PITCH_CLASSES: PitchClass[] = [
+  "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
+
+export interface Scale {
+  id: ScaleId;
+  label: string;
+  intervalsCents: number[];
+}
+
+export const SCALES: Scale[] = [
+  { id: "drone", label: "Drone", intervalsCents: [0] },
+  { id: "major", label: "Major", intervalsCents: [0, 400, 700] },
+  { id: "minor", label: "Minor", intervalsCents: [0, 300, 700] },
+  { id: "dorian", label: "Dorian", intervalsCents: [0, 300, 700, 1000] },
+  { id: "phrygian", label: "Phrygian", intervalsCents: [0, 100, 700] },
+  { id: "just5", label: "Just 5-limit", intervalsCents: [0, 386.31, 701.96] },
+  { id: "pentatonic", label: "Pentatonic", intervalsCents: [0, 200, 700] },
+];
+
+export type LiveDroneSceneState = DroneSessionSnapshot;
+
+export function pitchToFreq(pc: PitchClass, octave: number): number {
+  const idx = PITCH_CLASSES.indexOf(pc);
+  const semitonesFromA4 = idx - 9 + (octave - 4) * 12;
+  return 440 * Math.pow(2, semitonesFromA4 / 12);
+}
+
+export function freqToPitch(freq: number): { pitchClass: PitchClass; octave: number } {
+  const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+  const pitchClass = PITCH_CLASSES[((midi % 12) + 12) % 12];
+  const octave = Math.max(1, Math.min(6, Math.floor(midi / 12) - 1));
+  return { pitchClass, octave };
+}
+
+export function scaleById(id: ScaleId): Scale {
+  return SCALES.find((s) => s.id === id) ?? SCALES[0];
+}
+
+export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSceneState {
+  return {
+    activePresetId: null,
+    playing: false,
+    root: "A",
+    octave: 2,
+    scale: "dorian",
+    voiceLayers: engine?.getVoiceLayers() ?? {
+      tanpura: true,
+      reed: false,
+      metal: false,
+      air: false,
+    },
+    voiceLevels: {
+      tanpura: engine?.getVoiceLevel("tanpura") ?? 1,
+      reed: engine?.getVoiceLevel("reed") ?? 1,
+      metal: engine?.getVoiceLevel("metal") ?? 1,
+      air: engine?.getVoiceLevel("air") ?? 1,
+    },
+    effects: engine?.getEffectStates() ?? {
+      tape: false,
+      wow: false,
+      plate: false,
+      hall: false,
+      shimmer: false,
+      delay: false,
+      sub: false,
+      comb: false,
+      freeze: false,
+    },
+    drift: engine?.getDrift() ?? 0.3,
+    air: engine?.getAir() ?? 0.4,
+    time: engine?.getTime() ?? 0.5,
+    sub: engine?.getSub() ?? 0,
+    bloom: engine?.getBloom() ?? 0.15,
+    glide: engine?.getGlide() ?? 0.15,
+    climateX: engine?.getClimateX() ?? 0.5,
+    climateY: engine?.getClimateY() ?? 0.5,
+    lfoShape: engine?.getLfoShape() ?? "sine",
+    lfoRate: engine?.getLfoRate() ?? 0.4,
+    lfoAmount: engine?.getLfoAmount() ?? 0,
+    presetMorph: engine?.getPresetMorph() ?? 0.25,
+    evolve: engine?.getEvolve() ?? 0,
+    pluckRate: engine?.getTanpuraPluckRate() ?? 1,
+    presetTrim: engine?.getPresetTrim() ?? 1,
+  };
+}
+
+export type LiveDroneSceneAction =
+  | { type: "merge"; patch: Partial<LiveDroneSceneState> }
+  | { type: "setRoot"; root: PitchClass }
+  | { type: "setOctave"; octave: number }
+  | { type: "setScale"; scale: ScaleId }
+  | { type: "setPlaying"; playing: boolean }
+  | { type: "setVoiceLayer"; voiceType: VoiceType; on: boolean }
+  | { type: "setVoiceLevel"; voiceType: VoiceType; level: number }
+  | { type: "setEffect"; effectId: EffectId; on: boolean }
+  | { type: "setClimate"; x: number; y: number };
+
+export function liveDroneSceneReducer(
+  state: LiveDroneSceneState,
+  action: LiveDroneSceneAction,
+): LiveDroneSceneState {
+  switch (action.type) {
+    case "merge":
+      return { ...state, ...action.patch };
+    case "setRoot":
+      return { ...state, root: action.root };
+    case "setOctave":
+      return { ...state, octave: Math.max(1, Math.min(6, action.octave)) };
+    case "setScale":
+      return { ...state, scale: action.scale };
+    case "setPlaying":
+      return { ...state, playing: action.playing };
+    case "setVoiceLayer":
+      return {
+        ...state,
+        voiceLayers: { ...state.voiceLayers, [action.voiceType]: action.on },
+      };
+    case "setVoiceLevel":
+      return {
+        ...state,
+        voiceLevels: { ...state.voiceLevels, [action.voiceType]: action.level },
+      };
+    case "setEffect":
+      return {
+        ...state,
+        effects: { ...state.effects, [action.effectId]: action.on },
+      };
+    case "setClimate":
+      return {
+        ...state,
+        climateX: action.x,
+        climateY: action.y,
+      };
+    default:
+      return state;
+  }
+}

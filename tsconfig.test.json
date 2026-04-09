@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "outDir": ".test-dist",
+    "rootDir": "src",
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": false,
+    "sourceMap": false,
+    "noEmitOnError": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/config.ts",
+    "src/types.ts",
+    "src/themes.ts",
+    "src/session.ts",
+    "src/shareCodec.ts",
+    "src/engine/presets.ts",
+    "src/scene/droneSceneModel.ts",
+    "src/scene/sceneSnapshots.ts"
+  ]
+}
