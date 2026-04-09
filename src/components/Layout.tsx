@@ -29,6 +29,11 @@ interface LayoutProps {
   engine: AudioEngine;
 }
 
+interface ShareSceneBuildResult {
+  scene: PortableScene;
+  url: string;
+}
+
 const DEFAULT_SESSION_NAME = "Untitled Session";
 const STARTUP_PRESET_IDS = SAFE_RANDOM_PRESET_IDS;
 const STARTUP_TONICS: PitchClass[] = ["C", "D", "F", "G", "A"];
@@ -343,10 +348,13 @@ export function Layout({ engine }: LayoutProps) {
     requestSigilRefresh();
   };
 
-  const buildShareUrlForScene = async (name: string): Promise<string> => {
+  const buildShareSceneData = async (name: string): Promise<ShareSceneBuildResult> => {
     const scene = capturePortableScene(name.trim() || "Drone Landscape");
     if (!scene) throw new Error("Could not capture the current scene.");
-    return buildSceneShareUrl(scene);
+    return {
+      scene,
+      url: await buildSceneShareUrl(scene),
+    };
   };
 
   const displayText = currentSessionId
@@ -482,7 +490,7 @@ export function Layout({ engine }: LayoutProps) {
       {shareOpen && (
         <ShareModal
           initialName={currentSessionId ? currentSessionName : (currentPresetName || "Drone Landscape")}
-          onBuildUrl={buildShareUrlForScene}
+          onBuildShareData={buildShareSceneData}
           onClose={() => setShareOpen(false)}
         />
       )}
