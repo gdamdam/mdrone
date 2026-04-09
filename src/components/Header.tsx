@@ -35,6 +35,7 @@ interface HeaderProps {
   onPanic: () => void;
   onOpenShare: () => void;
   onRandomScene: () => void;
+  onUndoScene: () => void;
   isRec: boolean;
   recTimeMs: number;
   recordingSupported: boolean;
@@ -75,6 +76,7 @@ export function Header({
   onPanic,
   onOpenShare,
   onRandomScene,
+  onUndoScene,
   isRec,
   recTimeMs,
   recordingSupported,
@@ -207,7 +209,7 @@ export function Header({
           onClick={onPanic}
           title="Panic — stop the drone and kill any lingering reverb/delay tails. Standard MIDI-style emergency silence."
         >
-          PANIC
+          P
         </button>
         <button
           className="header-btn header-btn-share"
@@ -225,11 +227,27 @@ export function Header({
           </div>
         </div>
         <button
-          className="header-btn header-btn-volume"
-          onClick={() => setVolumeOpen(true)}
-          title={`Master volume: ${volPct}% — click to adjust`}
+          className="header-btn header-btn-random"
+          onClick={onRandomScene}
+          title="Load a gentle random scene variation"
         >
-          VOL {volPct}
+          RND
+        </button>
+        <button
+          className="header-btn header-btn-undo"
+          onClick={onUndoScene}
+          title="Undo — restore the scene that was playing before the last RND"
+          aria-label="Undo random scene"
+        >
+          ↶
+        </button>
+        <button
+          className={holding ? "header-hold-btn header-hold-btn-active" : "header-hold-btn"}
+          onClick={onToggleHold}
+          title={holding ? "Release the drone" : "Hold the current tonic"}
+        >
+          <span className="header-hold-label">{holding ? "■ HOLDING" : "▶ HOLD"}</span>
+          <span className="header-hold-sub">{tonic}{octave}</span>
         </button>
         <div className="header-tonic">
           <span className="header-mini-label">TONIC</span>
@@ -246,14 +264,6 @@ export function Header({
             ))}
           </select>
         </div>
-        <button
-          className={holding ? "header-hold-btn header-hold-btn-active" : "header-hold-btn"}
-          onClick={onToggleHold}
-          title={holding ? "Release the drone" : "Hold the current tonic"}
-        >
-          <span className="header-hold-label">{holding ? "■ HOLDING" : "▶ HOLD"}</span>
-          <span className="header-hold-sub">{tonic}{octave}</span>
-        </button>
         <div className="header-tonic">
           <span className="header-mini-label">OCT</span>
           <select
@@ -269,17 +279,17 @@ export function Header({
             ))}
           </select>
         </div>
-        <button
-          className="header-btn header-btn-random"
-          onClick={onRandomScene}
-          title="Load a gentle random scene variation"
-        >
-          RANDOM
-        </button>
         <div className="header-freq">
           <span className="header-mini-label">HZ</span>
           <span className="header-freq-value">{freqHz.toFixed(1)} Hz</span>
         </div>
+        <button
+          className="header-btn header-btn-volume"
+          onClick={() => setVolumeOpen(true)}
+          title={`Master volume: ${volPct}% — click to adjust`}
+        >
+          VOL {volPct}
+        </button>
         <button
           className="header-btn header-btn-menu"
           onClick={() => setSessionOpen(true)}

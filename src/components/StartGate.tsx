@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { APP_VERSION } from "../config";
 import { PALETTES, applyPalette } from "../themes";
-import type { AutosavedScene } from "../session";
+import { type AutosavedScene, resetAllLocalStorage } from "../session";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 
@@ -140,6 +140,19 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
           <br />
           Double-click the logo to reshuffle the palette.
         </div>
+
+        <button
+          className="start-gate-reset"
+          onClick={() => {
+            if (window.confirm("Reset everything? This wipes all saved sessions, the autosaved scene, palette choice, and every mdrone-* key in localStorage. Cannot be undone.")) {
+              resetAllLocalStorage();
+              window.location.reload();
+            }
+          }}
+          title="Factory reset — clears saved sessions, autosave, palette, and all local settings"
+        >
+          Reset everything
+        </button>
 
         <span className="start-gate-version">v{APP_VERSION}</span>
       </div>

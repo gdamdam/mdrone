@@ -67,7 +67,7 @@ const ON_LEVELS: Record<EffectId, number> = {
   cistern: 1.0,
   granular: 0.9,
   ringmod: 0.7,
-  formant: 0.85,
+  formant: 1.0,
 };
 
 interface Insert {
@@ -209,27 +209,38 @@ export class FxChain {
   }
 
   /** VOCAL FORMANT — three parallel resonant bandpasses at vowel formant
-   *  centres. Adds a vocal "ahh" resonance on top of whatever flows
-   *  through it. Tuned to the neutral "ah" vowel. */
+   *  centres, summed with the dry signal to add a vocal "ahh" accent
+   *  without replacing the source spectrum. (Pure bandpass would mute
+   *  low-fundamental drones because their energy falls outside the
+   *  formant bands.) Tuned to the neutral "ah" vowel. */
   private wireFormant(): void {
     const ctx = this.ctx;
     const ins = this.inserts.formant;
-    const merger = ctx.createGain();
-    merger.gain.value = 0.5;
+
+    // Dry pass-through so the fundamental and its partials survive at
+    // full level — the effect is purely additive formant colour.
+    const dryTap = ctx.createGain();
+    dryTap.gain.value = 1.0;
+    ins.insertIn.connect(dryTap).connect(ins.wetGain);
+
+    // Formant accent bank — lower Q and gain so it's an additive colour
+    const formantGain = ctx.createGain();
+    formantGain.gain.value = 0.55;
 
     const formants = [
-      { freq: 700,  Q: 6  },
-      { freq: 1220, Q: 8  },
-      { freq: 2600, Q: 10 },
+      { freq: 700,  Q: 4.5 },
+      { freq: 1220, Q: 5   },
+      { freq: 2600, Q: 6   },
     ];
     for (const f of formants) {
       const bp = ctx.createBiquadFilter();
       bp.type = "bandpass";
       bp.frequency.value = f.freq;
       bp.Q.value = f.Q;
-      ins.insertIn.connect(bp).connect(merger);
+      ins.insertIn.connect(bp).connect(formantGain);
     }
-    merger.connect(ins.wetGain).connect(ins.insertOut);
+    formantGain.connect(ins.wetGain);
+    ins.wetGain.connect(ins.insertOut);
   }
 
   /** Parallel reverb bus — taps the raw input (pre-serial-chain) and
@@ -304,16 +315,16 @@ export class FxChain {
     wowDelay.delayTime.value = 0.008;
     const wowLfo = ctx.createOscillator();
     wowLfo.type = "sine";
-    wowLfo.frequency.value = 0.55;
+    wowLfo.frequency.value = 0.42;      // slower — more tape-era than mechanical
     const wowDepth = ctx.createGain();
-    wowDepth.gain.value = 0.0025;
+    wowDepth.gain.value = 0.0013;       // halved — was too noticeable on drones
     wowLfo.connect(wowDepth).connect(wowDelay.delayTime);
     wowLfo.start();
     const flutterLfo = ctx.createOscillator();
     flutterLfo.type = "sine";
-    flutterLfo.frequency.value = 6.2;
+    flutterLfo.frequency.value = 5.4;
     const flutterDepth = ctx.createGain();
-    flutterDepth.gain.value = 0.0006;
+    flutterDepth.gain.value = 0.00035;  // softened
     flutterLfo.connect(flutterDepth).connect(wowDelay.delayTime);
     flutterLfo.start();
     ins.insertIn

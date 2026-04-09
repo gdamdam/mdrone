@@ -452,6 +452,23 @@ export function saveAutosavedScene(scene: PortableScene): void {
   }));
 }
 
+/** Full factory reset — wipes every mdrone-namespaced key from
+ *  localStorage (known keys + any other `mdrone-*` stragglers from
+ *  older app versions). Use from a "Reset everything" UI. */
+export function resetAllLocalStorage(): void {
+  if (!hasLocalStorage()) return;
+  for (const key of Object.values(STORAGE_KEYS)) {
+    localStorage.removeItem(key);
+  }
+  // Sweep up any mdrone-* keys left behind by older code paths.
+  const stragglers: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("mdrone-")) stragglers.push(k);
+  }
+  for (const k of stragglers) localStorage.removeItem(k);
+}
+
 export function makeSessionId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();

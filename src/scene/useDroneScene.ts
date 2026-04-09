@@ -218,16 +218,22 @@ export function useDroneScene({
     engine.setDroneFreq(freq);
   }, [engine, state.playing, freq]);
 
-  // Auto-start: fires once when the engine first becomes available and the
-  // scene wants to be playing. Used both by the normal startup path (after
-  // StartGate resumes the AudioContext) and by shared-link loads. Guarded
-  // by a ref so it never re-fires on later engine-availability changes.
+  // Auto-start: fires once when the engine first becomes available and
+  // the scene wants to be playing. Delayed briefly so the parent scene
+  // manager has a chance to call applySnapshot first (for Continue Last
+  // Scene / shared-link loads). If applySnapshot runs before the timer
+  // fires, its engine.startDrone call + didAutostartRef set will
+  // pre-empt us so we don't double-start.
   const didAutostartRef = useRef(false);
   useEffect(() => {
     if (!engine || didAutostartRef.current) return;
     if (!state.playing) return;
-    engine.startDrone(freq, scaleById(state.scale).intervalsCents);
-    didAutostartRef.current = true;
+    const timer = window.setTimeout(() => {
+      if (didAutostartRef.current) return;
+      engine.startDrone(freq, scaleById(state.scale).intervalsCents);
+      didAutostartRef.current = true;
+    }, 60);
+    return () => window.clearTimeout(timer);
   }, [engine, state.playing, freq, state.scale]);
 
   useEffect(() => {
@@ -343,6 +349,10 @@ export function useDroneScene({
       : null;
     engine.setPresetMotionProfile(preset?.motionProfile ?? null);
     engine.setPresetMaterialProfile(getPresetMaterialProfile(preset));
+    // Preset-derived engine state must be restored BEFORE applyDroneScene
+    // — the voice rebuild picks up the current reedShape.
+    engine.setReedShape(preset?.reedShape ?? "odd");
+    engine.setParallelSends(preset?.parallelSends ?? {});
     engine.applyDroneScene(snapshot.voiceLayers, snapshot.voiceLevels, nextIntervals);
     for (const id of Object.keys(snapshot.effects) as EffectId[]) {
       engine.setEffect(id, snapshot.effects[id]);
@@ -365,6 +375,9 @@ export function useDroneScene({
     if (shouldPlay) {
       engine.startDrone(nextFreq, nextIntervals);
     }
+    // Pre-empt the delayed auto-start so we don't get a second startDrone
+    // on top of this one.
+    didAutostartRef.current = true;
   }, [engine, state.playing]);
 
   const startImmediate = useCallback((nextRoot: PitchClass, nextOctave: number, presetId?: string) => {

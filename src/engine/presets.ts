@@ -56,6 +56,11 @@ export interface Preset {
   /** Optional reed voice harmonic-stack shape. Defaults to "odd". */
   reedShape?: ReedShape;
 
+  /** Optional preferred octave range for random-scene selection.
+   *  If set, createSafeRandomScene picks an octave in [lo, hi] inclusive.
+   *  Defaults to whatever the caller passes in (usually [2, 3]). */
+  octaveRange?: readonly [number, number];
+
   /** Optional parallel reverb send levels (0..1) — run the chosen
    *  reverbs in parallel off the raw input instead of serial-only. Lets
    *  a preset have "dry voice + wet reverb" without the voice going
@@ -196,6 +201,7 @@ export const PRESETS: Preset[] = [
     hint: "A lone tanpura with jawari buzz. The archetypal Indian string drone — rooted, overtone-rich, unadorned, with only a faint plate room around it.",
     voiceLayers: ["tanpura"],
     voiceLevels: { tanpura: 1 },
+    octaveRange: [2, 2],
     drift: 0.16,
     air: 0.3,
     time: 0.05,      // almost no filter sweep — tanpura sits still
@@ -229,9 +235,10 @@ export const PRESETS: Preset[] = [
     id: "shruti-box",
     name: "Shruti Box",
     attribution: "Indian devotional · reed bellows",
-    hint: "Harmonium / shruti-box reed sustain. Warm, woody, devotional. A slow breath modulation mimics the bellows; hall + tape give it a wooden room.",
+    hint: "Harmonium / shruti-box reed sustain. Warm, woody, devotional. Balanced reed shape (even + odd harmonics, like real free-reed instruments). A slow breath modulation mimics the bellows; hall + tape give it a wooden room.",
     voiceLayers: ["reed"],
     voiceLevels: { reed: 1 },
+    reedShape: "balanced",
     drift: 0.18,
     air: 0.4,
     time: 0.06,
@@ -266,8 +273,8 @@ export const PRESETS: Preset[] = [
     name: "Kali Organ",
     attribution: "Minimal pipe organ · meantone stillness",
     hint: "Reed (balanced harmonic stack — even + odd, pipe-organ-like) in meantone tuning with slow chord morphs. Kali Malone's Sacrificial Code — architectural, glacial, no bell character.",
-    voiceLayers: ["reed", "metal"],
-    voiceLevels: { reed: 1, metal: 0.1 },
+    voiceLayers: ["reed"],
+    voiceLevels: { reed: 1 },
     reedShape: "balanced",
     drift: 0.14,
     air: 0.5,
@@ -281,8 +288,11 @@ export const PRESETS: Preset[] = [
     climateX: 0.32,
     climateY: 0.12,
     effects: ["hall", "tape"], // dropped plate — hall carries the space
+    // Parallel hall send — cathedral space around the dry pipe source
+    // without the hall coming after tape in the serial chain.
+    parallelSends: { hall: 0.3 },
     scale: "meantone",
-    gain: 1.0,
+    gain: 1.02,
     motionProfile: motionProfile({
       climateXRange: [0.24, 0.36],
       climateYRange: [0.06, 0.16],
@@ -304,7 +314,7 @@ export const PRESETS: Preset[] = [
     attribution: "Long-tone just-intonation · pure sines · beating intervals",
     hint: "Pure sine tones (reed.shape = sine) in just 5-limit intervals. The beating between tones IS the composition — La Monte Young & Marian Zazeela's Dream House, uncoloured.",
     voiceLayers: ["reed", "air"],
-    voiceLevels: { reed: 1, air: 0.35 },
+    voiceLevels: { reed: 1, air: 0.1 },
     reedShape: "sine",
     drift: 0.06,
     air: 0.2,
@@ -354,7 +364,10 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.12, // breath motion
     climateX: 0.4,
     climateY: 0.16,
-    effects: ["cistern", "plate"],
+    // formant added — Oliveros's Deep Listening recordings include voice
+    // alongside accordion and trombone; the vocal formant adds that
+    // human vowel resonance to the reed-air bed.
+    effects: ["cistern", "plate", "formant"],
     // Parallel cistern — the voice goes dry into the cistern bus so the
     // 28-second tail comes from raw input, not from a pre-processed
     // signal. This is the actual cistern experience.
@@ -380,9 +393,11 @@ export const PRESETS: Preset[] = [
     id: "stone-organ",
     name: "Stone Organ",
     attribution: "Austere liturgical drone · dark nave resonance",
-    hint: "A darker, stricter organ than the warmer church preset. Reed-forward, very low motion, more pressure than warmth.",
+    hint: "Balanced reed pipe organ in a dark nave. Low-motion, pressure over warmth — stricter than Kali Organ, darker mood.",
     voiceLayers: ["reed", "metal"],
     voiceLevels: { reed: 1, metal: 0.22 },
+    reedShape: "balanced",
+    octaveRange: [1, 2],
     drift: 0.08,
     air: 0.36,
     time: 0.04,
@@ -502,10 +517,11 @@ export const PRESETS: Preset[] = [
   {
     id: "eno-airport",
     name: "Terminal Airport",
-    attribution: "Pure 5-limit ambient · long sunlit decay",
-    hint: "Reed (harmonic stack) and a soft air bed in a deep hall + plate room. Just-intonation intervals keep everything beating-free. The long-decay vowel-pad feel of Brian Eno's Music for Airports — no shimmer, no bells, no dissonance.",
-    voiceLayers: ["reed", "air"],
-    voiceLevels: { reed: 1, air: 0.25 },
+    attribution: "Pure 5-limit ambient · piano + pad · long decay",
+    hint: "Piano (for the 1/1-style looped piano figures) over reed pad and a whisper of air, all in just 5-limit intervals. Deep hall + plate + tape for the sunlit-departure-lounge feel of Brian Eno's Music for Airports — no shimmer, no bells.",
+    voiceLayers: ["piano", "reed", "air"],
+    voiceLevels: { piano: 1, reed: 0.55, air: 0.2 },
+    octaveRange: [3, 4],
     drift: 0.12,      // low for smooth harmonics, no partial clash
     air: 0.52,
     time: 0.08,
@@ -547,6 +563,7 @@ export const PRESETS: Preset[] = [
     hint: "Deep reed fundamental with a prominent inharmonic metal halo above — the defining overtone shimmer of Gyuto-style throat singing. Comb resonance locks the harmonics to the root.",
     voiceLayers: ["reed", "metal", "air"],
     voiceLevels: { reed: 1, metal: 0.5, air: 0.14 },
+    octaveRange: [1, 2],
     drift: 0.1,       // low drift keeps reed stable under comb
     air: 0.42,
     time: 0.05,
@@ -562,7 +579,9 @@ export const PRESETS: Preset[] = [
     // defining feature of Gyuto throat singing.
     effects: ["hall", "plate", "comb", "formant"],
     scale: "drone",
-    gain: 1.08,
+    // Bumped hard — the hall+plate+comb+formant serial chain is
+    // unusually long and attenuates a lot; 1.28 wasn't enough.
+    gain: 1.55,
     motionProfile: motionProfile({
       climateXRange: [0.14, 0.22],
       climateYRange: [0.05, 0.12],
@@ -585,13 +604,18 @@ export const PRESETS: Preset[] = [
     id: "tibetan-bowl",
     name: "Tibetan Bowl",
     attribution: "Ritual metal · singing bowl",
-    hint: "Grounded singing-bowl resonance in a reflective room. Bowl modes with a small air bed underneath — circular, resonant, not a bright bell.",
-    voiceLayers: ["metal", "air"],
-    voiceLevels: { metal: 1, air: 0.28 },
+    hint: "Metal bowl modes over a low sine-reed fundamental — the continuous rim-friction tone plus the inharmonic mode cloud above it. Circular, resonant, not a bright bell.",
+    voiceLayers: ["metal", "reed", "air"],
+    voiceLevels: { metal: 1, reed: 0.22, air: 0.24 },
+    octaveRange: [3, 4],
+    // Sine reed gives the continuous low fundamental that real bowls
+    // have from their rim-friction excitation. Replaces the previous
+    // gain-compensation hack.
+    reedShape: "sine",
     drift: 0.08,      // tamer drift so metal modes don't wander quiet
     air: 0.5,
     time: 0.06,
-    sub: 0.5,         // sub effect gives the bowl a phantom fundamental
+    sub: 0.42,
     bloom: 0.4,
     glide: 0.18,
     lfoShape: "sine",
@@ -599,15 +623,11 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.04,
     climateX: 0.36,
     climateY: 0.1,
-    // `sub` effect added: its 110 Hz bandpass + saturator feeds a phantom
-    // fundamental that the sparse inharmonic metal modes can't produce on
-    // their own. This is what lets the bowl sit in the mix.
     effects: ["plate", "hall", "sub"],
     scale: "drone",
-    // Metal voice is structurally quiet (6 sparse inharmonic modes vs
-    // reed's ~12 harmonic partials), so we compensate at preset gain on
-    // top of the sub-effect body boost.
-    gain: 1.5,
+    // Lower gain than before because the sine-reed bed provides the
+    // continuous fundamental that was previously faked with gain 1.5.
+    gain: 1.2,
     motionProfile: motionProfile({
       climateXRange: [0.28, 0.42],
       climateYRange: [0.06, 0.14],
@@ -632,7 +652,8 @@ export const PRESETS: Preset[] = [
     attribution: "Ceremonial single-note trance · suspended time",
     hint: "A low single-note ritual drone with narcotic stillness. Reed body, a whisper of FM for the Coil synth character, almost no decorative movement — just the faintest tape-flange rotation.",
     voiceLayers: ["reed", "fm", "air"],
-    voiceLevels: { reed: 0.95, fm: 0.2, air: 0.18 },
+    voiceLevels: { reed: 0.95, fm: 0.28, air: 0.18 },
+    octaveRange: [1, 2],
     drift: 0.08,
     air: 0.38,
     time: 0.04,
@@ -687,9 +708,11 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.05,
     climateX: 0.22,
     climateY: 0.2,
-    effects: ["tape", "comb", "hall"],
+    // ringmod adds the inharmonic scrape NWW's Soliloquy has from their
+    // no-input mixer / ring-modulator feedback chain.
+    effects: ["tape", "comb", "hall", "ringmod"],
     scale: "drone",
-    gain: 0.8,
+    gain: 0.78,
     motionProfile: motionProfile({
       climateXRange: [0.16, 0.3],
       climateYRange: [0.12, 0.28],
@@ -714,6 +737,7 @@ export const PRESETS: Preset[] = [
     hint: "Distorted amp voice for the saturated sustain, reed for body, metal for the feedback halo — the sustained-amp pressure of drone metal (Sunn O))), Earth), swelling in slow amplitude breaths.",
     voiceLayers: ["amp", "reed", "metal"],
     voiceLevels: { amp: 1, reed: 0.4, metal: 0.3 },
+    octaveRange: [1, 2],
     drift: 0.22,
     air: 0.32,
     time: 0.05,
@@ -767,9 +791,11 @@ export const PRESETS: Preset[] = [
     climateY: 0.5,
     // freeze removed — it captured a moment at enable time and kept
     // looping it underneath the live signal (same failure as NWW and
-    // the original Radig Drift). Wow + tape + sub + comb + hall still
-    // carry the dense spectral-pressure identity.
-    effects: ["wow", "tape", "sub", "comb", "hall"],
+    // the original Radig Drift). Wow + tape + sub + comb + hall carry
+    // the dense spectral-pressure identity. Ringmod + granular add the
+    // inharmonic scrape and stretched-loop quality of Merzbow's noise
+    // collage method.
+    effects: ["wow", "tape", "sub", "comb", "hall", "ringmod", "granular"],
     scale: "drone",
     gain: 0.75,       // perceptually very loud — slight extra cut vs. before
     motionProfile: motionProfile({
@@ -796,6 +822,7 @@ export const PRESETS: Preset[] = [
     hint: "Air as a wind-field texture over a soft reed rumble. Comb + wow give it a frozen howl, tape a worn edge — Thomas Köner's deep-cold stillness. Sub + drift kept low because comb has 0.85 feedback and will blow up if fed too much low-end energy.",
     voiceLayers: ["air", "reed"],
     voiceLevels: { air: 1, reed: 0.22 },
+    octaveRange: [1, 2],
     // drift + sub deliberately held below the "safe comb" threshold
     // (same pattern as nww-soliloquy). Going higher walks the reed
     // partials straight into the comb's resonant peak and clips the chain.
@@ -810,7 +837,9 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.06,
     climateX: 0.22,
     climateY: 0.22,
-    effects: ["hall", "comb", "wow", "tape"],
+    // granular adds Köner's time-stretched field-recording character
+    // on top of the wind/comb/tape weather texture.
+    effects: ["hall", "comb", "wow", "tape", "granular"],
     scale: "drone",
     gain: 0.88,
     motionProfile: motionProfile({
@@ -872,9 +901,9 @@ export const PRESETS: Preset[] = [
     id: "hecker-ravedeath",
     name: "Ravedeath",
     attribution: "Distorted granular organ · saturated tail",
-    hint: "Reed (balanced pipe-organ shape) into the granular tail processor with saturation and hall. Tim Hecker's Ravedeath 1972 — a distorted, granulated church-organ texture.",
-    voiceLayers: ["reed", "metal"],
-    voiceLevels: { reed: 1, metal: 0.22 },
+    hint: "Reed (balanced pipe-organ shape) plus amp voice for the distorted sustain, into granular + tape + hall. Tim Hecker's Ravedeath 1972 — a distorted, granulated church-organ texture.",
+    voiceLayers: ["reed", "amp", "metal"],
+    voiceLevels: { reed: 1, amp: 0.2, metal: 0.18 },
     reedShape: "balanced",
     drift: 0.18,
     air: 0.55,
@@ -911,10 +940,11 @@ export const PRESETS: Preset[] = [
     id: "hecker-virgins",
     name: "Virgins",
     attribution: "Granular piano · minor fragments",
-    hint: "Piano and reed into granular + hall. Tim Hecker's Virgins — minor-key piano textures stretched and fragmented.",
+    hint: "Piano and bowed-string reed (even harmonics) into granular + hall. Tim Hecker's Virgins — minor-key piano textures stretched and fragmented over an orchestral-string bed.",
     voiceLayers: ["piano", "reed"],
     voiceLevels: { piano: 1, reed: 0.35 },
-    reedShape: "balanced",
+    reedShape: "even",
+    octaveRange: [3, 4],
     drift: 0.16,
     air: 0.5,
     time: 0.08,
@@ -950,10 +980,11 @@ export const PRESETS: Preset[] = [
     id: "fennesz-endless",
     name: "Endless Summer",
     attribution: "Processed granular shimmer · bright clouds",
-    hint: "Reed + air processed through granular + shimmer. Fennesz's Endless Summer — bright harmonic textures granulated into shimmering clouds.",
-    voiceLayers: ["reed", "air"],
-    voiceLevels: { reed: 1, air: 0.45 },
+    hint: "Reed (balanced, for processed-guitar-like chord character) + piano for the melodic fragments + air through granular + shimmer + hall. Fennesz's Endless Summer — bright harmonic textures granulated into shimmering clouds.",
+    voiceLayers: ["reed", "piano", "air"],
+    voiceLevels: { reed: 1, piano: 0.35, air: 0.35 },
     reedShape: "balanced",
+    octaveRange: [3, 4],
     drift: 0.22,
     air: 0.62,
     time: 0.1,
@@ -993,6 +1024,7 @@ export const PRESETS: Preset[] = [
     voiceLayers: ["air", "reed"],
     voiceLevels: { air: 1, reed: 0.25 },
     reedShape: "balanced",
+    octaveRange: [1, 2],
     drift: 0.2,
     air: 0.58,
     time: 0.1,
@@ -1043,7 +1075,11 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.1,
     climateX: 0.32,
     climateY: 0.18,
-    effects: ["granular", "tape", "hall", "plate"],
+    // wow added — the Disintegration Loops are defined by their tape
+    // wobble as the loops degrade. parallel hall for the wet tail
+    // around the raw degrading fragment.
+    effects: ["granular", "tape", "wow", "hall", "plate"],
+    parallelSends: { hall: 0.3 },
     scale: "minor",
     gain: 0.9,
     motionProfile: motionProfile({
@@ -1067,9 +1103,11 @@ export const PRESETS: Preset[] = [
     id: "budd-harold",
     name: "Pearl",
     attribution: "Long-decay piano · infinite reverb tail",
-    hint: "Piano with a reed bed in a deep plate + hall. Harold Budd's Pearl / Plateaux of Mirror — simple piano tones with infinite reverb tails.",
+    hint: "Piano with a reed bed. Dry piano attack + parallel hall wet tail — Harold Budd's Pearl / Plateaux of Mirror, where the piano stays definition-ful against an infinite reverb.",
     voiceLayers: ["piano", "reed"],
     voiceLevels: { piano: 1, reed: 0.3 },
+    parallelSends: { hall: 0.4 },
+    octaveRange: [3, 4],
     reedShape: "balanced",
     drift: 0.1,
     air: 0.6,
@@ -1106,9 +1144,11 @@ export const PRESETS: Preset[] = [
     id: "frahm-solo",
     name: "Solo",
     attribution: "Solo piano drone · felt-dampened hall",
-    hint: "Piano alone in hall + tape. Nils Frahm Solo / Spaces — sustained piano as drone, felt-dampened.",
+    hint: "Piano alone. Dry close-miked piano + parallel hall tail — Nils Frahm Solo / Spaces, where the felt-dampened piano sits in a room without the room eating the attacks.",
     voiceLayers: ["piano"],
     voiceLevels: { piano: 1 },
+    parallelSends: { hall: 0.35 },
+    octaveRange: [3, 4],
     drift: 0.08,
     air: 0.55,
     time: 0.05,
@@ -1147,6 +1187,7 @@ export const PRESETS: Preset[] = [
     hint: "Piano + air bed in tape + plate. Grouper's Dragging a Dead Deer — lo-fi piano under a veil of air and tape patina.",
     voiceLayers: ["piano", "air"],
     voiceLevels: { piano: 1, air: 0.5 },
+    octaveRange: [3, 4],
     drift: 0.18,
     air: 0.55,
     time: 0.08,
@@ -1158,7 +1199,9 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.08,
     climateX: 0.34,
     climateY: 0.24,
-    effects: ["tape", "plate", "hall", "wow"],
+    // formant added for the distant hummed-vocal quality Grouper's
+    // Dragging a Dead Deer has underneath the lo-fi piano.
+    effects: ["tape", "plate", "hall", "wow", "formant"],
     scale: "minor",
     gain: 0.95,
     motionProfile: motionProfile({
@@ -1260,9 +1303,9 @@ export const PRESETS: Preset[] = [
     id: "lamb-prisma",
     name: "Prisma",
     attribution: "Microtonal chamber · maqam rast",
-    hint: "Reed (balanced) + air in maqam rast. Catherine Lamb's Prisma — slow microtonal chamber drones with Middle-Eastern scale intervals.",
-    voiceLayers: ["reed", "air"],
-    voiceLevels: { reed: 1, air: 0.32 },
+    hint: "Balanced reed + tiny metal (for the chamber-glass upper partials) + air in maqam rast. Catherine Lamb's Prisma — slow microtonal chamber drones with Middle-Eastern scale intervals.",
+    voiceLayers: ["reed", "metal", "air"],
+    voiceLevels: { reed: 1, metal: 0.12, air: 0.32 },
     reedShape: "balanced",
     drift: 0.1,
     air: 0.52,
@@ -1516,7 +1559,7 @@ export function createPresetVariation(
 
 export function createSafeRandomScene(
   root: DroneSessionSnapshot["root"],
-  octave: number,
+  fallbackOctaveRange: readonly [number, number],
   random = Math.random,
 ): { preset: Preset; snapshot: DroneSessionSnapshot } {
   const safePresets = SAFE_RANDOM_PRESET_IDS
@@ -1524,6 +1567,12 @@ export function createSafeRandomScene(
     .filter((preset): preset is Preset => preset !== null);
   const presetPool = safePresets.length > 0 ? safePresets : PRESETS;
   const preset = presetPool[Math.floor(random() * presetPool.length)];
+
+  // Prefer the preset's authored octave range if set, otherwise the
+  // library-wide default passed by the caller.
+  const range = preset.octaveRange ?? fallbackOctaveRange;
+  const [lo, hi] = range;
+  const octave = lo + Math.floor(random() * (hi - lo + 1));
 
   return {
     preset,

@@ -58,7 +58,9 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
     playing: true, // default to playing — drone starts as soon as AudioContext resumes
     root: "A",
     octave: 2,
-    scale: "dorian",
+    // Default to single-tone drone so the initial startup is one pitch,
+    // not a 4-note dorian chord. User picks a preset to shape the scene.
+    scale: "drone",
     voiceLayers: engine?.getVoiceLayers() ?? {
       tanpura: true,
       reed: false,

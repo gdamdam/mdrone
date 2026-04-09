@@ -153,6 +153,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onPanic={handlePanic}
         onOpenShare={() => setShareOpen(true)}
         onRandomScene={sceneManager.handleRandomScene}
+        onUndoScene={sceneManager.handleUndoScene}
         isRec={isRec}
         recTimeMs={recTimeMs}
         recordingSupported={recordingSupport.supported}

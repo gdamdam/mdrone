@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
-import { PRESETS, SAFE_RANDOM_PRESET_IDS, createSafeRandomScene } from "../engine/presets";
+import { createSafeRandomScene } from "../engine/presets";
 import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState";
 import { buildSceneShareUrl, loadSceneFromCurrentUrlOnce } from "../shareCodec";
 import { applyPalette, getPaletteById, loadPaletteId, savePaletteId } from "../themes";
@@ -27,21 +27,12 @@ export interface ShareSceneBuildResult {
 
 export const DEFAULT_SESSION_NAME = "Untitled Session";
 
-const STARTUP_PRESET_IDS = SAFE_RANDOM_PRESET_IDS;
-const STARTUP_TONICS: PitchClass[] = ["C", "D", "F", "G", "A"];
-const STARTUP_OCTAVE = 2;
 const RANDOM_SCENE_TONICS: PitchClass[] = [
   "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 ];
-const RANDOM_SCENE_OCTAVES = [2, 3] as const;
-
-function pickStartupPreset() {
-  const startupPresets = STARTUP_PRESET_IDS
-    .map((id) => PRESETS.find((preset) => preset.id === id) ?? null)
-    .filter((preset): preset is (typeof PRESETS)[number] => preset !== null);
-  const presetPool = startupPresets.length > 0 ? startupPresets : PRESETS;
-  return presetPool[Math.floor(Math.random() * presetPool.length)];
-}
+/** Library-wide default octave range for random scenes when a preset
+ *  doesn't declare its own `octaveRange`. */
+const FALLBACK_OCTAVE_RANGE: readonly [number, number] = [2, 3];
 
 interface UseSceneManagerArgs {
   engine: AudioEngine;
@@ -65,13 +56,18 @@ export function useSceneManager({
   const ignoreNextPresetNameRef = useRef(false);
 
   const applyStartupScene = useCallback(() => {
-    const randomPreset = pickStartupPreset();
-    const randomTonic = STARTUP_TONICS[Math.floor(Math.random() * STARTUP_TONICS.length)];
-    droneViewRef.current?.startImmediate(randomTonic, STARTUP_OCTAVE, randomPreset.id);
-    setCurrentPresetName(randomPreset.name);
+    // Use the same code path as clicking RND so the first scene on load
+    // is effectively a random-scene click — same tonic pool, same jitter,
+    // same applySnapshot path. Octave comes from the preset's authored
+    // range; only fall back if the preset has no range.
+    const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
+    const { preset, snapshot } = createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE);
+    droneViewRef.current?.applySnapshot(snapshot);
     setCurrentSessionId(null);
     setCurrentSessionName(DEFAULT_SESSION_NAME);
+    setCurrentPresetName(preset.name);
     saveCurrentSessionId(null);
+    requestSigilRefresh();
   }, [droneViewRef]);
 
   const captureCurrentSceneSnapshot = useCallback((name: string): PortableScene | null => {
@@ -107,14 +103,20 @@ export function useSceneManager({
   }, [meditateVisualizer]);
 
   useEffect(() => {
-    if (initSceneRef.current) return;
-    initSceneRef.current = true;
+    // The ref is checked AFTER the async step so StrictMode's double-
+    // mount doesn't leave us in a state where mount 1 got cancelled
+    // during await, mount 2 sees the ref already set, and neither one
+    // actually applies a scene (which is the bug that made "Continue
+    // Last Scene" and "Start New" both fall back to a default drone).
     let cancelled = false;
 
     const run = async () => {
       const sharedScene = await loadSceneFromCurrentUrlOnce();
       if (cancelled) return;
+      if (initSceneRef.current) return;
+
       if (sharedScene) {
+        initSceneRef.current = true;
         applyPortableScene({
           ...sharedScene,
           drone: { ...sharedScene.drone, playing: true },
@@ -125,27 +127,32 @@ export function useSceneManager({
       if (startupMode === "continue") {
         const autosaved = loadAutosavedScene();
         if (autosaved) {
+          initSceneRef.current = true;
           applyPortableScene(autosaved.scene);
           return;
         }
       }
 
       if (startupMode === "new") {
+        initSceneRef.current = true;
         applyStartupScene();
         return;
       }
 
       if (!currentSessionId) {
+        initSceneRef.current = true;
         applyStartupScene();
         return;
       }
 
       const session = loadSessions().find((item) => item.id === currentSessionId);
       if (!session) {
+        initSceneRef.current = true;
         applyStartupScene();
         return;
       }
 
+      initSceneRef.current = true;
       applyPortableScene(session.scene, { sessionId: session.id });
     };
 
@@ -252,18 +259,34 @@ export function useSceneManager({
     applyPortableScene(session.scene, { sessionId: session.id });
   }, [applyPortableScene, savedSessions]);
 
+  const previousSceneRef = useRef<{ scene: PortableScene; name: string } | null>(null);
+
   const handleRandomScene = useCallback(() => {
+    // Capture the current scene before jumping so "undo" can restore it.
+    const beforeName = currentPresetName || currentSessionName || "Previous";
+    const beforeScene = captureCurrentSceneSnapshot(beforeName);
+    if (beforeScene) {
+      previousSceneRef.current = { scene: beforeScene, name: beforeName };
+    }
+
     const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
-    const randomOctave =
-      RANDOM_SCENE_OCTAVES[Math.floor(Math.random() * RANDOM_SCENE_OCTAVES.length)];
-    const { preset, snapshot } = createSafeRandomScene(randomTonic, randomOctave);
+    const { preset, snapshot } = createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE);
     droneViewRef.current?.applySnapshot(snapshot);
     setCurrentSessionId(null);
     setCurrentSessionName(DEFAULT_SESSION_NAME);
     setCurrentPresetName(preset.name);
     saveCurrentSessionId(null);
     requestSigilRefresh();
-  }, [droneViewRef]);
+  }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionName, droneViewRef]);
+
+  /** Restore whatever was playing before the last RND click. No-op if
+   *  no previous scene is stored (fresh load, or already undone once). */
+  const handleUndoScene = useCallback(() => {
+    const prev = previousSceneRef.current;
+    if (!prev) return;
+    previousSceneRef.current = null;
+    applyPortableScene(prev.scene);
+  }, [applyPortableScene]);
 
   const buildShareSceneData = useCallback(async (name: string): Promise<ShareSceneBuildResult> => {
     const scene = captureCurrentScene(name.trim() || "Drone Landscape");
@@ -279,7 +302,11 @@ export function useSceneManager({
       ignoreNextPresetNameRef.current = false;
       return;
     }
-    setCurrentPresetName(presetName ?? "Custom Scene");
+    // Only update if we got a real preset name. Null fires (initial
+    // mount, intermediate states) used to overwrite with "Custom Scene"
+    // which clobbered restored scene names and made Continue Last Scene
+    // look broken.
+    if (presetName) setCurrentPresetName(presetName);
   }, []);
 
   const displayText = currentSessionId
@@ -302,6 +329,7 @@ export function useSceneManager({
     handleRenameSession,
     handleLoadSession,
     handleRandomScene,
+    handleUndoScene,
     buildShareSceneData,
     handlePresetNameChange,
   };
