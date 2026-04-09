@@ -89,7 +89,7 @@ export const PRESETS: Preset[] = [
   {
     id: "tanpura-drone",
     name: "Tanpura Drone",
-    attribution: "Indian classical · Pandit Pran Nath",
+    attribution: "Jawari string drone · buzzing overtones",
     hint: "A lone tanpura — Karplus-Strong with jawari buzz on a 4-string auto-pluck cycle. Minimal reverb, no other layers. The archetypal drone, unadorned.",
     voiceLayers: ["tanpura"],
     voiceLevels: { tanpura: 1 },
@@ -131,8 +131,8 @@ export const PRESETS: Preset[] = [
   {
     id: "malone-organ",
     name: "Kali Organ",
-    attribution: "Minimalist pipe organ · Kali Malone",
-    hint: "Reed + metal ranks stacked at just 5-limit intervals, slow bloom, hall + tape for the church space. Cathedral drone with Kali Malone's stillness.",
+    attribution: "Minimal pipe organ · cathedral stillness",
+    hint: "Reed + metal ranks stacked at just 5-limit intervals, with slow bloom, hall, and tape for a patient church-space drone.",
     voiceLayers: ["reed", "metal"],
     voiceLevels: { reed: 1, metal: 0.55 },
     drift: 0.2,
@@ -215,8 +215,8 @@ export const PRESETS: Preset[] = [
   {
     id: "stars-of-the-lid",
     name: "Nitrous Oxide",
-    attribution: "Ambient cinematic · Wiltzie / McBride",
-    hint: "Tanpura + metal + air layered with slow bloom, shimmer reverb, and delay. Cinematic, drifting, never fully present — the Stars of the Lid signature.",
+    attribution: "Ambient cinematic · suspended glow",
+    hint: "Tanpura, metal, and air layered with slow bloom, shimmer reverb, and delay. Cinematic, drifting, and never fully settled.",
     voiceLayers: ["tanpura", "metal", "air"],
     voiceLevels: { tanpura: 0.85, metal: 0.6, air: 0.7 },
     drift: 0.4,
@@ -236,8 +236,8 @@ export const PRESETS: Preset[] = [
   {
     id: "radigue-drift",
     name: "Radig Drift",
-    attribution: "ARP 2500 minimalism · Éliane Radigue",
-    hint: "Tanpura + air with maximum drift, comb resonator, freeze loop. Near-silence that keeps evolving — Radigue's instability filter technique in a browser.",
+    attribution: "Minimal synth drift · near-silent motion",
+    hint: "Tanpura and air with maximum drift, comb resonance, and a faint frozen seam. Near-silence that keeps slowly evolving.",
     voiceLayers: ["tanpura", "air"],
     voiceLevels: { tanpura: 0.55, air: 0.9 },
     drift: 0.85,
@@ -257,8 +257,8 @@ export const PRESETS: Preset[] = [
   {
     id: "eno-airport",
     name: "Terminal Airport",
-    attribution: "Ambient 1 · Brian Eno",
-    hint: "Reed + air + metal at just intervals, slow glide, gentle hall + shimmer. Airy, floating, incommensurate motion — Music for Airports in one tap.",
+    attribution: "Terminal ambience · floating air",
+    hint: "Reed, air, and metal at soft intervals with slow glide, gentle hall, and shimmer. Airy, floating, and softly suspended.",
     voiceLayers: ["reed", "air", "metal"],
     voiceLevels: { reed: 0.9, air: 0.55, metal: 0.35 },
     drift: 0.35,
@@ -278,7 +278,7 @@ export const PRESETS: Preset[] = [
   {
     id: "buddhist-monk-drone",
     name: "Low Chant",
-    attribution: "Gyuto-inspired chant · ritual overtone drone",
+    attribution: "Low chant · ritual overtone drone",
     hint: "Low, centered reed body with a faint air breath and restrained bowl-metal halo. Built to suggest the very low fundamental and audible overtone shimmer associated with Tibetan monastic chant, without turning into a bright choir pad.",
     voiceLayers: ["reed", "metal", "air"],
     voiceLevels: { reed: 1, metal: 0.32, air: 0.24 },
@@ -320,8 +320,8 @@ export const PRESETS: Preset[] = [
   {
     id: "coil-time-machines",
     name: "Time Machines",
-    attribution: "Coil-inspired · ceremonial single-note trance",
-    hint: "A low, single-note ritual drone with restrained movement, deep sustain, and a narcotic sense of suspended time. Built around one center rather than a harmonic stack, in the spirit of Coil's long-form ceremonial drift.",
+    attribution: "Ceremonial single-note trance · suspended time",
+    hint: "A low single-note ritual drone with restrained movement, deep sustain, and a narcotic sense of suspended time. Built around one center rather than a harmonic stack.",
     voiceLayers: ["reed", "metal", "air"],
     voiceLevels: { reed: 0.95, metal: 0.16, air: 0.22 },
     drift: 0.1,
@@ -341,8 +341,8 @@ export const PRESETS: Preset[] = [
   {
     id: "nww-soliloquy",
     name: "Lilith Drift",
-    attribution: "Nurse With Wound-inspired · feedback hum drift",
-    hint: "Dark suspended feedback-hum atmosphere with unstable air, comb resonance, tape haze, and a faint frozen seam. More room tone and spectral drift than melody, inspired by Soliloquy for Lilith's hovering feedback worlds.",
+    attribution: "Feedback hum drift · spectral haze",
+    hint: "Dark suspended feedback-hum atmosphere with unstable air, comb resonance, tape haze, and a faint frozen seam. More room tone and spectral drift than melody.",
     voiceLayers: ["air", "metal", "tanpura"],
     voiceLevels: { air: 1, metal: 0.22, tanpura: 0.18 },
     drift: 0.62,
@@ -362,7 +362,7 @@ export const PRESETS: Preset[] = [
   {
     id: "doom-bloom",
     name: "Doom Bloom",
-    attribution: "Amplifier-doom inspired · slow heavy drone",
+    attribution: "Slow heavy drone · amplifier pressure",
     hint: "A heavier, darker sustained wall with low-end weight, slower rise, and more pressure than clarity. Not a literal amp stack, but a browser drone bent toward doom mass.",
     voiceLayers: ["reed", "metal", "tanpura"],
     voiceLevels: { reed: 0.92, metal: 0.38, tanpura: 0.3 },
@@ -383,8 +383,8 @@ export const PRESETS: Preset[] = [
   {
     id: "merzbient",
     name: "Merzbient",
-    attribution: "Merzbow-inspired · ambient-noise pressure",
-    hint: "Not full harsh-noise Merzbow, but an ambient-noise wall: dense air, unstable bowl modes, sub pressure, tape wear, comb glare, and frozen grit. A tonal engine pushed toward noise weather instead of melody.",
+    attribution: "Ambient-noise pressure · abrasive weather",
+    hint: "An ambient-noise wall of dense air, unstable bowl modes, sub pressure, tape wear, comb glare, and frozen grit. A tonal engine pushed toward noise weather instead of melody.",
     voiceLayers: ["air", "metal", "reed"],
     voiceLevels: { air: 1, metal: 0.46, reed: 0.2 },
     drift: 0.82,
@@ -404,7 +404,7 @@ export const PRESETS: Preset[] = [
   {
     id: "windscape",
     name: "Windscape",
-    attribution: "Weather ambient · Basinski / Hecker",
+    attribution: "Weather ambient · worn tape air",
     hint: "Air layer as the main voice with a ghostly tanpura underneath. Comb resonator tracks the tonic, wow/flutter gives it tape-era instability.",
     voiceLayers: ["air", "tanpura"],
     voiceLevels: { air: 1, tanpura: 0.35 },
