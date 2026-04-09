@@ -20,7 +20,7 @@
 
 import type { AudioEngine } from "./AudioEngine";
 import type { EffectId } from "./FxChain";
-import type { VoiceType } from "./VoiceBuilder";
+import type { ReedShape, VoiceType } from "./VoiceBuilder";
 import { ALL_VOICE_TYPES } from "./VoiceBuilder";
 import type { ScaleId } from "../types";
 import type { DroneSessionSnapshot } from "../session";
@@ -52,6 +52,9 @@ export interface Preset {
   effects: EffectId[]; // effects to enable (all others disabled)
 
   scale: ScaleId;
+
+  /** Optional reed voice harmonic-stack shape. Defaults to "odd". */
+  reedShape?: ReedShape;
 
   /** Optional per-preset loudness trim (A). Defaults to 1.0. Applied
    *  on top of the auto-normalization so authors can fine-tune. */
@@ -139,6 +142,10 @@ const SCALE_INTERVALS: Record<ScaleId, number[]> = {
   phrygian: [0, 100, 700],
   just5: [0, 386.31, 701.96],
   pentatonic: [0, 200, 700],
+  meantone: [0, 193.16, 310.26, 503.42, 696.58, 889.74],
+  harmonics: [0, 386.31, 701.96, 968.83, 1200],
+  "maqam-rast": [0, 200, 350, 500, 700, 900, 1050],
+  slendro: [0, 240, 480, 720, 960],
 };
 
 export const SAFE_RANDOM_PRESET_IDS = [
@@ -154,6 +161,18 @@ export const SAFE_RANDOM_PRESET_IDS = [
   "tibetan-bowl",
   "coil-time-machines",
   "windscape",
+  "wiese-baraka",
+  "hecker-ravedeath",
+  "hecker-virgins",
+  "fennesz-endless",
+  "biosphere-substrata",
+  "basinski-disintegration",
+  "budd-harold",
+  "frahm-solo",
+  "grouper-dragging",
+  "arkbro-chords",
+  "young-well-tuned",
+  "lamb-prisma",
 ] as const;
 
 /**
@@ -238,10 +257,11 @@ export const PRESETS: Preset[] = [
   {
     id: "malone-organ",
     name: "Kali Organ",
-    attribution: "Minimal pipe organ · cathedral stillness",
-    hint: "Pure pipe-organ reed ranks at 5-limit intervals with the slowest chord morphs in the library. Kali Malone's Sacrificial Code — architectural, glacial, no bell character.",
+    attribution: "Minimal pipe organ · meantone stillness",
+    hint: "Reed (balanced harmonic stack — even + odd, pipe-organ-like) in meantone tuning with slow chord morphs. Kali Malone's Sacrificial Code — architectural, glacial, no bell character.",
     voiceLayers: ["reed", "metal"],
-    voiceLevels: { reed: 1, metal: 0.12 },
+    voiceLevels: { reed: 1, metal: 0.1 },
+    reedShape: "balanced",
     drift: 0.14,
     air: 0.5,
     time: 0.05,
@@ -254,7 +274,7 @@ export const PRESETS: Preset[] = [
     climateX: 0.32,
     climateY: 0.12,
     effects: ["hall", "tape"], // dropped plate — hall carries the space
-    scale: "just5",
+    scale: "meantone",
     gain: 1.0,
     motionProfile: motionProfile({
       climateXRange: [0.24, 0.36],
@@ -274,10 +294,11 @@ export const PRESETS: Preset[] = [
   {
     id: "dream-house",
     name: "Dream House",
-    attribution: "Long-tone just-intonation · beating intervals",
-    hint: "Stable sustained just intervals. The beating between tones is the composition — movement macros are near-zero, effects minimal so the beats stay intact.",
+    attribution: "Long-tone just-intonation · pure sines · beating intervals",
+    hint: "Pure sine tones (reed.shape = sine) in just 5-limit intervals. The beating between tones IS the composition — La Monte Young & Marian Zazeela's Dream House, uncoloured.",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.35 },
+    reedShape: "sine",
     drift: 0.06,
     air: 0.2,
     time: 0.03,
@@ -311,9 +332,10 @@ export const PRESETS: Preset[] = [
     id: "deep-listening",
     name: "Deep Listening",
     attribution: "Cistern reverb · attentive breathing",
-    hint: "Reed and air in the deepest reverb in the library — Pauline Oliveros's Fort Worden cistern, 45-second tails. A single breath fills the whole space.",
+    hint: "Reed and air in the cistern — Pauline Oliveros's Fort Worden, 28-second tail. A single breath fills the whole space.",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 0.9, air: 0.5 },
+    reedShape: "balanced",
     drift: 0.16,
     air: 0.7,        // much wetter — the cistern IS the instrument
     time: 0.05,
@@ -325,7 +347,7 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.12, // breath motion
     climateX: 0.4,
     climateY: 0.16,
-    effects: ["hall", "plate"],
+    effects: ["cistern", "plate"],
     scale: "drone",
     gain: 1.0,
     motionProfile: motionProfile({
@@ -385,11 +407,12 @@ export const PRESETS: Preset[] = [
   {
     id: "stars-of-the-lid",
     name: "Nitrous Oxide",
-    attribution: "Orchestral swell · long grieving bloom",
-    hint: "Reed + air bed with a trace of metal as high string harmonics. Slow breathing swells (~25 s period) in a deep plate/hall — the looped bowed-strings quality of Stars of the Lid, without plucks or shimmer.",
-    voiceLayers: ["reed", "air", "metal"],
-    voiceLevels: { reed: 1, air: 0.45, metal: 0.18 },
-    drift: 0.22,
+    attribution: "Sustained minor triad · slow swells · tape body",
+    hint: "Reed (bowed-string shape = even harmonics) + air stacked as a sustained minor triad with slow ~25 s amplitude swells. Plate + hall + tape give the warm recording body of Stars of the Lid's looped strings.",
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 1, air: 0.45 },
+    reedShape: "even",
+    drift: 0.14,      // near-static — SOTL's looped strings don't drift
     air: 0.6,
     time: 0.06,
     sub: 0.34,
@@ -400,21 +423,21 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.18,  // strong amplitude swell but safe — ±18% around unity
     climateX: 0.42,
     climateY: 0.22,
-    // plate + hall only: no shimmer (wrong for SOTL), no tape — the
-    // signature is dry orchestral bloom, not tape-coloured.
-    effects: ["plate", "hall"],
+    // plate + hall + tape: tape adds the warm low-mid recording body
+    // that is audibly present on The Tired Sounds Of… and anchors the
+    // string illusion. No shimmer (wrong for SOTL).
+    effects: ["plate", "hall", "tape"],
     scale: "minor",
-    // gain cut to leave headroom for the amplitude swell peaks; 0.98
-    // with ±24% lfo was clipping at the top of the breath.
+    // gain cut to leave headroom for the amplitude swell peaks.
     gain: 0.88,
     motionProfile: motionProfile({
       climateXRange: [0.36, 0.5],
       climateYRange: [0.14, 0.3],
       bloomRange: [0.82, 0.98],
       timeRange: [0.03, 0.08],
-      driftRange: [0.14, 0.3],
+      driftRange: [0.08, 0.18],
       subRange: [0.26, 0.42],
-      macroStep: 0.72,
+      macroStep: 0.58,
       tonicWalk: "rare",
       tonicIntervals: [-5, 5],
       tonicFloor: 0.58,
@@ -426,9 +449,10 @@ export const PRESETS: Preset[] = [
     id: "radigue-drift",
     name: "Radig Drift",
     attribution: "Pure sine drone · microscopic motion",
-    hint: "Pure reed (additive sine stack), dry, crystalline. The Éliane Radigue / ARP 2500 lineage — drift happens microscopically in the partials, the room stays close and uncoloured.",
+    hint: "A single sine tone (reed.shape = sine), dry, crystalline. The Éliane Radigue / ARP 2500 lineage — drift happens microscopically, the room stays close and uncoloured.",
     voiceLayers: ["reed"],
     voiceLevels: { reed: 1 },
+    reedShape: "sine",
     drift: 0.08,      // crystalline — drift is timbral, not pitch
     air: 0.35,        // drier than Deep Listening (0.7) — Radigue rooms are close
     time: 0.03,       // near-zero motion
@@ -787,6 +811,471 @@ export const PRESETS: Preset[] = [
       texturePeriod: 5,
     }),
   },
+
+  // ─── Klaus Wiese — ritual bowl + tanpura cloud ──────────────────────
+  {
+    id: "wiese-baraka",
+    name: "Sevenfold",
+    attribution: "Klaus Wiese · layered bowls + tanpura · ritual stillness",
+    hint: "Tanpura + metal bowl cloud in a long hall. Klaus Wiese's Baraka / Sevenfold Sanctuary — layered bowls beating against a tanpura drone, extreme stillness, no motion.",
+    voiceLayers: ["tanpura", "metal", "air"],
+    voiceLevels: { tanpura: 1, metal: 0.62, air: 0.16 },
+    drift: 0.08,
+    air: 0.5,
+    time: 0.04,
+    sub: 0.38,
+    bloom: 0.75,
+    glide: 0.5,
+    lfoShape: "sine",
+    lfoRate: 0.05,
+    lfoAmount: 0.03,
+    climateX: 0.28,
+    climateY: 0.12,
+    effects: ["plate", "hall", "sub"],
+    scale: "drone",
+    gain: 1.0,
+    motionProfile: motionProfile({
+      climateXRange: [0.22, 0.32],
+      climateYRange: [0.08, 0.16],
+      bloomRange: [0.68, 0.82],
+      timeRange: [0.02, 0.06],
+      driftRange: [0.06, 0.12],
+      subRange: [0.3, 0.46],
+      macroStep: 0.3,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.9,
+      texturePeriod: 7,
+    }),
+  },
+
+  // ─── Tim Hecker — Ravedeath: distorted granular organ ───────────────
+  {
+    id: "hecker-ravedeath",
+    name: "Ravedeath",
+    attribution: "Tim Hecker · distorted granular organ",
+    hint: "Reed (balanced pipe-organ shape) into the granular tail processor with saturation and hall. Tim Hecker's Ravedeath 1972 — a distorted, granulated church-organ texture.",
+    voiceLayers: ["reed", "metal"],
+    voiceLevels: { reed: 1, metal: 0.22 },
+    reedShape: "balanced",
+    drift: 0.18,
+    air: 0.55,
+    time: 0.09,
+    sub: 0.3,
+    bloom: 0.8,
+    glide: 0.5,
+    lfoShape: "sine",
+    lfoRate: 0.06,
+    lfoAmount: 0.08,
+    climateX: 0.36,
+    climateY: 0.22,
+    effects: ["tape", "granular", "hall", "plate"],
+    scale: "minor",
+    gain: 0.85,
+    motionProfile: motionProfile({
+      climateXRange: [0.3, 0.44],
+      climateYRange: [0.16, 0.3],
+      bloomRange: [0.72, 0.9],
+      timeRange: [0.06, 0.14],
+      driftRange: [0.12, 0.26],
+      subRange: [0.22, 0.38],
+      macroStep: 0.58,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.58,
+      textureFloor: 0.68,
+      texturePeriod: 5,
+    }),
+  },
+
+  // ─── Tim Hecker — Virgins: granular piano minor ─────────────────────
+  {
+    id: "hecker-virgins",
+    name: "Virgins",
+    attribution: "Tim Hecker · granular piano minor",
+    hint: "Piano and reed into granular + hall. Tim Hecker's Virgins — minor-key piano textures stretched and fragmented.",
+    voiceLayers: ["piano", "reed"],
+    voiceLevels: { piano: 1, reed: 0.35 },
+    reedShape: "balanced",
+    drift: 0.16,
+    air: 0.5,
+    time: 0.08,
+    sub: 0.24,
+    bloom: 0.82,
+    glide: 0.55,
+    lfoShape: "sine",
+    lfoRate: 0.05,
+    lfoAmount: 0.06,
+    climateX: 0.34,
+    climateY: 0.2,
+    effects: ["granular", "hall", "plate", "tape"],
+    scale: "minor",
+    gain: 0.88,
+    motionProfile: motionProfile({
+      climateXRange: [0.28, 0.4],
+      climateYRange: [0.14, 0.28],
+      bloomRange: [0.76, 0.92],
+      timeRange: [0.04, 0.12],
+      driftRange: [0.1, 0.22],
+      subRange: [0.18, 0.32],
+      macroStep: 0.56,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.6,
+      textureFloor: 0.72,
+      texturePeriod: 5,
+    }),
+  },
+
+  // ─── Fennesz — processed granular harmonic stack ────────────────────
+  {
+    id: "fennesz-endless",
+    name: "Endless Summer",
+    attribution: "Fennesz · processed granular harmonic texture",
+    hint: "Reed + air processed through granular + shimmer. Fennesz's Endless Summer — bright harmonic textures granulated into shimmering clouds.",
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 1, air: 0.45 },
+    reedShape: "balanced",
+    drift: 0.22,
+    air: 0.62,
+    time: 0.1,
+    sub: 0.18,
+    bloom: 0.72,
+    glide: 0.4,
+    lfoShape: "sine",
+    lfoRate: 0.08,
+    lfoAmount: 0.08,
+    climateX: 0.56,
+    climateY: 0.28,
+    effects: ["granular", "shimmer", "hall", "tape"],
+    scale: "just5",
+    gain: 0.88,
+    motionProfile: motionProfile({
+      climateXRange: [0.48, 0.64],
+      climateYRange: [0.2, 0.36],
+      bloomRange: [0.6, 0.82],
+      timeRange: [0.06, 0.14],
+      driftRange: [0.16, 0.3],
+      subRange: [0.12, 0.24],
+      macroStep: 0.7,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5, 7],
+      tonicFloor: 0.54,
+      textureFloor: 0.64,
+      texturePeriod: 4,
+    }),
+  },
+
+  // ─── Biosphere — Substrata: stretched arctic field ──────────────────
+  {
+    id: "biosphere-substrata",
+    name: "Substrata",
+    attribution: "Biosphere · stretched arctic field recording",
+    hint: "Air + reed stretched through granular into a cistern. Biosphere's Substrata — deep arctic field-recording texture, slow motion.",
+    voiceLayers: ["air", "reed"],
+    voiceLevels: { air: 1, reed: 0.25 },
+    reedShape: "balanced",
+    drift: 0.2,
+    air: 0.58,
+    time: 0.1,
+    sub: 0.36,
+    bloom: 0.78,
+    glide: 0.45,
+    lfoShape: "sine",
+    lfoRate: 0.06,
+    lfoAmount: 0.08,
+    climateX: 0.26,
+    climateY: 0.24,
+    effects: ["granular", "cistern", "tape"],
+    scale: "drone",
+    gain: 0.92,
+    motionProfile: motionProfile({
+      climateXRange: [0.2, 0.32],
+      climateYRange: [0.16, 0.32],
+      bloomRange: [0.7, 0.88],
+      timeRange: [0.06, 0.14],
+      driftRange: [0.14, 0.26],
+      subRange: [0.26, 0.44],
+      macroStep: 0.62,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.58,
+      textureFloor: 0.66,
+      texturePeriod: 5,
+    }),
+  },
+
+  // ─── William Basinski — Disintegration Loops ────────────────────────
+  {
+    id: "basinski-disintegration",
+    name: "Disintegration",
+    attribution: "William Basinski · decaying tape loop",
+    hint: "Reed (bowed-string shape) + granular + heavy tape. Basinski's Disintegration Loops — a loop of orchestral fragments slowly eroding, melancholy patina.",
+    voiceLayers: ["reed", "piano"],
+    voiceLevels: { reed: 1, piano: 0.4 },
+    reedShape: "even",
+    drift: 0.16,
+    air: 0.52,
+    time: 0.06,
+    sub: 0.3,
+    bloom: 0.85,
+    glide: 0.5,
+    lfoShape: "sine",
+    lfoRate: 0.04,
+    lfoAmount: 0.1,
+    climateX: 0.32,
+    climateY: 0.18,
+    effects: ["granular", "tape", "hall", "plate"],
+    scale: "minor",
+    gain: 0.9,
+    motionProfile: motionProfile({
+      climateXRange: [0.26, 0.38],
+      climateYRange: [0.12, 0.24],
+      bloomRange: [0.78, 0.94],
+      timeRange: [0.04, 0.1],
+      driftRange: [0.12, 0.22],
+      subRange: [0.22, 0.38],
+      macroStep: 0.52,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.6,
+      textureFloor: 0.7,
+      texturePeriod: 5,
+    }),
+  },
+
+  // ─── Harold Budd — The Pearl / The Plateaux of Mirror ───────────────
+  {
+    id: "budd-harold",
+    name: "Pearl",
+    attribution: "Harold Budd · long-decay piano",
+    hint: "Piano with a reed bed in a deep plate + hall. Harold Budd's Pearl / Plateaux of Mirror — simple piano tones with infinite reverb tails.",
+    voiceLayers: ["piano", "reed"],
+    voiceLevels: { piano: 1, reed: 0.3 },
+    reedShape: "balanced",
+    drift: 0.1,
+    air: 0.6,
+    time: 0.05,
+    sub: 0.18,
+    bloom: 0.88,
+    glide: 0.55,
+    lfoShape: "sine",
+    lfoRate: 0.05,
+    lfoAmount: 0.05,
+    climateX: 0.44,
+    climateY: 0.14,
+    effects: ["plate", "hall", "tape"],
+    scale: "just5",
+    gain: 0.95,
+    motionProfile: motionProfile({
+      climateXRange: [0.36, 0.5],
+      climateYRange: [0.1, 0.2],
+      bloomRange: [0.82, 0.96],
+      timeRange: [0.03, 0.08],
+      driftRange: [0.08, 0.16],
+      subRange: [0.14, 0.26],
+      macroStep: 0.44,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.6,
+      textureFloor: 0.72,
+      texturePeriod: 6,
+    }),
+  },
+
+  // ─── Nils Frahm — solo piano drone ──────────────────────────────────
+  {
+    id: "frahm-solo",
+    name: "Solo",
+    attribution: "Nils Frahm · solo piano drone",
+    hint: "Piano alone in hall + tape. Nils Frahm Solo / Spaces — sustained piano as drone, felt-dampened.",
+    voiceLayers: ["piano"],
+    voiceLevels: { piano: 1 },
+    drift: 0.08,
+    air: 0.55,
+    time: 0.05,
+    sub: 0.2,
+    bloom: 0.8,
+    glide: 0.5,
+    lfoShape: "sine",
+    lfoRate: 0.06,
+    lfoAmount: 0.04,
+    climateX: 0.4,
+    climateY: 0.12,
+    effects: ["hall", "tape", "plate"],
+    scale: "minor",
+    gain: 1.02,
+    motionProfile: motionProfile({
+      climateXRange: [0.34, 0.46],
+      climateYRange: [0.08, 0.18],
+      bloomRange: [0.74, 0.9],
+      timeRange: [0.03, 0.08],
+      driftRange: [0.06, 0.12],
+      subRange: [0.16, 0.26],
+      macroStep: 0.4,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.62,
+      textureFloor: 0.74,
+      texturePeriod: 6,
+    }),
+  },
+
+  // ─── Grouper — Dragging a Dead Deer Up a Hill ───────────────────────
+  {
+    id: "grouper-dragging",
+    name: "Dragging",
+    attribution: "Grouper · piano + air + tape wear",
+    hint: "Piano + air bed in tape + plate. Grouper's Dragging a Dead Deer — lo-fi piano under a veil of air and tape patina.",
+    voiceLayers: ["piano", "air"],
+    voiceLevels: { piano: 1, air: 0.5 },
+    drift: 0.18,
+    air: 0.55,
+    time: 0.08,
+    sub: 0.22,
+    bloom: 0.78,
+    glide: 0.45,
+    lfoShape: "sine",
+    lfoRate: 0.07,
+    lfoAmount: 0.08,
+    climateX: 0.34,
+    climateY: 0.24,
+    effects: ["tape", "plate", "hall", "wow"],
+    scale: "minor",
+    gain: 0.95,
+    motionProfile: motionProfile({
+      climateXRange: [0.28, 0.4],
+      climateYRange: [0.18, 0.32],
+      bloomRange: [0.72, 0.88],
+      timeRange: [0.04, 0.12],
+      driftRange: [0.12, 0.24],
+      subRange: [0.16, 0.3],
+      macroStep: 0.62,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.58,
+      textureFloor: 0.66,
+      texturePeriod: 5,
+    }),
+  },
+
+  // ─── Ellen Arkbro — meantone chord drones ───────────────────────────
+  {
+    id: "arkbro-chords",
+    name: "For Organ",
+    attribution: "Ellen Arkbro · meantone pipe-organ chords",
+    hint: "Reed (balanced pipe-organ shape) in meantone tuning. Ellen Arkbro's For Organ and Brass — slow austere meantone chord drones.",
+    voiceLayers: ["reed", "metal"],
+    voiceLevels: { reed: 1, metal: 0.14 },
+    reedShape: "balanced",
+    drift: 0.1,
+    air: 0.48,
+    time: 0.04,
+    sub: 0.32,
+    bloom: 0.78,
+    glide: 0.6,
+    lfoShape: "sine",
+    lfoRate: 0.08,
+    lfoAmount: 0.03,
+    climateX: 0.3,
+    climateY: 0.1,
+    effects: ["hall", "tape"],
+    scale: "meantone",
+    gain: 1.0,
+    motionProfile: motionProfile({
+      climateXRange: [0.24, 0.36],
+      climateYRange: [0.06, 0.14],
+      bloomRange: [0.72, 0.88],
+      timeRange: [0.02, 0.06],
+      driftRange: [0.08, 0.14],
+      subRange: [0.26, 0.4],
+      macroStep: 0.34,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.9,
+      texturePeriod: 7,
+    }),
+  },
+
+  // ─── La Monte Young — Well-Tuned Piano ──────────────────────────────
+  {
+    id: "young-well-tuned",
+    name: "Well-Tuned",
+    attribution: "La Monte Young · harmonic-series drone",
+    hint: "Piano + reed (sine shape) in harmonic-series tuning. La Monte Young's Well-Tuned Piano — pure harmonic intervals, static.",
+    voiceLayers: ["piano", "reed"],
+    voiceLevels: { piano: 1, reed: 0.4 },
+    reedShape: "sine",
+    drift: 0.06,
+    air: 0.4,
+    time: 0.03,
+    sub: 0.22,
+    bloom: 0.82,
+    glide: 0.55,
+    lfoShape: "sine",
+    lfoRate: 0.04,
+    lfoAmount: 0.02,
+    climateX: 0.32,
+    climateY: 0.08,
+    effects: ["hall", "plate"],
+    scale: "harmonics",
+    gain: 1.0,
+    motionProfile: motionProfile({
+      climateXRange: [0.26, 0.36],
+      climateYRange: [0.06, 0.12],
+      bloomRange: [0.78, 0.9],
+      timeRange: [0.02, 0.06],
+      driftRange: [0.04, 0.1],
+      subRange: [0.16, 0.28],
+      macroStep: 0.28,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.92,
+      texturePeriod: 8,
+    }),
+  },
+
+  // ─── Catherine Lamb — microtonal chamber ────────────────────────────
+  {
+    id: "lamb-prisma",
+    name: "Prisma",
+    attribution: "Catherine Lamb · maqam-based microtonal chamber",
+    hint: "Reed (balanced) + air in maqam rast. Catherine Lamb's Prisma — slow microtonal chamber drones with Middle-Eastern scale intervals.",
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 1, air: 0.32 },
+    reedShape: "balanced",
+    drift: 0.1,
+    air: 0.52,
+    time: 0.04,
+    sub: 0.24,
+    bloom: 0.82,
+    glide: 0.55,
+    lfoShape: "sine",
+    lfoRate: 0.05,
+    lfoAmount: 0.04,
+    climateX: 0.34,
+    climateY: 0.12,
+    effects: ["plate", "hall"],
+    scale: "maqam-rast",
+    gain: 0.98,
+    motionProfile: motionProfile({
+      climateXRange: [0.28, 0.4],
+      climateYRange: [0.08, 0.16],
+      bloomRange: [0.76, 0.9],
+      timeRange: [0.02, 0.06],
+      driftRange: [0.08, 0.14],
+      subRange: [0.18, 0.3],
+      macroStep: 0.34,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.62,
+      textureFloor: 0.76,
+      texturePeriod: 6,
+    }),
+  },
 ];
 
 const PRESET_MATERIAL_PROFILES: Record<string, PresetMaterialProfile> = {
@@ -931,6 +1420,7 @@ export function getPresetMaterialProfile(presetOrId: Preset | string | null): Pr
  *  chain before applying a new preset. */
 const ALL_EFFECT_IDS: EffectId[] = [
   "tape", "wow", "plate", "hall", "shimmer", "delay", "sub", "comb", "freeze",
+  "cistern", "granular",
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -952,12 +1442,14 @@ export function createPresetVariation(
     reed: false,
     metal: false,
     air: false,
+    piano: false,
   };
   const voiceLevels: Record<VoiceType, number> = {
     tanpura: 1,
     reed: 1,
     metal: 1,
     air: 1,
+    piano: 1,
   };
 
   for (const type of preset.voiceLayers) {
@@ -1047,8 +1539,8 @@ export interface PresetUiSetters {
  */
 export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: PresetUiSetters): void {
   // Voice layers — turn on the listed ones, off the rest.
-  const layers: Record<VoiceType, boolean> = { tanpura: false, reed: false, metal: false, air: false };
-  const levels: Record<VoiceType, number> = { tanpura: 1, reed: 1, metal: 1, air: 1 };
+  const layers: Record<VoiceType, boolean> = { tanpura: false, reed: false, metal: false, air: false, piano: false };
+  const levels: Record<VoiceType, number> = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1 };
   for (const t of preset.voiceLayers) layers[t] = true;
   for (const t of ALL_VOICE_TYPES) {
     if (preset.voiceLevels && preset.voiceLevels[t] !== undefined) {
@@ -1100,6 +1592,9 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     engine.setPresetTrim(preset.gain ?? 1);
     engine.setPresetMotionProfile(preset.motionProfile);
     engine.setPresetMaterialProfile(getPresetMaterialProfile(preset));
+    // Reed shape must be set before applyDroneScene (which rebuilds
+    // voices) so the reed worklet picks up the new harmonic profile.
+    engine.setReedShape(preset.reedShape ?? "odd");
     engine.applyDroneScene(layers, levels, SCALE_INTERVALS[preset.scale] ?? [0]);
   }
 

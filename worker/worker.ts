@@ -122,7 +122,7 @@ function normalizeScene(decoded: unknown): PortableScene {
   const root = (allowedRoots as readonly string[]).includes(droneIn.root as string)
     ? (droneIn.root as (typeof allowedRoots)[number])
     : "A";
-  const allowedScales = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic"] as const;
+  const allowedScales = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
   const scale = (allowedScales as readonly string[]).includes(droneIn.scale as string)
     ? (droneIn.scale as (typeof allowedScales)[number])
     : "drone";
@@ -233,6 +233,10 @@ const SCALE_LABELS: Record<string, string> = {
   phrygian: "PHRYGIAN",
   just5: "JUST5",
   pentatonic: "PENTA",
+  meantone: "MEANTONE",
+  harmonics: "HARMONICS",
+  "maqam-rast": "RAST",
+  slendro: "SLENDRO",
 };
 
 function metaTitle(scene: PortableScene): string {

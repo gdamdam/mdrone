@@ -35,11 +35,14 @@ export type EffectId =
   | "plate"
   | "hall"
   | "shimmer"
-  | "freeze";
+  | "freeze"
+  | "cistern"
+  | "granular";
 
 /** Fixed serial-chain order. Must match FxBar.tsx's FX_DEFS order. */
 const ALL_EFFECTS: EffectId[] = [
   "tape", "wow", "sub", "comb", "delay", "plate", "hall", "shimmer", "freeze",
+  "cistern", "granular",
 ];
 
 /** Base crossfade time-constant for the bypass/wet toggle. Scaled
@@ -59,6 +62,8 @@ const ON_LEVELS: Record<EffectId, number> = {
   hall: 1.0,
   shimmer: 0.95,
   freeze: 1.0,
+  cistern: 1.0,
+  granular: 0.9,
 };
 
 interface Insert {
@@ -84,14 +89,17 @@ export class FxChain {
   private subBand!: BiquadFilterNode;
   private subLow!: BiquadFilterNode;
   private hallVerb!: ConvolverNode;
+  private cisternVerb!: ConvolverNode;
 
   private plateWorklet: AudioWorkletNode | null = null;
   private shimmerWorklet: AudioWorkletNode | null = null;
   private freezeWorklet: AudioWorkletNode | null = null;
+  private granularWorklet: AudioWorkletNode | null = null;
 
   private enabled: Record<EffectId, boolean> = {
     tape: false, wow: false, sub: false, comb: false, delay: false,
     plate: false, hall: false, shimmer: false, freeze: false,
+    cistern: false, granular: false,
   };
   private levels: Record<EffectId, number> = { ...ON_LEVELS };
   private delayFeedback = 0.58;
@@ -135,17 +143,19 @@ export class FxChain {
       hall: makeInsert(),
       shimmer: makeInsert(),
       freeze: makeInsert(),
+      cistern: makeInsert(),
+      granular: makeInsert(),
     };
 
-    // Chain inserts in order: input → tape → wow → sub → comb → delay
-    //                         → plate → hall → shimmer → freeze → dryOut
-    this.input.connect(this.inserts.tape.insertIn);
+    // Chain inserts in ALL_EFFECTS order, ending with the last one
+    // feeding dryOut.
+    this.input.connect(this.inserts[ALL_EFFECTS[0]].insertIn);
     for (let i = 0; i < ALL_EFFECTS.length - 1; i++) {
       this.inserts[ALL_EFFECTS[i]].insertOut.connect(
         this.inserts[ALL_EFFECTS[i + 1]].insertIn,
       );
     }
-    this.inserts.freeze.insertOut.connect(this.dryOut);
+    this.inserts[ALL_EFFECTS[ALL_EFFECTS.length - 1]].insertOut.connect(this.dryOut);
 
     this.wireTape();
     this.wireWow();
@@ -153,7 +163,8 @@ export class FxChain {
     this.wireComb();
     this.wireDelay();
     this.wireHall();
-    // plate / shimmer / freeze DSP is created in onWorkletReady()
+    this.wireCistern();
+    // plate / shimmer / freeze / granular DSP is created in onWorkletReady()
   }
 
   // ── Insert wiring helpers ───────────────────────────────────────────
@@ -286,6 +297,21 @@ export class FxChain {
       .connect(ins.insertOut);
   }
 
+  /** CISTERN — the Fort Worden cistern / cathedral-scale convolver with
+   *  a 30-second tail. Native ConvolverNode, same pattern as hall. The
+   *  IR is a synthesized exponential-decay noise burst with stretched
+   *  early reflections for a cavernous early-to-late transition. */
+  private wireCistern(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.cistern;
+    this.cisternVerb = ctx.createConvolver();
+    this.cisternVerb.buffer = FxChain.makeCisternImpulse(ctx, 28);
+    ins.insertIn
+      .connect(this.cisternVerb)
+      .connect(ins.wetGain)
+      .connect(ins.insertOut);
+  }
+
   /**
    * Create and wire the three worklet-backed effects once the worklet
    * module has registered its processors. Any effect that was toggled
@@ -332,8 +358,23 @@ export class FxChain {
       .connect(freezeIns.wetGain)
       .connect(freezeIns.insertOut);
 
+    // GRANULAR — tail processor that captures incoming audio into a ring
+    // buffer and plays overlapping grains back with independent
+    // pitch/position/pan. Used for Köner/Hecker/Fennesz/Basinski/Biosphere
+    // textures.
+    this.granularWorklet = new AudioWorkletNode(ctx, "fx-granular", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    const granularIns = this.inserts.granular;
+    granularIns.insertIn
+      .connect(this.granularWorklet)
+      .connect(granularIns.wetGain)
+      .connect(granularIns.insertOut);
+
     // Reapply pending enables for worklet-backed effects
-    for (const id of ["plate", "shimmer", "freeze"] as const) {
+    for (const id of ["plate", "shimmer", "freeze", "granular"] as const) {
       if (this.enabled[id]) this.setEffect(id, true);
     }
   }
@@ -512,6 +553,60 @@ export class FxChain {
             const off = idx + j;
             if (off < length) {
               data[off] += ref.a * (1 - j * 0.15);
+            }
+          }
+        }
+      }
+    }
+    return buffer;
+  }
+
+  /** Long-tail cistern IR — Fort Worden / cathedral scale, for
+   *  Deep-Listening-style 20s+ reverb tails. Sparse early reflections
+   *  (cavernous space = widely-spaced early arrivals) then dense
+   *  exponential noise decay over the full length. */
+  private static makeCisternImpulse(ctx: AudioContext, seconds: number): AudioBuffer {
+    const rate = ctx.sampleRate;
+    const length = Math.floor(seconds * rate);
+    const buffer = ctx.createBuffer(2, length, rate);
+
+    // Sparse widely-spaced early reflections — the "cavern" cue
+    const earlyL = [
+      { t: 0.04, a: 0.5 },
+      { t: 0.11, a: 0.42 },
+      { t: 0.22, a: 0.34 },
+      { t: 0.38, a: 0.26 },
+      { t: 0.58, a: 0.2 },
+      { t: 0.82, a: 0.16 },
+    ];
+    const earlyR = [
+      { t: 0.05, a: 0.48 },
+      { t: 0.13, a: 0.4 },
+      { t: 0.25, a: 0.32 },
+      { t: 0.41, a: 0.25 },
+      { t: 0.62, a: 0.19 },
+      { t: 0.86, a: 0.15 },
+    ];
+
+    const lateStart = Math.floor(0.3 * rate);
+    // Gentle exponential decay over the full length. 1.2 = very long
+    // tail (30s effective RT60 on a 28s buffer).
+    const decayCoef = 1.2;
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buffer.getChannelData(ch);
+      for (let i = lateStart; i < length; i++) {
+        const t = (i - lateStart) / (length - lateStart);
+        const env = Math.exp(-decayCoef * t);
+        data[i] = (Math.random() * 2 - 1) * env * 0.28;
+      }
+      const early = ch === 0 ? earlyL : earlyR;
+      for (const ref of early) {
+        const idx = Math.floor(ref.t * rate);
+        if (idx < length) {
+          for (let j = 0; j < 8; j++) {
+            const off = idx + j;
+            if (off < length) {
+              data[off] += ref.a * (1 - j * 0.11);
             }
           }
         }

@@ -96,6 +96,20 @@ const VOICES: VoiceDef[] = [
       </svg>
     ),
   },
+  {
+    id: "piano", label: "PIANO",
+    hint: "Inharmonically-stretched harmonic stack with a slow breath LFO. A looped sustained piano tone — for ambient piano presets in the Eno / Budd / Hecker / Grouper / Frahm lineage.",
+    icon: (
+      // Three keys: two white with a black between
+      <svg {...V_SVG}>
+        <rect x="3" y="3" width="4" height="12" />
+        <rect x="7" y="3" width="4" height="12" />
+        <rect x="11" y="3" width="4" height="12" />
+        <rect x="6" y="3" width="2" height="7" fill="currentColor" />
+        <rect x="10" y="3" width="2" height="7" fill="currentColor" />
+      </svg>
+    ),
+  },
 ];
 
 interface DroneViewProps {

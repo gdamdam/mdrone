@@ -93,6 +93,18 @@ const FX_DEFS: FxDef[] = [
     hint: "Freeze — captures the current moment as a self-sustaining loop. Toggle off to decay",
     icon: <IconFreeze />,
   },
+  {
+    id: "cistern",
+    label: "CISTERN",
+    hint: "Cistern reverb — 28-second exponential tail. Fort Worden / cathedral space. Used by Deep Listening",
+    icon: <IconCistern />,
+  },
+  {
+    id: "granular",
+    label: "GRAIN",
+    hint: "Granular tail processor — grain-cloud texture on the incoming signal. Used by Köner, Hecker, Fennesz, Basinski",
+    icon: <IconGranular />,
+  },
 ];
 
 export function FxBar({ engine, states, onToggle }: FxBarProps) {
@@ -135,6 +147,7 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
   const activePositions: Record<EffectId, number | null> = {
     tape: null, wow: null, sub: null, comb: null,
     delay: null, plate: null, hall: null, shimmer: null, freeze: null,
+    cistern: null, granular: null,
   };
   for (const fx of FX_DEFS) {
     if (states[fx.id]) {
@@ -301,6 +314,34 @@ function IconFreeze() {
       <path d="M14 4 L 4 14" />
       <path d="M9 5 L 7 3 M9 5 L 11 3" />
       <path d="M9 13 L 7 15 M9 13 L 11 15" />
+    </svg>
+  );
+}
+
+/** CISTERN — a deep well cross-section with a long tail arrow. */
+function IconCistern() {
+  return (
+    <svg {...iconProps}>
+      <path d="M3 3 L 3 15 L 15 15 L 15 3" />
+      <path d="M3 9 Q 9 7 15 9" />
+      <path d="M3 13 Q 9 11 15 13" />
+    </svg>
+  );
+}
+
+/** GRANULAR — scattered dots representing grains. */
+function IconGranular() {
+  return (
+    <svg {...iconProps}>
+      <circle cx="4" cy="5" r="1" />
+      <circle cx="9" cy="4" r="1" />
+      <circle cx="14" cy="6" r="1" />
+      <circle cx="6" cy="10" r="1" />
+      <circle cx="11" cy="9" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="3" cy="13" r="1" />
+      <circle cx="8" cy="14" r="1" />
+      <circle cx="12" cy="15" r="1" />
     </svg>
   );
 }

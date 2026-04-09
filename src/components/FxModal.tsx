@@ -30,6 +30,8 @@ const EFFECT_TITLES: Record<EffectId, string> = {
   sub: "SUB HARMONIC",
   comb: "RESONANT COMB",
   freeze: "FREEZE",
+  cistern: "CISTERN REVERB",
+  granular: "GRANULAR CLOUD",
 };
 
 const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
@@ -50,6 +52,10 @@ const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
     "Resonant comb filter tuned to the drone root. Short delay with high feedback creates a pitched metallic ring that sings along with the tonic. Adds harmonic specificity and Karplus-Strong character.",
   freeze:
     "Captures the current moment as a self-sustaining loop. Toggle on to latch the buffer, toggle off to release it. The control here adjusts how strongly the frozen layer sits in the mix.",
+  cistern:
+    "Long-tail convolver with a ~28 second exponential decay. Models a Fort Worden cistern / cathedral scale — the reverb IS the instrument. Used by Deep Listening and other long-decay presets.",
+  granular:
+    "Grain-cloud tail processor. Captures incoming audio into a ring buffer and plays overlapping grains back with independent pitch, pan, and position. Used by Köner, Hecker, Fennesz, Basinski, Biosphere.",
 };
 
 export function FxModal({ engine, effectId, onClose }: FxModalProps) {

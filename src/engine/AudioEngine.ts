@@ -202,6 +202,12 @@ export class AudioEngine {
 
   getTanpuraPluckRate(): number { return this.voiceEngine.getTanpuraPluckRate(); }
 
+  setReedShape(shape: import("./VoiceBuilder").ReedShape): void {
+    this.voiceEngine.setReedShape(shape);
+  }
+
+  getReedShape(): import("./VoiceBuilder").ReedShape { return this.voiceEngine.getReedShape(); }
+
   setDrift(v: number): void {
     this.voiceEngine.setDrift(v);
   }

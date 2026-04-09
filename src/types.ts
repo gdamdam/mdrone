@@ -9,7 +9,11 @@ export type ScaleId =
   | "dorian"
   | "phrygian"
   | "just5"
-  | "pentatonic";
+  | "pentatonic"
+  | "meantone"
+  | "harmonics"
+  | "maqam-rast"
+  | "slendro";
 
 /** 12-note pitch class. A4 = 440 Hz reference. */
 export type PitchClass =

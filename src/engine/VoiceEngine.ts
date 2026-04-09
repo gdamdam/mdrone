@@ -1,7 +1,7 @@
 import { FxChain } from "./FxChain";
 import type { PresetMaterialProfile } from "./presets";
 import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
-import { buildVoice, ALL_VOICE_TYPES, type Voice, type VoiceType } from "./VoiceBuilder";
+import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type Voice, type VoiceType } from "./VoiceBuilder";
 
 export class VoiceEngine {
   private readonly ctx: AudioContext;
@@ -17,10 +17,10 @@ export class VoiceEngine {
   private voiceUpdateDepth = 0;
   private voiceRebuildPending = false;
   private layerLevels: Record<VoiceType, number> = {
-    tanpura: 1, reed: 1, metal: 1, air: 1,
+    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1,
   };
   private voiceLayers: Record<VoiceType, boolean> = {
-    tanpura: true, reed: false, metal: false, air: false,
+    tanpura: true, reed: false, metal: false, air: false, piano: false,
   };
   private droneIntervalsCents: number[] = [0];
   private droneRootFreq = 220;
@@ -33,6 +33,7 @@ export class VoiceEngine {
   private glideAmount = 0.15;
   private morphAmount = 0.25;
   private tanpuraPluckRate = 1;
+  private reedShape: ReedShape = "odd";
   private readonly baseMacroTC = 0.4;
 
   private presetMaterialProfile: PresetMaterialProfile = DEFAULT_PRESET_MATERIAL_PROFILE;
@@ -40,16 +41,17 @@ export class VoiceEngine {
   private materialInterval: number | null = null;
   private materialStep = 0;
   private materialLevelOffsets: Record<VoiceType, number> = {
-    tanpura: 0, reed: 0, metal: 0, air: 0,
+    tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0,
   };
   private materialDriftScales: Record<VoiceType, number> = {
-    tanpura: 1, reed: 1, metal: 1, air: 1,
+    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1,
   };
   private readonly materialPhaseOffsets: Record<VoiceType, number> = {
     tanpura: Math.random() * Math.PI * 2,
     reed: Math.random() * Math.PI * 2,
     metal: Math.random() * Math.PI * 2,
     air: Math.random() * Math.PI * 2,
+    piano: Math.random() * Math.PI * 2,
   };
   private materialPluckFactor = 1;
   private materialSubFactor = 1;
@@ -105,7 +107,7 @@ export class VoiceEngine {
       const layerGain = this.ensureLayerGain(type);
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now);
+        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);
@@ -332,6 +334,15 @@ export class VoiceEngine {
 
   getTanpuraPluckRate(): number { return this.tanpuraPluckRate; }
 
+  /** Select the reed voice's harmonic-stack shape. Takes effect on the
+   *  next voice rebuild (preset change / HOLD cycle) — live voices keep
+   *  playing with the shape they were built with to avoid clicks. */
+  setReedShape(shape: ReedShape): void {
+    this.reedShape = shape;
+  }
+
+  getReedShape(): ReedShape { return this.reedShape; }
+
   setShimmerEnabled(on: boolean): void {
     if (!this.droneOn) return;
     this.shimmerVoiceGain.gain.setTargetAtTime(on ? this.effectiveShimmerGain() : 0, this.ctx.currentTime, 0.15);
@@ -395,7 +406,7 @@ export class VoiceEngine {
 
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now);
+        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);
@@ -599,8 +610,8 @@ export class VoiceEngine {
   }
 
   private resetMaterialState(): void {
-    this.materialLevelOffsets = { tanpura: 0, reed: 0, metal: 0, air: 0 };
-    this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1 };
+    this.materialLevelOffsets = { tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0 };
+    this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1 };
     this.materialPluckFactor = 1;
     this.materialSubFactor = 1;
     this.materialShimmerFactor = 1;

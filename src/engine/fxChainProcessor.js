@@ -586,3 +586,182 @@ class FreezeProcessor extends AudioWorkletProcessor {
   }
 }
 registerProcessor("fx-freeze", FreezeProcessor);
+
+// ═══════════════════════════════════════════════════════════════════════
+// GRANULAR — tail-processor grain cloud for textural drones
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A ring buffer continuously captures incoming audio (about 4 seconds).
+// A grain scheduler starts a new grain every (1 / density) seconds. Each
+// grain reads from the ring buffer at `position` (offset from the write
+// head) with a Hann window envelope, a fractional pitch ratio for
+// resampling, and a random pan. Multiple overlapping grains are summed.
+//
+// Parameters (k-rate):
+//   size        — grain length in seconds (0.05..0.8)
+//   density     — grains per second (1..40)
+//   pitchSpread — 0..1, random pitch deviation amount (±1 octave at 1)
+//   panSpread   — 0..1, random L/R pan amount
+//   position    — 0..1, read offset from write head (0 = live, 1 = ~buffer length back)
+//   mix         — 0..1, dry/wet mix
+//
+// Used for Köner, Hecker, Fennesz, Basinski, Biosphere presets.
+
+const GRANULAR_BUFFER_SEC = 4.0;
+const GRANULAR_MAX_GRAINS = 24;
+
+class FxGranularProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "size",        defaultValue: 0.25, minValue: 0.02, maxValue: 1.2, automationRate: "k-rate" },
+      { name: "density",     defaultValue: 8,    minValue: 0.5,  maxValue: 40,  automationRate: "k-rate" },
+      { name: "pitchSpread", defaultValue: 0.15, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      { name: "panSpread",   defaultValue: 0.55, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      { name: "position",    defaultValue: 0.5,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      { name: "mix",         defaultValue: 1.0,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+    ];
+  }
+
+  constructor() {
+    super();
+    this.bufLen = Math.floor(GRANULAR_BUFFER_SEC * sampleRate);
+    this.bufL = new Float32Array(this.bufLen);
+    this.bufR = new Float32Array(this.bufLen);
+    this.writeIdx = 0;
+
+    // Grain pool — each grain has position-in-buffer, remaining samples,
+    // pitch ratio, pan L/R gains, and its read accumulator.
+    this.grains = [];
+    for (let i = 0; i < GRANULAR_MAX_GRAINS; i++) {
+      this.grains.push({ active: false, pos: 0, len: 1, age: 0, ratio: 1, gL: 1, gR: 1 });
+    }
+
+    // Time accumulator for grain scheduling
+    this.sinceLastGrain = 0;
+  }
+
+  spawnGrain(size, pitchSpread, panSpread, position) {
+    // Find a free grain slot; if all are active, overwrite oldest
+    let slot = -1;
+    for (let i = 0; i < this.grains.length; i++) {
+      if (!this.grains[i].active) { slot = i; break; }
+    }
+    if (slot < 0) {
+      let oldest = 0, maxAge = -1;
+      for (let i = 0; i < this.grains.length; i++) {
+        if (this.grains[i].age > maxAge) { maxAge = this.grains[i].age; oldest = i; }
+      }
+      slot = oldest;
+    }
+    const g = this.grains[slot];
+    const lenSamples = Math.max(32, Math.floor(size * sampleRate));
+
+    // Random pitch ratio within ±pitchSpread octaves
+    const pitchOct = (Math.random() * 2 - 1) * pitchSpread;
+    const ratio = Math.pow(2, pitchOct);
+
+    // Random pan: -1..1 scaled by panSpread
+    const pan = (Math.random() * 2 - 1) * panSpread;
+    // Equal-power pan
+    const theta = (pan + 1) * 0.25 * Math.PI; // 0..π/2
+    const gL = Math.cos(theta);
+    const gR = Math.sin(theta);
+
+    // Read position: offset back from write head. Add small randomization
+    // (±20ms) so grains don't all start at exact same place.
+    const jitter = (Math.random() - 0.5) * 0.04 * sampleRate;
+    const back = position * (this.bufLen - lenSamples * 2) + jitter;
+    let startIdx = this.writeIdx - back - lenSamples;
+    while (startIdx < 0) startIdx += this.bufLen;
+    while (startIdx >= this.bufLen) startIdx -= this.bufLen;
+
+    g.active = true;
+    g.pos = startIdx;
+    g.len = lenSamples;
+    g.age = 0;
+    g.ratio = ratio;
+    g.gL = gL;
+    g.gR = gR;
+  }
+
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!output || output.length === 0) return true;
+
+    const L = output[0];
+    const R = output.length > 1 ? output[1] : output[0];
+    const n = L.length;
+
+    const size        = parameters.size[0];
+    const density     = parameters.density[0];
+    const pitchSpread = parameters.pitchSpread[0];
+    const panSpread   = parameters.panSpread[0];
+    const position    = parameters.position[0];
+    const mix         = parameters.mix[0];
+
+    const inL = input && input[0] ? input[0] : null;
+    const inR = input && input[1] ? input[1] : inL;
+
+    // Seconds per grain for this block
+    const grainInterval = 1 / Math.max(0.25, density);
+    const invSr = 1 / sampleRate;
+
+    for (let i = 0; i < n; i++) {
+      // Write input into ring buffer
+      const sL = inL ? inL[i] : 0;
+      const sR = inR ? inR[i] : sL;
+      this.bufL[this.writeIdx] = sL;
+      this.bufR[this.writeIdx] = sR;
+      this.writeIdx++;
+      if (this.writeIdx >= this.bufLen) this.writeIdx = 0;
+
+      // Schedule new grains
+      this.sinceLastGrain += invSr;
+      if (this.sinceLastGrain >= grainInterval) {
+        this.sinceLastGrain -= grainInterval;
+        this.spawnGrain(size, pitchSpread, panSpread, position);
+      }
+
+      // Accumulate active grain output
+      let grainL = 0, grainR = 0;
+      for (let gi = 0; gi < this.grains.length; gi++) {
+        const g = this.grains[gi];
+        if (!g.active) continue;
+        // Hann window envelope over g.len
+        const phase = g.age / g.len;
+        if (phase >= 1) {
+          g.active = false;
+          continue;
+        }
+        const env = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+
+        // Read sample at g.pos with linear interpolation
+        const idx = g.pos;
+        const i0 = Math.floor(idx);
+        const i1 = (i0 + 1) % this.bufLen;
+        const frac = idx - i0;
+        const i0Wrapped = ((i0 % this.bufLen) + this.bufLen) % this.bufLen;
+        const sampleL = this.bufL[i0Wrapped] * (1 - frac) + this.bufL[i1] * frac;
+        const sampleR = this.bufR[i0Wrapped] * (1 - frac) + this.bufR[i1] * frac;
+
+        grainL += sampleL * env * g.gL;
+        grainR += sampleR * env * g.gR;
+
+        g.pos += g.ratio;
+        if (g.pos >= this.bufLen) g.pos -= this.bufLen;
+        g.age++;
+      }
+
+      // Mix dry + grain cloud
+      const dryMix = 1 - mix;
+      const wetMix = mix * 0.9; // trim wet so density-stacked grains don't clip
+      L[i] = sL * dryMix + grainL * wetMix;
+      R[i] = sR * dryMix + grainR * wetMix;
+    }
+
+    return true;
+  }
+}
+
+registerProcessor("fx-granular", FxGranularProcessor);

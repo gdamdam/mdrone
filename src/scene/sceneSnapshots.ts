@@ -47,6 +47,8 @@ export function captureFxSnapshot(engine: AudioEngine): FxSessionSnapshot {
       hall: fx.getEffectLevel("hall"),
       shimmer: fx.getEffectLevel("shimmer"),
       freeze: fx.getEffectLevel("freeze"),
+      cistern: fx.getEffectLevel("cistern"),
+      granular: fx.getEffectLevel("granular"),
     },
     delayTime: fx.getDelayTime(),
     delayFeedback: fx.getDelayFeedback(),

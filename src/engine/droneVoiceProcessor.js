@@ -61,6 +61,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     super();
     const opts = options?.processorOptions || {};
     this.voiceType = opts.voiceType || "tanpura";
+    this.reedShape = opts.reedShape || "odd";
     this.seed = opts.seed || 1;
     this.rng = makeRng(this.seed);
 
@@ -81,6 +82,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       case "reed":    this.initReed();    break;
       case "metal":   this.initMetal();   break;
       case "air":     this.initAir();     break;
+      case "piano":   this.initPiano();   break;
       default:        this.initTanpura(); break;
     }
   }
@@ -210,10 +212,20 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // REED — harmonium/shruti-box free-reed additive synthesis
   // ═══════════════════════════════════════════════════════════════════
   initReed() {
-    // 7 partials — odd-heavy (square-wave tendency), with reed
-    // resonance emphasis at partials 2 and 3.
+    // 7 partials. The shape parameter picks an amplitude curve:
+    //   odd      — clarinet/shruti/harmonium (default, original)
+    //   even     — bowed string (SOTL, Górecki) — even partials emphasised
+    //   balanced — pipe organ, choral "ahh" (Malone) — both odd and even
+    //   sine     — pure fundamental (Dream House, Radigue ARP 2500)
     this.reedN = 7;
-    this.reedAmps     = new Float32Array([0.55, 0.28, 0.38, 0.13, 0.24, 0.07, 0.16]);
+    const REED_AMPS = {
+      odd:      [0.55, 0.28, 0.38, 0.13, 0.24, 0.07, 0.16],
+      even:     [0.55, 0.48, 0.20, 0.36, 0.14, 0.24, 0.08],
+      balanced: [0.60, 0.40, 0.34, 0.26, 0.20, 0.14, 0.10],
+      sine:     [1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00],
+    };
+    const amps = REED_AMPS[this.reedShape] || REED_AMPS.odd;
+    this.reedAmps     = new Float32Array(amps);
     this.reedPhasesL  = new Float32Array(this.reedN);
     this.reedPhasesR  = new Float32Array(this.reedN);
     // Per-partial slow LFO state (0.08..0.28 Hz randomized)
@@ -478,8 +490,64 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       case "reed":    this.reedProcess(L, R, n, freq, drift, amp); break;
       case "metal":   this.metalProcess(L, R, n, freq, drift, amp); break;
       case "air":     this.airProcess(L, R, n, freq, drift, amp); break;
+      case "piano":   this.pianoProcess(L, R, n, freq, drift, amp); break;
     }
     return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PIANO — decaying harmonic stack with slight inharmonic stretch.
+  // Used as a sustained "drone-ified" piano by looping the held state
+  // forever (no release). Signature features:
+  //  - 8 partials with strong fundamental, decreasing higher partials
+  //  - slight inharmonic stretch (real piano partials go marginally sharp)
+  //  - very subtle slow breath LFO for life, no bellows saturation
+  //  - stereo via per-partial offset accumulators
+  // ═══════════════════════════════════════════════════════════════════
+  initPiano() {
+    this.pianoN = 8;
+    this.pianoAmps = new Float32Array([1.0, 0.58, 0.42, 0.28, 0.22, 0.14, 0.10, 0.06]);
+    // Slight inharmonic stretch — real pianos have B ≈ 0.0003..0.0015
+    // for the upper partials. We approximate with a near-integer multiplier.
+    this.pianoRatios = new Float32Array([1.0, 2.004, 3.012, 4.025, 5.04, 6.06, 7.085, 8.11]);
+    this.pianoPhasesL = new Float32Array(this.pianoN);
+    this.pianoPhasesR = new Float32Array(this.pianoN);
+    for (let i = 0; i < this.pianoN; i++) {
+      this.pianoPhasesL[i] = this.rng() * Math.PI * 2;
+      this.pianoPhasesR[i] = this.rng() * Math.PI * 2;
+    }
+    this.pianoLfoPhase = this.rng() * Math.PI * 2;
+    this.pianoLfoRate = 0.09 + this.rng() * 0.08;
+  }
+
+  pianoProcess(L, R, n, freq, drift, amp) {
+    const invSr = 1 / sampleRate;
+    const twoPi = Math.PI * 2;
+    const detuneDepth = drift * 0.0028;
+
+    for (let i = 0; i < n; i++) {
+      this.pianoLfoPhase += twoPi * this.pianoLfoRate * invSr;
+      if (this.pianoLfoPhase > twoPi) this.pianoLfoPhase -= twoPi;
+      const breath = 1 + Math.sin(this.pianoLfoPhase) * 0.025;
+
+      let l = 0, r = 0;
+      for (let p = 0; p < this.pianoN; p++) {
+        const wobble = Math.sin(this.pianoLfoPhase * (1 + p * 0.13)) * detuneDepth;
+        const partialFreq = freq * this.pianoRatios[p] * (1 + wobble);
+        this.pianoPhasesL[p] += twoPi * partialFreq * invSr;
+        this.pianoPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.45);
+        if (this.pianoPhasesL[p] > twoPi) this.pianoPhasesL[p] -= twoPi;
+        if (this.pianoPhasesR[p] > twoPi) this.pianoPhasesR[p] -= twoPi;
+
+        const a = this.pianoAmps[p] * breath;
+        l += Math.sin(this.pianoPhasesL[p]) * a;
+        r += Math.sin(this.pianoPhasesR[p]) * a;
+      }
+      l *= 0.16;
+      r *= 0.16;
+      L[i] = l * amp;
+      R[i] = r * amp;
+    }
   }
 }
 

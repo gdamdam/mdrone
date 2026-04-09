@@ -22,6 +22,15 @@ export const SCALES: Scale[] = [
   { id: "phrygian", label: "Phrygian", intervalsCents: [0, 100, 700] },
   { id: "just5", label: "Just 5-limit", intervalsCents: [0, 386.31, 701.96] },
   { id: "pentatonic", label: "Pentatonic", intervalsCents: [0, 200, 700] },
+  // 1/4-comma meantone — Malone / Arkbro pipe organs, pre-Bach tuning
+  { id: "meantone", label: "Meantone", intervalsCents: [0, 193.16, 310.26, 503.42, 696.58, 889.74] },
+  // Harmonic series partials 4-8 as pitches (over a fundamental) — La Monte Young,
+  // Éliane Radigue's later work, spectral drones
+  { id: "harmonics", label: "Harmonics", intervalsCents: [0, 386.31, 701.96, 968.83, 1200] },
+  // Maqam Rast — Arabic maqam with half-flat degrees, approximated here in cents
+  { id: "maqam-rast", label: "Rast", intervalsCents: [0, 200, 350, 500, 700, 900, 1050] },
+  // Slendro — Javanese gamelan pentatonic, near-equal 5-tone
+  { id: "slendro", label: "Slendro", intervalsCents: [0, 240, 480, 720, 960] },
 ];
 
 export type LiveDroneSceneState = DroneSessionSnapshot;
@@ -55,12 +64,14 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
       reed: false,
       metal: false,
       air: false,
+      piano: false,
     },
     voiceLevels: {
       tanpura: engine?.getVoiceLevel("tanpura") ?? 1,
       reed: engine?.getVoiceLevel("reed") ?? 1,
       metal: engine?.getVoiceLevel("metal") ?? 1,
       air: engine?.getVoiceLevel("air") ?? 1,
+      piano: engine?.getVoiceLevel("piano") ?? 1,
     },
     effects: engine?.getEffectStates() ?? {
       tape: false,
@@ -72,6 +83,8 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
       sub: false,
       comb: false,
       freeze: false,
+      cistern: false,
+      granular: false,
     },
     drift: engine?.getDrift() ?? 0.3,
     air: engine?.getAir() ?? 0.4,

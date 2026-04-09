@@ -84,7 +84,7 @@ function hasLocalStorage(): boolean {
 }
 
 const PITCH_CLASSES: readonly PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
-const SCALE_IDS: readonly ScaleId[] = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic"] as const;
+const SCALE_IDS: readonly ScaleId[] = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
 const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sawtooth"] as const;
 const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk"] as const;
 const VISUALIZERS: readonly Visualizer[] = [
@@ -114,6 +114,8 @@ const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {
   hall: 1,
   shimmer: 0.95,
   freeze: 1,
+  cistern: 1,
+  granular: 0.9,
 };
 
 export const DEFAULT_FX_SNAPSHOT: FxSessionSnapshot = {
@@ -136,8 +138,8 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   root: "A",
   octave: 2,
   scale: "dorian",
-  voiceLayers: { tanpura: true, reed: false, metal: false, air: false },
-  voiceLevels: { tanpura: 1, reed: 1, metal: 1, air: 1 },
+  voiceLayers: { tanpura: true, reed: false, metal: false, air: false, piano: false },
+  voiceLevels: { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1 },
   effects: {
     tape: false,
     wow: false,
@@ -148,6 +150,8 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
     hall: false,
     shimmer: false,
     freeze: false,
+    cistern: false,
+    granular: false,
   },
   drift: 0.3,
   air: 0.4,
@@ -208,6 +212,7 @@ function normalizeVoiceLayers(value: unknown): Record<VoiceType, boolean> {
     reed: readBoolean(record.reed, DEFAULT_DRONE_SNAPSHOT.voiceLayers.reed),
     metal: readBoolean(record.metal, DEFAULT_DRONE_SNAPSHOT.voiceLayers.metal),
     air: readBoolean(record.air, DEFAULT_DRONE_SNAPSHOT.voiceLayers.air),
+    piano: readBoolean(record.piano, DEFAULT_DRONE_SNAPSHOT.voiceLayers.piano),
   };
 }
 
@@ -218,6 +223,7 @@ function normalizeVoiceLevels(value: unknown): Record<VoiceType, number> {
     reed: readNumber(record.reed, DEFAULT_DRONE_SNAPSHOT.voiceLevels.reed, 0, 1),
     metal: readNumber(record.metal, DEFAULT_DRONE_SNAPSHOT.voiceLevels.metal, 0, 1),
     air: readNumber(record.air, DEFAULT_DRONE_SNAPSHOT.voiceLevels.air, 0, 1),
+    piano: readNumber(record.piano, DEFAULT_DRONE_SNAPSHOT.voiceLevels.piano, 0, 1),
   };
 }
 
@@ -233,6 +239,8 @@ function normalizeEffectStates(value: unknown): Record<EffectId, boolean> {
     hall: readBoolean(record.hall, false),
     shimmer: readBoolean(record.shimmer, false),
     freeze: readBoolean(record.freeze, false),
+    cistern: readBoolean(record.cistern, false),
+    granular: readBoolean(record.granular, false),
   };
 }
 
@@ -248,6 +256,8 @@ function normalizeEffectLevels(value: unknown): Record<EffectId, number> {
     hall: readNumber(record.hall, DEFAULT_EFFECT_LEVELS.hall, 0, 1),
     shimmer: readNumber(record.shimmer, DEFAULT_EFFECT_LEVELS.shimmer, 0, 1),
     freeze: readNumber(record.freeze, DEFAULT_EFFECT_LEVELS.freeze, 0, 1),
+    cistern: readNumber(record.cistern, DEFAULT_EFFECT_LEVELS.cistern, 0, 1),
+    granular: readNumber(record.granular, DEFAULT_EFFECT_LEVELS.granular, 0, 1),
   };
 }
 
