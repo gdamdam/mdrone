@@ -1,0 +1,9 @@
+name = "mdrone-share"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Served at sd.mpump.live. Route configured via the Cloudflare dashboard
+# under the existing *.mpump.live zone (same account as s.mpump.live).
+routes = [
+  { pattern = "sd.mpump.live/*", zone_name = "mpump.live" }
+]
