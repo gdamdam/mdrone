@@ -88,16 +88,22 @@ export function buildVoice(
       driftParam.setTargetAtTime(Math.max(0, Math.min(1, amt)), now, 0.08);
     },
     stop() {
-      // Ramp amp to 0 briefly before disconnecting for a clean tail,
-      // then disconnect. The AudioWorkletNode is garbage-collected
-      // once it has no connections and no active refs.
+      // Ramp amp to 0 for a clean tail, then post a termination
+      // message to the processor (so its process() returns false and
+      // the worklet is truly GC-eligible), then disconnect. Without
+      // the stop message, the processor runs forever even when
+      // disconnected — which leaks CPU across many preset changes.
       try {
         const now = ctx.currentTime;
         ampParam.cancelScheduledValues(now);
         ampParam.setValueAtTime(ampParam.value, now);
         ampParam.linearRampToValueAtTime(0, now + 0.15);
-        setTimeout(() => { try { node.disconnect(); } catch { /* ok */ } }, 200);
+        setTimeout(() => {
+          try { node.port.postMessage({ type: "stop" }); } catch { /* ok */ }
+          try { node.disconnect(); } catch { /* ok */ }
+        }, 220);
       } catch {
+        try { node.port.postMessage({ type: "stop" }); } catch { /* ok */ }
         try { node.disconnect(); } catch { /* ok */ }
       }
     },

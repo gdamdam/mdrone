@@ -1,0 +1,76 @@
+import { useEffect, useRef } from "react";
+
+/** Tiny stereo peak meter driven by a shared master AnalyserNode.
+ *  Canvas-based so it refreshes without causing React rerenders. */
+export function VuMeter({
+  analyser,
+  width = 240,
+  height = 10,
+  label = "BREATH",
+}: {
+  analyser: AnalyserNode | null;
+  width?: number;
+  height?: number;
+  label?: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (!analyser) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const buf = new Uint8Array(analyser.fftSize);
+    let peakHold = 0;
+    let peakDecay = 0;
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      let peak = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128;
+        const a = Math.abs(v);
+        sum += v * v;
+        if (a > peak) peak = a;
+      }
+      const rms = Math.sqrt(sum / buf.length);
+      const level = Math.min(1, rms * 3);
+      const peakLvl = Math.min(1, peak * 1.05);
+      if (peakLvl > peakHold) {
+        peakHold = peakLvl;
+        peakDecay = 0;
+      } else {
+        peakDecay += 0.008;
+        peakHold = Math.max(0, peakHold - peakDecay);
+      }
+      const W = canvas.width;
+      const H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+      const grad = ctx.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0, "#d06a24");
+      grad.addColorStop(0.75, "#e59443");
+      grad.addColorStop(0.92, "#ffcc55");
+      grad.addColorStop(1, "#ff4040");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W * level, H);
+      const px = Math.min(W - 2, Math.floor(W * peakHold));
+      ctx.fillStyle = "#ffe6a8";
+      ctx.fillRect(px, 0, 2, H);
+    };
+    tick();
+    return () => cancelAnimationFrame(raf);
+  }, [analyser]);
+  return (
+    <div className="vu-meter" title="Master output level">
+      <span className="vu-meter-label">{label}</span>
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        className="vu-meter-canvas"
+      />
+    </div>
+  );
+}

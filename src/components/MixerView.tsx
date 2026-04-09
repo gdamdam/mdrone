@@ -11,6 +11,9 @@ import type { AudioEngine } from "../engine/AudioEngine";
 
 interface MixerViewProps {
   engine: AudioEngine | null;
+  /** Controlled master volume — shared with the Header volume modal. */
+  volume?: number;
+  onVolumeChange?: (v: number) => void;
 }
 
 interface StripProps {
@@ -56,7 +59,7 @@ function Strip({ label, value, min, max, step, unit, onChange, centre, title }: 
 const HPF_STEPS = [10, 20, 30, 40] as const;
 const hpfLabel = (hz: number) => (hz <= 10 ? "OFF" : `${hz}`);
 
-export function MixerView({ engine }: MixerViewProps) {
+export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerViewProps) {
   const [hpfHz, setHpfHz] = useState(() => engine?.getHpfFreq() ?? 10);
   const [low, setLow] = useState(() => engine?.getEqLow().gain.value ?? 0);
   const [mid, setMid] = useState(() => engine?.getEqMid().gain.value ?? 0);
@@ -65,7 +68,8 @@ export function MixerView({ engine }: MixerViewProps) {
   const [drive, setDrive] = useState(() => engine?.getDrive() ?? 1);
   const [limiterOn, setLimiterOn] = useState(() => engine?.isLimiterEnabled() ?? true);
   const [ceiling, setCeiling] = useState(() => engine?.getLimiterCeiling() ?? -1);
-  const [volume, setVolume] = useState(() => engine?.getOutputTrim().gain.value ?? 1);
+  const [volumeInternal, setVolumeInternal] = useState(() => engine?.getOutputTrim().gain.value ?? 1);
+  const volume = volumeProp ?? volumeInternal;
 
   // Clip LED — rAF loop against the master analyser
   const clipLedRef = useRef<HTMLDivElement>(null);
@@ -113,8 +117,12 @@ export function MixerView({ engine }: MixerViewProps) {
   };
   const onCeiling = (v: number) => { setCeiling(v); if (engine) engine.setLimiterCeiling(v); };
   const onVolume = (v: number) => {
-    setVolume(v);
-    if (engine) engine.getOutputTrim().gain.value = v;
+    if (onVolumeChange) {
+      onVolumeChange(v);
+    } else {
+      setVolumeInternal(v);
+      if (engine) engine.setMasterVolume(v);
+    }
   };
 
   const hpfOn = hpfHz > 10;

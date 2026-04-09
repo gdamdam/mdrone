@@ -59,6 +59,14 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.seed = opts.seed || 1;
     this.rng = makeRng(this.seed);
 
+    // Termination flag — main thread posts {type:"stop"} when the
+    // voice is retired. process() returns false once set, so the
+    // worklet processor is GC-eligible instead of running forever.
+    this.stopped = false;
+    this.port.onmessage = (e) => {
+      if (e.data && e.data.type === "stop") this.stopped = true;
+    };
+
     // Pink noise filter state (Paul Kellet) — shared by voices that need it
     this.pink = { b0: 0, b1: 0, b2: 0, b3: 0, b4: 0, b5: 0, b6: 0 };
 
@@ -438,6 +446,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // Main process dispatch
   // ═══════════════════════════════════════════════════════════════════
   process(_inputs, outputs, parameters) {
+    if (this.stopped) return false;
     const output = outputs[0];
     if (!output || output.length === 0) return true;
     const L = output[0];

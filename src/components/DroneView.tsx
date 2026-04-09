@@ -11,6 +11,7 @@ import type { AudioEngine } from "../engine/AudioEngine";
 import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
 import type { EffectId } from "../engine/FxChain";
 import { PRESETS, applyPreset } from "../engine/presets";
+import { VuMeter } from "./VuMeter";
 import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass, ScaleId } from "../types";
 import { FxBar } from "./FxBar";
@@ -706,6 +707,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       <div className="drone-right">
         <div className="panel climate-panel">
           <div className="panel-label">CLIMATE</div>
+          <div className="climate-vu">
+            <VuMeter analyser={engine?.getAnalyser() ?? null} width={260} height={10} />
+          </div>
           <div
             ref={xyRef}
             className="climate-xy"

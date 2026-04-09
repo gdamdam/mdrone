@@ -35,6 +35,9 @@ interface FxDef {
   icon: React.ReactNode;
 }
 
+// Serial chain order. Matches the signal flow in FxChain:
+//   tape → wow → sub → comb → delay → plate → hall → shimmer → freeze
+// Tone shaping → harmonic coloration → time delay → spatial reverbs → capture.
 const FX_DEFS: FxDef[] = [
   {
     id: "tape",
@@ -47,6 +50,24 @@ const FX_DEFS: FxDef[] = [
     label: "WOW",
     hint: "Wow & flutter — slow pitch wobble (0.55 Hz) + fast flutter (6.2 Hz). Basinski/Grouper instability",
     icon: <IconWow />,
+  },
+  {
+    id: "sub",
+    label: "SUB",
+    hint: "Sub harmonic enhancer — psychoacoustic bass bloom (bandpass → saturation → lowpass)",
+    icon: <IconSubFx />,
+  },
+  {
+    id: "comb",
+    label: "COMB",
+    hint: "Resonant comb filter tuned to the drone root. Adds a pitched metallic ring",
+    icon: <IconComb />,
+  },
+  {
+    id: "delay",
+    label: "DELAY",
+    hint: "Tape delay — warm feedback with saturation in the loop",
+    icon: <IconDelay />,
   },
   {
     id: "plate",
@@ -65,24 +86,6 @@ const FX_DEFS: FxDef[] = [
     label: "SHIMMER",
     hint: "Shimmer reverb — bright highpassed tail. Pairs with the SHIMMER macro for Eno-style clouds",
     icon: <IconShimmerFx />,
-  },
-  {
-    id: "delay",
-    label: "DELAY",
-    hint: "Tape delay — warm feedback with saturation in the loop",
-    icon: <IconDelay />,
-  },
-  {
-    id: "sub",
-    label: "SUB",
-    hint: "Sub harmonic enhancer — psychoacoustic bass bloom (bandpass → saturation → lowpass)",
-    icon: <IconSubFx />,
-  },
-  {
-    id: "comb",
-    label: "COMB",
-    hint: "Resonant comb filter tuned to the drone root. Adds a pitched metallic ring",
-    icon: <IconComb />,
   },
   {
     id: "freeze",
@@ -126,25 +129,51 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
     onToggle(id);
   }, [onToggle]);
 
+  // Running position in the active chain — shown on lit buttons so you
+  // can see at a glance in what order the enabled effects process.
+  let activeIdx = 0;
+  const activePositions: Record<EffectId, number | null> = {
+    tape: null, wow: null, sub: null, comb: null,
+    delay: null, plate: null, hall: null, shimmer: null, freeze: null,
+  };
+  for (const fx of FX_DEFS) {
+    if (states[fx.id]) {
+      activeIdx += 1;
+      activePositions[fx.id] = activeIdx;
+    }
+  }
+
   return (
     <div className="panel fx-bar-panel">
-      <div className="panel-label">EFFECTS · click = toggle · hold = configure</div>
-      <div className="fx-bar">
-        {FX_DEFS.map((fx) => (
-          <button
-            key={fx.id}
-            onClick={() => handleClick(fx.id)}
-            onPointerDown={() => handlePointerDown(fx.id)}
-            onPointerUp={cancelLongPress}
-            onPointerLeave={cancelLongPress}
-            onPointerCancel={cancelLongPress}
-            className={states[fx.id] ? "fx-btn fx-btn-active" : "fx-btn"}
-            title={`${fx.hint}${"\n\n"}Long-press for settings.`}
-          >
-            <span className="fx-btn-icon">{fx.icon}</span>
-            <span className="fx-btn-label">{fx.label}</span>
-          </button>
+      <div className="panel-label">EFFECTS · click = toggle · hold = configure · serial chain</div>
+      <div className="fx-chain-flow" title="Signal flows left → right through each enabled effect in turn">
+        {FX_DEFS.map((fx, i) => (
+          <span key={fx.id} className={states[fx.id] ? "fx-chain-step fx-chain-step-on" : "fx-chain-step"}>
+            {i > 0 && <span className="fx-chain-arrow">▸</span>}
+            {fx.label}
+          </span>
         ))}
+      </div>
+      <div className="fx-bar">
+        {FX_DEFS.map((fx, i) => {
+          const pos = activePositions[fx.id];
+          return (
+            <button
+              key={fx.id}
+              onClick={() => handleClick(fx.id)}
+              onPointerDown={() => handlePointerDown(fx.id)}
+              onPointerUp={cancelLongPress}
+              onPointerLeave={cancelLongPress}
+              onPointerCancel={cancelLongPress}
+              className={states[fx.id] ? "fx-btn fx-btn-active" : "fx-btn"}
+              title={`${fx.hint}${"\n\n"}Chain slot #${i + 1}. Long-press for settings.`}
+            >
+              <span className="fx-btn-num" aria-hidden="true">{pos ?? i + 1}</span>
+              <span className="fx-btn-icon">{fx.icon}</span>
+              <span className="fx-btn-label">{fx.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {modalFx !== null && (

@@ -1,189 +1,191 @@
 /**
- * FxChain — the drone effects bus sitting between droneFilter and the
- * master gain. Nine effects, mixed topologies:
+ * FxChain — a TRUE serial effect chain for the drone bus.
  *
- * AudioWorklet-based (loaded via fxChainProcessor.js):
- *   PLATE    — Jon Dattorro's classic plate reverb topology
- *   SHIMMER  — pitch-shift feedback reverb (real shimmer, not a fake)
- *   FREEZE   — ring buffer capture + crossfaded loop (real freeze)
+ * Signal flow (fixed order):
  *
- * Native Web Audio nodes:
- *   TAPE     — tanh saturation + head bump peaking + highshelf cut
- *   WOW      — modulated short delay line (wow + flutter LFOs)
- *   HALL     — ConvolverNode with an early-reflections + late-diffuse IR
- *   DELAY    — DelayNode with lowpass + tanh + DC blocker feedback
- *   SUB      — bandpass → waveshaper → lowpass bass enhancer
- *   COMB     — DelayNode + feedback, delayTime tracks drone root
+ *   input → TAPE → WOW → SUB → COMB → DELAY → PLATE → HALL → SHIMMER → FREEZE → dryOut
  *
- * Worklet nodes are created lazily by onWorkletReady() after the
- * fxChainProcessor.js module registers its processors. Before that,
- * the wet sends for PLATE/SHIMMER/FREEZE aren't connected — toggling
- * them has no audible effect for the first ~50 ms. The user won't
- * interact that fast in practice.
+ * Every effect is wrapped in a "wet/bypass crossfade insert": when it
+ * is off, its `bypassGain` is 1 and `wetGain` is 0, so the block passes
+ * the signal through unchanged. When it is on, `bypassGain` is 0 and
+ * `wetGain` is 1, and the signal is fully replaced by the processed
+ * output of that effect. Crossfades use `setTargetAtTime` with a soft
+ * time-constant so toggling never clicks.
  *
- * Signal flow:
+ * AIR macro — scales the wet level of the three reverb-family
+ * inserts (PLATE / HALL / SHIMMER) only. Toggling any effect is still
+ * a hard on/off; AIR just rides underneath them to set how much reverb
+ * colour is present in the chain when enabled.
  *
- *    input → TAPE insert → WOW insert → splitNode
- *                                        ├── dryOut ──────────────────►
- *                                        ├── PLATE   ┐
- *                                        ├── HALL    │
- *                                        ├── SHIMMER │
- *                                        ├── DELAY   ├─► wetOut ────►
- *                                        ├── SUB     │
- *                                        ├── COMB    │
- *                                        └── FREEZE  ┘
+ * Worklet-backed effects (PLATE, SHIMMER, FREEZE) are created lazily
+ * in `onWorkletReady()` after the fxChainProcessor module registers.
+ * Until that fires their wet path stays at 0.
  *
- * Each effect is a simple on/off toggle in the prototype. When ON the
- * effect's send is at a sensible default; when OFF it's zero-ramped.
- * The AudioEngine's AIR macro scales wetOut before summing with dry.
+ * `wetOut` is retained as a public GainNode for backwards compat with
+ * AudioEngine wiring, but it receives no signal — the entire chain
+ * output lives on `dryOut`.
  */
 
 export type EffectId =
-  | "plate"
-  | "hall"
-  | "shimmer"
-  | "delay"
   | "tape"
   | "wow"
   | "sub"
   | "comb"
+  | "delay"
+  | "plate"
+  | "hall"
+  | "shimmer"
   | "freeze";
 
+/** Fixed serial-chain order. Must match FxBar.tsx's FX_DEFS order. */
 const ALL_EFFECTS: EffectId[] = [
-  "plate", "hall", "shimmer", "delay", "tape", "wow", "sub", "comb", "freeze",
+  "tape", "wow", "sub", "comb", "delay", "plate", "hall", "shimmer", "freeze",
 ];
 
-const RAMP_TC = 0.12;
+/** Crossfade time-constant for the bypass/wet toggle. Slower than the
+ *  old 0.12 s so effect toggles breathe in and out over the drone
+ *  instead of clicking on. */
+const XFADE_TC = 0.45;
 
+/** Per-effect wet trim when the insert is fully engaged. Tweakable
+ *  via setEffectLevel() for the settings modal. */
 const ON_LEVELS: Record<EffectId, number> = {
-  plate: 0.75,
-  hall: 0.7,
-  shimmer: 0.65,
-  delay: 0.65,
-  tape: 1.0,    // serial insert — crossfade handles it
-  wow: 1.0,     // serial insert — crossfade handles it
-  sub: 0.7,
-  comb: 0.6,
-  freeze: 0.8,
+  tape: 1.0,
+  wow: 1.0,
+  sub: 0.9,
+  comb: 0.85,
+  delay: 0.9,
+  plate: 1.0,
+  hall: 1.0,
+  shimmer: 0.95,
+  freeze: 1.0,
 };
+
+interface Insert {
+  insertIn: GainNode;
+  insertOut: GainNode;
+  bypassGain: GainNode;
+  wetGain: GainNode;
+}
 
 export class FxChain {
   private ctx: AudioContext;
   public input: GainNode;
-  public dryOut: GainNode;
-  public wetOut: GainNode;
-  // Atmospheric sub-bus — plate, hall and shimmer feed here so the
-  // AIR macro only scales the reverb-family effects. Delay, sub,
-  // comb, freeze and the serial inserts run at unity into wetOut.
-  private airBus: GainNode;
+  public dryOut: GainNode;     // final output of the serial chain
+  public wetOut: GainNode;     // retained for compat — silent, unused
 
-  // TAPE insert (serial)
-  private tapeBypass: GainNode;
-  private tapeSend: GainNode;
-  private tapeOut: GainNode;
+  private inserts: Record<EffectId, Insert>;
 
-  // WOW insert (serial, after TAPE)
-  private wowBypass: GainNode;
-  private wowSend: GainNode;
-  private wowOut: GainNode;
+  // Per-effect DSP references (for param tweaks & tail release)
+  private delayNode!: DelayNode;
+  private delayFbGain!: GainNode;
+  private combDelay!: DelayNode;
+  private combFbGain!: GainNode;
+  private subBand!: BiquadFilterNode;
+  private subLow!: BiquadFilterNode;
+  private hallVerb!: ConvolverNode;
 
-  // Split node — all parallel effects and dry tap from here
-  private splitNode: GainNode;
-
-  // Parallel sends — PLATE, SHIMMER, FREEZE are worklet-based and
-  // created lazily once the fxChainProcessor module has loaded.
-  private plateSend: GainNode;
   private plateWorklet: AudioWorkletNode | null = null;
-
-  private hallSend: GainNode;
-  private hallVerb: ConvolverNode;
-
-  private shimmerSend: GainNode;
   private shimmerWorklet: AudioWorkletNode | null = null;
-
-  private delaySend: GainNode;
-  private delayNode: DelayNode;
-  private delayFb: GainNode;
-
-  private subSend: GainNode;
-  private subBand: BiquadFilterNode;
-  private subShaper: WaveShaperNode;
-  private subLow: BiquadFilterNode;
-
-  private combSend: GainNode;
-  private combDelay: DelayNode;
-  private combFb: GainNode;
-
-  private freezeSend: GainNode;
   private freezeWorklet: AudioWorkletNode | null = null;
 
   private enabled: Record<EffectId, boolean> = {
-    plate: false, hall: false, shimmer: false, delay: false,
-    tape: false, wow: false, sub: false, comb: false, freeze: false,
+    tape: false, wow: false, sub: false, comb: false, delay: false,
+    plate: false, hall: false, shimmer: false, freeze: false,
   };
   private levels: Record<EffectId, number> = { ...ON_LEVELS };
   private delayFeedback = 0.58;
   private combFeedback = 0.85;
   private freezeMix = ON_LEVELS.freeze;
+  private airAmount = 0.6;
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
     this.input = ctx.createGain();
     this.dryOut = ctx.createGain();
-    this.wetOut = ctx.createGain();
-    this.airBus = ctx.createGain();
-    this.airBus.gain.value = 0.6;
-    this.airBus.connect(this.wetOut);
+    this.wetOut = ctx.createGain(); // intentionally never sourced
 
-    // ── TAPE serial insert ──────────────────────────────────────────
-    this.tapeBypass = ctx.createGain();
-    this.tapeBypass.gain.value = 1;
-    this.tapeSend = ctx.createGain();
-    this.tapeSend.gain.value = 0;
-    this.tapeOut = ctx.createGain();
+    // Build empty inserts for all 9 effects first so we have the
+    // connection points. Each insert's internal DSP is wired below.
+    const makeInsert = (): Insert => {
+      const insertIn = ctx.createGain();
+      const insertOut = ctx.createGain();
+      const bypassGain = ctx.createGain();
+      const wetGain = ctx.createGain();
+      bypassGain.gain.value = 1; // start bypassed
+      wetGain.gain.value = 0;
+      insertIn.connect(bypassGain).connect(insertOut);
+      return { insertIn, insertOut, bypassGain, wetGain };
+    };
+    this.inserts = {
+      tape: makeInsert(),
+      wow: makeInsert(),
+      sub: makeInsert(),
+      comb: makeInsert(),
+      delay: makeInsert(),
+      plate: makeInsert(),
+      hall: makeInsert(),
+      shimmer: makeInsert(),
+      freeze: makeInsert(),
+    };
 
-    // Tape chain: pre-drive → 2x-oversampled tanh saturation →
-    // head bump (peaking around 80 Hz, the characteristic low-mid
-    // lift of studio tape machines) → highshelf roll-off (analog-
-    // era HF limitation).
-    const tapePre = ctx.createGain();
-    tapePre.gain.value = 1.3; // push slightly into the saturator
-    const tapeSat = ctx.createWaveShaper();
-    tapeSat.curve = FxChain.makeTapeCurve(2.2);
-    tapeSat.oversample = "2x";
-    const tapeHeadBump = ctx.createBiquadFilter();
-    tapeHeadBump.type = "peaking";
-    tapeHeadBump.frequency.value = 82;
-    tapeHeadBump.Q.value = 1.1;
-    tapeHeadBump.gain.value = 3.5;
-    const tapeHighCut = ctx.createBiquadFilter();
-    tapeHighCut.type = "highshelf";
-    tapeHighCut.frequency.value = 6500;
-    tapeHighCut.gain.value = -5;
+    // Chain inserts in order: input → tape → wow → sub → comb → delay
+    //                         → plate → hall → shimmer → freeze → dryOut
+    this.input.connect(this.inserts.tape.insertIn);
+    for (let i = 0; i < ALL_EFFECTS.length - 1; i++) {
+      this.inserts[ALL_EFFECTS[i]].insertOut.connect(
+        this.inserts[ALL_EFFECTS[i + 1]].insertIn,
+      );
+    }
+    this.inserts.freeze.insertOut.connect(this.dryOut);
 
-    this.input.connect(this.tapeBypass).connect(this.tapeOut);
-    this.input
-      .connect(this.tapeSend)
-      .connect(tapePre)
-      .connect(tapeSat)
-      .connect(tapeHeadBump)
-      .connect(tapeHighCut)
-      .connect(this.tapeOut);
+    this.wireTape();
+    this.wireWow();
+    this.wireSub();
+    this.wireComb();
+    this.wireDelay();
+    this.wireHall();
+    // plate / shimmer / freeze DSP is created in onWorkletReady()
+  }
 
-    // ── WOW serial insert ───────────────────────────────────────────
-    this.wowBypass = ctx.createGain();
-    this.wowBypass.gain.value = 1;
-    this.wowSend = ctx.createGain();
-    this.wowSend.gain.value = 0;
-    this.wowOut = ctx.createGain();
+  // ── Insert wiring helpers ───────────────────────────────────────────
 
+  private wireTape(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.tape;
+    const pre = ctx.createGain();
+    pre.gain.value = 1.3;
+    const sat = ctx.createWaveShaper();
+    sat.curve = FxChain.makeTapeCurve(2.2);
+    sat.oversample = "2x";
+    const headBump = ctx.createBiquadFilter();
+    headBump.type = "peaking";
+    headBump.frequency.value = 82;
+    headBump.Q.value = 1.1;
+    headBump.gain.value = 3.5;
+    const highCut = ctx.createBiquadFilter();
+    highCut.type = "highshelf";
+    highCut.frequency.value = 6500;
+    highCut.gain.value = -5;
+    ins.insertIn
+      .connect(pre)
+      .connect(sat)
+      .connect(headBump)
+      .connect(highCut)
+      .connect(ins.wetGain)
+      .connect(ins.insertOut);
+  }
+
+  private wireWow(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.wow;
     const wowDelay = ctx.createDelay(0.03);
     wowDelay.delayTime.value = 0.008;
     const wowLfo = ctx.createOscillator();
     wowLfo.type = "sine";
     wowLfo.frequency.value = 0.55;
     const wowDepth = ctx.createGain();
-    wowDepth.gain.value = 0.0025; // ±2.5 ms
+    wowDepth.gain.value = 0.0025;
     wowLfo.connect(wowDepth).connect(wowDelay.delayTime);
     wowLfo.start();
     const flutterLfo = ctx.createOscillator();
@@ -193,156 +195,136 @@ export class FxChain {
     flutterDepth.gain.value = 0.0006;
     flutterLfo.connect(flutterDepth).connect(wowDelay.delayTime);
     flutterLfo.start();
+    ins.insertIn
+      .connect(wowDelay)
+      .connect(ins.wetGain)
+      .connect(ins.insertOut);
+  }
 
-    this.tapeOut.connect(this.wowBypass).connect(this.wowOut);
-    this.tapeOut.connect(this.wowSend).connect(wowDelay).connect(this.wowOut);
-
-    // ── Split + dry tap ─────────────────────────────────────────────
-    this.splitNode = ctx.createGain();
-    this.wowOut.connect(this.splitNode);
-    this.splitNode.connect(this.dryOut);
-
-    // ── PLATE (worklet — created in onWorkletReady) ─────────────────
-    this.plateSend = ctx.createGain();
-    this.plateSend.gain.value = 0;
-    this.splitNode.connect(this.plateSend);
-    // plateSend → plateWorklet → wetOut (wired after worklet loads)
-
-    // ── HALL (native convolver with a richer impulse) ───────────────
-    // Hand-authored IR: early reflections (4 discrete echo peaks in the
-    // first 80 ms) blended with a late diffuse noise tail so it feels
-    // like a real room rather than pure noise decay.
-    this.hallVerb = ctx.createConvolver();
-    this.hallVerb.buffer = FxChain.makeHallImpulse(ctx, 4.8);
-    this.hallSend = ctx.createGain();
-    this.hallSend.gain.value = 0;
-    this.splitNode.connect(this.hallSend).connect(this.hallVerb).connect(this.airBus);
-
-    // ── SHIMMER (worklet — created in onWorkletReady) ───────────────
-    this.shimmerSend = ctx.createGain();
-    this.shimmerSend.gain.value = 0;
-    this.splitNode.connect(this.shimmerSend);
-    // shimmerSend → shimmerWorklet → wetOut (wired after worklet loads)
-
-    // ── TAPE DELAY ──────────────────────────────────────────────────
-    this.delayNode = ctx.createDelay(2.5);
-    this.delayNode.delayTime.value = 0.55;
-    const delayFbFilter = ctx.createBiquadFilter();
-    delayFbFilter.type = "lowpass";
-    delayFbFilter.frequency.value = 2600;
-    const delayFbSat = ctx.createWaveShaper();
-    delayFbSat.curve = FxChain.makeTapeCurve(1.5);
-    delayFbSat.oversample = "2x";
-    // DC blocker — prevents slow build-up of DC offset in the feedback
-    // loop that can appear as low-frequency thumping or clicks.
-    const delayDcBlock = ctx.createBiquadFilter();
-    delayDcBlock.type = "highpass";
-    delayDcBlock.frequency.value = 20;
-    // Feedback starts at 0 so the loop is truly silent when DELAY is
-    // off. Denormals in a persistently-active feedback loop were the
-    // source of the periodic clicks. Toggled up to 0.58 in setEffect.
-    this.delayFb = ctx.createGain();
-    this.delayFb.gain.value = 0;
-    this.delaySend = ctx.createGain();
-    this.delaySend.gain.value = 0;
-    this.splitNode.connect(this.delaySend).connect(this.delayNode);
-    this.delayNode
-      .connect(delayFbFilter)
-      .connect(delayFbSat)
-      .connect(delayDcBlock)
-      .connect(this.delayFb)
-      .connect(this.delayNode);
-    this.delayNode.connect(this.wetOut);
-
-    // ── SUB HARMONIC (bass enhancer) ────────────────────────────────
-    // Bandpass the bass region, saturate it, lowpass the result.
-    // Psychoacoustic bass bloom — not a true flip-flop sub-octave but
-    // the same technique used in MaxxBass / DBX-120-style enhancers.
+  private wireSub(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.sub;
     this.subBand = ctx.createBiquadFilter();
     this.subBand.type = "bandpass";
     this.subBand.frequency.value = 110;
     this.subBand.Q.value = 1.2;
-    this.subShaper = ctx.createWaveShaper();
-    this.subShaper.curve = FxChain.makeTapeCurve(2.4);
-    this.subShaper.oversample = "2x";
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = FxChain.makeTapeCurve(2.4);
+    shaper.oversample = "2x";
     this.subLow = ctx.createBiquadFilter();
     this.subLow.type = "lowpass";
     this.subLow.frequency.value = 170;
     this.subLow.Q.value = 0.707;
-    this.subSend = ctx.createGain();
-    this.subSend.gain.value = 0;
-    this.splitNode
-      .connect(this.subSend)
+    ins.insertIn
       .connect(this.subBand)
-      .connect(this.subShaper)
+      .connect(shaper)
       .connect(this.subLow)
-      .connect(this.wetOut);
+      .connect(ins.wetGain)
+      .connect(ins.insertOut);
+  }
 
-    // ── COMB (resonant comb filter) ─────────────────────────────────
-    // Short delay with high feedback = tuned resonance. delayTime is
-    // retuned live via setRootFreq() so the comb sings with the drone.
+  private wireComb(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.comb;
     this.combDelay = ctx.createDelay(0.05);
     this.combDelay.delayTime.value = 1 / 110;
-    // Same denormal-loop fix as DELAY — feedback starts at 0.
-    this.combFb = ctx.createGain();
-    this.combFb.gain.value = 0;
-    // DC blocker on the feedback loop
-    const combDcBlock = ctx.createBiquadFilter();
-    combDcBlock.type = "highpass";
-    combDcBlock.frequency.value = 25;
-    const combOutFilter = ctx.createBiquadFilter();
-    combOutFilter.type = "lowpass";
-    combOutFilter.frequency.value = 5000;
-    this.combSend = ctx.createGain();
-    this.combSend.gain.value = 0;
-    this.splitNode.connect(this.combSend).connect(this.combDelay);
-    this.combDelay.connect(combDcBlock).connect(this.combFb).connect(this.combDelay);
-    this.combDelay.connect(combOutFilter).connect(this.wetOut);
+    this.combFbGain = ctx.createGain();
+    this.combFbGain.gain.value = 0; // live only while enabled
+    const dcBlock = ctx.createBiquadFilter();
+    dcBlock.type = "highpass";
+    dcBlock.frequency.value = 25;
+    const outFilter = ctx.createBiquadFilter();
+    outFilter.type = "lowpass";
+    outFilter.frequency.value = 5000;
+    ins.insertIn.connect(this.combDelay);
+    this.combDelay.connect(dcBlock).connect(this.combFbGain).connect(this.combDelay);
+    this.combDelay.connect(outFilter).connect(ins.wetGain).connect(ins.insertOut);
+  }
 
-    // ── FREEZE (worklet — created in onWorkletReady) ────────────────
-    // The freezeSend gain gates input into the freeze worklet. The
-    // worklet's own "active" AudioParam handles the capture/release.
-    this.freezeSend = ctx.createGain();
-    this.freezeSend.gain.value = 1; // always routed — worklet handles toggling
-    // splitNode → freezeSend → freezeWorklet → wetOut (wired on ready)
-    this.splitNode.connect(this.freezeSend);
+  private wireDelay(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.delay;
+    this.delayNode = ctx.createDelay(2.5);
+    this.delayNode.delayTime.value = 0.55;
+    const fbFilter = ctx.createBiquadFilter();
+    fbFilter.type = "lowpass";
+    fbFilter.frequency.value = 2600;
+    const fbSat = ctx.createWaveShaper();
+    fbSat.curve = FxChain.makeTapeCurve(1.5);
+    fbSat.oversample = "2x";
+    const dcBlock = ctx.createBiquadFilter();
+    dcBlock.type = "highpass";
+    dcBlock.frequency.value = 20;
+    this.delayFbGain = ctx.createGain();
+    this.delayFbGain.gain.value = 0;
+    ins.insertIn.connect(this.delayNode);
+    this.delayNode
+      .connect(fbFilter)
+      .connect(fbSat)
+      .connect(dcBlock)
+      .connect(this.delayFbGain)
+      .connect(this.delayNode);
+    this.delayNode.connect(ins.wetGain).connect(ins.insertOut);
+  }
+
+  private wireHall(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.hall;
+    this.hallVerb = ctx.createConvolver();
+    this.hallVerb.buffer = FxChain.makeHallImpulse(ctx, 4.8);
+    ins.insertIn
+      .connect(this.hallVerb)
+      .connect(ins.wetGain)
+      .connect(ins.insertOut);
   }
 
   /**
-   * Called by AudioEngine once both worklet modules have loaded.
-   * Creates the worklet-backed effect nodes (plate, shimmer, freeze)
-   * and wires them into the already-built send graph.
+   * Create and wire the three worklet-backed effects once the worklet
+   * module has registered its processors. Any effect that was toggled
+   * on before the worklet was ready is re-applied here.
    */
   onWorkletReady(): void {
-    // ── Plate ────────────────────────────────────────────────────
-    this.plateWorklet = new AudioWorkletNode(this.ctx, "fx-plate", {
+    const ctx = this.ctx;
+
+    // PLATE
+    this.plateWorklet = new AudioWorkletNode(ctx, "fx-plate", {
       numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
-    this.plateSend.connect(this.plateWorklet).connect(this.airBus);
+    const plateIns = this.inserts.plate;
+    plateIns.insertIn
+      .connect(this.plateWorklet)
+      .connect(plateIns.wetGain)
+      .connect(plateIns.insertOut);
 
-    // ── Shimmer ──────────────────────────────────────────────────
-    this.shimmerWorklet = new AudioWorkletNode(this.ctx, "fx-shimmer", {
+    // SHIMMER
+    this.shimmerWorklet = new AudioWorkletNode(ctx, "fx-shimmer", {
       numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
-    this.shimmerSend.connect(this.shimmerWorklet).connect(this.airBus);
+    const shimmerIns = this.inserts.shimmer;
+    shimmerIns.insertIn
+      .connect(this.shimmerWorklet)
+      .connect(shimmerIns.wetGain)
+      .connect(shimmerIns.insertOut);
 
-    // ── Freeze ───────────────────────────────────────────────────
-    this.freezeWorklet = new AudioWorkletNode(this.ctx, "fx-freeze", {
+    // FREEZE
+    this.freezeWorklet = new AudioWorkletNode(ctx, "fx-freeze", {
       numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
-    // Freeze starts inactive (active=0) — flip to 1 in setEffect
-    this.freezeWorklet.parameters.get("active")!.setValueAtTime(0, this.ctx.currentTime);
-    this.freezeWorklet.parameters.get("mix")!.setValueAtTime(0, this.ctx.currentTime);
-    this.freezeSend.connect(this.freezeWorklet).connect(this.wetOut);
+    this.freezeWorklet.parameters.get("active")!.setValueAtTime(0, ctx.currentTime);
+    this.freezeWorklet.parameters.get("mix")!.setValueAtTime(1, ctx.currentTime);
+    const freezeIns = this.inserts.freeze;
+    freezeIns.insertIn
+      .connect(this.freezeWorklet)
+      .connect(freezeIns.wetGain)
+      .connect(freezeIns.insertOut);
 
-    // If any of these effects were toggled on before the worklet
-    // loaded, reapply the state now so they actually produce sound.
+    // Reapply pending enables for worklet-backed effects
     for (const id of ["plate", "shimmer", "freeze"] as const) {
       if (this.enabled[id]) this.setEffect(id, true);
     }
@@ -350,135 +332,103 @@ export class FxChain {
 
   // ── Public API ─────────────────────────────────────────────────────
 
-  /** Toggle an effect on/off. Smooth-ramped internally. */
+  /** Toggle an effect on/off. Smooth-ramped via bypass/wet crossfade. */
   setEffect(id: EffectId, on: boolean): void {
     this.enabled[id] = on;
+    const ins = this.inserts[id];
     const now = this.ctx.currentTime;
-    const level = on ? this.levels[id] : 0;
 
-    switch (id) {
-      case "plate":
-        this.plateSend.gain.setTargetAtTime(level, now, RAMP_TC);
-        break;
-      case "hall":
-        this.hallSend.gain.setTargetAtTime(level, now, RAMP_TC);
-        break;
-      case "shimmer":
-        this.shimmerSend.gain.setTargetAtTime(level, now, RAMP_TC);
-        break;
-      case "delay":
-        this.delaySend.gain.setTargetAtTime(level, now, RAMP_TC);
-        // Also ramp feedback — the loop is only "alive" when the
-        // effect is on, which kills the denormal-click problem.
-        this.delayFb.gain.setTargetAtTime(on ? this.delayFeedback : 0, now, RAMP_TC);
-        break;
-      case "tape":
-        this.tapeBypass.gain.setTargetAtTime(on ? 0 : 1, now, RAMP_TC);
-        this.tapeSend.gain.setTargetAtTime(on ? 1 : 0, now, RAMP_TC);
-        break;
-      case "wow":
-        this.wowBypass.gain.setTargetAtTime(on ? 0 : 1, now, RAMP_TC);
-        this.wowSend.gain.setTargetAtTime(on ? 1 : 0, now, RAMP_TC);
-        break;
-      case "sub":
-        this.subSend.gain.setTargetAtTime(level, now, RAMP_TC);
-        break;
-      case "comb":
-        this.combSend.gain.setTargetAtTime(level, now, RAMP_TC);
-        this.combFb.gain.setTargetAtTime(on ? this.combFeedback : 0, now, RAMP_TC);
-        break;
-      case "freeze":
-        // Drive the worklet's `active` AudioParam — the processor
-        // uses a ring buffer and handles capture/loop/crossfade
-        // internally. When off, it bypasses and resumes writing.
-        if (this.freezeWorklet) {
-          this.freezeWorklet.parameters.get("active")!.setTargetAtTime(on ? 1 : 0, now, 0.05);
-          this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(on ? this.freezeMix : 0, now, RAMP_TC);
-        }
-        break;
+    // Apply the bypass / wet crossfade. Wet target is per-effect
+    // level × (air for reverbs only).
+    const wetTarget = on ? this.wetTargetFor(id) : 0;
+    const bypassTarget = on ? 0 : 1;
+    ins.bypassGain.gain.setTargetAtTime(bypassTarget, now, XFADE_TC);
+    ins.wetGain.gain.setTargetAtTime(wetTarget, now, XFADE_TC);
+
+    // Effects with persistent internal state need their feedback /
+    // activity gates opened with the toggle so tails decay cleanly.
+    if (id === "delay") {
+      this.delayFbGain.gain.setTargetAtTime(on ? this.delayFeedback : 0, now, XFADE_TC);
+    } else if (id === "comb") {
+      this.combFbGain.gain.setTargetAtTime(on ? this.combFeedback : 0, now, XFADE_TC);
+    } else if (id === "freeze" && this.freezeWorklet) {
+      this.freezeWorklet.parameters
+        .get("active")!
+        .setTargetAtTime(on ? 1 : 0, now, 0.08);
     }
   }
 
-  /** AIR macro — scales only the atmospheric sub-bus (plate/hall/shimmer).
-   *  Delay/sub/comb/freeze/tape/wow run at unity so they're always audible
-   *  when toggled on, independent of AIR. */
+  private wetTargetFor(id: EffectId): number {
+    const base = this.levels[id];
+    // AIR only rides the reverb-family inserts
+    if (id === "plate" || id === "hall" || id === "shimmer") {
+      return base * this.airAmount;
+    }
+    return base;
+  }
+
+  /** AIR macro — reverb-family wet multiplier (plate / hall / shimmer). */
   setAir(v: number): void {
-    const a = Math.max(0, Math.min(1, v));
-    this.airBus.gain.setTargetAtTime(a, this.ctx.currentTime, 0.08);
+    this.airAmount = Math.max(0, Math.min(1, v));
+    const now = this.ctx.currentTime;
+    for (const id of ["plate", "hall", "shimmer"] as const) {
+      const target = this.enabled[id] ? this.wetTargetFor(id) : 0;
+      this.inserts[id].wetGain.gain.setTargetAtTime(target, now, 0.2);
+    }
   }
 
   isEffect(id: EffectId): boolean { return this.enabled[id]; }
 
   getEffectStates(): Record<EffectId, boolean> { return { ...this.enabled }; }
 
-  // ── Per-effect parameter accessors (for the settings modal) ───────
+  // ── Per-effect parameter accessors (settings modal) ──────────────
+
   // DELAY
   setDelayTime(sec: number): void {
-    this.delayNode.delayTime.setTargetAtTime(Math.max(0.05, Math.min(2, sec)), this.ctx.currentTime, 0.05);
+    this.delayNode.delayTime.setTargetAtTime(Math.max(0.05, Math.min(2, sec)), this.ctx.currentTime, 0.1);
   }
   getDelayTime(): number { return this.delayNode.delayTime.value; }
   setDelayFeedback(fb: number): void {
     this.delayFeedback = Math.max(0, Math.min(0.95, fb));
-    this.delayFb.gain.setTargetAtTime(this.enabled.delay ? this.delayFeedback : 0, this.ctx.currentTime, 0.05);
+    this.delayFbGain.gain.setTargetAtTime(this.enabled.delay ? this.delayFeedback : 0, this.ctx.currentTime, 0.1);
   }
   getDelayFeedback(): number { return this.delayFeedback; }
 
   // COMB
   setCombFeedback(fb: number): void {
     this.combFeedback = Math.max(0, Math.min(0.98, fb));
-    this.combFb.gain.setTargetAtTime(this.enabled.comb ? this.combFeedback : 0, this.ctx.currentTime, 0.05);
+    this.combFbGain.gain.setTargetAtTime(this.enabled.comb ? this.combFeedback : 0, this.ctx.currentTime, 0.1);
   }
   getCombFeedback(): number { return this.combFeedback; }
 
-  // SUB — center frequency (ignored if root-tracking kicks in afterwards)
+  // SUB
   setSubCenter(hz: number): void {
     const f = Math.max(40, Math.min(300, hz));
-    this.subBand.frequency.setTargetAtTime(f, this.ctx.currentTime, 0.05);
-    this.subLow.frequency.setTargetAtTime(f * 1.5, this.ctx.currentTime, 0.05);
+    this.subBand.frequency.setTargetAtTime(f, this.ctx.currentTime, 0.1);
+    this.subLow.frequency.setTargetAtTime(f * 1.5, this.ctx.currentTime, 0.1);
   }
   getSubCenter(): number { return this.subBand.frequency.value; }
 
-  // FREEZE feedback — controls how "infinite" the loop is
-  /** FREEZE has no feedback param in the worklet implementation
-   *  (it's a real capture, not a decaying feedback loop). The HOLD
-   *  slider in the modal now maps to the freeze wet mix. */
+  // FREEZE — mix stays at 1 in the worklet; wet is gated by insert
   setFreezeFeedback(v: number): void {
     this.freezeMix = Math.max(0, Math.min(1, v));
     this.levels.freeze = this.freezeMix;
-    if (this.freezeWorklet) {
-      this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(
-        this.enabled.freeze ? this.freezeMix : 0, this.ctx.currentTime, 0.08
-      );
-    }
+    // Re-apply wet target so the slider moves the audible level
+    const now = this.ctx.currentTime;
+    this.inserts.freeze.wetGain.gain.setTargetAtTime(
+      this.enabled.freeze ? this.wetTargetFor("freeze") : 0, now, XFADE_TC,
+    );
   }
-  getFreezeFeedback(): number {
-    return this.freezeMix;
-  }
+  getFreezeFeedback(): number { return this.freezeMix; }
 
-  // Per-effect wet level override (so the modal can expose AMOUNT)
+  /** Set per-effect wet level (the modal's AMOUNT knob). */
   setEffectLevel(id: EffectId, level: number): void {
     const v = Math.max(0, Math.min(1, level));
     this.levels[id] = v;
     if (id === "freeze") this.freezeMix = v;
     const now = this.ctx.currentTime;
-    const audible = this.enabled[id] ? v : 0;
-    switch (id) {
-      case "plate":   this.plateSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
-      case "hall":    this.hallSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
-      case "shimmer": this.shimmerSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
-      case "delay":   this.delaySend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
-      case "sub":     this.subSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
-      case "comb":    this.combSend.gain.setTargetAtTime(audible, now, RAMP_TC); break;
-      case "freeze":
-        if (this.freezeWorklet) {
-          this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(audible, now, RAMP_TC);
-        }
-        break;
-      // TAPE and WOW are serial inserts — no "wet level" concept.
-      case "tape":
-      case "wow":
-        break;
-    }
+    const target = this.enabled[id] ? this.wetTargetFor(id) : 0;
+    this.inserts[id].wetGain.gain.setTargetAtTime(target, now, XFADE_TC);
   }
 
   getEffectLevel(id: EffectId): number {
@@ -487,11 +437,10 @@ export class FxChain {
 
   releaseTails(): void {
     const now = this.ctx.currentTime;
-    this.delayFb.gain.setTargetAtTime(0, now, 0.05);
-    this.combFb.gain.setTargetAtTime(0, now, 0.05);
+    this.delayFbGain.gain.setTargetAtTime(0, now, 0.08);
+    this.combFbGain.gain.setTargetAtTime(0, now, 0.08);
     if (this.freezeWorklet) {
-      this.freezeWorklet.parameters.get("active")!.setTargetAtTime(0, now, 0.03);
-      this.freezeWorklet.parameters.get("mix")!.setTargetAtTime(0, now, 0.05);
+      this.freezeWorklet.parameters.get("active")!.setTargetAtTime(0, now, 0.05);
     }
   }
 
@@ -501,37 +450,29 @@ export class FxChain {
     }
   }
 
-  /**
-   * Retune the COMB filter and (re-center the SUB bandpass) when the
-   * drone root changes. Called by AudioEngine from setDroneFreq().
-   */
+  /** Retune COMB to the root and re-center SUB band when the drone
+   *  root changes. Called from AudioEngine.setDroneFreq(). */
   setRootFreq(freq: number): void {
     const now = this.ctx.currentTime;
-    // Comb at root (caps at 49 ms to stay under max delay line)
     const combTime = Math.min(1 / Math.max(20, freq), 0.049);
-    this.combDelay.delayTime.setTargetAtTime(combTime, now, 0.04);
-    // Sub bandpass centered half an octave below the root for bloom
+    this.combDelay.delayTime.setTargetAtTime(combTime, now, 0.1);
     const subCenter = Math.max(40, Math.min(220, freq * 0.5));
-    this.subBand.frequency.setTargetAtTime(subCenter, now, 0.05);
-    this.subLow.frequency.setTargetAtTime(subCenter * 1.5, now, 0.05);
+    this.subBand.frequency.setTargetAtTime(subCenter, now, 0.1);
+    this.subLow.frequency.setTargetAtTime(subCenter * 1.5, now, 0.1);
   }
 
-    // ── Impulse + curve generators ────────────────────────────────────
+  // ── Impulse + curve generators ────────────────────────────────────
 
   /**
    * Hand-authored hall impulse response: early reflections as a set
    * of discrete exponentially-weighted echoes in the first 90 ms,
-   * then a diffuse noise tail that decays exponentially over
-   * `seconds`. The early reflections give the hall a "position" —
-   * you hear walls and size — and the tail gives it depth.
+   * then a diffuse noise tail that decays exponentially.
    */
   private static makeHallImpulse(ctx: AudioContext, seconds: number): AudioBuffer {
     const rate = ctx.sampleRate;
     const length = Math.floor(seconds * rate);
     const buffer = ctx.createBuffer(2, length, rate);
 
-    // Early reflection positions (seconds) and amplitudes per channel.
-    // The L/R asymmetry gives stereo width without decorrelation.
     const earlyL = [
       { t: 0.012, a: 0.55 },
       { t: 0.024, a: 0.42 },
@@ -547,22 +488,18 @@ export class FxChain {
       { t: 0.089, a: 0.20 },
     ];
 
-    const lateStart = Math.floor(0.09 * rate); // tail begins at 90 ms
+    const lateStart = Math.floor(0.09 * rate);
     for (let ch = 0; ch < 2; ch++) {
       const data = buffer.getChannelData(ch);
-      // Diffuse noise tail
       for (let i = lateStart; i < length; i++) {
         const t = (i - lateStart) / (length - lateStart);
-        // Slightly curved decay — exp(-4t) gives a dense but natural fall
         const env = Math.exp(-3.2 * t);
         data[i] = (Math.random() * 2 - 1) * env * 0.35;
       }
-      // Early reflections — add them on top
       const early = ch === 0 ? earlyL : earlyR;
       for (const ref of early) {
         const idx = Math.floor(ref.t * rate);
         if (idx < length) {
-          // Small 5-sample burst at each early reflection point
           for (let j = 0; j < 5; j++) {
             const off = idx + j;
             if (off < length) {

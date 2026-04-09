@@ -798,6 +798,11 @@ export class AudioEngine {
   }
 
   // ── Macro setters ─────────────────────────────────────────────────
+  // Macro ramp time-constant. Slower than "instant" so preset swaps
+  // feel like a gentle morph: 0.4 s → ~1.2 s to fully settle. A drone
+  // instrument rewards smooth slider response over twitchy precision.
+  private readonly MACRO_TC = 0.4;
+
   /** DRIFT 0..1 — normalized drift amount. Voices across all active
    *  layers get the new drift; sub/shimmer keep the legacy cent spread. */
   setDrift(v: number): void {
@@ -819,7 +824,6 @@ export class AudioEngine {
   /** AIR 0..1 — global wet mix for all FxChain parallel effects. */
   setAir(v: number): void {
     this.air = Math.max(0, Math.min(1, v));
-    const now = this.ctx.currentTime;
     this.fxChain.setAir(this.air);
   }
   getAir(): number { return this.air; }
@@ -855,7 +859,7 @@ export class AudioEngine {
     this.time = Math.max(0, Math.min(1, v));
     if (this.lfo) {
       const now = this.ctx.currentTime;
-      this.lfo.frequency.setTargetAtTime(AudioEngine.mapTimeToRate(this.time), now, 0.1);
+      this.lfo.frequency.setTargetAtTime(AudioEngine.mapTimeToRate(this.time), now, this.MACRO_TC);
     }
   }
   getTime(): number { return this.time; }
@@ -867,7 +871,7 @@ export class AudioEngine {
     // 400 Hz (dark) → 6000 Hz (bright), exponential
     const target = 400 * Math.pow(15, this.climateX);
     const now = this.ctx.currentTime;
-    this.droneFilter.frequency.setTargetAtTime(target, now, 0.08);
+    this.droneFilter.frequency.setTargetAtTime(target, now, this.MACRO_TC);
   }
   getClimateX(): number { return this.climateX; }
 
@@ -876,7 +880,7 @@ export class AudioEngine {
     this.climateY = Math.max(0, Math.min(1, v));
     const now = this.ctx.currentTime;
     // 0 = no sweep, 1 = ±1200 Hz filter sweep
-    this.lfoDepth.gain.setTargetAtTime(this.climateY * 1200, now, 0.08);
+    this.lfoDepth.gain.setTargetAtTime(this.climateY * 1200, now, this.MACRO_TC);
   }
   getClimateY(): number { return this.climateY; }
 
@@ -903,7 +907,7 @@ export class AudioEngine {
     this.userLfoAmount = Math.max(0, Math.min(1, amt));
     const now = this.ctx.currentTime;
     // Max depth ±0.12 on voice gain — subtle breathing at full, never silent.
-    this.userLfoDepth.gain.setTargetAtTime(this.userLfoAmount * 0.12, now, 0.08);
+    this.userLfoDepth.gain.setTargetAtTime(this.userLfoAmount * 0.12, now, this.MACRO_TC);
   }
   getLfoAmount(): number { return this.userLfoAmount; }
 
@@ -913,7 +917,7 @@ export class AudioEngine {
     this.subAmount = Math.max(0, Math.min(1, v));
     if (this.droneOn) {
       const now = this.ctx.currentTime;
-      this.subVoiceGain.gain.setTargetAtTime(this.subAmount * 0.3, now, 0.1);
+      this.subVoiceGain.gain.setTargetAtTime(this.subAmount * 0.3, now, this.MACRO_TC);
     }
   }
   getSub(): number { return this.subAmount; }
@@ -957,6 +961,14 @@ export class AudioEngine {
   getEqHigh(): BiquadFilterNode { return this.eqHigh; }
   getLimiter(): DynamicsCompressorNode { return this.limiter; }
   getOutputTrim(): GainNode { return this.outputTrim; }
+
+  /** Master output volume 0..1.5 (linear), smooth-ramped. Matches the
+   *  mixer VOL strip range so both controls share the same scale. */
+  setMasterVolume(v: number): void {
+    const vol = Math.max(0, Math.min(1.5, v));
+    this.outputTrim.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.05);
+  }
+  getMasterVolume(): number { return this.outputTrim.gain.value; }
 
   setHpfFreq(hz: number): void { this.hpf.frequency.value = Math.max(10, hz); }
   getHpfFreq(): number { return this.hpf.frequency.value; }

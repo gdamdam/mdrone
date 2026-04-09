@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION } from "../config";
 import type { SavedSession } from "../session";
+import type { MidiDevice } from "../engine/midiInput";
+import { midiNoteToPitch } from "../engine/midiInput";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 const PITCH_CLASSES: PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -35,6 +38,14 @@ interface HeaderProps {
   recordingSupported: boolean;
   recordingTitle: string;
   recordingBusy: boolean;
+  volume: number;
+  onChangeVolume: (v: number) => void;
+  midiSupported: boolean;
+  midiEnabled: boolean;
+  midiDevices: MidiDevice[];
+  midiLastNote: number | null;
+  midiError: string | null;
+  onToggleMidi: (on: boolean) => void;
 }
 
 /**
@@ -64,65 +75,96 @@ export function Header({
   recordingSupported,
   recordingTitle,
   recordingBusy,
+  volume,
+  onChangeVolume,
+  midiSupported,
+  midiEnabled,
+  midiDevices,
+  midiLastNote,
+  midiError,
+  onToggleMidi,
 }: HeaderProps) {
   const freqHz = pitchToFreq(tonic, octave);
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  useEffect(() => {
+    if (!volumeOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setVolumeOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [volumeOpen]);
+  // Volume shares the mixer VOL strip range (0..1.5). % is of the 0..1.5 span.
+  const volPct = Math.round((volume / 1.5) * 100);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  useEffect(() => {
+    if (!sessionOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSessionOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sessionOpen]);
+
+  const lastNoteLabel = midiLastNote !== null
+    ? (() => { const p = midiNoteToPitch(midiLastNote); return `${p.pitchClass}${p.octave} (${midiLastNote})`; })()
+    : "—";
 
   return (
     <header className="header">
-      <div className="header-left">
-        <div className="header-brand">
-          <div className="title">
-            <pre className="title-art">{LOGO}</pre>
-            <span className="title-version">v{APP_VERSION}</span>
-            <span className="title-badge">EXPERIMENTAL</span>
-          </div>
-
-          <div className="header-brand-actions">
-            {/* View toggle — only two views in mdrone */}
-            <div className="view-toggle">
-              {(["drone", "mixer"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setViewMode(m)}
-                  className={viewMode === m ? "view-btn view-btn-active" : "view-btn"}
-                  title={
-                    m === "drone"
-                      ? "DRONE — the instrument: tonic, mode, atmosphere"
-                      : "MIXER — master bus: HPF · 3-band EQ · glue · drive · limiter"
-                  }
-                >
-                  {m.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
-            <button
-              className={isRec ? "header-btn header-btn-rec" : "header-btn"}
-              onClick={onToggleRec}
-              title={recordingTitle}
-              disabled={!recordingSupported || recordingBusy}
-            >
-              {!recordingSupported
-                ? "REC N/A"
-                : recordingBusy
-                  ? "REC..."
-                  : isRec
-                ? `■ ${Math.floor(recTimeMs / 60000)}:${String(
-                    Math.floor((recTimeMs / 1000) % 60)
-                  ).padStart(2, "0")}`
-                : "● REC"}
-            </button>
-          </div>
+      <div className="header-row header-row-brand">
+        <div className="title">
+          <pre className="title-art">{LOGO}</pre>
+          <span className="title-version">v{APP_VERSION}</span>
+          <span className="title-badge">EXPERIMENTAL</span>
         </div>
       </div>
 
-      <div className="header-center">
+      <div className="header-row header-row-main">
+        <div className="view-toggle">
+          {(["drone", "mixer"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setViewMode(m)}
+              className={viewMode === m ? "view-btn view-btn-active" : "view-btn"}
+              title={
+                m === "drone"
+                  ? "DRONE — the instrument: tonic, mode, atmosphere"
+                  : "MIXER — master bus: HPF · 3-band EQ · glue · drive · limiter"
+              }
+            >
+              {m.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        <button
+          className={isRec ? "header-btn header-btn-rec" : "header-btn"}
+          onClick={onToggleRec}
+          title={recordingTitle}
+          disabled={!recordingSupported || recordingBusy}
+        >
+          {!recordingSupported
+            ? "REC N/A"
+            : recordingBusy
+              ? "REC..."
+              : isRec
+            ? `■ ${Math.floor(recTimeMs / 60000)}:${String(
+                Math.floor((recTimeMs / 1000) % 60)
+              ).padStart(2, "0")}`
+            : "● REC"}
+        </button>
+
+        <div className="header-center">
         <div className="header-display" title={displayText}>
           <div className="header-display-track">
             <span>{displayText}</span>
             <span aria-hidden="true">{displayText}</span>
           </div>
         </div>
+        <button
+          className="header-btn header-btn-volume"
+          onClick={() => setVolumeOpen(true)}
+          title={`Master volume: ${volPct}% — click to adjust`}
+        >
+          VOL {volPct}
+        </button>
         <div className="header-tonic">
           <span className="header-mini-label">TONIC</span>
           <select
@@ -172,41 +214,157 @@ export function Header({
           <span className="header-mini-label">HZ</span>
           <span className="header-freq-value">{freqHz.toFixed(1)} Hz</span>
         </div>
-      </div>
-
-      <div className="header-right">
-        <div className="header-session">
-          <span className="header-session-name" title={`Current session: ${currentSessionName}`}>
-            {currentSessionName}
-          </span>
-          <div className="header-session-controls">
-            <select
-              value={currentSessionId ?? ""}
-              onChange={(e) => {
-                if (e.target.value) onLoadSession(e.target.value);
-              }}
-              className="header-select header-select-session"
-              title="Load a saved session"
-              disabled={sessions.length === 0}
-            >
-              <option value="">
-                {sessions.length === 0 ? "No sessions" : "Load..."}
-              </option>
-              {sessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {session.name}
-                </option>
-              ))}
-            </select>
-            <button className="header-btn" onClick={onSaveSession} title="Save the current session">
-              SAVE
-            </button>
-            <button className="header-btn" onClick={onRenameSession} title="Rename the current session">
-              RENAME
-            </button>
-          </div>
+        <button
+          className="header-btn header-btn-menu"
+          onClick={() => setSessionOpen(true)}
+          title={`Sessions & MIDI — current: ${currentSessionName}`}
+          aria-label="Open sessions and MIDI"
+        >
+          ▤
+        </button>
         </div>
       </div>
+
+      {volumeOpen && (
+        <div className="fx-modal-backdrop" onClick={() => setVolumeOpen(false)}>
+          <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="fx-modal-header">
+              <div className="fx-modal-title">Master Volume</div>
+              <button
+                className="fx-modal-close"
+                onClick={() => setVolumeOpen(false)}
+                title="Close (Esc)"
+              >
+                ×
+              </button>
+            </div>
+            <p className="fx-modal-desc">
+              Final output trim applied after the master chain. Smoothly ramped.
+            </p>
+            <div className="fx-modal-params">
+              <label className="fx-modal-param">
+                <span className="fx-modal-param-label">
+                  VOLUME <span className="fx-modal-param-value">{volPct}%</span>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1.5}
+                  step={0.01}
+                  value={volume}
+                  onChange={(e) => onChangeVolume(parseFloat(e.target.value))}
+                  aria-label="Master volume"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {sessionOpen && (
+        <div className="fx-modal-backdrop" onClick={() => setSessionOpen(false)}>
+          <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="fx-modal-header">
+              <div className="fx-modal-title">Sessions</div>
+              <button
+                className="fx-modal-close"
+                onClick={() => setSessionOpen(false)}
+                title="Close (Esc)"
+              >
+                ×
+              </button>
+            </div>
+            <p className="fx-modal-desc">
+              Current: <strong>{currentSessionName}</strong>
+            </p>
+            <div className="fx-modal-params">
+              <div className="fx-modal-section-label">SESSION</div>
+              <label className="fx-modal-param">
+                <span className="fx-modal-param-label">LOAD</span>
+                <select
+                  value={currentSessionId ?? ""}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      onLoadSession(e.target.value);
+                      setSessionOpen(false);
+                    }
+                  }}
+                  className="header-select"
+                  disabled={sessions.length === 0}
+                >
+                  <option value="">
+                    {sessions.length === 0 ? "No sessions" : "Select…"}
+                  </option>
+                  {sessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {session.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="fx-modal-actions">
+                <button
+                  className="header-btn"
+                  onClick={() => { onSaveSession(); setSessionOpen(false); }}
+                  title="Save the current session"
+                >
+                  SAVE
+                </button>
+                <button
+                  className="header-btn"
+                  onClick={() => { onRenameSession(); setSessionOpen(false); }}
+                  title="Rename the current session"
+                >
+                  RENAME
+                </button>
+              </div>
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">MIDI INPUT</div>
+              <p className="fx-modal-desc">
+                External keyboard → tonic + octave. Any note-on maps to the drone root.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className={midiEnabled ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => onToggleMidi(!midiEnabled)}
+                  disabled={!midiSupported}
+                  title={!midiSupported ? "Web MIDI unavailable" : midiEnabled ? "Disable MIDI input" : "Enable MIDI input"}
+                >
+                  {!midiSupported ? "UNSUPPORTED" : midiEnabled ? "● ENABLED" : "ENABLE"}
+                </button>
+              </div>
+              <div className="fx-modal-param">
+                <span className="fx-modal-param-label">
+                  DEVICES <span className="fx-modal-param-value">{midiDevices.length}</span>
+                </span>
+                {midiDevices.length === 0 ? (
+                  <div className="midi-device-empty">
+                    {midiEnabled ? "No MIDI inputs detected." : "Enable MIDI to scan for devices."}
+                  </div>
+                ) : (
+                  <ul className="midi-device-list">
+                    {midiDevices.map((d) => (
+                      <li key={d.id} className={`midi-device midi-device-${d.state}`}>
+                        <span className="midi-device-name">{d.name}</span>
+                        {d.manufacturer && <span className="midi-device-mfr"> · {d.manufacturer}</span>}
+                        <span className="midi-device-state"> · {d.state}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="fx-modal-param">
+                <span className="fx-modal-param-label">
+                  LAST NOTE <span className="fx-modal-param-value">{lastNoteLabel}</span>
+                </span>
+              </div>
+              {midiError && <div className="midi-error">{midiError}</div>}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

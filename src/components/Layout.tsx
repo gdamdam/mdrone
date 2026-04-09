@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
 import { Header } from "./Header";
@@ -86,6 +87,7 @@ export function Layout({ engine }: LayoutProps) {
   const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
   const [headerOctave, setHeaderOctave] = useState(2);
   const [headerHolding, setHeaderHolding] = useState(false);
+  const [headerVolume, setHeaderVolume] = useState<number>(() => engine?.getMasterVolume() ?? 1);
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
   const initSessionRef = useRef(false);
@@ -228,6 +230,15 @@ export function Layout({ engine }: LayoutProps) {
     droneViewRef.current?.setOctave(octave);
   };
 
+  // MIDI input — external keyboard drives tonic + octave.
+  const handleMidiNote = useCallback((note: number) => {
+    const { pitchClass, octave } = midiNoteToPitch(note);
+    const clamped = Math.max(1, Math.min(6, octave));
+    droneViewRef.current?.setRoot(pitchClass);
+    droneViewRef.current?.setOctave(clamped);
+  }, []);
+  const midi = useMidiInput(handleMidiNote);
+
   const handleToggleHold = () => {
     droneViewRef.current?.togglePlay();
   };
@@ -314,6 +325,17 @@ export function Layout({ engine }: LayoutProps) {
         recordingSupported={recordingSupport.supported}
         recordingTitle={recordingTitle}
         recordingBusy={recBusy}
+        volume={headerVolume}
+        onChangeVolume={(v) => {
+          setHeaderVolume(v);
+          engine?.setMasterVolume(v);
+        }}
+        midiSupported={midi.supported}
+        midiEnabled={midi.enabled}
+        midiDevices={midi.devices}
+        midiLastNote={midi.lastNote}
+        midiError={midi.error}
+        onToggleMidi={(on) => midi.setEnabled(on)}
       />
 
       <main className="view">
@@ -338,7 +360,15 @@ export function Layout({ engine }: LayoutProps) {
           className={viewMode === "mixer" ? "view-panel view-panel-active" : "view-panel"}
           aria-hidden={viewMode !== "mixer"}
         >
-          <MixerView key={mixerSyncToken} engine={engine} />
+          <MixerView
+            key={mixerSyncToken}
+            engine={engine}
+            volume={headerVolume}
+            onVolumeChange={(v) => {
+              setHeaderVolume(v);
+              engine?.setMasterVolume(v);
+            }}
+          />
         </section>
       </main>
 
