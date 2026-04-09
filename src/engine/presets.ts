@@ -526,6 +526,10 @@ export function createPresetVariation(
     lfoShape: preset.lfoShape,
     lfoRate: jitter(preset.lfoRate, Math.max(0.03, preset.lfoRate * 0.18), 0.03, 0.72, random),
     lfoAmount: jitter(preset.lfoAmount, 0.06, 0, 0.3, random),
+    presetMorph: 0.25,
+    evolve: 0,
+    pluckRate: 1,
+    presetTrim: preset.gain ?? 1,
   };
 }
 

@@ -24,30 +24,22 @@ import { clearDeityPreview } from "./deities";
 interface MeditateViewProps {
   engine: AudioEngine | null;
   active: boolean; // true when meditate tab is visible
+  visualizer: Visualizer;
+  onChangeVisualizer: (visualizer: Visualizer) => void;
 }
 
-const STORAGE_KEY = "mdrone.meditate.visualizer";
-
-export function MeditateView({ engine, active }: MeditateViewProps) {
+export function MeditateView({
+  engine,
+  active,
+  visualizer,
+  onChangeVisualizer,
+}: MeditateViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [visualizer, setVisualizer] = useState<Visualizer>(() => {
-    try {
-      const v = localStorage.getItem(STORAGE_KEY) as Visualizer | null;
-      if (v && VISUALIZER_ORDER.includes(v)) return v;
-    } catch { /* ok */ }
-    return "mandala";
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, visualizer); } catch { /* ok */ }
-  }, [visualizer]);
 
   const cycleVisualizer = useCallback(() => {
-    setVisualizer((cur) => {
-      const i = VISUALIZER_ORDER.indexOf(cur);
-      return VISUALIZER_ORDER[(i + 1) % VISUALIZER_ORDER.length];
-    });
-  }, []);
+    const i = VISUALIZER_ORDER.indexOf(visualizer);
+    onChangeVisualizer(VISUALIZER_ORDER[(i + 1) % VISUALIZER_ORDER.length]);
+  }, [onChangeVisualizer, visualizer]);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -317,7 +309,7 @@ export function MeditateView({ engine, active }: MeditateViewProps) {
         <span className="meditate-toolbar-label">VISUALIZER</span>
         <select
           value={visualizer}
-          onChange={(e) => setVisualizer(e.target.value as Visualizer)}
+          onChange={(e) => onChangeVisualizer(e.target.value as Visualizer)}
           className="header-select"
           title="Choose visualizer — double-click the canvas to cycle"
         >

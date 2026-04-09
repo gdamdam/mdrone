@@ -7,12 +7,18 @@ import { Footer } from "./Footer";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 import { MeditateView } from "./MeditateView";
-import { requestSigilRefresh } from "./visualizers";
+import { ShareModal } from "./ShareModal";
+import { requestSigilRefresh, type Visualizer } from "./visualizers";
 import { PRESETS, SAFE_RANDOM_PRESET_IDS, createSafeRandomScene } from "../engine/presets";
+import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState";
+import { buildSceneShareUrl, loadSceneFromCurrentUrl } from "../shareCodec";
+import { applyPalette, getPaletteById, loadPaletteId, savePaletteId } from "../themes";
 import {
   loadCurrentSessionId,
   loadSessions,
   makeSessionId,
+  type FxSessionSnapshot,
+  type PortableScene,
   saveCurrentSessionId,
   saveSessions,
   type MixerSessionSnapshot,
@@ -66,9 +72,42 @@ function applyMixerSnapshot(engine: AudioEngine, mixer: MixerSessionSnapshot): v
   engine.getOutputTrim().gain.value = mixer.volume;
 }
 
+function captureFxSnapshot(engine: AudioEngine): FxSessionSnapshot {
+  const fx = engine.getFxChain();
+  return {
+    levels: {
+      tape: fx.getEffectLevel("tape"),
+      wow: fx.getEffectLevel("wow"),
+      sub: fx.getEffectLevel("sub"),
+      comb: fx.getEffectLevel("comb"),
+      delay: fx.getEffectLevel("delay"),
+      plate: fx.getEffectLevel("plate"),
+      hall: fx.getEffectLevel("hall"),
+      shimmer: fx.getEffectLevel("shimmer"),
+      freeze: fx.getEffectLevel("freeze"),
+    },
+    delayTime: fx.getDelayTime(),
+    delayFeedback: fx.getDelayFeedback(),
+    combFeedback: fx.getCombFeedback(),
+    subCenter: fx.getSubCenter(),
+    freezeMix: fx.getFreezeFeedback(),
+  };
+}
+
+function applyFxSnapshot(engine: AudioEngine, snapshot: FxSessionSnapshot): void {
+  const fx = engine.getFxChain();
+  fx.setDelayTime(snapshot.delayTime);
+  fx.setDelayFeedback(snapshot.delayFeedback);
+  fx.setCombFeedback(snapshot.combFeedback);
+  fx.setSubCenter(snapshot.subCenter);
+  fx.setFreezeFeedback(snapshot.freezeMix);
+  for (const id of Object.keys(snapshot.levels) as (keyof FxSessionSnapshot["levels"])[]) {
+    fx.setEffectLevel(id, snapshot.levels[id]);
+  }
+}
+
 /**
- * Top-level app shell — header, view dispatch, footer. No hamburger
- * menus, no sheets, no modals in the prototype. Two views only.
+ * Top-level app shell — header, view dispatch, footer.
  *
  * Engine lifecycle: `engine` is created eagerly in App so every
  * descendant receives it on first render. The AudioContext starts
@@ -90,9 +129,11 @@ export function Layout({ engine }: LayoutProps) {
   const [headerOctave, setHeaderOctave] = useState(2);
   const [headerHolding, setHeaderHolding] = useState(false);
   const [headerVolume, setHeaderVolume] = useState<number>(() => engine?.getMasterVolume() ?? 1);
+  const [meditateVisualizer, setMeditateVisualizer] = useState<Visualizer>(() => loadMeditateVisualizer());
+  const [shareOpen, setShareOpen] = useState(false);
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
-  const initSessionRef = useRef(false);
+  const initSceneRef = useRef(false);
   const droneViewRef = useRef<DroneViewHandle | null>(null);
 
   const applyStartupScene = () => {
@@ -104,6 +145,31 @@ export function Layout({ engine }: LayoutProps) {
     setCurrentSessionName(DEFAULT_SESSION_NAME);
     saveCurrentSessionId(null);
   };
+
+  const applyPortableScene = useCallback((
+    scene: PortableScene,
+    options?: { sessionId?: string | null },
+  ) => {
+    const palette = getPaletteById(scene.ui.paletteId) ?? getPaletteById(loadPaletteId());
+    if (palette) {
+      applyPalette(palette);
+      savePaletteId(palette.id);
+    }
+    setMeditateVisualizer(scene.ui.visualizer);
+    requestSigilRefresh();
+    droneViewRef.current?.applySnapshot(scene.drone);
+    applyMixerSnapshot(engine, scene.mixer);
+    applyFxSnapshot(engine, scene.fx);
+    setMixerSyncToken((value) => value + 1);
+    setCurrentSessionId(options?.sessionId ?? null);
+    setCurrentSessionName(scene.name);
+    setCurrentPresetName(scene.name);
+    saveCurrentSessionId(options?.sessionId ?? null);
+  }, [engine]);
+
+  useEffect(() => {
+    saveMeditateVisualizer(meditateVisualizer);
+  }, [meditateVisualizer]);
 
   // REC timer tick — sync to external timer (Date.now). When isRec flips
   // off, the timer interval is cleared and we reset in the next frame via
@@ -121,49 +187,75 @@ export function Layout({ engine }: LayoutProps) {
     };
   }, [isRec]);
 
+  // Intentional one-time boot path: shared link beats saved session,
+  // which beats the random startup scene.
   useEffect(() => {
-    if (initSessionRef.current) return;
-    initSessionRef.current = true;
+    if (initSceneRef.current) return;
+    initSceneRef.current = true;
+    let cancelled = false;
 
-    if (!currentSessionId) {
-      applyStartupScene();
-      return;
-    }
+    const run = async () => {
+      const sharedScene = await loadSceneFromCurrentUrl();
+      if (cancelled) return;
+      if (sharedScene) {
+        applyPortableScene(sharedScene);
+        return;
+      }
 
-    const session = loadSessions().find((item) => item.id === currentSessionId);
-    if (!session) {
-      applyStartupScene();
-      return;
-    }
+      if (!currentSessionId) {
+        applyStartupScene();
+        return;
+      }
 
-    droneViewRef.current?.applySnapshot(session.drone);
-    applyMixerSnapshot(engine, session.mixer);
-    setMixerSyncToken((value) => value + 1);
-    setCurrentSessionName(session.name);
-    const preset = session.drone.activePresetId
-      ? PRESETS.find((item) => item.id === session.drone.activePresetId) ?? null
-      : null;
-    setCurrentPresetName(preset?.name ?? "Custom Session");
-  }, [currentSessionId, engine]);
+      const session = loadSessions().find((item) => item.id === currentSessionId);
+      if (!session) {
+        applyStartupScene();
+        return;
+      }
+
+      applyPortableScene(session.scene, { sessionId: session.id });
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyPortableScene, currentSessionId]);
 
   const persistSessions = (sessions: SavedSession[]) => {
     setSavedSessions(sessions);
     saveSessions(sessions);
   };
 
-  const captureSession = (id: string, name: string): SavedSession | null => {
+  const capturePortableScene = (name: string): PortableScene | null => {
     const drone = droneViewRef.current?.getSnapshot();
     if (!drone) {
       window.alert("mdrone could not read the current drone state yet. Try again in a moment.");
       return null;
     }
     return {
-      id,
       name,
-      savedAt: new Date().toISOString(),
       version: 1,
       drone,
       mixer: captureMixerSnapshot(engine),
+      fx: captureFxSnapshot(engine),
+      ui: {
+        paletteId: loadPaletteId(),
+        visualizer: meditateVisualizer,
+      },
+    };
+  };
+
+  const captureSession = (id: string, name: string): SavedSession | null => {
+    const scene = capturePortableScene(name);
+    if (!scene) return null;
+    return {
+      id,
+      name,
+      savedAt: new Date().toISOString(),
+      version: 2,
+      scene,
     };
   };
 
@@ -212,16 +304,7 @@ export function Layout({ engine }: LayoutProps) {
   const handleLoadSession = (id: string) => {
     const session = savedSessions.find((item) => item.id === id);
     if (!session) return;
-    droneViewRef.current?.applySnapshot(session.drone);
-    applyMixerSnapshot(engine, session.mixer);
-    setMixerSyncToken((value) => value + 1);
-    setCurrentSessionId(session.id);
-    setCurrentSessionName(session.name);
-    const preset = session.drone.activePresetId
-      ? PRESETS.find((item) => item.id === session.drone.activePresetId) ?? null
-      : null;
-    setCurrentPresetName(preset?.name ?? "Custom Session");
-    saveCurrentSessionId(session.id);
+    applyPortableScene(session.scene, { sessionId: session.id });
   };
 
   const handleChangeTonic = (tonic: PitchClass) => {
@@ -260,9 +343,15 @@ export function Layout({ engine }: LayoutProps) {
     requestSigilRefresh();
   };
 
+  const buildShareUrlForScene = async (name: string): Promise<string> => {
+    const scene = capturePortableScene(name.trim() || "Drone Landscape");
+    if (!scene) throw new Error("Could not capture the current scene.");
+    return buildSceneShareUrl(scene);
+  };
+
   const displayText = currentSessionId
     ? currentSessionName
-    : currentPresetName || "Random Scene";
+    : currentPresetName || currentSessionName || "Random Scene";
 
   const recordingSupport = engine.getRecordingSupport();
   const recordingTitle = !recordingSupport.supported
@@ -324,6 +413,7 @@ export function Layout({ engine }: LayoutProps) {
         onToggleHold={handleToggleHold}
         holding={headerHolding}
         onToggleRec={handleToggleRec}
+        onOpenShare={() => setShareOpen(true)}
         onRandomScene={handleRandomScene}
         isRec={isRec}
         recTimeMs={recTimeMs}
@@ -366,7 +456,12 @@ export function Layout({ engine }: LayoutProps) {
           className={viewMode === "meditate" ? "view-panel view-panel-active" : "view-panel"}
           aria-hidden={viewMode !== "meditate"}
         >
-          <MeditateView engine={engine} active={viewMode === "meditate"} />
+          <MeditateView
+            engine={engine}
+            active={viewMode === "meditate"}
+            visualizer={meditateVisualizer}
+            onChangeVisualizer={setMeditateVisualizer}
+          />
         </section>
         <section
           className={viewMode === "mixer" ? "view-panel view-panel-active" : "view-panel"}
@@ -383,6 +478,14 @@ export function Layout({ engine }: LayoutProps) {
           />
         </section>
       </main>
+
+      {shareOpen && (
+        <ShareModal
+          initialName={currentSessionId ? currentSessionName : (currentPresetName || "Drone Landscape")}
+          onBuildUrl={buildShareUrlForScene}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       <Footer />
     </div>

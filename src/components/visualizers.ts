@@ -628,8 +628,8 @@ export function drawFractal(
   // Indigo / violet / amber palette, different from the ember theme
   for (let y = 0; y < bh; y++) {
     for (let x = 0; x < bw; x++) {
-      let zx0 = (x / bw - 0.5) * 3.2 / zoom;
-      let zy0 = (y / bh - 0.5) * 2.0 / zoom;
+      const zx0 = (x / bw - 0.5) * 3.2 / zoom;
+      const zy0 = (y / bh - 0.5) * 2.0 / zoom;
       // Rotate (zx0,zy0)
       const zxr = zx0 * cosR - zy0 * sinR;
       const zyr = zx0 * sinR + zy0 * cosR;

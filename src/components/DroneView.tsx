@@ -267,6 +267,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     engine.setLfoShape(lfoShape);
     engine.setLfoRate(lfoRate);
     engine.setLfoAmount(lfoAmount);
+    engine.setPresetMorph(presetMorph);
+    engine.setEvolve(presetEvolve);
+    engine.setTanpuraPluckRate(pluckRate);
     for (const t of ALL_VOICE_TYPES) {
       engine.setVoiceLayer(t, voiceLayers[t]);
       engine.setVoiceLevel(t, voiceLevels[t]);
@@ -432,6 +435,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         lfoShape,
         lfoRate,
         lfoAmount,
+        presetMorph,
+        evolve: presetEvolve,
+        pluckRate,
+        presetTrim: engine?.getPresetTrim() ?? 1,
       };
     },
     applySnapshot(snapshot) {
@@ -461,6 +468,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       setLfoShapeState(snapshot.lfoShape);
       setLfoRateState(snapshot.lfoRate);
       setLfoAmountState(snapshot.lfoAmount);
+      setPresetMorph(snapshot.presetMorph);
+      setPresetEvolve(snapshot.evolve);
+      setPluckRate(snapshot.pluckRate);
 
       if (!engine) return;
 
@@ -483,6 +493,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       engine.setLfoShape(snapshot.lfoShape);
       engine.setLfoRate(snapshot.lfoRate);
       engine.setLfoAmount(snapshot.lfoAmount);
+      engine.setPresetMorph(snapshot.presetMorph);
+      engine.setEvolve(snapshot.evolve);
+      engine.setTanpuraPluckRate(snapshot.pluckRate);
+      engine.setPresetTrim(snapshot.presetTrim);
       if (shouldPlay) {
         if (playing) engine.setDroneFreq(nextFreq);
         else engine.startDrone(nextFreq, nextIntervals);
@@ -530,6 +544,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     lfoShape,
     octave,
     playing,
+    pluckRate,
+    presetEvolve,
+    presetMorph,
     root,
     scale,
     sub,

@@ -80,7 +80,9 @@ export function useMidiInput(
 
   const accessRef = useRef<MidiAccessLike | null>(null);
   const onNoteRef = useRef(onNote);
+  const enabledRef = useRef(enabled);
   useEffect(() => { onNoteRef.current = onNote; });
+  useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
   const refreshDevices = useCallback(() => {
     const a = accessRef.current;
@@ -136,7 +138,7 @@ export function useMidiInput(
             accessRef.current = access as unknown as MidiAccessLike;
             access.onstatechange = () => {
               refreshDevices();
-              if (enabled) attachListeners();
+              if (enabledRef.current) attachListeners();
             };
             refreshDevices();
             attachListeners();
@@ -157,7 +159,7 @@ export function useMidiInput(
         setEnabledState(false);
       }
     },
-    [supported, enabled, refreshDevices, attachListeners, detachListeners],
+    [supported, refreshDevices, attachListeners, detachListeners],
   );
 
   useEffect(() => {

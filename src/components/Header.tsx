@@ -32,6 +32,7 @@ interface HeaderProps {
   onToggleHold: () => void;
   holding: boolean;
   onToggleRec: () => void;
+  onOpenShare: () => void;
   onRandomScene: () => void;
   isRec: boolean;
   recTimeMs: number;
@@ -70,6 +71,7 @@ export function Header({
   onToggleHold,
   holding,
   onToggleRec,
+  onOpenShare,
   onRandomScene,
   isRec,
   recTimeMs,
@@ -197,6 +199,13 @@ export function Header({
                 Math.floor((recTimeMs / 1000) % 60)
               ).padStart(2, "0")}`
             : "● REC"}
+        </button>
+        <button
+          className="header-btn header-btn-share"
+          onClick={onOpenShare}
+          title="Share the current drone landscape as a link"
+        >
+          ⤴ SHARE
         </button>
 
         <div className="header-center">

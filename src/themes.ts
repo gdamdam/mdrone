@@ -65,6 +65,10 @@ export const PALETTES: PaletteDef[] = [
   },
 ];
 
+export function getPaletteById(id: PaletteId): PaletteDef | null {
+  return PALETTES.find((palette) => palette.id === id) ?? null;
+}
+
 export function applyPalette(p: PaletteDef): void {
   const root = document.documentElement;
   root.style.setProperty("--bg", p.bg);
@@ -79,11 +83,19 @@ export function applyPalette(p: PaletteDef): void {
 }
 
 export function loadPaletteId(): PaletteId {
-  const stored = localStorage.getItem(STORAGE_KEYS.palette);
-  if (stored && PALETTES.find((p) => p.id === stored)) return stored as PaletteId;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.palette);
+    if (stored && PALETTES.find((p) => p.id === stored)) return stored as PaletteId;
+  } catch {
+    // ignore storage failures
+  }
   return "ember";
 }
 
 export function savePaletteId(id: PaletteId): void {
-  localStorage.setItem(STORAGE_KEYS.palette, id);
+  try {
+    localStorage.setItem(STORAGE_KEYS.palette, id);
+  } catch {
+    // ignore storage failures
+  }
 }

@@ -924,6 +924,7 @@ export class AudioEngine {
     const trim = Math.max(0.1, Math.min(4, v));
     this.presetTrim.gain.setTargetAtTime(trim, this.ctx.currentTime, 0.08);
   }
+  getPresetTrim(): number { return this.presetTrim.gain.value; }
 
   // ── FxChain passthrough API ───────────────────────────────────────
   /**
