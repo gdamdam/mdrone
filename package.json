@@ -1,6 +1,6 @@
 {
   "name": "mdrone",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Browser drone instrument — a held harmonic bed with atmosphere. Companion to mpump and mloop.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
