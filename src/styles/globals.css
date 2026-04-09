@@ -1776,6 +1776,11 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   width: 100%;
 }
 
+.start-gate-actions-split {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .start-btn {
   min-width: min(100%, 300px);
   padding: 14px 26px;
@@ -1800,6 +1805,31 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     0 0 0 1px color-mix(in srgb, var(--preview) 24%, transparent),
     0 20px 42px color-mix(in srgb, var(--preview) 26%, transparent);
   filter: brightness(1.05);
+}
+
+.start-btn-secondary {
+  min-width: min(100%, 220px);
+  border-color: color-mix(in srgb, var(--border) 70%, var(--preview));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-cell) 92%, transparent), color-mix(in srgb, var(--bg-panel) 84%, transparent));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--border) 36%, transparent),
+    0 12px 28px color-mix(in srgb, black 26%, transparent);
+}
+
+.start-gate-restore {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.start-gate-restore-name {
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: 0.3px;
 }
 
 .start-gate-intro {
@@ -1887,6 +1917,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
   .start-btn {
     width: 100%;
+  }
+
+  .start-gate-actions-split {
+    flex-direction: column;
   }
 }
 

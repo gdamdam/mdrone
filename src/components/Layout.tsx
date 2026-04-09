@@ -12,6 +12,7 @@ import { useSceneManager } from "../scene/useSceneManager";
 
 interface LayoutProps {
   engine: AudioEngine;
+  startupMode: "continue" | "new";
 }
 
 /**
@@ -23,7 +24,7 @@ interface LayoutProps {
  * inside the layout so child click handlers on the same interaction
  * (e.g. HOLD button) get a live engine immediately.
  */
-export function Layout({ engine }: LayoutProps) {
+export function Layout({ engine, startupMode }: LayoutProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("drone");
   const [isRec, setIsRec] = useState(false);
   const [recTimeMs, setRecTimeMs] = useState(0);
@@ -42,6 +43,7 @@ export function Layout({ engine }: LayoutProps) {
     engine,
     droneViewRef,
     onMixerSync: () => setMixerSyncToken((value) => value + 1),
+    startupMode,
   });
 
   // REC timer tick — sync to external timer (Date.now). When isRec flips

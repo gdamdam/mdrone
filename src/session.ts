@@ -74,6 +74,11 @@ export interface SavedSession {
   scene: PortableScene;
 }
 
+export interface AutosavedScene {
+  savedAt: string;
+  scene: PortableScene;
+}
+
 function hasLocalStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
@@ -397,6 +402,32 @@ export function saveCurrentSessionId(id: string | null): void {
   if (!hasLocalStorage()) return;
   if (id) localStorage.setItem(STORAGE_KEYS.currentSessionId, id);
   else localStorage.removeItem(STORAGE_KEYS.currentSessionId);
+}
+
+export function loadAutosavedScene(): AutosavedScene | null {
+  if (!hasLocalStorage()) return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.autosave);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!isRecord(parsed)) return null;
+    const scene = normalizePortableScene(parsed.scene, "Last Scene");
+    if (!scene) return null;
+    return {
+      savedAt: readString(parsed.savedAt, new Date().toISOString()),
+      scene,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveAutosavedScene(scene: PortableScene): void {
+  if (!hasLocalStorage()) return;
+  localStorage.setItem(STORAGE_KEYS.autosave, JSON.stringify({
+    savedAt: new Date().toISOString(),
+    scene,
+  }));
 }
 
 export function makeSessionId(): string {

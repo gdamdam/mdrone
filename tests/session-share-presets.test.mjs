@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 globalThis.window = globalThis;
 
 const { normalizePortableScene } = await import("../.test-dist/session.js");
+const { saveAutosavedScene, loadAutosavedScene } = await import("../.test-dist/session.js");
 const {
   decodeScenePayload,
   encodeScenePayload,
@@ -141,6 +142,91 @@ test("share codec round-trips a portable scene payload", async () => {
   assert.equal(decoded.name, "Share Me");
   assert.equal(decoded.drone.root, "C");
   assert.equal(decoded.ui.visualizer, "mandala");
+});
+
+test("autosaved scene round-trips through localStorage", () => {
+  const storage = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => storage.has(key) ? storage.get(key) : null,
+    setItem: (key, value) => { storage.set(key, value); },
+    removeItem: (key) => { storage.delete(key); },
+  };
+
+  saveAutosavedScene(normalizePortableScene({
+    name: "Last Room",
+    drone: {
+      activePresetId: "tanpura-drone",
+      playing: true,
+      root: "D",
+      octave: 2,
+      scale: "drone",
+      voiceLayers: { tanpura: true, reed: false, metal: false, air: false },
+      voiceLevels: { tanpura: 1, reed: 0, metal: 0, air: 0 },
+      effects: {
+        tape: false,
+        wow: false,
+        sub: false,
+        comb: false,
+        delay: false,
+        plate: true,
+        hall: false,
+        shimmer: false,
+        freeze: false,
+      },
+      drift: 0.2,
+      air: 0.3,
+      time: 0.4,
+      sub: 0.1,
+      bloom: 0.5,
+      glide: 0.6,
+      climateX: 0.7,
+      climateY: 0.8,
+      lfoShape: "sine",
+      lfoRate: 0.4,
+      lfoAmount: 0.2,
+      presetMorph: 0.25,
+      evolve: 0.1,
+      pluckRate: 1,
+      presetTrim: 1,
+    },
+    mixer: {
+      hpfHz: 20,
+      low: 0,
+      mid: 0,
+      high: 0,
+      glue: 0.2,
+      drive: 1.5,
+      limiterOn: true,
+      ceiling: -1,
+      volume: 1,
+    },
+    fx: {
+      levels: {
+        tape: 1,
+        wow: 1,
+        sub: 0.9,
+        comb: 0.85,
+        delay: 0.9,
+        plate: 1,
+        hall: 1,
+        shimmer: 0.95,
+        freeze: 1,
+      },
+      delayTime: 0.55,
+      delayFeedback: 0.58,
+      combFeedback: 0.85,
+      subCenter: 110,
+      freezeMix: 1,
+    },
+    ui: {
+      paletteId: "ember",
+      visualizer: "mandala",
+    },
+  }, "Fallback"));
+
+  const restored = loadAutosavedScene();
+  assert.equal(restored.scene.name, "Last Room");
+  assert.equal(restored.scene.drone.root, "D");
 });
 
 test("applyPreset normalizes levels and clears unspecified effects", () => {

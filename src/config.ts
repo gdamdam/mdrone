@@ -7,4 +7,5 @@ export const STORAGE_KEYS = {
   darkMode: "mdrone-dark",
   sessions: "mdrone-sessions",
   currentSessionId: "mdrone-current-session-id",
+  autosave: "mdrone-autosave",
 } as const;

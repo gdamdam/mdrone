@@ -5,9 +5,11 @@ import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState
 import { buildSceneShareUrl, loadSceneFromCurrentUrlOnce } from "../shareCodec";
 import { applyPalette, getPaletteById, loadPaletteId, savePaletteId } from "../themes";
 import {
+  loadAutosavedScene,
   loadCurrentSessionId,
   loadSessions,
   makeSessionId,
+  saveAutosavedScene,
   saveCurrentSessionId,
   saveSessions,
   type PortableScene,
@@ -45,12 +47,14 @@ interface UseSceneManagerArgs {
   engine: AudioEngine;
   droneViewRef: RefObject<DroneViewHandle | null>;
   onMixerSync: () => void;
+  startupMode: "continue" | "new";
 }
 
 export function useSceneManager({
   engine,
   droneViewRef,
   onMixerSync,
+  startupMode,
 }: UseSceneManagerArgs) {
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>(loadSessions);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => loadCurrentSessionId());
@@ -69,6 +73,12 @@ export function useSceneManager({
     setCurrentSessionName(DEFAULT_SESSION_NAME);
     saveCurrentSessionId(null);
   }, [droneViewRef]);
+
+  const captureCurrentSceneSnapshot = useCallback((name: string): PortableScene | null => {
+    const drone = droneViewRef.current?.getSnapshot();
+    if (!drone) return null;
+    return capturePortableScene(engine, drone, meditateVisualizer, name);
+  }, [droneViewRef, engine, meditateVisualizer]);
 
   const applyPortableScene = useCallback((
     scene: PortableScene,
@@ -112,6 +122,19 @@ export function useSceneManager({
         return;
       }
 
+      if (startupMode === "continue") {
+        const autosaved = loadAutosavedScene();
+        if (autosaved) {
+          applyPortableScene(autosaved.scene);
+          return;
+        }
+      }
+
+      if (startupMode === "new") {
+        applyStartupScene();
+        return;
+      }
+
       if (!currentSessionId) {
         applyStartupScene();
         return;
@@ -131,7 +154,29 @@ export function useSceneManager({
     return () => {
       cancelled = true;
     };
-  }, [applyPortableScene, applyStartupScene, currentSessionId]);
+  }, [applyPortableScene, applyStartupScene, currentSessionId, startupMode]);
+
+  useEffect(() => {
+    const doAutoSave = () => {
+      const name = currentSessionId
+        ? currentSessionName
+        : (currentPresetName || currentSessionName || "Last Scene");
+      const scene = captureCurrentSceneSnapshot(name);
+      if (!scene) return;
+      saveAutosavedScene(scene);
+    };
+
+    const id = window.setInterval(doAutoSave, 3000);
+    const onHide = () => {
+      if (document.visibilityState === "hidden") doAutoSave();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onHide);
+      doAutoSave();
+    };
+  }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionId, currentSessionName]);
 
   const persistSessions = useCallback((sessions: SavedSession[]) => {
     setSavedSessions(sessions);
@@ -139,13 +184,13 @@ export function useSceneManager({
   }, []);
 
   const captureCurrentScene = useCallback((name: string): PortableScene | null => {
-    const drone = droneViewRef.current?.getSnapshot();
-    if (!drone) {
+    const scene = captureCurrentSceneSnapshot(name);
+    if (!scene) {
       window.alert("mdrone could not read the current drone state yet. Try again in a moment.");
       return null;
     }
-    return capturePortableScene(engine, drone, meditateVisualizer, name);
-  }, [droneViewRef, engine, meditateVisualizer]);
+    return scene;
+  }, [captureCurrentSceneSnapshot]);
 
   const captureSession = useCallback((id: string, name: string): SavedSession | null => {
     const scene = captureCurrentScene(name);

@@ -4,7 +4,7 @@ import { Layout } from "./components/Layout";
 import { StartGate } from "./components/StartGate";
 import { SharedSceneGate } from "./components/SharedSceneGate";
 import { applyPalette, loadPaletteId, PALETTES } from "./themes";
-import type { PortableScene } from "./session";
+import { loadAutosavedScene, type AutosavedScene, type PortableScene } from "./session";
 import { loadSceneFromCurrentUrlOnce } from "./shareCodec";
 
 /**
@@ -28,6 +28,8 @@ type SharedSceneState =
 
 export function App() {
   const [started, setStarted] = useState(false);
+  const [startupMode, setStartupMode] = useState<"continue" | "new">("new");
+  const [autosavedScene] = useState<AutosavedScene | null>(() => loadAutosavedScene());
   const [sharedState, setSharedState] = useState<SharedSceneState>({ status: "loading" });
 
   useEffect(() => {
@@ -75,7 +77,9 @@ export function App() {
     }
     return (
       <StartGate
-        onStart={async () => {
+        lastScene={autosavedScene}
+        onStart={async (mode) => {
+          setStartupMode(mode);
           const engine = getEngine();
           await engine.resume();
           setStarted(true);
@@ -85,5 +89,5 @@ export function App() {
   }
 
   const engine = getEngine();
-  return <Layout engine={engine} />;
+  return <Layout engine={engine} startupMode={startupMode} />;
 }
