@@ -139,6 +139,7 @@ export function Layout({ engine }: LayoutProps) {
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
   const initSceneRef = useRef(false);
+  const ignoreNextPresetNameRef = useRef(false);
   const droneViewRef = useRef<DroneViewHandle | null>(null);
 
   const applyStartupScene = () => {
@@ -162,6 +163,9 @@ export function Layout({ engine }: LayoutProps) {
     }
     setMeditateVisualizer(scene.ui.visualizer);
     requestSigilRefresh();
+    // Loaded sessions/shared scenes may carry an active preset id, but
+    // their authored scene name should win over the preset label.
+    ignoreNextPresetNameRef.current = true;
     droneViewRef.current?.applySnapshot(scene.drone);
     applyMixerSnapshot(engine, scene.mixer);
     applyFxSnapshot(engine, scene.fx);
@@ -462,6 +466,10 @@ export function Layout({ engine }: LayoutProps) {
               setHeaderOctave(octave);
             }}
             onPresetChange={(_presetId, presetName) => {
+              if (ignoreNextPresetNameRef.current) {
+                ignoreNextPresetNameRef.current = false;
+                return;
+              }
               setCurrentPresetName(presetName ?? "Custom Scene");
             }}
           />

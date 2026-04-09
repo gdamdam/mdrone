@@ -25,6 +25,15 @@ import { buildVoice, ALL_VOICE_TYPES, type Voice, type VoiceType } from "./Voice
 import droneWorkletUrl from "./droneVoiceProcessor.js?url";
 import fxWorkletUrl from "./fxChainProcessor.js?url";
 
+export interface EngineSceneMutation {
+  rootFreq?: number;
+  drift?: number;
+  sub?: number;
+  bloom?: number;
+  climateX?: number;
+  climateY?: number;
+}
+
 export class AudioEngine {
   ctx: AudioContext;
 
@@ -112,6 +121,7 @@ export class AudioEngine {
   private limiterCeiling = -1;
   private outputTrim: GainNode;
   private analyser: AnalyserNode;
+  private sceneMutationListeners = new Set<(mutation: EngineSceneMutation) => void>();
 
   constructor() {
     const AC =
@@ -842,6 +852,22 @@ export class AudioEngine {
   }
   getEvolve(): number { return this.evolveAmount; }
 
+  subscribeSceneMutations(
+    listener: (mutation: EngineSceneMutation) => void,
+  ): () => void {
+    this.sceneMutationListeners.add(listener);
+    return () => {
+      this.sceneMutationListeners.delete(listener);
+    };
+  }
+
+  private emitSceneMutation(mutation: EngineSceneMutation): void {
+    if (this.sceneMutationListeners.size === 0) return;
+    for (const listener of this.sceneMutationListeners) {
+      listener(mutation);
+    }
+  }
+
   /** Tanpura re-pluck rate multiplier 0.2..4. Applies to every active
    *  tanpura voice immediately and to any voices built afterward. */
   private tanpuraPluckRate = 1;
@@ -861,6 +887,7 @@ export class AudioEngine {
       if (!this.droneOn || this.evolveAmount === 0) return;
       this.evolveTicks++;
       const amt = this.evolveAmount;
+      const mutation: EngineSceneMutation = {};
 
       // 1. Macro drift — bigger enough random walks that changes
       //    are clearly audible within ~1 minute. Accumulates across
@@ -869,8 +896,11 @@ export class AudioEngine {
       const walk = (cur: number) =>
         Math.max(0, Math.min(1, cur + (Math.random() - 0.5) * step));
       this.setClimateX(walk(this.climateX));
+      mutation.climateX = this.climateX;
       this.setClimateY(walk(this.climateY));
+      mutation.climateY = this.climateY;
       this.setBloom(walk(this.bloomAmount));
+      mutation.bloom = this.bloomAmount;
 
       // 2. Tonic walk — at evolve > 0.4, walk ±P4/P5. Period
       //    shortens with amount: amt=0.4 → ~90 s; amt=1 → ~40 s.
@@ -881,14 +911,19 @@ export class AudioEngine {
         const newFreq = this.droneRootFreq * Math.pow(2, delta / 12);
         if (newFreq >= 40 && newFreq <= 440) {
           this.setDroneFreq(newFreq);
+          mutation.rootFreq = this.droneRootFreq;
         }
       }
 
       // 3. At evolve > 0.7 — perturb drift + sub every ~40 s
       if (amt > 0.7 && this.evolveTicks % 5 === 0) {
         this.setDrift(walk(this.drift));
+        mutation.drift = this.drift;
         this.setSub(walk(this.subAmount));
+        mutation.sub = this.subAmount;
       }
+
+      this.emitSceneMutation(mutation);
     }, 8000);
   }
 

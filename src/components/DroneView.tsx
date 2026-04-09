@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { AudioEngine } from "../engine/AudioEngine";
+import type { AudioEngine, EngineSceneMutation } from "../engine/AudioEngine";
 import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
 import type { EffectId } from "../engine/FxChain";
 import { PRESETS, applyPreset } from "../engine/presets";
@@ -26,6 +26,13 @@ function pitchToFreq(pc: PitchClass, octave: number): number {
   const idx = PITCH_CLASSES.indexOf(pc);
   const semitonesFromA4 = idx - 9 + (octave - 4) * 12;
   return 440 * Math.pow(2, semitonesFromA4 / 12);
+}
+
+function freqToPitch(freq: number): { pitchClass: PitchClass; octave: number } {
+  const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+  const pitchClass = PITCH_CLASSES[((midi % 12) + 12) % 12];
+  const octave = Math.max(1, Math.min(6, Math.floor(midi / 12) - 1));
+  return { pitchClass, octave };
 }
 
 /**
@@ -412,6 +419,26 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   useEffect(() => {
     onTonicChange?.(root, octave);
   }, [octave, onTonicChange, root]);
+
+  useEffect(() => {
+    if (!engine) return;
+    return engine.subscribeSceneMutations((mutation: EngineSceneMutation) => {
+      if (mutation.rootFreq !== undefined) {
+        const nextPitch = freqToPitch(mutation.rootFreq);
+        setRoot(nextPitch.pitchClass);
+        setOctave(nextPitch.octave);
+      }
+      if (mutation.drift !== undefined) setDriftState(mutation.drift);
+      if (mutation.sub !== undefined) setSubState(mutation.sub);
+      if (mutation.bloom !== undefined) setBloomState(mutation.bloom);
+      if (mutation.climateX !== undefined || mutation.climateY !== undefined) {
+        setClimateState((prev) => ({
+          x: mutation.climateX ?? prev.x,
+          y: mutation.climateY ?? prev.y,
+        }));
+      }
+    });
+  }, [engine]);
 
   useImperativeHandle(ref, () => ({
     getSnapshot() {
