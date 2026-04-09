@@ -11,7 +11,7 @@ import { ShareModal } from "./ShareModal";
 import { requestSigilRefresh, type Visualizer } from "./visualizers";
 import { PRESETS, SAFE_RANDOM_PRESET_IDS, createSafeRandomScene } from "../engine/presets";
 import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState";
-import { buildSceneShareUrl, loadSceneFromCurrentUrl } from "../shareCodec";
+import { buildSceneShareUrl, loadSceneFromCurrentUrlOnce } from "../shareCodec";
 import { applyPalette, getPaletteById, loadPaletteId, savePaletteId } from "../themes";
 import {
   loadCurrentSessionId,
@@ -200,10 +200,16 @@ export function Layout({ engine }: LayoutProps) {
     let cancelled = false;
 
     const run = async () => {
-      const sharedScene = await loadSceneFromCurrentUrl();
+      const sharedScene = await loadSceneFromCurrentUrlOnce();
       if (cancelled) return;
       if (sharedScene) {
-        applyPortableScene(sharedScene);
+        // User reached this screen via SharedSceneGate's Play button,
+        // so they explicitly want the scene audible — force playing=true
+        // regardless of what the sender captured.
+        applyPortableScene({
+          ...sharedScene,
+          drone: { ...sharedScene.drone, playing: true },
+        });
         return;
       }
 

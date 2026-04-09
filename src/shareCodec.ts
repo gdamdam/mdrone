@@ -107,3 +107,17 @@ export async function loadSceneFromCurrentUrl(): Promise<PortableScene | null> {
   if (!extracted) return null;
   return decodeScenePayload(extracted.payload, extracted.compressed);
 }
+
+/**
+ * Cached one-shot load so App.tsx (splash gate) and Layout.tsx (scene
+ * application) both see the same decoded scene without decoding twice.
+ * Keyed by href so reloads or client-side URL changes get a fresh decode.
+ */
+let cachedSceneLoad: { href: string; promise: Promise<PortableScene | null> } | null = null;
+export function loadSceneFromCurrentUrlOnce(): Promise<PortableScene | null> {
+  const href = window.location.href;
+  if (!cachedSceneLoad || cachedSceneLoad.href !== href) {
+    cachedSceneLoad = { href, promise: loadSceneFromCurrentUrl() };
+  }
+  return cachedSceneLoad.promise;
+}

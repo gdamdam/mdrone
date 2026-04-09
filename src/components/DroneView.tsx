@@ -498,8 +498,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       engine.setTanpuraPluckRate(snapshot.pluckRate);
       engine.setPresetTrim(snapshot.presetTrim);
       if (shouldPlay) {
-        if (playing) engine.setDroneFreq(nextFreq);
-        else engine.startDrone(nextFreq, nextIntervals);
+        // Always call startDrone — its "already on" branch just retunes
+        // and rebuilds, so it's safe regardless of the stale React
+        // `playing` closure. Branching on `playing` here was dropping the
+        // start when applySnapshot ran during app boot from a shared link.
+        engine.startDrone(nextFreq, nextIntervals);
       }
     },
     togglePlay,

@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { AudioEngine } from "./engine/AudioEngine";
 import { Layout } from "./components/Layout";
 import { StartGate } from "./components/StartGate";
+import { SharedSceneGate } from "./components/SharedSceneGate";
 import { applyPalette, loadPaletteId, PALETTES } from "./themes";
+import type { PortableScene } from "./session";
+import { loadSceneFromCurrentUrlOnce } from "./shareCodec";
 
 /**
  * Module-level singleton. React StrictMode double-mounts App in dev,
@@ -19,8 +22,13 @@ function getEngine(): AudioEngine {
   return globalEngine;
 }
 
+type SharedSceneState =
+  | { status: "loading" }
+  | { status: "ready"; scene: PortableScene | null };
+
 export function App() {
   const [started, setStarted] = useState(false);
+  const [sharedState, setSharedState] = useState<SharedSceneState>({ status: "loading" });
 
   useEffect(() => {
     const id = loadPaletteId();
@@ -28,7 +36,43 @@ export function App() {
     applyPalette(palette);
   }, []);
 
+  // Probe the URL once for a shared scene. If present, we show the
+  // scene-card gate instead of the generic splash. Layout.tsx later
+  // reuses the same cached decode to apply the scene to the engine.
+  useEffect(() => {
+    let cancelled = false;
+    loadSceneFromCurrentUrlOnce()
+      .then((scene) => {
+        if (cancelled) return;
+        setSharedState({ status: "ready", scene });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSharedState({ status: "ready", scene: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (!started) {
+    if (sharedState.status === "loading") {
+      // Brief neutral state while the URL is probed — avoids flashing
+      // the generic splash for shared links.
+      return <div className="start-gate" aria-busy="true" />;
+    }
+    if (sharedState.scene) {
+      return (
+        <SharedSceneGate
+          scene={sharedState.scene}
+          onStart={async () => {
+            const engine = getEngine();
+            await engine.resume();
+            setStarted(true);
+          }}
+        />
+      );
+    }
     return (
       <StartGate
         onStart={async () => {

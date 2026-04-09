@@ -1861,3 +1861,39 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     width: 100%;
   }
 }
+
+/* ── Shared-scene splash ─────────────────────────────────────────── */
+.shared-scene-gate {
+  gap: 14px;
+}
+.shared-scene-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 800;
+  color: var(--preview);
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--preview) 40%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--preview) 10%, transparent);
+  align-self: center;
+}
+.shared-scene-card {
+  width: min(100%, 480px);
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--preview) 28%, var(--border));
+  background: color-mix(in srgb, var(--preview) 4%, var(--bg-cell));
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.35);
+}
+.shared-scene-card .share-card-canvas {
+  width: 100%;
+  height: auto;
+}
+.shared-scene-title {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-align: center;
+  color: var(--text);
+}
