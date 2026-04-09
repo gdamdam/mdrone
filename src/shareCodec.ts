@@ -1,7 +1,7 @@
 import type { PortableScene } from "./session";
 import { normalizePortableScene } from "./session";
 
-const CODEC_TIMEOUT_MS = 500;
+const CODEC_TIMEOUT_MS = 2500;
 
 function bytesToUrlSafeB64(bytes: Uint8Array): string {
   let binary = "";
@@ -17,23 +17,25 @@ function urlSafeB64ToBytes(payload: string): Uint8Array {
   return bytes;
 }
 
+// Use Blob.stream().pipeThrough(...) so the reader and writer run
+// concurrently. The previous `write(); close(); read()` pattern could
+// deadlock on backpressure in WebKit, which is why the share modal was
+// always falling back to the plain `?b=` encoding.
 async function compressBytes(input: Uint8Array): Promise<Uint8Array> {
   if (typeof CompressionStream === "undefined") return input;
-  const stream = new CompressionStream("deflate");
-  const writer = stream.writable.getWriter();
-  await writer.write(new Uint8Array(input));
-  await writer.close();
-  const result = await new Response(stream.readable).arrayBuffer();
+  const piped = new Blob([new Uint8Array(input)])
+    .stream()
+    .pipeThrough(new CompressionStream("deflate"));
+  const result = await new Response(piped).arrayBuffer();
   return new Uint8Array(result);
 }
 
 async function decompressBytes(input: Uint8Array): Promise<Uint8Array> {
   if (typeof DecompressionStream === "undefined") return input;
-  const stream = new DecompressionStream("deflate");
-  const writer = stream.writable.getWriter();
-  await writer.write(new Uint8Array(input));
-  await writer.close();
-  const result = await new Response(stream.readable).arrayBuffer();
+  const piped = new Blob([new Uint8Array(input)])
+    .stream()
+    .pipeThrough(new DecompressionStream("deflate"));
+  const result = await new Response(piped).arrayBuffer();
   return new Uint8Array(result);
 }
 

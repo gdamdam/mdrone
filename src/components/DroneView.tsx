@@ -252,7 +252,76 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </button>
           ))}
         </div>
-        <div className="preset-lower-grid">
+        {/* Row 2 — MODE · TONIC · TIMBRE */}
+        <div className="preset-row-2">
+          <div className="preset-mode-col">
+            <div className="panel-label">MODE</div>
+            <div className="scale-grid scale-grid-compact">
+              {SCALES.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setScale(s.id)}
+                  className={s.id === state.scale ? "scale-btn scale-btn-active" : "scale-btn"}
+                  title={`Modal set: ${s.label} — biases the harmonic voices that fit the tonic`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="preset-tonic-col">
+            <div className="panel-label">TONIC</div>
+            <div className="tonic-wheel tonic-wheel-compact">
+              {PITCH_CLASSES.map((pc) => (
+                <button
+                  key={pc}
+                  onClick={() => setRoot(pc)}
+                  className={pc === state.root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
+                  title={`Set root to ${pc}${state.octave}`}
+                >
+                  {pc}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="preset-timbre-col">
+            <div className="panel-label">TIMBRE · tap to layer</div>
+            <div className="timbre-grid">
+              {VOICES.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => toggleVoiceLayer(v.id)}
+                  className={state.voiceLayers[v.id] ? "timbre-btn timbre-btn-active" : "timbre-btn"}
+                  title={v.hint}
+                >
+                  <span className="timbre-btn-icon">{v.icon}</span>
+                  <span className="timbre-btn-label">{v.label}</span>
+                </button>
+              ))}
+            </div>
+            {/* Per-layer level sliders — only shown for active layers. */}
+            <div className="layer-levels">
+              {VOICES.map((v) => state.voiceLayers[v.id] && (
+                <div key={v.id} className="layer-level-row">
+                  <span className="layer-level-label">{v.label}</span>
+                  <input
+                    type="range" min={0} max={1} step={0.01}
+                    value={state.voiceLevels[v.id]}
+                    onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
+                    className="macro-slider"
+                    title={`${v.label} mix level`}
+                  />
+                  <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 3 — MORPH/EVOLVE/PLUCK · MACROS · LFO */}
+        <div className="preset-row-3">
           <div className="preset-controls-col">
             <div className="preset-morph-row">
               <span className="preset-morph-label">MORPH</span>
@@ -310,69 +379,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
           </div>
 
-          <div className="preset-tonic-col">
-            <div className="panel-label">TONIC</div>
-            <div className="tonic-wheel tonic-wheel-compact">
-              {PITCH_CLASSES.map((pc) => (
-                <button
-                  key={pc}
-                  onClick={() => setRoot(pc)}
-                  className={pc === state.root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
-                  title={`Set root to ${pc}${state.octave}`}
-                >
-                  {pc}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="preset-mode-col">
-            <div className="panel-label">MODE</div>
-            <div className="scale-grid scale-grid-compact">
-              {SCALES.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setScale(s.id)}
-                  className={s.id === state.scale ? "scale-btn scale-btn-active" : "scale-btn"}
-                  title={`Modal set: ${s.label} — biases the harmonic voices that fit the tonic`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="preset-breathe-col">
-            <div className="panel-label">LFO · BREATHING</div>
-            <div className="lfo-shape-row">
-              {(["sine", "triangle", "square", "sawtooth"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setLfoShape(s)}
-                  className={s === state.lfoShape ? "lfo-shape-btn lfo-shape-btn-active" : "lfo-shape-btn"}
-                  title={`LFO wave shape: ${s}`}
-                >
-                  <IconShape shape={s} />
-                </button>
-              ))}
-            </div>
-            <Macro
-              label="RATE"
-              value={(Math.log(state.lfoRate / 0.05) / Math.log(160))}
-              onChange={(v) => setLfoRate(0.05 * Math.pow(160, v))}
-              icon={<IconRate />}
-              displayValue={`${state.lfoRate.toFixed(2)} Hz`}
-              title="LFO rate — speed of the breathing/tremolo. 0.05 Hz (very slow) to 8 Hz (fluttering)"
-            />
-            <Macro
-              label="DEPTH"
-              value={state.lfoAmount}
-              onChange={setLfoAmount}
-              icon={<IconDepth />}
-              title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
-            />
-          </div>
-
           <div className="preset-macros-col">
             <div className="panel-label">MACROS</div>
             <Macro
@@ -420,44 +426,38 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
             />
           </div>
-        </div>
-      </div>
 
-      {/* ── Left column: timbre ─── */}
-      <div className="drone-left">
-        <div className="panel">
-          <div className="panel-label">TIMBRE · tap to layer</div>
-          <div className="timbre-grid">
-            {VOICES.map((v) => (
-              <button
-                key={v.id}
-                onClick={() => toggleVoiceLayer(v.id)}
-                className={state.voiceLayers[v.id] ? "timbre-btn timbre-btn-active" : "timbre-btn"}
-                title={v.hint}
-              >
-                <span className="timbre-btn-icon">{v.icon}</span>
-                <span className="timbre-btn-label">{v.label}</span>
-              </button>
-            ))}
-          </div>
-          {/* Per-layer level sliders — only shown for active layers. */}
-          <div className="layer-levels">
-            {VOICES.map((v) => state.voiceLayers[v.id] && (
-              <div key={v.id} className="layer-level-row">
-                <span className="layer-level-label">{v.label}</span>
-                <input
-                  type="range" min={0} max={1} step={0.01}
-                  value={state.voiceLevels[v.id]}
-                  onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
-                  className="macro-slider"
-                  title={`${v.label} mix level`}
-                />
-                <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
-              </div>
-            ))}
+          <div className="preset-breathe-col">
+            <div className="panel-label">LFO · BREATHING</div>
+            <div className="lfo-shape-row">
+              {(["sine", "triangle", "square", "sawtooth"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setLfoShape(s)}
+                  className={s === state.lfoShape ? "lfo-shape-btn lfo-shape-btn-active" : "lfo-shape-btn"}
+                  title={`LFO wave shape: ${s}`}
+                >
+                  <IconShape shape={s} />
+                </button>
+              ))}
+            </div>
+            <Macro
+              label="RATE"
+              value={(Math.log(state.lfoRate / 0.05) / Math.log(160))}
+              onChange={(v) => setLfoRate(0.05 * Math.pow(160, v))}
+              icon={<IconRate />}
+              displayValue={`${state.lfoRate.toFixed(2)} Hz`}
+              title="LFO rate — speed of the breathing/tremolo. 0.05 Hz (very slow) to 8 Hz (fluttering)"
+            />
+            <Macro
+              label="DEPTH"
+              value={state.lfoAmount}
+              onChange={setLfoAmount}
+              icon={<IconDepth />}
+              title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
+            />
           </div>
         </div>
-
       </div>
 
       {/* ── Right column: large climate XY surface + effects ───── */}

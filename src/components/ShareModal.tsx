@@ -45,7 +45,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
     () => typeof navigator !== "undefined" && typeof navigator.share === "function",
     [],
   );
-  const resolvedStyle = scene ? resolveSceneCardStyle(styleChoice, scene) : "bands";
+  const resolvedStyle = scene ? resolveSceneCardStyle(styleChoice, scene) : "fractal";
 
   useEffect(() => {
     let cancelled = false;
@@ -95,7 +95,19 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
 
   useEffect(() => {
     if (!scene || !canvasRef.current) return;
-    renderSceneCardToCanvas(canvasRef.current, scene, resolvedStyle);
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (canvasRef.current && !cancelled) {
+          await renderSceneCardToCanvas(canvasRef.current, scene, resolvedStyle);
+        }
+      } catch (err) {
+        console.error("mdrone: scene card render failed", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [resolvedStyle, scene]);
 
   const copyLink = async () => {
@@ -189,20 +201,27 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
             />
           </label>
 
-          <label className="fx-modal-param">
+          <div className="fx-modal-param">
             <span className="fx-modal-param-label">CARD STYLE</span>
-            <select
-              className="share-modal-input"
-              value={styleChoice}
-              onChange={(e) => setStyleChoice(e.target.value as SceneCardStyleChoice)}
-            >
-              {(["auto", "bands", "rings", "sigil", "spectrum"] as SceneCardStyleChoice[]).map((style) => (
-                <option key={style} value={style}>
+            <div className="share-style-row" role="radiogroup" aria-label="Card style">
+              {(["auto", "sigil", "tarot", "fractal"] as SceneCardStyleChoice[]).map((style) => (
+                <button
+                  type="button"
+                  key={style}
+                  role="radio"
+                  aria-checked={styleChoice === style}
+                  className={
+                    styleChoice === style
+                      ? "share-style-btn share-style-btn-active"
+                      : "share-style-btn"
+                  }
+                  onClick={() => setStyleChoice(style)}
+                >
                   {SCENE_CARD_STYLE_LABELS[style]}
-                </option>
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
 
           <label className="fx-modal-param">
             <span className="fx-modal-param-label">

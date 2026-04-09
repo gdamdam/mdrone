@@ -37,7 +37,19 @@ export function SharedSceneGate({ scene, onStart }: SharedSceneGateProps) {
 
   useEffect(() => {
     if (!canvasRef.current) return;
-    renderSceneCardToCanvas(canvasRef.current, scene, resolvedStyle);
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (canvasRef.current && !cancelled) {
+          await renderSceneCardToCanvas(canvasRef.current, scene, resolvedStyle);
+        }
+      } catch (err) {
+        console.error("mdrone: shared scene card render failed", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [scene, resolvedStyle]);
 
   const handlePlay = async () => {

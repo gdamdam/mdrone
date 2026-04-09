@@ -783,13 +783,12 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* ── DroneView layout ─────────────────────────────────────────────── */
 .drone-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) 1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
   align-items: start;
 }
 
 .preset-panel-wide {
-  grid-column: 1 / -1;
   width: min(100%, 980px);
   justify-self: center;
 }
@@ -801,14 +800,25 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin: -2px 0 12px;
 }
 
-.preset-lower-grid {
+/* Row 2 — MODE · TONIC · TIMBRE */
+.preset-row-2 {
+  display: grid;
+  grid-template-columns:
+    minmax(200px, 0.82fr)
+    minmax(200px, 0.72fr)
+    minmax(240px, 1.15fr);
+  gap: 14px;
+  margin-top: 12px;
+  align-items: start;
+}
+
+/* Row 3 — MORPH/EVOLVE/PLUCK · MACROS · LFO */
+.preset-row-3 {
   display: grid;
   grid-template-columns:
     minmax(0, 1.1fr)
-    minmax(200px, 0.72fr)
-    minmax(200px, 0.82fr)
-    minmax(220px, 0.95fr)
-    minmax(260px, 1.1fr);
+    minmax(260px, 1.1fr)
+    minmax(220px, 0.95fr);
   gap: 14px;
   margin-top: 12px;
   align-items: start;
@@ -818,25 +828,23 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .preset-tonic-col,
 .preset-mode-col,
 .preset-breathe-col,
-.preset-macros-col {
+.preset-macros-col,
+.preset-timbre-col {
   min-width: 0;
 }
 
-@media (max-width: 760px) {
-  .drone-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 960px) {
-  .preset-lower-grid {
+  .preset-row-2,
+  .preset-row-3 {
     grid-template-columns: 1fr;
   }
 }
 
-.drone-left, .drone-right {
+.drone-right {
   display: flex;
   flex-direction: column;
+  width: min(100%, 980px);
+  justify-self: center;
 }
 
 /* Tonic wheel — 12 pitch cells, 4×3 grid */
@@ -1556,6 +1564,41 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .share-modal-url {
   min-height: 92px;
   line-height: 1.45;
+}
+
+/* Card-style segmented control — 4 buttons (auto/sigil/tarot/fractal).
+ * CSS-styled, no native select. Matches the preset-btn visual language. */
+.share-style-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.share-style-btn {
+  padding: 10px 8px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  color: var(--preview);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+.share-style-btn:hover {
+  border-color: color-mix(in srgb, var(--preview) 35%, var(--border));
+  background: color-mix(in srgb, var(--preview) 5%, var(--bg-cell));
+}
+
+.share-style-btn-active {
+  background: var(--preview);
+  border-color: var(--preview);
+  color: #160c06;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--preview) 38%, transparent);
 }
 
 .fx-param-row {

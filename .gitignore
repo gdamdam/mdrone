@@ -22,3 +22,6 @@ coverage
 
 # Local project knowledge — gitignored by design
 misc/
+
+# Wrangler local dev cache
+worker/.wrangler/
