@@ -1,5 +1,5 @@
 /** App version — bump on release. */
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.1.2";
 
 /** LocalStorage keys, namespaced so mpump/mloop don't collide. */
 export const STORAGE_KEYS = {

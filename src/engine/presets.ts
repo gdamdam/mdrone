@@ -693,7 +693,11 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.14,
     climateX: 0.6,
     climateY: 0.5,
-    effects: ["wow", "tape", "sub", "comb", "hall", "freeze"],
+    // freeze removed — it captured a moment at enable time and kept
+    // looping it underneath the live signal (same failure as NWW and
+    // the original Radig Drift). Wow + tape + sub + comb + hall still
+    // carry the dense spectral-pressure identity.
+    effects: ["wow", "tape", "sub", "comb", "hall"],
     scale: "drone",
     gain: 0.75,       // perceptually very loud — slight extra cut vs. before
     motionProfile: motionProfile({
