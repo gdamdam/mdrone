@@ -147,8 +147,17 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   const preset = PRESETS.find((item) => item.id === "stars-of-the-lid");
   const effectCalls = [];
   const uiState = {};
+  const engineState = {};
 
-  applyPreset(null, preset, {
+  applyPreset({
+    setPresetTrim: (value) => { engineState.presetTrim = value; },
+    setPresetMotionProfile: (value) => { engineState.motionProfile = value; },
+    applyDroneScene: (layers, levels, intervals) => {
+      engineState.layers = layers;
+      engineState.levels = levels;
+      engineState.intervals = intervals;
+    },
+  }, preset, {
     setVoiceLayers: (value) => { uiState.voiceLayers = value; },
     setVoiceLevels: (value) => { uiState.voiceLevels = value; },
     setDrift: (value) => { uiState.drift = value; },
@@ -174,4 +183,17 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   assert.ok(Math.abs(totalActiveLevel - 1.4) < 0.0001);
   assert.ok(effectCalls.some(([id, on]) => id === "shimmer" && on === true));
   assert.ok(effectCalls.some(([id, on]) => id === "delay" && on === false));
+  assert.equal(engineState.presetTrim, preset.gain);
+  assert.equal(engineState.motionProfile.tonicWalk, "gentle");
+});
+
+test("preset motion profiles preserve anchored vs unstable evolve behavior", () => {
+  const dreamHouse = PRESETS.find((item) => item.id === "dream-house");
+  const merzbient = PRESETS.find((item) => item.id === "merzbient");
+  const airport = PRESETS.find((item) => item.id === "eno-airport");
+
+  assert.equal(dreamHouse.motionProfile.tonicWalk, "none");
+  assert.equal(merzbient.motionProfile.tonicWalk, "restless");
+  assert.ok(merzbient.motionProfile.macroStep > dreamHouse.motionProfile.macroStep);
+  assert.deepEqual(airport.motionProfile.tonicIntervals, [-2, 2, -5, 5]);
 });

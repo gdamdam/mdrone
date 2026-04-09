@@ -56,6 +56,46 @@ export interface Preset {
   /** Optional per-preset loudness trim (A). Defaults to 1.0. Applied
    *  on top of the auto-normalization so authors can fine-tune. */
   gain?: number;
+
+  /** Authored evolve behavior so each preset can feel alive in its own way. */
+  motionProfile: PresetMotionProfile;
+}
+
+export interface PresetMotionProfile {
+  climateXRange: readonly [number, number];
+  climateYRange: readonly [number, number];
+  bloomRange: readonly [number, number];
+  timeRange: readonly [number, number];
+  driftRange: readonly [number, number];
+  subRange: readonly [number, number];
+  macroStep: number;
+  tonicWalk: "none" | "rare" | "gentle" | "restless";
+  tonicIntervals: readonly number[];
+  tonicFloor: number;
+  textureFloor: number;
+  texturePeriod: number;
+}
+
+export const DEFAULT_PRESET_MOTION_PROFILE: PresetMotionProfile = {
+  climateXRange: [0.28, 0.62],
+  climateYRange: [0.08, 0.42],
+  bloomRange: [0.28, 0.82],
+  timeRange: [0.03, 0.24],
+  driftRange: [0.08, 0.52],
+  subRange: [0, 0.52],
+  macroStep: 0.75,
+  tonicWalk: "rare",
+  tonicIntervals: [-5, 5],
+  tonicFloor: 0.58,
+  textureFloor: 0.66,
+  texturePeriod: 5,
+};
+
+function motionProfile(overrides: Partial<PresetMotionProfile>): PresetMotionProfile {
+  return {
+    ...DEFAULT_PRESET_MOTION_PROFILE,
+    ...overrides,
+  };
 }
 
 const SCALE_INTERVALS: Record<ScaleId, number[]> = {
@@ -111,6 +151,20 @@ export const PRESETS: Preset[] = [
     effects: ["plate"],
     scale: "drone",  // tanpura is a single open drone, not a modal set
     gain: 1.1,
+    motionProfile: motionProfile({
+      climateXRange: [0.36, 0.48],
+      climateYRange: [0.05, 0.18],
+      bloomRange: [0.28, 0.42],
+      timeRange: [0.02, 0.08],
+      driftRange: [0.12, 0.24],
+      subRange: [0, 0.05],
+      macroStep: 0.45,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.9,
+      texturePeriod: 7,
+    }),
   },
   {
     id: "shruti-box",
@@ -133,6 +187,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "tape"],
     scale: "drone",
     gain: 1.12,
+    motionProfile: motionProfile({
+      climateXRange: [0.34, 0.48],
+      climateYRange: [0.08, 0.22],
+      bloomRange: [0.36, 0.52],
+      timeRange: [0.03, 0.1],
+      driftRange: [0.14, 0.26],
+      subRange: [0.14, 0.3],
+      macroStep: 0.58,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.72,
+      textureFloor: 0.74,
+      texturePeriod: 6,
+    }),
   },
   {
     id: "malone-organ",
@@ -155,6 +223,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "tape"], // dropped plate — hall carries the space
     scale: "just5",
     gain: 1.0,
+    motionProfile: motionProfile({
+      climateXRange: [0.24, 0.36],
+      climateYRange: [0.06, 0.16],
+      bloomRange: [0.54, 0.74],
+      timeRange: [0.02, 0.08],
+      driftRange: [0.1, 0.18],
+      subRange: [0.28, 0.44],
+      macroStep: 0.36,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.9,
+      texturePeriod: 7,
+    }),
   },
   {
     id: "dream-house",
@@ -177,6 +259,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall"],
     scale: "just5",
     gain: 1.08,
+    motionProfile: motionProfile({
+      climateXRange: [0.28, 0.36],
+      climateYRange: [0.03, 0.08],
+      bloomRange: [0.78, 0.92],
+      timeRange: [0.02, 0.05],
+      driftRange: [0.04, 0.08],
+      subRange: [0.12, 0.24],
+      macroStep: 0.22,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.96,
+      texturePeriod: 8,
+    }),
   },
   {
     id: "deep-listening",
@@ -199,6 +295,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "plate"],
     scale: "drone",
     gain: 1.0,
+    motionProfile: motionProfile({
+      climateXRange: [0.32, 0.48],
+      climateYRange: [0.06, 0.18],
+      bloomRange: [0.58, 0.8],
+      timeRange: [0.03, 0.09],
+      driftRange: [0.12, 0.22],
+      subRange: [0.14, 0.3],
+      macroStep: 0.52,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.7,
+      textureFloor: 0.76,
+      texturePeriod: 6,
+    }),
   },
   {
     id: "stone-organ",
@@ -221,6 +331,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "tape"],
     scale: "drone",
     gain: 1.08, // dark low preset — small perceptual lift
+    motionProfile: motionProfile({
+      climateXRange: [0.1, 0.22],
+      climateYRange: [0.05, 0.12],
+      bloomRange: [0.56, 0.7],
+      timeRange: [0.02, 0.06],
+      driftRange: [0.05, 0.12],
+      subRange: [0.46, 0.64],
+      macroStep: 0.34,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.88,
+      texturePeriod: 7,
+    }),
   },
   {
     id: "stars-of-the-lid",
@@ -245,6 +369,20 @@ export const PRESETS: Preset[] = [
     effects: ["tape", "plate", "hall", "shimmer"],
     scale: "just5",
     gain: 0.95,
+    motionProfile: motionProfile({
+      climateXRange: [0.42, 0.62],
+      climateYRange: [0.18, 0.42],
+      bloomRange: [0.66, 0.92],
+      timeRange: [0.08, 0.24],
+      driftRange: [0.22, 0.42],
+      subRange: [0.16, 0.34],
+      macroStep: 0.95,
+      tonicWalk: "gentle",
+      tonicIntervals: [-5, 5, 7],
+      tonicFloor: 0.46,
+      textureFloor: 0.58,
+      texturePeriod: 4,
+    }),
   },
   {
     id: "radigue-drift",
@@ -267,6 +405,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "comb", "freeze"], // dropped tape — cleaner spectral drift
     scale: "drone",   // phrygian was too melodic for a near-silent preset
     gain: 1.1,
+    motionProfile: motionProfile({
+      climateXRange: [0.24, 0.4],
+      climateYRange: [0.26, 0.5],
+      bloomRange: [0.82, 0.96],
+      timeRange: [0.04, 0.1],
+      driftRange: [0.58, 0.8],
+      subRange: [0.12, 0.28],
+      macroStep: 0.72,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.56,
+      textureFloor: 0.48,
+      texturePeriod: 4,
+    }),
   },
   {
     id: "eno-airport",
@@ -289,6 +441,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "shimmer", "tape"],
     scale: "pentatonic",
     gain: 0.98,
+    motionProfile: motionProfile({
+      climateXRange: [0.48, 0.68],
+      climateYRange: [0.12, 0.28],
+      bloomRange: [0.46, 0.64],
+      timeRange: [0.06, 0.14],
+      driftRange: [0.18, 0.34],
+      subRange: [0.14, 0.28],
+      macroStep: 0.74,
+      tonicWalk: "gentle",
+      tonicIntervals: [-2, 2, -5, 5],
+      tonicFloor: 0.48,
+      textureFloor: 0.64,
+      texturePeriod: 5,
+    }),
   },
   {
     id: "buddhist-monk-drone",
@@ -311,6 +477,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "plate"],
     scale: "drone",
     gain: 1.12,
+    motionProfile: motionProfile({
+      climateXRange: [0.14, 0.22],
+      climateYRange: [0.05, 0.12],
+      bloomRange: [0.44, 0.58],
+      timeRange: [0.03, 0.07],
+      driftRange: [0.08, 0.14],
+      subRange: [0.56, 0.76],
+      macroStep: 0.32,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.88,
+      texturePeriod: 7,
+    }),
   },
   {
     id: "tibetan-bowl",
@@ -333,6 +513,20 @@ export const PRESETS: Preset[] = [
     effects: ["plate", "hall"],
     scale: "drone",
     gain: 1.05,
+    motionProfile: motionProfile({
+      climateXRange: [0.28, 0.42],
+      climateYRange: [0.06, 0.14],
+      bloomRange: [0.32, 0.48],
+      timeRange: [0.03, 0.08],
+      driftRange: [0.06, 0.16],
+      subRange: [0.12, 0.26],
+      macroStep: 0.54,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 7],
+      tonicFloor: 0.62,
+      textureFloor: 0.74,
+      texturePeriod: 6,
+    }),
   },
   {
     id: "coil-time-machines",
@@ -355,6 +549,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "tape"],
     scale: "drone",
     gain: 1.1,
+    motionProfile: motionProfile({
+      climateXRange: [0.12, 0.2],
+      climateYRange: [0.04, 0.09],
+      bloomRange: [0.68, 0.88],
+      timeRange: [0.02, 0.06],
+      driftRange: [0.05, 0.1],
+      subRange: [0.64, 0.84],
+      macroStep: 0.26,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.94,
+      texturePeriod: 8,
+    }),
   },
   {
     id: "nww-soliloquy",
@@ -387,6 +595,20 @@ export const PRESETS: Preset[] = [
     effects: ["tape", "comb", "hall"],
     scale: "drone",
     gain: 0.82,
+    motionProfile: motionProfile({
+      climateXRange: [0.16, 0.3],
+      climateYRange: [0.12, 0.28],
+      bloomRange: [0.72, 0.9],
+      timeRange: [0.04, 0.12],
+      driftRange: [0.18, 0.38],
+      subRange: [0.04, 0.18],
+      macroStep: 0.94,
+      tonicWalk: "gentle",
+      tonicIntervals: [-1, 1, -5, 5],
+      tonicFloor: 0.42,
+      textureFloor: 0.52,
+      texturePeriod: 4,
+    }),
   },
   {
     id: "doom-bloom",
@@ -409,6 +631,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "tape", "sub"],
     scale: "drone",
     gain: 0.95, // already hot — small cut to match the library
+    motionProfile: motionProfile({
+      climateXRange: [0.06, 0.14],
+      climateYRange: [0.05, 0.1],
+      bloomRange: [0.8, 0.96],
+      timeRange: [0.03, 0.07],
+      driftRange: [0.12, 0.22],
+      subRange: [0.76, 0.94],
+      macroStep: 0.38,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.7,
+      textureFloor: 0.8,
+      texturePeriod: 6,
+    }),
   },
   {
     id: "merzbient",
@@ -434,6 +670,20 @@ export const PRESETS: Preset[] = [
     effects: ["wow", "tape", "sub", "comb", "hall", "freeze"],
     scale: "drone",
     gain: 0.78,       // perceptually very loud (noise + wide spectrum) — cut
+    motionProfile: motionProfile({
+      climateXRange: [0.48, 0.72],
+      climateYRange: [0.34, 0.62],
+      bloomRange: [0.46, 0.64],
+      timeRange: [0.12, 0.3],
+      driftRange: [0.52, 0.82],
+      subRange: [0.4, 0.68],
+      macroStep: 1.28,
+      tonicWalk: "restless",
+      tonicIntervals: [-1, 1, -2, 2, -5, 5],
+      tonicFloor: 0.34,
+      textureFloor: 0.42,
+      texturePeriod: 3,
+    }),
   },
   {
     id: "windscape",
@@ -456,6 +706,20 @@ export const PRESETS: Preset[] = [
     effects: ["hall", "comb", "wow", "tape"],
     scale: "drone",   // minor added melodic content that fought the weather identity
     gain: 1.05,
+    motionProfile: motionProfile({
+      climateXRange: [0.34, 0.52],
+      climateYRange: [0.28, 0.52],
+      bloomRange: [0.5, 0.7],
+      timeRange: [0.12, 0.26],
+      driftRange: [0.36, 0.58],
+      subRange: [0.12, 0.3],
+      macroStep: 1.02,
+      tonicWalk: "gentle",
+      tonicIntervals: [-2, 2, -5, 5],
+      tonicFloor: 0.46,
+      textureFloor: 0.52,
+      texturePeriod: 4,
+    }),
   },
 ];
 
@@ -630,6 +894,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     // (A) Apply per-preset loudness trim before the scene builds so
     // the new voices come in at the corrected level.
     engine.setPresetTrim(preset.gain ?? 1);
+    engine.setPresetMotionProfile(preset.motionProfile);
     engine.applyDroneScene(layers, levels, SCALE_INTERVALS[preset.scale] ?? [0]);
   }
 

@@ -3,6 +3,7 @@ export interface EngineSceneMutation {
   drift?: number;
   sub?: number;
   bloom?: number;
+  time?: number;
   climateX?: number;
   climateY?: number;
 }

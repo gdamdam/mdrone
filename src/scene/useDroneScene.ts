@@ -185,6 +185,10 @@ export function useDroneScene({
   // When the engine first becomes available, push current scene state down.
   useEffect(() => {
     if (!engine) return;
+    const preset = state.activePresetId
+      ? PRESETS.find((item) => item.id === state.activePresetId) ?? null
+      : null;
+    engine.setPresetMotionProfile(preset?.motionProfile ?? null);
     engine.setDrift(state.drift);
     engine.setAir(state.air);
     engine.setTime(state.time);
@@ -297,6 +301,7 @@ export function useDroneScene({
       if (mutation.drift !== undefined) patch.drift = mutation.drift;
       if (mutation.sub !== undefined) patch.sub = mutation.sub;
       if (mutation.bloom !== undefined) patch.bloom = mutation.bloom;
+      if (mutation.time !== undefined) patch.time = mutation.time;
       if (mutation.climateX !== undefined) patch.climateX = mutation.climateX;
       if (mutation.climateY !== undefined) patch.climateY = mutation.climateY;
       dispatch({ type: "merge", patch });
@@ -320,6 +325,10 @@ export function useDroneScene({
 
     if (!engine) return;
 
+    const preset = snapshot.activePresetId
+      ? PRESETS.find((item) => item.id === snapshot.activePresetId) ?? null
+      : null;
+    engine.setPresetMotionProfile(preset?.motionProfile ?? null);
     engine.applyDroneScene(snapshot.voiceLayers, snapshot.voiceLevels, nextIntervals);
     for (const id of Object.keys(snapshot.effects) as EffectId[]) {
       engine.setEffect(id, snapshot.effects[id]);
@@ -351,6 +360,7 @@ export function useDroneScene({
       const preset = PRESETS.find((item) => item.id === presetId);
       if (preset) {
         nextScale = preset.scale;
+        engine?.setPresetMotionProfile(preset.motionProfile);
         handlePreset(presetId);
       }
     }

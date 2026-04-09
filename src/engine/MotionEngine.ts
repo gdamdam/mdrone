@@ -1,5 +1,7 @@
 import { FxChain } from "./FxChain";
 import type { EngineSceneMutation } from "./EngineSceneMutation";
+import type { PresetMotionProfile } from "./presets";
+import { DEFAULT_PRESET_MOTION_PROFILE } from "./presets";
 
 interface MotionEngineOptions {
   ctx: AudioContext;
@@ -48,6 +50,7 @@ export class MotionEngine {
   private evolveAmount = 0;
   private evolveTicks = 0;
   private evolveInterval: number | null = null;
+  private presetMotionProfile: PresetMotionProfile = DEFAULT_PRESET_MOTION_PROFILE;
 
   constructor(options: MotionEngineOptions) {
     this.ctx = options.ctx;
@@ -91,6 +94,10 @@ export class MotionEngine {
   }
 
   getPresetMorph(): number { return this.morphAmount; }
+
+  setPresetMotionProfile(profile: PresetMotionProfile | null): void {
+    this.presetMotionProfile = profile ?? DEFAULT_PRESET_MOTION_PROFILE;
+  }
 
   setEvolve(v: number): void {
     const next = Math.max(0, Math.min(1, v));
@@ -182,23 +189,36 @@ export class MotionEngine {
       if (!this.isPlayingImpl() || this.evolveAmount === 0) return;
       this.evolveTicks++;
       const amt = this.evolveAmount;
+      const profile = this.presetMotionProfile;
       const mutation: EngineSceneMutation = {};
-      const step = 0.02 + amt * 0.05;
-      const walk = (cur: number) =>
-        Math.max(0, Math.min(1, cur + (Math.random() - 0.5) * step));
+      const walk = (
+        cur: number,
+        range: readonly [number, number],
+        weight = 1,
+      ) => {
+        const step = (0.012 + amt * 0.028) * profile.macroStep * weight;
+        return MotionEngine.clamp(cur + (Math.random() - 0.5) * step * 2, range[0], range[1]);
+      };
 
-      this.setClimateX(walk(this.climateX));
+      this.setClimateX(walk(this.climateX, profile.climateXRange, 1));
       mutation.climateX = this.climateX;
-      this.setClimateY(walk(this.climateY));
+      this.setClimateY(walk(this.climateY, profile.climateYRange, 1.1));
       mutation.climateY = this.climateY;
+      this.setTime(walk(this.time, profile.timeRange, 0.85));
+      mutation.time = this.time;
 
-      const nextBloom = walk(this.getBloomImpl());
+      const nextBloom = walk(this.getBloomImpl(), profile.bloomRange, 0.8);
       this.setBloomImpl(nextBloom);
       mutation.bloom = this.getBloomImpl();
 
-      const walkPeriod = Math.max(5, Math.round(12 - amt * 7));
-      if (amt > 0.4 && this.evolveTicks % walkPeriod === 0) {
-        const steps = [-7, -5, 5, 7];
+      const walkPeriod = MotionEngine.resolveWalkPeriod(profile.tonicWalk, amt);
+      if (
+        profile.tonicWalk !== "none" &&
+        profile.tonicIntervals.length > 0 &&
+        amt > profile.tonicFloor &&
+        this.evolveTicks % walkPeriod === 0
+      ) {
+        const steps = profile.tonicIntervals;
         const delta = steps[Math.floor(Math.random() * steps.length)];
         const newFreq = this.getDroneFreqImpl() * Math.pow(2, delta / 12);
         if (newFreq >= 40 && newFreq <= 440) {
@@ -207,12 +227,12 @@ export class MotionEngine {
         }
       }
 
-      if (amt > 0.7 && this.evolveTicks % 5 === 0) {
-        const nextDrift = walk(this.getDriftImpl());
+      if (amt > profile.textureFloor && this.evolveTicks % profile.texturePeriod === 0) {
+        const nextDrift = walk(this.getDriftImpl(), profile.driftRange, 0.72);
         this.setDriftImpl(nextDrift);
         mutation.drift = this.getDriftImpl();
 
-        const nextSub = walk(this.getSubImpl());
+        const nextSub = walk(this.getSubImpl(), profile.subRange, 0.6);
         this.setSubImpl(nextSub);
         mutation.sub = this.getSubImpl();
       }
@@ -223,5 +243,18 @@ export class MotionEngine {
 
   private static mapTimeToRate(t: number): number {
     return 0.02 * Math.pow(100, Math.max(0, Math.min(1, t)));
+  }
+
+  private static clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private static resolveWalkPeriod(
+    walkMode: PresetMotionProfile["tonicWalk"],
+    amount: number,
+  ): number {
+    if (walkMode === "restless") return Math.max(3, Math.round(8 - amount * 5));
+    if (walkMode === "gentle") return Math.max(4, Math.round(11 - amount * 5));
+    return Math.max(5, Math.round(14 - amount * 5));
   }
 }
