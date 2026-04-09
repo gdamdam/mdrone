@@ -43,22 +43,26 @@ export function midiNoteToPitch(note: number): {
   return { pitchClass, octave };
 }
 
+// Minimal surface we use — just a forEach-capable inputs collection.
+// This avoids requiring the full Map<K,V> interface so a real browser
+// MIDIInputMap assigns cleanly.
+interface MidiInputsLike {
+  forEach(cb: (input: MIDIInputLike) => void): void;
+}
 type MidiAccessLike = {
-  inputs: Map<string, MIDIInput>;
-  onstatechange: ((e: MIDIConnectionEvent) => void) | null;
+  inputs: MidiInputsLike;
+  onstatechange: ((e: { port: MIDIInputLike }) => void) | null;
 };
 
-// Minimal local typings — avoids needing @types/webmidi in tsconfig.
-interface MIDIInput {
+// Minimal local typings — avoid requiring @types/webmidi. We use
+// loose string/null unions so the real browser MIDIInput (whose
+// name/manufacturer can be `null`) assigns cleanly.
+interface MIDIInputLike {
   id: string;
-  name?: string;
-  manufacturer?: string;
+  name?: string | null;
+  manufacturer?: string | null;
   state: "connected" | "disconnected";
   onmidimessage: ((e: { data: Uint8Array }) => void) | null;
-}
-
-interface MIDIConnectionEvent {
-  port: MIDIInput;
 }
 
 export function useMidiInput(
@@ -126,7 +130,10 @@ export function useMidiInput(
         })
           .requestMIDIAccess()
           .then((access) => {
-            accessRef.current = access;
+            // Browser MIDIAccess uses richer types than our minimal
+            // local interface; cast through unknown to bypass the
+            // structural mismatch (onmidimessage event shape, etc.).
+            accessRef.current = access as unknown as MidiAccessLike;
             access.onstatechange = () => {
               refreshDevices();
               if (enabled) attachListeners();

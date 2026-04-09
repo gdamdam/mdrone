@@ -19,7 +19,7 @@ import {
   type PhaseClock,
   type Visualizer,
 } from "./visualizers";
-import { cycleDeityPreview, clearDeityPreview, getDeityPreview } from "./deities";
+import { clearDeityPreview } from "./deities";
 
 interface MeditateViewProps {
   engine: AudioEngine | null;
@@ -66,24 +66,10 @@ export function MeditateView({ engine, active }: MeditateViewProps) {
     }
   }, []);
 
-  // Temporary preview: step through deity figures one by one
-  const [deityPreview, setDeityPreview] = useState<string | null>(null);
-  const nextDeity = useCallback(() => {
-    const id = cycleDeityPreview();
-    setDeityPreview(id);
-  }, []);
-  const resumeDeityCycle = useCallback(() => {
-    clearDeityPreview();
-    setDeityPreview(null);
-  }, []);
+  // Clear the legacy deity preview stub whenever the visualizer
+  // changes. Harmless no-op now that the deity cycle is gone.
   useEffect(() => {
-    // If the user switches away from DEITIES, drop the manual override
-    if (visualizer !== "deities") {
-      clearDeityPreview();
-      setDeityPreview(null);
-    } else {
-      setDeityPreview(getDeityPreview());
-    }
+    clearDeityPreview();
   }, [visualizer]);
 
   // rAF loop — only runs while visible
@@ -346,26 +332,6 @@ export function MeditateView({ engine, active }: MeditateViewProps) {
         >
           {isFullscreen ? "✕ EXIT" : "⛶ FULLSCREEN"}
         </button>
-        {visualizer === "deities" && (
-          <>
-            <button
-              className="header-btn"
-              onClick={nextDeity}
-              title="Preview — step through each deity figure (temporary)"
-            >
-              ▸ NEXT DEITY {deityPreview ? `(${deityPreview.toUpperCase()})` : ""}
-            </button>
-            {deityPreview && (
-              <button
-                className="header-btn"
-                onClick={resumeDeityCycle}
-                title="Resume auto-cycling"
-              >
-                ↻ RESUME
-              </button>
-            )}
-          </>
-        )}
         <span className="meditate-toolbar-hint">· double-click to cycle ·</span>
       </div>
       {visualizer === "dreamMachine" && (
