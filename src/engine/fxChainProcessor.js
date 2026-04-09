@@ -613,12 +613,15 @@ const GRANULAR_MAX_GRAINS = 24;
 class FxGranularProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: "size",        defaultValue: 0.25, minValue: 0.02, maxValue: 1.2, automationRate: "k-rate" },
-      { name: "density",     defaultValue: 8,    minValue: 0.5,  maxValue: 40,  automationRate: "k-rate" },
-      { name: "pitchSpread", defaultValue: 0.15, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      // Drone-friendly defaults: long grains (0.6 s), sparse density
+      // (~2 grains/sec), narrow pitch spread. Higher density was
+      // creating rhythmic 8 Hz pumping when the original default was 8.
+      { name: "size",        defaultValue: 0.6,  minValue: 0.02, maxValue: 2.0, automationRate: "k-rate" },
+      { name: "density",     defaultValue: 2.2,  minValue: 0.3,  maxValue: 30,  automationRate: "k-rate" },
+      { name: "pitchSpread", defaultValue: 0.08, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
       { name: "panSpread",   defaultValue: 0.55, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
-      { name: "position",    defaultValue: 0.5,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
-      { name: "mix",         defaultValue: 1.0,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      { name: "position",    defaultValue: 0.6,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      { name: "mix",         defaultValue: 0.9,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
     ];
   }
 

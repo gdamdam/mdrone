@@ -658,6 +658,19 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   animation: pulse 1s ease-in-out infinite;
 }
 
+.header-btn-panic {
+  background: linear-gradient(180deg, #2a0f0f, #1a0808);
+  border-color: #6a2020;
+  color: #d85a5a;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+.header-btn-panic:hover {
+  border-color: #a83030;
+  color: #ff7878;
+  filter: brightness(1.08);
+}
+
 .header-btn-random {
   background: linear-gradient(
     180deg,
@@ -1125,8 +1138,11 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .preset-btn-attr {
   font-size: 9px;
-  color: var(--text-dim);
-  opacity: 0.8;
+  /* Brighter than var(--text-dim) but still below the amber name/icon.
+   * Sits in a mid-readable tier so you can actually read the preset
+   * description at a glance. */
+  color: color-mix(in srgb, var(--preview) 42%, var(--text));
+  opacity: 0.92;
   font-style: italic;
   line-height: 1.3;
 }

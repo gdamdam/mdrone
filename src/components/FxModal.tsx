@@ -32,6 +32,8 @@ const EFFECT_TITLES: Record<EffectId, string> = {
   freeze: "FREEZE",
   cistern: "CISTERN REVERB",
   granular: "GRANULAR CLOUD",
+  ringmod: "RING MODULATOR",
+  formant: "VOCAL FORMANT",
 };
 
 const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
@@ -56,6 +58,10 @@ const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
     "Long-tail convolver with a ~28 second exponential decay. Models a Fort Worden cistern / cathedral scale — the reverb IS the instrument. Used by Deep Listening and other long-decay presets.",
   granular:
     "Grain-cloud tail processor. Captures incoming audio into a ring buffer and plays overlapping grains back with independent pitch, pan, and position. Used by Köner, Hecker, Fennesz, Basinski, Biosphere.",
+  ringmod:
+    "Ring modulator — input multiplied by a fixed ~80 Hz sine carrier. Produces inharmonic sum + difference frequencies, the hallmark metallic scrape of Coil, NWW, and tape-era industrial drones.",
+  formant:
+    "Vocal formant bank — three resonant bandpasses at neutral 'ah' vowel frequencies (700 / 1220 / 2600 Hz). Adds a human vocal character to whatever flows through it.",
 };
 
 export function FxModal({ engine, effectId, onClose }: FxModalProps) {

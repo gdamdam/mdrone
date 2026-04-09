@@ -116,6 +116,8 @@ const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {
   freeze: 1,
   cistern: 1,
   granular: 0.9,
+  ringmod: 0.7,
+  formant: 0.85,
 };
 
 export const DEFAULT_FX_SNAPSHOT: FxSessionSnapshot = {
@@ -138,8 +140,8 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   root: "A",
   octave: 2,
   scale: "dorian",
-  voiceLayers: { tanpura: true, reed: false, metal: false, air: false, piano: false },
-  voiceLevels: { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1 },
+  voiceLayers: { tanpura: true, reed: false, metal: false, air: false, piano: false, fm: false, amp: false },
+  voiceLevels: { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 },
   effects: {
     tape: false,
     wow: false,
@@ -152,6 +154,8 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
     freeze: false,
     cistern: false,
     granular: false,
+    ringmod: false,
+    formant: false,
   },
   drift: 0.3,
   air: 0.4,
@@ -213,6 +217,8 @@ function normalizeVoiceLayers(value: unknown): Record<VoiceType, boolean> {
     metal: readBoolean(record.metal, DEFAULT_DRONE_SNAPSHOT.voiceLayers.metal),
     air: readBoolean(record.air, DEFAULT_DRONE_SNAPSHOT.voiceLayers.air),
     piano: readBoolean(record.piano, DEFAULT_DRONE_SNAPSHOT.voiceLayers.piano),
+    fm: readBoolean(record.fm, DEFAULT_DRONE_SNAPSHOT.voiceLayers.fm),
+    amp: readBoolean(record.amp, DEFAULT_DRONE_SNAPSHOT.voiceLayers.amp),
   };
 }
 
@@ -224,6 +230,8 @@ function normalizeVoiceLevels(value: unknown): Record<VoiceType, number> {
     metal: readNumber(record.metal, DEFAULT_DRONE_SNAPSHOT.voiceLevels.metal, 0, 1),
     air: readNumber(record.air, DEFAULT_DRONE_SNAPSHOT.voiceLevels.air, 0, 1),
     piano: readNumber(record.piano, DEFAULT_DRONE_SNAPSHOT.voiceLevels.piano, 0, 1),
+    fm: readNumber(record.fm, DEFAULT_DRONE_SNAPSHOT.voiceLevels.fm, 0, 1),
+    amp: readNumber(record.amp, DEFAULT_DRONE_SNAPSHOT.voiceLevels.amp, 0, 1),
   };
 }
 
@@ -241,6 +249,8 @@ function normalizeEffectStates(value: unknown): Record<EffectId, boolean> {
     freeze: readBoolean(record.freeze, false),
     cistern: readBoolean(record.cistern, false),
     granular: readBoolean(record.granular, false),
+    ringmod: readBoolean(record.ringmod, false),
+    formant: readBoolean(record.formant, false),
   };
 }
 
@@ -258,6 +268,8 @@ function normalizeEffectLevels(value: unknown): Record<EffectId, number> {
     freeze: readNumber(record.freeze, DEFAULT_EFFECT_LEVELS.freeze, 0, 1),
     cistern: readNumber(record.cistern, DEFAULT_EFFECT_LEVELS.cistern, 0, 1),
     granular: readNumber(record.granular, DEFAULT_EFFECT_LEVELS.granular, 0, 1),
+    ringmod: readNumber(record.ringmod, DEFAULT_EFFECT_LEVELS.ringmod, 0, 1),
+    formant: readNumber(record.formant, DEFAULT_EFFECT_LEVELS.formant, 0, 1),
   };
 }
 

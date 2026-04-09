@@ -32,6 +32,7 @@ interface HeaderProps {
   onToggleHold: () => void;
   holding: boolean;
   onToggleRec: () => void;
+  onPanic: () => void;
   onOpenShare: () => void;
   onRandomScene: () => void;
   isRec: boolean;
@@ -71,6 +72,7 @@ export function Header({
   onToggleHold,
   holding,
   onToggleRec,
+  onPanic,
   onOpenShare,
   onRandomScene,
   isRec,
@@ -199,6 +201,13 @@ export function Header({
                 Math.floor((recTimeMs / 1000) % 60)
               ).padStart(2, "0")}`
             : "● REC"}
+        </button>
+        <button
+          className="header-btn header-btn-panic"
+          onClick={onPanic}
+          title="Panic — stop the drone and kill any lingering reverb/delay tails. Standard MIDI-style emergency silence."
+        >
+          PANIC
         </button>
         <button
           className="header-btn header-btn-share"

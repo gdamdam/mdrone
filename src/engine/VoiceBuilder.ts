@@ -23,7 +23,7 @@
  * one voice in its own sample loop.
  */
 
-export type VoiceType = "tanpura" | "reed" | "metal" | "air" | "piano";
+export type VoiceType = "tanpura" | "reed" | "metal" | "air" | "piano" | "fm" | "amp";
 
 /** Harmonic-stack shape for the reed voice. Lets one voice processor
  *  cover several sustained-additive timbres without new AudioWorklets:
@@ -33,7 +33,7 @@ export type VoiceType = "tanpura" | "reed" | "metal" | "air" | "piano";
  *  - "sine"     pure fundamental only — Dream House, Radigue ARP 2500 */
 export type ReedShape = "odd" | "even" | "balanced" | "sine";
 
-export const ALL_VOICE_TYPES: readonly VoiceType[] = ["tanpura", "reed", "metal", "air", "piano"] as const;
+export const ALL_VOICE_TYPES: readonly VoiceType[] = ["tanpura", "reed", "metal", "air", "piano", "fm", "amp"] as const;
 
 export interface Voice {
   setFreq(hz: number, glideSec: number): void;

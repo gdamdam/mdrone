@@ -83,6 +83,13 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     droneViewRef.current?.togglePlay();
   };
 
+  /** Panic — stop the drone and kill any lingering effect tails
+   *  (convolver IRs, delay buffers, granular ring buffer). Standard
+   *  MIDI-style emergency silence: ramp out, flush, ramp back in. */
+  const handlePanic = () => {
+    engine.panic();
+  };
+
   const recordingSupport = engine.getRecordingSupport();
   const recordingTitle = !recordingSupport.supported
     ? (recordingSupport.reason ?? "Recording is unavailable in this browser.")
@@ -143,6 +150,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleHold={handleToggleHold}
         holding={headerHolding}
         onToggleRec={handleToggleRec}
+        onPanic={handlePanic}
         onOpenShare={() => setShareOpen(true)}
         onRandomScene={sceneManager.handleRandomScene}
         isRec={isRec}

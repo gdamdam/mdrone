@@ -56,6 +56,13 @@ export interface Preset {
   /** Optional reed voice harmonic-stack shape. Defaults to "odd". */
   reedShape?: ReedShape;
 
+  /** Optional parallel reverb send levels (0..1) — run the chosen
+   *  reverbs in parallel off the raw input instead of serial-only. Lets
+   *  a preset have "dry voice + wet reverb" without the voice going
+   *  through every earlier serial effect first. Only reverb-family
+   *  effects support parallel routing. */
+  parallelSends?: Partial<{ plate: number; hall: number; cistern: number }>;
+
   /** Optional per-preset loudness trim (A). Defaults to 1.0. Applied
    *  on top of the auto-normalization so authors can fine-tune. */
   gain?: number;
@@ -348,6 +355,10 @@ export const PRESETS: Preset[] = [
     climateX: 0.4,
     climateY: 0.16,
     effects: ["cistern", "plate"],
+    // Parallel cistern — the voice goes dry into the cistern bus so the
+    // 28-second tail comes from raw input, not from a pre-processed
+    // signal. This is the actual cistern experience.
+    parallelSends: { cistern: 0.55 },
     scale: "drone",
     gain: 1.0,
     motionProfile: motionProfile({
@@ -427,6 +438,10 @@ export const PRESETS: Preset[] = [
     // that is audibly present on The Tired Sounds Of… and anchors the
     // string illusion. No shimmer (wrong for SOTL).
     effects: ["plate", "hall", "tape"],
+    // Parallel hall send — dry voice + parallel wet reverb, so the
+    // string illusion keeps its attack definition without drowning in
+    // serial-routed reverb.
+    parallelSends: { hall: 0.35 },
     scale: "minor",
     // gain cut to leave headroom for the amplitude swell peaks.
     gain: 0.88,
@@ -543,7 +558,9 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.05,
     climateX: 0.18,
     climateY: 0.08,
-    effects: ["hall", "plate", "comb"],
+    // formant effect adds the dynamic vocal vowel resonance that's the
+    // defining feature of Gyuto throat singing.
+    effects: ["hall", "plate", "comb", "formant"],
     scale: "drone",
     gain: 1.08,
     motionProfile: motionProfile({
@@ -613,9 +630,9 @@ export const PRESETS: Preset[] = [
     id: "coil-time-machines",
     name: "Time Machines",
     attribution: "Ceremonial single-note trance · suspended time",
-    hint: "A low single-note ritual drone with narcotic stillness. One center, deep sustain, almost no decorative movement — just the faintest tape-flange rotation.",
-    voiceLayers: ["reed", "metal", "air"],
-    voiceLevels: { reed: 0.95, metal: 0.14, air: 0.18 },
+    hint: "A low single-note ritual drone with narcotic stillness. Reed body, a whisper of FM for the Coil synth character, almost no decorative movement — just the faintest tape-flange rotation.",
+    voiceLayers: ["reed", "fm", "air"],
+    voiceLevels: { reed: 0.95, fm: 0.2, air: 0.18 },
     drift: 0.08,
     air: 0.38,
     time: 0.04,
@@ -694,9 +711,9 @@ export const PRESETS: Preset[] = [
     id: "doom-bloom",
     name: "Doom Bloom",
     attribution: "Amplifier feedback wall · slow breathing",
-    hint: "Saturated reed body with a metal feedback halo — the sustained-amp pressure of drone metal (Sunn O))), Earth), swelling in slow amplitude breaths.",
-    voiceLayers: ["reed", "metal"],
-    voiceLevels: { reed: 1, metal: 0.45 },
+    hint: "Distorted amp voice for the saturated sustain, reed for body, metal for the feedback halo — the sustained-amp pressure of drone metal (Sunn O))), Earth), swelling in slow amplitude breaths.",
+    voiceLayers: ["amp", "reed", "metal"],
+    voiceLevels: { amp: 1, reed: 0.4, metal: 0.3 },
     drift: 0.22,
     air: 0.32,
     time: 0.05,
@@ -816,7 +833,7 @@ export const PRESETS: Preset[] = [
   {
     id: "wiese-baraka",
     name: "Sevenfold",
-    attribution: "Klaus Wiese · layered bowls + tanpura · ritual stillness",
+    attribution: "Layered bowls + tanpura · ritual stillness",
     hint: "Tanpura + metal bowl cloud in a long hall. Klaus Wiese's Baraka / Sevenfold Sanctuary — layered bowls beating against a tanpura drone, extreme stillness, no motion.",
     voiceLayers: ["tanpura", "metal", "air"],
     voiceLevels: { tanpura: 1, metal: 0.62, air: 0.16 },
@@ -854,7 +871,7 @@ export const PRESETS: Preset[] = [
   {
     id: "hecker-ravedeath",
     name: "Ravedeath",
-    attribution: "Tim Hecker · distorted granular organ",
+    attribution: "Distorted granular organ · saturated tail",
     hint: "Reed (balanced pipe-organ shape) into the granular tail processor with saturation and hall. Tim Hecker's Ravedeath 1972 — a distorted, granulated church-organ texture.",
     voiceLayers: ["reed", "metal"],
     voiceLevels: { reed: 1, metal: 0.22 },
@@ -893,7 +910,7 @@ export const PRESETS: Preset[] = [
   {
     id: "hecker-virgins",
     name: "Virgins",
-    attribution: "Tim Hecker · granular piano minor",
+    attribution: "Granular piano · minor fragments",
     hint: "Piano and reed into granular + hall. Tim Hecker's Virgins — minor-key piano textures stretched and fragmented.",
     voiceLayers: ["piano", "reed"],
     voiceLevels: { piano: 1, reed: 0.35 },
@@ -932,7 +949,7 @@ export const PRESETS: Preset[] = [
   {
     id: "fennesz-endless",
     name: "Endless Summer",
-    attribution: "Fennesz · processed granular harmonic texture",
+    attribution: "Processed granular shimmer · bright clouds",
     hint: "Reed + air processed through granular + shimmer. Fennesz's Endless Summer — bright harmonic textures granulated into shimmering clouds.",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.45 },
@@ -971,7 +988,7 @@ export const PRESETS: Preset[] = [
   {
     id: "biosphere-substrata",
     name: "Substrata",
-    attribution: "Biosphere · stretched arctic field recording",
+    attribution: "Stretched arctic field · sub drone",
     hint: "Air + reed stretched through granular into a cistern. Biosphere's Substrata — deep arctic field-recording texture, slow motion.",
     voiceLayers: ["air", "reed"],
     voiceLevels: { air: 1, reed: 0.25 },
@@ -1010,7 +1027,7 @@ export const PRESETS: Preset[] = [
   {
     id: "basinski-disintegration",
     name: "Disintegration",
-    attribution: "William Basinski · decaying tape loop",
+    attribution: "Decaying tape loop · melancholy patina",
     hint: "Reed (bowed-string shape) + granular + heavy tape. Basinski's Disintegration Loops — a loop of orchestral fragments slowly eroding, melancholy patina.",
     voiceLayers: ["reed", "piano"],
     voiceLevels: { reed: 1, piano: 0.4 },
@@ -1049,7 +1066,7 @@ export const PRESETS: Preset[] = [
   {
     id: "budd-harold",
     name: "Pearl",
-    attribution: "Harold Budd · long-decay piano",
+    attribution: "Long-decay piano · infinite reverb tail",
     hint: "Piano with a reed bed in a deep plate + hall. Harold Budd's Pearl / Plateaux of Mirror — simple piano tones with infinite reverb tails.",
     voiceLayers: ["piano", "reed"],
     voiceLevels: { piano: 1, reed: 0.3 },
@@ -1088,7 +1105,7 @@ export const PRESETS: Preset[] = [
   {
     id: "frahm-solo",
     name: "Solo",
-    attribution: "Nils Frahm · solo piano drone",
+    attribution: "Solo piano drone · felt-dampened hall",
     hint: "Piano alone in hall + tape. Nils Frahm Solo / Spaces — sustained piano as drone, felt-dampened.",
     voiceLayers: ["piano"],
     voiceLevels: { piano: 1 },
@@ -1126,7 +1143,7 @@ export const PRESETS: Preset[] = [
   {
     id: "grouper-dragging",
     name: "Dragging",
-    attribution: "Grouper · piano + air + tape wear",
+    attribution: "Lo-fi piano + air · tape wear",
     hint: "Piano + air bed in tape + plate. Grouper's Dragging a Dead Deer — lo-fi piano under a veil of air and tape patina.",
     voiceLayers: ["piano", "air"],
     voiceLevels: { piano: 1, air: 0.5 },
@@ -1164,7 +1181,7 @@ export const PRESETS: Preset[] = [
   {
     id: "arkbro-chords",
     name: "For Organ",
-    attribution: "Ellen Arkbro · meantone pipe-organ chords",
+    attribution: "Meantone pipe-organ chords · austere",
     hint: "Reed (balanced pipe-organ shape) in meantone tuning. Ellen Arkbro's For Organ and Brass — slow austere meantone chord drones.",
     voiceLayers: ["reed", "metal"],
     voiceLevels: { reed: 1, metal: 0.14 },
@@ -1203,7 +1220,7 @@ export const PRESETS: Preset[] = [
   {
     id: "young-well-tuned",
     name: "Well-Tuned",
-    attribution: "La Monte Young · harmonic-series drone",
+    attribution: "Harmonic-series drone · pure intervals",
     hint: "Piano + reed (sine shape) in harmonic-series tuning. La Monte Young's Well-Tuned Piano — pure harmonic intervals, static.",
     voiceLayers: ["piano", "reed"],
     voiceLevels: { piano: 1, reed: 0.4 },
@@ -1242,7 +1259,7 @@ export const PRESETS: Preset[] = [
   {
     id: "lamb-prisma",
     name: "Prisma",
-    attribution: "Catherine Lamb · maqam-based microtonal chamber",
+    attribution: "Microtonal chamber · maqam rast",
     hint: "Reed (balanced) + air in maqam rast. Catherine Lamb's Prisma — slow microtonal chamber drones with Middle-Eastern scale intervals.",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.32 },
@@ -1420,7 +1437,7 @@ export function getPresetMaterialProfile(presetOrId: Preset | string | null): Pr
  *  chain before applying a new preset. */
 const ALL_EFFECT_IDS: EffectId[] = [
   "tape", "wow", "plate", "hall", "shimmer", "delay", "sub", "comb", "freeze",
-  "cistern", "granular",
+  "cistern", "granular", "ringmod", "formant",
 ];
 
 function clamp(value: number, min: number, max: number): number {
@@ -1443,6 +1460,8 @@ export function createPresetVariation(
     metal: false,
     air: false,
     piano: false,
+    fm: false,
+    amp: false,
   };
   const voiceLevels: Record<VoiceType, number> = {
     tanpura: 1,
@@ -1450,6 +1469,8 @@ export function createPresetVariation(
     metal: 1,
     air: 1,
     piano: 1,
+    fm: 1,
+    amp: 1,
   };
 
   for (const type of preset.voiceLayers) {
@@ -1539,8 +1560,8 @@ export interface PresetUiSetters {
  */
 export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: PresetUiSetters): void {
   // Voice layers — turn on the listed ones, off the rest.
-  const layers: Record<VoiceType, boolean> = { tanpura: false, reed: false, metal: false, air: false, piano: false };
-  const levels: Record<VoiceType, number> = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1 };
+  const layers: Record<VoiceType, boolean> = { tanpura: false, reed: false, metal: false, air: false, piano: false, fm: false, amp: false };
+  const levels: Record<VoiceType, number> = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 };
   for (const t of preset.voiceLayers) layers[t] = true;
   for (const t of ALL_VOICE_TYPES) {
     if (preset.voiceLevels && preset.voiceLevels[t] !== undefined) {
@@ -1595,6 +1616,9 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     // Reed shape must be set before applyDroneScene (which rebuilds
     // voices) so the reed worklet picks up the new harmonic profile.
     engine.setReedShape(preset.reedShape ?? "odd");
+    // Parallel reverb send levels — reset every preset so stale sends
+    // from a previous scene don't leak through.
+    engine.setParallelSends(preset.parallelSends ?? {});
     engine.applyDroneScene(layers, levels, SCALE_INTERVALS[preset.scale] ?? [0]);
   }
 

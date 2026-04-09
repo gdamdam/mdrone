@@ -17,10 +17,10 @@ export class VoiceEngine {
   private voiceUpdateDepth = 0;
   private voiceRebuildPending = false;
   private layerLevels: Record<VoiceType, number> = {
-    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1,
+    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1,
   };
   private voiceLayers: Record<VoiceType, boolean> = {
-    tanpura: true, reed: false, metal: false, air: false, piano: false,
+    tanpura: true, reed: false, metal: false, air: false, piano: false, fm: false, amp: false,
   };
   private droneIntervalsCents: number[] = [0];
   private droneRootFreq = 220;
@@ -41,10 +41,10 @@ export class VoiceEngine {
   private materialInterval: number | null = null;
   private materialStep = 0;
   private materialLevelOffsets: Record<VoiceType, number> = {
-    tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0,
+    tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0, fm: 0, amp: 0,
   };
   private materialDriftScales: Record<VoiceType, number> = {
-    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1,
+    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1,
   };
   private readonly materialPhaseOffsets: Record<VoiceType, number> = {
     tanpura: Math.random() * Math.PI * 2,
@@ -52,6 +52,8 @@ export class VoiceEngine {
     metal: Math.random() * Math.PI * 2,
     air: Math.random() * Math.PI * 2,
     piano: Math.random() * Math.PI * 2,
+    fm: Math.random() * Math.PI * 2,
+    amp: Math.random() * Math.PI * 2,
   };
   private materialPluckFactor = 1;
   private materialSubFactor = 1;
@@ -610,8 +612,8 @@ export class VoiceEngine {
   }
 
   private resetMaterialState(): void {
-    this.materialLevelOffsets = { tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0 };
-    this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1 };
+    this.materialLevelOffsets = { tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0, fm: 0, amp: 0 };
+    this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 };
     this.materialPluckFactor = 1;
     this.materialSubFactor = 1;
     this.materialShimmerFactor = 1;

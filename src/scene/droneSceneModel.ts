@@ -65,6 +65,8 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
       metal: false,
       air: false,
       piano: false,
+      fm: false,
+      amp: false,
     },
     voiceLevels: {
       tanpura: engine?.getVoiceLevel("tanpura") ?? 1,
@@ -72,6 +74,8 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
       metal: engine?.getVoiceLevel("metal") ?? 1,
       air: engine?.getVoiceLevel("air") ?? 1,
       piano: engine?.getVoiceLevel("piano") ?? 1,
+      fm: engine?.getVoiceLevel("fm") ?? 1,
+      amp: engine?.getVoiceLevel("amp") ?? 1,
     },
     effects: engine?.getEffectStates() ?? {
       tape: false,
@@ -85,6 +89,8 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
       freeze: false,
       cistern: false,
       granular: false,
+      ringmod: false,
+      formant: false,
     },
     drift: engine?.getDrift() ?? 0.3,
     air: engine?.getAir() ?? 0.4,

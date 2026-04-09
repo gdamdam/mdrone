@@ -83,6 +83,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       case "metal":   this.initMetal();   break;
       case "air":     this.initAir();     break;
       case "piano":   this.initPiano();   break;
+      case "fm":      this.initFm();      break;
+      case "amp":     this.initAmp();     break;
       default:        this.initTanpura(); break;
     }
   }
@@ -491,6 +493,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       case "metal":   this.metalProcess(L, R, n, freq, drift, amp); break;
       case "air":     this.airProcess(L, R, n, freq, drift, amp); break;
       case "piano":   this.pianoProcess(L, R, n, freq, drift, amp); break;
+      case "fm":      this.fmProcess(L, R, n, freq, drift, amp); break;
+      case "amp":     this.ampProcess(L, R, n, freq, drift, amp); break;
     }
     return true;
   }
@@ -518,6 +522,11 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     }
     this.pianoLfoPhase = this.rng() * Math.PI * 2;
     this.pianoLfoRate = 0.09 + this.rng() * 0.08;
+    // Strike transient state — fires once at voice start to give the
+    // note an attack. Decays over ~220 ms via exp envelope.
+    this.pianoStrikeAge = 0;
+    this.pianoStrikeDuration = Math.floor(0.22 * sampleRate);
+    // Pink noise state for the strike burst (reuses class pink state).
   }
 
   pianoProcess(L, R, n, freq, drift, amp) {
@@ -545,8 +554,124 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       }
       l *= 0.16;
       r *= 0.16;
+
+      // Strike transient — a decaying pink-noise burst during the first
+      // ~220 ms of the voice. Gives it a hammer-hit attack.
+      if (this.pianoStrikeAge < this.pianoStrikeDuration) {
+        const t = this.pianoStrikeAge / this.pianoStrikeDuration;
+        const strikeEnv = Math.exp(-t * 7);
+        const strike = this.pinkNoise() * strikeEnv * 0.35;
+        l += strike;
+        r += strike * 0.96; // tiny stereo spread
+        this.pianoStrikeAge++;
+      }
+
       L[i] = l * amp;
       R[i] = r * amp;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FM — 2-op FM synthesis (carrier + modulator). Fixed ratio for a
+  // dominant tonal with a characteristic inharmonic shimmer. Used for
+  // Coil Time Machines / DX7-era bell drones.
+  // ═══════════════════════════════════════════════════════════════════
+  initFm() {
+    this.fmCarrierPhaseL = this.rng() * Math.PI * 2;
+    this.fmCarrierPhaseR = this.rng() * Math.PI * 2;
+    this.fmModPhase = this.rng() * Math.PI * 2;
+    this.fmRatio = 2.0;    // modulator : carrier frequency ratio
+    this.fmIndex = 2.4;    // modulation index (sideband richness)
+    this.fmLfoPhase = this.rng() * Math.PI * 2;
+    this.fmLfoRate = 0.08 + this.rng() * 0.06;
+  }
+
+  fmProcess(L, R, n, freq, drift, amp) {
+    const invSr = 1 / sampleRate;
+    const twoPi = Math.PI * 2;
+    const depth = drift * 0.004;
+
+    for (let i = 0; i < n; i++) {
+      this.fmLfoPhase += twoPi * this.fmLfoRate * invSr;
+      if (this.fmLfoPhase > twoPi) this.fmLfoPhase -= twoPi;
+      const breath = 1 + Math.sin(this.fmLfoPhase) * 0.035;
+
+      // Modulator oscillator
+      const modFreq = freq * this.fmRatio * (1 + depth);
+      this.fmModPhase += twoPi * modFreq * invSr;
+      if (this.fmModPhase > twoPi) this.fmModPhase -= twoPi;
+      const modOut = Math.sin(this.fmModPhase) * this.fmIndex * freq;
+
+      // Carrier oscillators — frequency-modulated by the modulator
+      const cFreq = freq + modOut;
+      this.fmCarrierPhaseL += twoPi * cFreq * invSr;
+      this.fmCarrierPhaseR += twoPi * cFreq * invSr * (1 + depth * 0.6);
+      while (this.fmCarrierPhaseL >  twoPi) this.fmCarrierPhaseL -= twoPi;
+      while (this.fmCarrierPhaseL < -twoPi) this.fmCarrierPhaseL += twoPi;
+      while (this.fmCarrierPhaseR >  twoPi) this.fmCarrierPhaseR -= twoPi;
+      while (this.fmCarrierPhaseR < -twoPi) this.fmCarrierPhaseR += twoPi;
+
+      const s = breath * 0.22;
+      L[i] = Math.sin(this.fmCarrierPhaseL) * s * amp;
+      R[i] = Math.sin(this.fmCarrierPhaseR) * s * amp;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // AMP — distorted amplifier voice. An additive harmonic source pushed
+  // hard through tanh saturation with a simulated cabinet low-pass.
+  // Used for drone-metal presets (Sunn O))), Earth, Pyroclasts).
+  // ═══════════════════════════════════════════════════════════════════
+  initAmp() {
+    this.ampN = 6;
+    this.ampAmps      = new Float32Array([1.0, 0.55, 0.38, 0.22, 0.14, 0.08]);
+    this.ampPhasesL   = new Float32Array(this.ampN);
+    this.ampPhasesR   = new Float32Array(this.ampN);
+    for (let i = 0; i < this.ampN; i++) {
+      this.ampPhasesL[i] = this.rng() * Math.PI * 2;
+      this.ampPhasesR[i] = this.rng() * Math.PI * 2;
+    }
+    this.ampLfoPhase = this.rng() * Math.PI * 2;
+    this.ampLfoRate = 0.06 + this.rng() * 0.08;
+    // One-pole lowpass state for cabinet simulation
+    this.ampCabL = 0;
+    this.ampCabR = 0;
+  }
+
+  ampProcess(L, R, n, freq, drift, amp) {
+    const invSr = 1 / sampleRate;
+    const twoPi = Math.PI * 2;
+    const detuneDepth = drift * 0.005;
+    // Cabinet cutoff ~2.8 kHz one-pole, muffles the harsh upper partials
+    const cabCoef = Math.exp(-twoPi * 2800 * invSr);
+
+    for (let i = 0; i < n; i++) {
+      this.ampLfoPhase += twoPi * this.ampLfoRate * invSr;
+      if (this.ampLfoPhase > twoPi) this.ampLfoPhase -= twoPi;
+      const swell = 1 + Math.sin(this.ampLfoPhase) * 0.12;
+
+      let l = 0, r = 0;
+      for (let p = 0; p < this.ampN; p++) {
+        const wobble = Math.sin(this.ampLfoPhase * (1 + p * 0.17)) * detuneDepth;
+        const partialFreq = freq * (p + 1) * (1 + wobble);
+        this.ampPhasesL[p] += twoPi * partialFreq * invSr;
+        this.ampPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.7);
+        if (this.ampPhasesL[p] > twoPi) this.ampPhasesL[p] -= twoPi;
+        if (this.ampPhasesR[p] > twoPi) this.ampPhasesR[p] -= twoPi;
+
+        l += Math.sin(this.ampPhasesL[p]) * this.ampAmps[p];
+        r += Math.sin(this.ampPhasesR[p]) * this.ampAmps[p];
+      }
+      l *= swell;
+      r *= swell;
+      // Hard saturation — the "amp distortion"
+      l = Math.tanh(l * 3.8) * 0.72;
+      r = Math.tanh(r * 3.8) * 0.72;
+      // Cabinet one-pole
+      this.ampCabL = this.ampCabL * cabCoef + l * (1 - cabCoef);
+      this.ampCabR = this.ampCabR * cabCoef + r * (1 - cabCoef);
+      L[i] = this.ampCabL * amp;
+      R[i] = this.ampCabR * amp;
     }
   }
 }

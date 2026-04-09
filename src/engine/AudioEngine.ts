@@ -105,6 +105,34 @@ export class AudioEngine {
     this.voiceEngine.stopDrone();
   }
 
+  /**
+   * Panic — MIDI-style emergency silence. Stops the drone and kills all
+   * lingering effect tails (convolver impulse responses, delay buffers,
+   * granular ring buffer, freeze worklet). Briefly ramps the output to
+   * zero while the internal buffers are flushed, then ramps back up to
+   * the user's previous volume. Total silence window: ~250 ms.
+   */
+  panic(): void {
+    const now = this.ctx.currentTime;
+    const outputTrim = this.masterBus.getOutputTrim();
+    const previousGain = outputTrim.gain.value;
+
+    // Ramp out fast
+    outputTrim.gain.cancelScheduledValues(now);
+    outputTrim.gain.setValueAtTime(previousGain, now);
+    outputTrim.gain.linearRampToValueAtTime(0, now + 0.04);
+
+    // Stop drone voices so nothing keeps feeding the effects chain
+    this.voiceEngine.stopDrone();
+
+    // Flush effect internal state (convolver buffers, worklet buffers)
+    this.fxChain.panic();
+
+    // Ramp back up after the flush settles
+    outputTrim.gain.setValueAtTime(0, now + 0.24);
+    outputTrim.gain.linearRampToValueAtTime(previousGain, now + 0.3);
+  }
+
   setDroneFreq(freq: number): void {
     this.voiceEngine.setDroneFreq(freq);
   }
@@ -207,6 +235,10 @@ export class AudioEngine {
   }
 
   getReedShape(): import("./VoiceBuilder").ReedShape { return this.voiceEngine.getReedShape(); }
+
+  setParallelSends(sends: Partial<{ plate: number; hall: number; cistern: number }>): void {
+    this.fxChain.setParallelSends(sends);
+  }
 
   setDrift(v: number): void {
     this.voiceEngine.setDrift(v);

@@ -98,7 +98,7 @@ const VOICES: VoiceDef[] = [
   },
   {
     id: "piano", label: "PIANO",
-    hint: "Inharmonically-stretched harmonic stack with a slow breath LFO. A looped sustained piano tone — for ambient piano presets in the Eno / Budd / Hecker / Grouper / Frahm lineage.",
+    hint: "Inharmonically-stretched harmonic stack with a pink-noise strike transient and a slow breath LFO. A looped sustained piano tone — for ambient piano presets in the Eno / Budd / Hecker / Grouper / Frahm lineage.",
     icon: (
       // Three keys: two white with a black between
       <svg {...V_SVG}>
@@ -107,6 +107,30 @@ const VOICES: VoiceDef[] = [
         <rect x="11" y="3" width="4" height="12" />
         <rect x="6" y="3" width="2" height="7" fill="currentColor" />
         <rect x="10" y="3" width="2" height="7" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
+    id: "fm", label: "FM",
+    hint: "2-op FM synthesis — modulator frequency-modulates carrier, producing controllable inharmonic sidebands. Bell-like metal tones distinct from the modal METAL voice. Coil, DX7-era synth drones, Tangerine Dream.",
+    icon: (
+      // Two small circles = carrier + modulator with a sine wave
+      <svg {...V_SVG}>
+        <circle cx="5" cy="9" r="2.5" />
+        <circle cx="13" cy="9" r="2.5" />
+        <path d="M5 9 L 13 9" strokeWidth="0.8" />
+      </svg>
+    ),
+  },
+  {
+    id: "amp", label: "AMP",
+    hint: "Distorted amplifier voice — additive harmonic source pushed through hard tanh saturation and a cabinet low-pass. The sustained-guitar-feedback character of drone metal: Sunn O))), Earth, Boris.",
+    icon: (
+      // Amp cabinet with a speaker grille
+      <svg {...V_SVG}>
+        <rect x="3" y="3" width="12" height="13" rx="1" />
+        <circle cx="9" cy="9.5" r="3" />
+        <circle cx="9" cy="9.5" r="1" fill="currentColor" />
       </svg>
     ),
   },

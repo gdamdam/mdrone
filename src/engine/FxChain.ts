@@ -37,12 +37,14 @@ export type EffectId =
   | "shimmer"
   | "freeze"
   | "cistern"
-  | "granular";
+  | "granular"
+  | "ringmod"
+  | "formant";
 
 /** Fixed serial-chain order. Must match FxBar.tsx's FX_DEFS order. */
 const ALL_EFFECTS: EffectId[] = [
-  "tape", "wow", "sub", "comb", "delay", "plate", "hall", "shimmer", "freeze",
-  "cistern", "granular",
+  "tape", "wow", "sub", "comb", "ringmod", "formant", "delay",
+  "plate", "hall", "shimmer", "freeze", "cistern", "granular",
 ];
 
 /** Base crossfade time-constant for the bypass/wet toggle. Scaled
@@ -64,6 +66,8 @@ const ON_LEVELS: Record<EffectId, number> = {
   freeze: 1.0,
   cistern: 1.0,
   granular: 0.9,
+  ringmod: 0.7,
+  formant: 0.85,
 };
 
 interface Insert {
@@ -99,8 +103,24 @@ export class FxChain {
   private enabled: Record<EffectId, boolean> = {
     tape: false, wow: false, sub: false, comb: false, delay: false,
     plate: false, hall: false, shimmer: false, freeze: false,
-    cistern: false, granular: false,
+    cistern: false, granular: false, ringmod: false, formant: false,
   };
+
+  /** Parallel reverb send levels — 0..1 per reverb family effect. When
+   *  non-zero, a parallel copy of the effect receives the raw pre-serial
+   *  input and mixes its wet output directly into the dry bus. This lets
+   *  presets run "dry + wet reverb" without routing the voice through
+   *  every serial effect first. Only the big reverbs support parallel. */
+  private parallelSendLevels: { plate: number; hall: number; cistern: number } = {
+    plate: 0, hall: 0, cistern: 0,
+  };
+  private parallelBus!: GainNode;
+  private parallelHallVerb!: ConvolverNode;
+  private parallelHallWet!: GainNode;
+  private parallelCisternVerb!: ConvolverNode;
+  private parallelCisternWet!: GainNode;
+  private parallelPlateWorklet: AudioWorkletNode | null = null;
+  private parallelPlateWet!: GainNode;
   private levels: Record<EffectId, number> = { ...ON_LEVELS };
   private delayFeedback = 0.58;
   private combFeedback = 0.85;
@@ -145,6 +165,8 @@ export class FxChain {
       freeze: makeInsert(),
       cistern: makeInsert(),
       granular: makeInsert(),
+      ringmod: makeInsert(),
+      formant: makeInsert(),
     };
 
     // Chain inserts in ALL_EFFECTS order, ending with the last one
@@ -164,7 +186,87 @@ export class FxChain {
     this.wireDelay();
     this.wireHall();
     this.wireCistern();
+    this.wireRingmod();
+    this.wireFormant();
+    this.wireParallelReverbBus();
     // plate / shimmer / freeze / granular DSP is created in onWorkletReady()
+  }
+
+  /** RING MODULATOR — classic AM-style multiplier using GainNode with a
+   *  zero-offset audio-rate oscillator on its .gain AudioParam. Input ×
+   *  sin(2π f t) with f ≈ 80 Hz gives inharmonic metallic scrape,
+   *  characteristic of Coil / NWW / industrial drones. */
+  private wireRingmod(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.ringmod;
+    const osc = ctx.createOscillator();
+    osc.frequency.value = 80;
+    osc.start();
+    const ringGain = ctx.createGain();
+    ringGain.gain.value = 0; // zero-offset = pure ring modulation
+    osc.connect(ringGain.gain);
+    ins.insertIn.connect(ringGain).connect(ins.wetGain).connect(ins.insertOut);
+  }
+
+  /** VOCAL FORMANT — three parallel resonant bandpasses at vowel formant
+   *  centres. Adds a vocal "ahh" resonance on top of whatever flows
+   *  through it. Tuned to the neutral "ah" vowel. */
+  private wireFormant(): void {
+    const ctx = this.ctx;
+    const ins = this.inserts.formant;
+    const merger = ctx.createGain();
+    merger.gain.value = 0.5;
+
+    const formants = [
+      { freq: 700,  Q: 6  },
+      { freq: 1220, Q: 8  },
+      { freq: 2600, Q: 10 },
+    ];
+    for (const f of formants) {
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = f.freq;
+      bp.Q.value = f.Q;
+      ins.insertIn.connect(bp).connect(merger);
+    }
+    merger.connect(ins.wetGain).connect(ins.insertOut);
+  }
+
+  /** Parallel reverb bus — taps the raw input (pre-serial-chain) and
+   *  sums parallel copies of the reverb family (hall, cistern, plate)
+   *  back into the dry output. Each parallel reverb has its own wet gain
+   *  controlled by `parallelSendLevels`. */
+  private wireParallelReverbBus(): void {
+    const ctx = this.ctx;
+    this.parallelBus = ctx.createGain();
+    this.parallelBus.gain.value = 1;
+    this.parallelBus.connect(this.dryOut);
+
+    // Parallel hall (native convolver, shares the hall IR generator)
+    this.parallelHallVerb = ctx.createConvolver();
+    this.parallelHallVerb.buffer = FxChain.makeHallImpulse(ctx, 4.8);
+    this.parallelHallWet = ctx.createGain();
+    this.parallelHallWet.gain.value = 0;
+    this.input
+      .connect(this.parallelHallVerb)
+      .connect(this.parallelHallWet)
+      .connect(this.parallelBus);
+
+    // Parallel cistern (native convolver, shares the cistern IR)
+    this.parallelCisternVerb = ctx.createConvolver();
+    this.parallelCisternVerb.buffer = FxChain.makeCisternImpulse(ctx, 28);
+    this.parallelCisternWet = ctx.createGain();
+    this.parallelCisternWet.gain.value = 0;
+    this.input
+      .connect(this.parallelCisternVerb)
+      .connect(this.parallelCisternWet)
+      .connect(this.parallelBus);
+
+    // Parallel plate wet gain exists now; the worklet is wired in
+    // onWorkletReady() once the fxChainProcessor module has registered.
+    this.parallelPlateWet = ctx.createGain();
+    this.parallelPlateWet.gain.value = 0;
+    this.parallelPlateWet.connect(this.parallelBus);
   }
 
   // ── Insert wiring helpers ───────────────────────────────────────────
@@ -373,10 +475,88 @@ export class FxChain {
       .connect(granularIns.wetGain)
       .connect(granularIns.insertOut);
 
+    // PARALLEL PLATE — second plate worklet instance for the parallel
+    // reverb bus. Shares the same DSP as the serial plate but fed by
+    // raw input and mixed into the dry bus via parallelPlateWet.
+    this.parallelPlateWorklet = new AudioWorkletNode(ctx, "fx-plate", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    this.input.connect(this.parallelPlateWorklet).connect(this.parallelPlateWet);
+
     // Reapply pending enables for worklet-backed effects
     for (const id of ["plate", "shimmer", "freeze", "granular"] as const) {
       if (this.enabled[id]) this.setEffect(id, true);
     }
+    // Reapply parallel send levels (in case a preset was applied before
+    // the worklet was ready and set non-zero parallel plate level).
+    this.applyParallelSends();
+  }
+
+  /** Set per-reverb parallel send levels (0..1). Missing entries default
+   *  to 0. Crossfades smoothly. */
+  setParallelSends(sends: Partial<{ plate: number; hall: number; cistern: number }>): void {
+    this.parallelSendLevels = {
+      plate:   Math.max(0, Math.min(1, sends.plate ?? 0)),
+      hall:    Math.max(0, Math.min(1, sends.hall ?? 0)),
+      cistern: Math.max(0, Math.min(1, sends.cistern ?? 0)),
+    };
+    this.applyParallelSends();
+  }
+
+  private applyParallelSends(): void {
+    const now = this.ctx.currentTime;
+    const tc = 0.12;
+    this.parallelHallWet.gain.setTargetAtTime(this.parallelSendLevels.hall, now, tc);
+    this.parallelCisternWet.gain.setTargetAtTime(this.parallelSendLevels.cistern, now, tc);
+    this.parallelPlateWet.gain.setTargetAtTime(this.parallelSendLevels.plate, now, tc);
+  }
+
+  /** Emergency silence — flush convolver buffers and worklet state so
+   *  long tails die instantly. Called by AudioEngine.panic() while the
+   *  output trim is ramped to 0. All effects keep running but their
+   *  internal state is cleared. */
+  panic(): void {
+    // Swap convolver buffers to a 1-sample silent buffer to truncate
+    // any in-flight reverb tail. Then swap back on the next tick.
+    const ctx = this.ctx;
+    const empty = ctx.createBuffer(2, 1, ctx.sampleRate);
+    const hallBuf = this.hallVerb.buffer;
+    const cisternBuf = this.cisternVerb.buffer;
+    const parHallBuf = this.parallelHallVerb.buffer;
+    const parCisternBuf = this.parallelCisternVerb.buffer;
+
+    try { this.hallVerb.buffer = empty; } catch { /* noop */ }
+    try { this.cisternVerb.buffer = empty; } catch { /* noop */ }
+    try { this.parallelHallVerb.buffer = empty; } catch { /* noop */ }
+    try { this.parallelCisternVerb.buffer = empty; } catch { /* noop */ }
+
+    // Restore the real IRs after a short delay so the next start has
+    // the full reverb available again.
+    setTimeout(() => {
+      try { if (hallBuf) this.hallVerb.buffer = hallBuf; } catch { /* noop */ }
+      try { if (cisternBuf) this.cisternVerb.buffer = cisternBuf; } catch { /* noop */ }
+      try { if (parHallBuf) this.parallelHallVerb.buffer = parHallBuf; } catch { /* noop */ }
+      try { if (parCisternBuf) this.parallelCisternVerb.buffer = parCisternBuf; } catch { /* noop */ }
+    }, 220);
+
+    // Post clear messages to worklet-backed effects (plate, shimmer,
+    // freeze, granular) so they reset their internal buffers too.
+    const clearMsg = { type: "clear" };
+    for (const w of [this.plateWorklet, this.shimmerWorklet, this.freezeWorklet, this.granularWorklet, this.parallelPlateWorklet]) {
+      if (w) {
+        try { w.port.postMessage(clearMsg); } catch { /* noop */ }
+      }
+    }
+
+    // Zero the delay feedback so the delay line flushes
+    const now = ctx.currentTime;
+    this.delayFbGain.gain.cancelScheduledValues(now);
+    this.delayFbGain.gain.setValueAtTime(0, now);
+    // Zero the comb feedback briefly
+    this.combFbGain.gain.cancelScheduledValues(now);
+    this.combFbGain.gain.setValueAtTime(0, now);
   }
 
   // ── Public API ─────────────────────────────────────────────────────

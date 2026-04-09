@@ -105,6 +105,18 @@ const FX_DEFS: FxDef[] = [
     hint: "Granular tail processor — grain-cloud texture on the incoming signal. Used by Köner, Hecker, Fennesz, Basinski",
     icon: <IconGranular />,
   },
+  {
+    id: "ringmod",
+    label: "RING",
+    hint: "Ring modulator — input × fixed sine carrier (~80 Hz). Inharmonic scrape / industrial coloration. Coil, NWW, tape-era noise",
+    icon: <IconRingmod />,
+  },
+  {
+    id: "formant",
+    label: "FORMANT",
+    hint: "Vocal formant bank — three resonant bandpasses at neutral 'ah' vowel formants. Adds human vocal character to any voice",
+    icon: <IconFormant />,
+  },
 ];
 
 export function FxBar({ engine, states, onToggle }: FxBarProps) {
@@ -147,7 +159,7 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
   const activePositions: Record<EffectId, number | null> = {
     tape: null, wow: null, sub: null, comb: null,
     delay: null, plate: null, hall: null, shimmer: null, freeze: null,
-    cistern: null, granular: null,
+    cistern: null, granular: null, ringmod: null, formant: null,
   };
   for (const fx of FX_DEFS) {
     if (states[fx.id]) {
@@ -325,6 +337,25 @@ function IconCistern() {
       <path d="M3 3 L 3 15 L 15 15 L 15 3" />
       <path d="M3 9 Q 9 7 15 9" />
       <path d="M3 13 Q 9 11 15 13" />
+    </svg>
+  );
+}
+
+/** RING MOD — a ring with a cross-wave through it. */
+function IconRingmod() {
+  return (
+    <svg {...iconProps}>
+      <circle cx="9" cy="9" r="6" />
+      <path d="M1 9 Q 4 5, 9 9 T 17 9" />
+    </svg>
+  );
+}
+
+/** FORMANT — three bandpass peaks (resonant bumps). */
+function IconFormant() {
+  return (
+    <svg {...iconProps}>
+      <path d="M2 14 Q 4 6, 6 14 Q 8 8, 10 14 Q 12 4, 14 14 L 16 14" />
     </svg>
   );
 }
