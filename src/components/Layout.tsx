@@ -341,6 +341,7 @@ export function Layout({ engine }: LayoutProps) {
         midiLastNote={midi.lastNote}
         midiError={midi.error}
         onToggleMidi={(on) => midi.setEnabled(on)}
+        analyser={engine?.getAnalyser() ?? null}
       />
 
       <main className={`view view-mode-${viewMode}`}>

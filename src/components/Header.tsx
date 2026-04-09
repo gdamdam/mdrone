@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION } from "../config";
 import type { SavedSession } from "../session";
@@ -46,6 +46,7 @@ interface HeaderProps {
   midiLastNote: number | null;
   midiError: string | null;
   onToggleMidi: (on: boolean) => void;
+  analyser: AnalyserNode | null;
 }
 
 /**
@@ -83,7 +84,52 @@ export function Header({
   midiLastNote,
   midiError,
   onToggleMidi,
+  analyser,
 }: HeaderProps) {
+  // Drone logo vibration — rAF loop reads the master analyser's RMS
+  // and writes a tiny translate transform on the title-art element.
+  // Purely imperative: no React state, so no re-renders.
+  const titleArtRef = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    if (!analyser) return;
+    const el = titleArtRef.current;
+    if (!el) return;
+    const buf = new Uint8Array(analyser.fftSize);
+    let raf = 0;
+    let smoothedRms = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.min(1, Math.sqrt(sum / buf.length) * 3);
+      smoothedRms += (rms - smoothedRms) * 0.25;
+      const t = performance.now() / 1000;
+      // Two-axis jitter — fast micro-sine on top of the rms amplitude
+      const amp = smoothedRms * 1.8;
+      const dx = Math.sin(t * 23.1) * amp;
+      const dy = Math.cos(t * 29.7) * amp;
+      el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
+      // Glow that tracks the level — ember text-shadow that grows
+      // with rms. Two stacked shadows for a soft + tight halo.
+      const glowR = 4 + smoothedRms * 16;
+      const glowA = 0.35 + smoothedRms * 0.5;
+      el.style.textShadow =
+        `0 0 ${glowR.toFixed(1)}px rgba(255, 160, 60, ${glowA.toFixed(2)}),` +
+        ` 0 0 ${(glowR * 0.35).toFixed(1)}px rgba(255, 220, 120, ${(glowA * 1.1).toFixed(2)})`;
+    };
+    tick();
+    return () => {
+      cancelAnimationFrame(raf);
+      if (el) {
+        el.style.transform = "";
+        el.style.textShadow = "";
+      }
+    };
+  }, [analyser]);
   const freqHz = pitchToFreq(tonic, octave);
   const [volumeOpen, setVolumeOpen] = useState(false);
   useEffect(() => {
@@ -110,7 +156,7 @@ export function Header({
     <header className="header">
       <div className="header-row header-row-brand">
         <div className="title">
-          <pre className="title-art">{LOGO}</pre>
+          <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
           <span className="title-version">v{APP_VERSION}</span>
           <span className="title-badge">EXPERIMENTAL</span>
         </div>
