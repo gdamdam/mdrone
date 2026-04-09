@@ -1131,7 +1131,27 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 @media (max-width: 620px) {
   .preset-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .preset-btn {
+    min-height: 52px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .preset-btn-meta {
+    gap: 2px;
+  }
+
+  .preset-btn-name {
+    font-size: 11px;
+  }
+
+  .preset-btn-attr {
+    display: block;
+    font-size: 8px;
+    line-height: 1.2;
   }
 }
 
