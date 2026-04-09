@@ -994,10 +994,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .preset-btn {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 8px 10px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
   border-radius: 6px;
   background: var(--bg-cell);
   color: var(--text);
@@ -1005,6 +1005,34 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   text-align: left;
   transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s;
   cursor: pointer;
+}
+
+/* Glyph icons — SVG used as mask, colour driven by background-color */
+.preset-btn-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  background-color: var(--preview);
+  mask-image: var(--icon);
+  -webkit-mask-image: var(--icon);
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  mask-position: center;
+  -webkit-mask-position: center;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  transition: background-color 0.12s;
+}
+
+.preset-btn-active .preset-btn-icon {
+  background-color: #160c06;
+}
+
+.preset-btn-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .preset-btn:hover {

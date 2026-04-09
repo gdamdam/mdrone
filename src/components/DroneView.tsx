@@ -239,8 +239,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
                 title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
               >
-                <span className="preset-btn-name">{p.name}</span>
-                <span className="preset-btn-attr">{p.attribution}</span>
+                <span
+                  className="preset-btn-icon"
+                  style={{ ["--icon" as string]: `url(/preset-icons/${p.id}.svg)` } as React.CSSProperties}
+                  aria-hidden="true"
+                />
+                <span className="preset-btn-meta">
+                  <span className="preset-btn-name">{p.name}</span>
+                  <span className="preset-btn-attr">{p.attribution}</span>
+                </span>
               </button>
             ))}
           </div>
