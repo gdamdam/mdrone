@@ -49,6 +49,11 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       { name: "freq",  defaultValue: 220, minValue: 20, maxValue: 8000, automationRate: "k-rate" },
       { name: "drift", defaultValue: 0.3, minValue: 0,  maxValue: 1,    automationRate: "k-rate" },
       { name: "amp",   defaultValue: 0,   minValue: 0,  maxValue: 2,    automationRate: "k-rate" },
+      // Tanpura re-pluck rate multiplier. 1 = default (2.5..4.5 s
+      // between plucks, the normal tanpura cycle). 0.2 slows to
+      // ~15 s per string; 4 speeds to ~0.7 s. Ignored by non-tanpura
+      // voices.
+      { name: "pluckRate", defaultValue: 1, minValue: 0.2, maxValue: 4, automationRate: "k-rate" },
     ];
   }
 
@@ -116,7 +121,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.ksLastR = 0;
   }
 
-  tanpuraProcess(L, R, n, freq, drift, amp) {
+  tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
     // Physical delay length in samples, clamped to available buffer
     const baseLen = sampleRate / Math.max(20, freq);
     // Tanpura strings are typically: Pa (5th), Sa, Sa, Sa (up an octave,
@@ -140,8 +145,11 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     if (this.pluckCountdown <= 0) {
       this.doPluck(delayLen, delayLenR);
       this.pluckPhase = (this.pluckPhase + 1) % 4;
-      // 2.5..4.5 s between plucks — human tanpura cycle
-      this.pluckCountdown = 2.5 + this.rng() * 2;
+      // 2.5..4.5 s between plucks — human tanpura cycle.
+      // Divided by the pluckRate AudioParam so the rate can be
+      // sped up or slowed down live.
+      const pr = Math.max(0.05, pluckRate || 1);
+      this.pluckCountdown = (2.5 + this.rng() * 2) / pr;
     }
 
     // Denormal anti-burn offset — keeps the feedback loop above the
@@ -456,6 +464,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const freq  = parameters.freq[0];
     const drift = parameters.drift[0];
     const amp   = parameters.amp[0];
+    const pluckRate = parameters.pluckRate ? parameters.pluckRate[0] : 1;
 
     // If amp is 0 and we're silent, skip processing to save CPU.
     // (Voices ramp amp up/down externally, so brief silence is normal.)
@@ -465,7 +474,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     }
 
     switch (this.voiceType) {
-      case "tanpura": this.tanpuraProcess(L, R, n, freq, drift, amp); break;
+      case "tanpura": this.tanpuraProcess(L, R, n, freq, drift, amp, pluckRate); break;
       case "reed":    this.reedProcess(L, R, n, freq, drift, amp); break;
       case "metal":   this.metalProcess(L, R, n, freq, drift, amp); break;
       case "air":     this.airProcess(L, R, n, freq, drift, amp); break;

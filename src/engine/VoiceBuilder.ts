@@ -31,6 +31,8 @@ export interface Voice {
   setFreq(hz: number, glideSec: number): void;
   /** 0..1 normalized drift amount — mapped to per-voice depth internally. */
   setDrift(amount01: number): void;
+  /** Tanpura re-pluck rate multiplier, 0.2..4. Ignored by other voice types. */
+  setPluckRate(rate: number): void;
   stop(): void;
 }
 
@@ -66,6 +68,7 @@ export function buildVoice(
   const freqParam = node.parameters.get("freq")!;
   const driftParam = node.parameters.get("drift")!;
   const ampParam = node.parameters.get("amp")!;
+  const pluckRateParam = node.parameters.get("pluckRate");
 
   freqParam.setValueAtTime(targetFreq, startAt);
   driftParam.setValueAtTime(drift01, startAt);
@@ -86,6 +89,11 @@ export function buildVoice(
     setDrift(amt) {
       const now = ctx.currentTime;
       driftParam.setTargetAtTime(Math.max(0, Math.min(1, amt)), now, 0.08);
+    },
+    setPluckRate(rate) {
+      if (!pluckRateParam) return;
+      const clamped = Math.max(0.2, Math.min(4, rate));
+      pluckRateParam.setTargetAtTime(clamped, ctx.currentTime, 0.1);
     },
     stop() {
       // Ramp amp to 0 for a clean tail, then post a termination

@@ -168,6 +168,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   ref,
 ) {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [presetMorph, setPresetMorph] = useState(() => engine?.getPresetMorph() ?? 0.25);
+  const [presetEvolve, setPresetEvolve] = useState(() => engine?.getEvolve() ?? 0);
+  const [pluckRate, setPluckRate] = useState(() => engine?.getTanpuraPluckRate() ?? 1);
   const [root, setRoot] = useState<PitchClass>("A");
   const [octave, setOctave] = useState(2);
   const [scale, setScale] = useState<ScaleId>("dorian");
@@ -555,6 +558,60 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 <span className="preset-btn-attr">{p.attribution}</span>
               </button>
             ))}
+          </div>
+          <div className="preset-morph-row">
+            <span className="preset-morph-label">MORPH</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={presetMorph}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                setPresetMorph(v);
+                engine?.setPresetMorph(v);
+              }}
+              className="preset-morph-slider"
+              title="How slowly the drone morphs between presets. 0 = snap, 1 = glacial (~6 s macros, 4× bloom crossfade)."
+            />
+            <span className="preset-morph-value">{Math.round(presetMorph * 100)}%</span>
+          </div>
+          <div className="preset-morph-row">
+            <span className="preset-morph-label">EVOLVE</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={presetEvolve}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                setPresetEvolve(v);
+                engine?.setEvolve(v);
+              }}
+              className="preset-morph-slider"
+              title="How much the drone evolves itself during play. 0 = static · 0.4 = gentle atmosphere drift · 0.7 = + occasional tonic walks (P4/P5) · 1 = active drift + note walks."
+            />
+            <span className="preset-morph-value">{Math.round(presetEvolve * 100)}%</span>
+          </div>
+          <div className="preset-morph-row">
+            <span className="preset-morph-label">PLUCK</span>
+            <input
+              type="range"
+              min={0.2}
+              max={4}
+              step={0.05}
+              value={pluckRate}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                setPluckRate(v);
+                engine?.setTanpuraPluckRate(v);
+              }}
+              className="preset-morph-slider"
+              title="Tanpura re-pluck rate. 0.2× = ~15 s between strings (very slow), 1× = traditional ~3 s cycle, 4× = rapid plucking. Only affects the tanpura voice."
+            />
+            <span className="preset-morph-value">{pluckRate.toFixed(1)}×</span>
           </div>
         </div>
 

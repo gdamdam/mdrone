@@ -1,5 +1,5 @@
-/** The two views mdrone supports — drone instrument and master mixer. */
-export type ViewMode = "drone" | "mixer";
+/** The views mdrone supports — instrument, master mixer, meditation. */
+export type ViewMode = "drone" | "mixer" | "meditate";
 
 /** Mode scale — biases which partials/intervals are musically sensible. */
 export type ScaleId =

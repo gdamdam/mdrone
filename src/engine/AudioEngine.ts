@@ -451,7 +451,12 @@ export class AudioEngine {
    */
   private rebuildIntervals(): void {
     const now = this.ctx.currentTime;
-    const bloom = Math.max(0.3, this.bloomAttackTime());
+    // MORPH slider scales the rebuild bloom: at morph=0 the voice
+    // crossfade is still honoured by BLOOM but capped to 0.3 s; at
+    // morph=1 the crossfade stretches up to 4× the normal bloom,
+    // making preset swaps glacial.
+    const morphMul = 0.4 + this.morphAmount * 3.6;
+    const bloom = Math.max(0.3, this.bloomAttackTime() * morphMul);
 
     // Retire the current layer gains with a fade-out. Each retiring
     // gain keeps the old voices alive through the fade so we get a
@@ -482,9 +487,9 @@ export class AudioEngine {
 
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        voices.push(
-          buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now)
-        );
+        const v = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now);
+        if (type === "tanpura") v.setPluckRate(this.tanpuraPluckRate);
+        voices.push(v);
       }
       this.droneVoicesByLayer.set(type, voices);
     }
@@ -799,9 +804,94 @@ export class AudioEngine {
 
   // ── Macro setters ─────────────────────────────────────────────────
   // Macro ramp time-constant. Slower than "instant" so preset swaps
-  // feel like a gentle morph: 0.4 s → ~1.2 s to fully settle. A drone
-  // instrument rewards smooth slider response over twitchy precision.
-  private readonly MACRO_TC = 0.4;
+  // feel like a gentle morph. Scaled by the morph multiplier below.
+  private baseMacroTC = 0.4;
+  /** 0..1 from the MORPH slider in the DroneView presets panel.
+   *  Scales both the macro TC and the voice-rebuild bloom so preset
+   *  transitions can glide from ~0.3 s up to ~6 s per macro and from
+   *  the preset's bloomAttackTime() up to 4× that on the voice stack. */
+  private morphAmount = 0.25;
+  private get MACRO_TC(): number {
+    // morph 0 → 0.12 s (snappy), 1 → 2.4 s (glacial)
+    return this.baseMacroTC * (0.3 + this.morphAmount * 5.7);
+  }
+  setPresetMorph(v: number): void {
+    this.morphAmount = Math.max(0, Math.min(1, v));
+    this.fxChain.setMorph(this.morphAmount);
+  }
+  getPresetMorph(): number { return this.morphAmount; }
+
+  // ── Preset self-evolution ────────────────────────────────────────
+  /** 0..1 — how strongly the drone drifts and walks while playing.
+   *   0       = static
+   *   0..0.4  = gentle macro drift (climate, bloom meander ±0.15)
+   *   0.4..0.7 = + tonic walk (±P4/P5) every ~75 s
+   *   0.7..1  = + drift rate climbs, walks more often */
+  private evolveAmount = 0;
+  private evolveTicks = 0;
+  private evolveInterval: number | null = null;
+  setEvolve(v: number): void {
+    const next = Math.max(0, Math.min(1, v));
+    this.evolveAmount = next;
+    if (next > 0 && this.evolveInterval == null) {
+      this.startEvolveLoop();
+    } else if (next === 0 && this.evolveInterval != null) {
+      clearInterval(this.evolveInterval);
+      this.evolveInterval = null;
+    }
+  }
+  getEvolve(): number { return this.evolveAmount; }
+
+  /** Tanpura re-pluck rate multiplier 0.2..4. Applies to every active
+   *  tanpura voice immediately and to any voices built afterward. */
+  private tanpuraPluckRate = 1;
+  setTanpuraPluckRate(v: number): void {
+    this.tanpuraPluckRate = Math.max(0.2, Math.min(4, v));
+    for (const voices of this.droneVoicesByLayer.values()) {
+      for (const voice of voices) voice.setPluckRate(this.tanpuraPluckRate);
+    }
+  }
+  getTanpuraPluckRate(): number { return this.tanpuraPluckRate; }
+
+  private startEvolveLoop(): void {
+    // 8 s tick. Clearly audible but still meditative-slow. All param
+    // changes glide through MACRO_TC so each tick itself is a smooth
+    // movement rather than a step.
+    this.evolveInterval = window.setInterval(() => {
+      if (!this.droneOn || this.evolveAmount === 0) return;
+      this.evolveTicks++;
+      const amt = this.evolveAmount;
+
+      // 1. Macro drift — bigger enough random walks that changes
+      //    are clearly audible within ~1 minute. Accumulates across
+      //    many ticks into long drifts.
+      const step = 0.02 + amt * 0.05;
+      const walk = (cur: number) =>
+        Math.max(0, Math.min(1, cur + (Math.random() - 0.5) * step));
+      this.setClimateX(walk(this.climateX));
+      this.setClimateY(walk(this.climateY));
+      this.setBloom(walk(this.bloomAmount));
+
+      // 2. Tonic walk — at evolve > 0.4, walk ±P4/P5. Period
+      //    shortens with amount: amt=0.4 → ~90 s; amt=1 → ~40 s.
+      const walkPeriod = Math.max(5, Math.round(12 - amt * 7));
+      if (amt > 0.4 && this.evolveTicks % walkPeriod === 0) {
+        const steps = [-7, -5, 5, 7];
+        const delta = steps[Math.floor(Math.random() * steps.length)];
+        const newFreq = this.droneRootFreq * Math.pow(2, delta / 12);
+        if (newFreq >= 40 && newFreq <= 440) {
+          this.setDroneFreq(newFreq);
+        }
+      }
+
+      // 3. At evolve > 0.7 — perturb drift + sub every ~40 s
+      if (amt > 0.7 && this.evolveTicks % 5 === 0) {
+        this.setDrift(walk(this.drift));
+        this.setSub(walk(this.subAmount));
+      }
+    }, 8000);
+  }
+
 
   /** DRIFT 0..1 — normalized drift amount. Voices across all active
    *  layers get the new drift; sub/shimmer keep the legacy cent spread. */

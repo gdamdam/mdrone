@@ -118,7 +118,7 @@ export function Header({
 
       <div className="header-row header-row-main">
         <div className="view-toggle">
-          {(["drone", "mixer"] as const).map((m) => (
+          {(["drone", "meditate", "mixer"] as const).map((m) => (
             <button
               key={m}
               onClick={() => setViewMode(m)}
@@ -126,7 +126,9 @@ export function Header({
               title={
                 m === "drone"
                   ? "DRONE — the instrument: tonic, mode, atmosphere"
-                  : "MIXER — master bus: HPF · 3-band EQ · glue · drive · limiter"
+                  : m === "meditate"
+                    ? "MEDITATE — visualizer that breathes with the drone"
+                    : "MIXER — master bus: HPF · 3-band EQ · glue · drive · limiter"
               }
             >
               {m.toUpperCase()}

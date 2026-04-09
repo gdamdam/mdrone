@@ -360,23 +360,33 @@ export const PRESETS: Preset[] = [
     id: "nww-soliloquy",
     name: "Lilith Drift",
     attribution: "Feedback hum drift · spectral haze",
-    hint: "Dark feedback-hum atmosphere — unstable air, comb resonance, tape haze and a faint frozen seam. Room tone and spectral drift, not melody.",
+    hint: "Dark feedback-hum atmosphere — unstable air, comb resonance and tape haze. Room tone and spectral drift, not melody.",
     voiceLayers: ["air", "metal", "tanpura"],
     voiceLevels: { air: 1, metal: 0.2, tanpura: 0.18 },
-    drift: 0.55,
-    air: 0.58,
-    time: 0.08,       // slower — was too swept
-    sub: 0.2,
-    bloom: 0.78,
-    glide: 0.5,
-    lfoShape: "sine", // triangle felt edgy; sine reads as room-tone breath
+    // drift dropped from 0.55 → 0.28: the air voice's Q-walks and metal
+    // partial walks were getting whipped around at high drift, driving
+    // the comb resonance into peaks that clipped the chain.
+    drift: 0.28,
+    air: 0.55,
+    time: 0.08,
+    // sub lowered from 0.2 → 0.12 so the comb (tuned to the root) has
+    // less low-end to amplify at its resonance peak.
+    sub: 0.12,
+    bloom: 0.82,
+    glide: 0.55,
+    lfoShape: "sine",
     lfoRate: 0.06,
-    lfoAmount: 0.08,
+    lfoAmount: 0.05,
     climateX: 0.22,
-    climateY: 0.32,
-    effects: ["hall", "comb", "freeze", "tape"], // dropped wow — too nervous
+    climateY: 0.2,
+    // freeze removed: in a serial chain it captures whichever moment
+    // you enable it and then keeps running at that level underneath the
+    // live signal, which stacked on top of the comb resonance and was
+    // the main source of the clipping. Keep comb + tape + hall for the
+    // dark spectral identity.
+    effects: ["tape", "comb", "hall"],
     scale: "drone",
-    gain: 1.02,
+    gain: 0.82,
   },
   {
     id: "doom-bloom",

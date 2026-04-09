@@ -6,6 +6,8 @@ import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
+import { MeditateView } from "./MeditateView";
+import { requestSigilRefresh } from "./visualizers";
 import { PRESETS, SAFE_RANDOM_PRESET_IDS, createSafeRandomScene } from "../engine/presets";
 import {
   loadCurrentSessionId,
@@ -253,6 +255,9 @@ export function Layout({ engine }: LayoutProps) {
     setCurrentSessionName(DEFAULT_SESSION_NAME);
     setCurrentPresetName(preset.name);
     saveCurrentSessionId(null);
+    // Refresh any running sigil visualizer so each RANDOM scene
+    // draws its own new AOS-style glyph.
+    requestSigilRefresh();
   };
 
   const displayText = currentSessionId
@@ -338,7 +343,7 @@ export function Layout({ engine }: LayoutProps) {
         onToggleMidi={(on) => midi.setEnabled(on)}
       />
 
-      <main className="view">
+      <main className={`view view-mode-${viewMode}`}>
         <section
           className={viewMode === "drone" ? "view-panel view-panel-active" : "view-panel"}
           aria-hidden={viewMode !== "drone"}
@@ -355,6 +360,12 @@ export function Layout({ engine }: LayoutProps) {
               setCurrentPresetName(presetName ?? "Custom Scene");
             }}
           />
+        </section>
+        <section
+          className={viewMode === "meditate" ? "view-panel view-panel-active" : "view-panel"}
+          aria-hidden={viewMode !== "meditate"}
+        >
+          <MeditateView engine={engine} active={viewMode === "meditate"} />
         </section>
         <section
           className={viewMode === "mixer" ? "view-panel view-panel-active" : "view-panel"}

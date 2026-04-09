@@ -42,10 +42,10 @@ const ALL_EFFECTS: EffectId[] = [
   "tape", "wow", "sub", "comb", "delay", "plate", "hall", "shimmer", "freeze",
 ];
 
-/** Crossfade time-constant for the bypass/wet toggle. Slower than the
- *  old 0.12 s so effect toggles breathe in and out over the drone
- *  instead of clicking on. */
-const XFADE_TC = 0.45;
+/** Base crossfade time-constant for the bypass/wet toggle. Scaled
+ *  at runtime by the MORPH slider via setMorph() — at MORPH=0 the
+ *  toggle is snappy (~0.15 s), at MORPH=1 it's glacial (~2.5 s). */
+const XFADE_TC_BASE = 0.45;
 
 /** Per-effect wet trim when the insert is fully engaged. Tweakable
  *  via setEffectLevel() for the settings modal. */
@@ -98,6 +98,14 @@ export class FxChain {
   private combFeedback = 0.85;
   private freezeMix = ON_LEVELS.freeze;
   private airAmount = 0.6;
+  private morphAmount = 0.25;
+  private get xfadeTC(): number {
+    // MORPH 0 → 0.15 s (snappy), MORPH 1 → 2.6 s (glacial)
+    return XFADE_TC_BASE * (0.33 + this.morphAmount * 5.5);
+  }
+  setMorph(v: number): void {
+    this.morphAmount = Math.max(0, Math.min(1, v));
+  }
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
@@ -342,15 +350,15 @@ export class FxChain {
     // level × (air for reverbs only).
     const wetTarget = on ? this.wetTargetFor(id) : 0;
     const bypassTarget = on ? 0 : 1;
-    ins.bypassGain.gain.setTargetAtTime(bypassTarget, now, XFADE_TC);
-    ins.wetGain.gain.setTargetAtTime(wetTarget, now, XFADE_TC);
+    ins.bypassGain.gain.setTargetAtTime(bypassTarget, now, this.xfadeTC);
+    ins.wetGain.gain.setTargetAtTime(wetTarget, now, this.xfadeTC);
 
     // Effects with persistent internal state need their feedback /
     // activity gates opened with the toggle so tails decay cleanly.
     if (id === "delay") {
-      this.delayFbGain.gain.setTargetAtTime(on ? this.delayFeedback : 0, now, XFADE_TC);
+      this.delayFbGain.gain.setTargetAtTime(on ? this.delayFeedback : 0, now, this.xfadeTC);
     } else if (id === "comb") {
-      this.combFbGain.gain.setTargetAtTime(on ? this.combFeedback : 0, now, XFADE_TC);
+      this.combFbGain.gain.setTargetAtTime(on ? this.combFeedback : 0, now, this.xfadeTC);
     } else if (id === "freeze" && this.freezeWorklet) {
       this.freezeWorklet.parameters
         .get("active")!
@@ -416,7 +424,7 @@ export class FxChain {
     // Re-apply wet target so the slider moves the audible level
     const now = this.ctx.currentTime;
     this.inserts.freeze.wetGain.gain.setTargetAtTime(
-      this.enabled.freeze ? this.wetTargetFor("freeze") : 0, now, XFADE_TC,
+      this.enabled.freeze ? this.wetTargetFor("freeze") : 0, now, this.xfadeTC,
     );
   }
   getFreezeFeedback(): number { return this.freezeMix; }
@@ -428,7 +436,7 @@ export class FxChain {
     if (id === "freeze") this.freezeMix = v;
     const now = this.ctx.currentTime;
     const target = this.enabled[id] ? this.wetTargetFor(id) : 0;
-    this.inserts[id].wetGain.gain.setTargetAtTime(target, now, XFADE_TC);
+    this.inserts[id].wetGain.gain.setTargetAtTime(target, now, this.xfadeTC);
   }
 
   getEffectLevel(id: EffectId): number {
