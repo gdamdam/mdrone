@@ -1217,6 +1217,51 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   outline: none;
 }
 
+.intonation-readout {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.intonation-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.intonation-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 6px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.intonation-chip-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+  color: var(--text-dim);
+}
+
+.intonation-chip-value {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.intonation-chip-offset {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--preview);
+  font-variant-numeric: tabular-nums;
+}
+
 .intonation-offsets {
   margin-top: 8px;
   display: flex;

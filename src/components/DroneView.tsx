@@ -272,6 +272,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       offset: state.fineTuneOffsets[index] ?? 0,
     }))
     .filter((row) => row.index > 0);
+  const intervalReadoutRows = microtunedBaseIntervals.map((base, index) => {
+    const offset = index === 0 ? 0 : (state.fineTuneOffsets[index] ?? 0);
+    const final = index === 0 ? 0 : base + offset;
+    return {
+      index,
+      label: microtunedLabels[index] ?? `INT ${index + 1}`,
+      final,
+      offset,
+    };
+  });
 
   // Spacebar toggles HOLD — ignored while typing into an input/textarea
   useEffect(() => {
@@ -421,6 +431,24 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 ))}
               </select>
             </div>
+            {intervalReadoutRows.length > 0 && (
+              <div className="intonation-readout">
+                <div className="panel-hint">INTERVALS · resolved cents</div>
+                <div className="intonation-chip-grid">
+                  {intervalReadoutRows.map((row) => (
+                    <div key={`${row.label}-${row.index}`} className="intonation-chip">
+                      <span className="intonation-chip-label">{row.label}</span>
+                      <span className="intonation-chip-value">{row.final.toFixed(2)}c</span>
+                      {row.index > 0 && row.offset !== 0 && (
+                        <span className="intonation-chip-offset">
+                          {row.offset > 0 ? "+" : ""}{row.offset.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {fineDetuneRows.length > 0 && (
               <div className="intonation-offsets">
                 <div className="panel-hint">DETUNE · active intervals in cents</div>
