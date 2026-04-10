@@ -1189,6 +1189,34 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   border-color: var(--preview);
 }
 
+/* Intonation (microtuning) row — two compact selects below mode grid */
+.intonation-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.intonation-select {
+  padding: 6px 4px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
+}
+
+.intonation-select:focus {
+  border-color: var(--preview);
+  outline: none;
+}
+
 /* Timbre grid — 3 columns × 2 rows of voice buttons */
 .timbre-grid {
   display: grid;

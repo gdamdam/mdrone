@@ -285,6 +285,11 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   assert.equal(engineState.presetTrim, preset.gain);
   assert.equal(engineState.motionProfile.tonicWalk, "rare");
   assert.equal(engineState.reedShape, "even");
+  // Stars of the Lid is migrated to just5 + drone-triad
+  assert.equal(uiState.tuningId, "just5");
+  assert.equal(uiState.relationId, "drone-triad");
+  // Engine intervals should be just5 drone-triad: [0, 386.31, 701.96]
+  assert.deepEqual(engineState.intervals, [0, 386.31, 701.96]);
 });
 
 test("preset motion profiles preserve anchored vs unstable evolve behavior", () => {
@@ -309,4 +314,38 @@ test("preset material profiles distinguish stable tones from unstable weather", 
   assert.ok((dreamHouseMaterial.levelWobble.reed ?? 0) < (merzbientMaterial.levelWobble.air ?? 0));
   assert.ok(merzbientMaterial.wobbleRate > dreamHouseMaterial.wobbleRate);
   assert.ok((tanpuraMaterial.pluckRange[1] - tanpuraMaterial.pluckRange[0]) > 0.1);
+});
+
+test("all presets carry tuningId and relationId", () => {
+  const validTunings = new Set(["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"]);
+  const validRelations = new Set(["unison", "tonic-fifth", "tonic-fourth", "drone-triad", "harmonic-stack"]);
+  for (const p of PRESETS) {
+    assert.ok(validTunings.has(p.tuningId), `${p.id} has invalid tuningId: ${p.tuningId}`);
+    assert.ok(validRelations.has(p.relationId), `${p.id} has invalid relationId: ${p.relationId}`);
+  }
+});
+
+test("migrated preset tuning assignments match musical intent", () => {
+  const check = (id, tuning, relation) => {
+    const p = PRESETS.find((item) => item.id === id);
+    assert.equal(p.tuningId, tuning, `${id} tuningId`);
+    assert.equal(p.relationId, relation, `${id} relationId`);
+  };
+  // Just intonation presets
+  check("tanpura-drone", "just5", "tonic-fifth");
+  check("dream-house", "just5", "drone-triad");
+  check("eno-airport", "just5", "drone-triad");
+  check("lamb-prisma", "just5", "drone-triad");
+  // Meantone presets
+  check("malone-organ", "meantone", "drone-triad");
+  check("arkbro-chords", "meantone", "drone-triad");
+  // Harmonic series presets
+  check("radigue-drift", "harmonics", "harmonic-stack");
+  check("young-well-tuned", "harmonics", "harmonic-stack");
+  check("tibetan-bowl", "harmonics", "unison");
+  // Equal temperament / noise
+  check("deep-listening", "equal", "unison");
+  check("merzbient", "equal", "unison");
+  check("doom-bloom", "equal", "tonic-fifth");
+  check("windscape", "equal", "tonic-fourth");
 });

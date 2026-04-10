@@ -27,6 +27,7 @@ import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
 import { FxBar } from "./FxBar";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
+import { TUNINGS, RELATIONS } from "../microtuning";
 import { useDroneScene } from "../scene/useDroneScene";
 
 /** Voice timbre list — each entry has an id, label, hint, and inline SVG.
@@ -186,6 +187,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setRoot,
     setOctave,
     setScale,
+    setTuning,
+    setRelation,
     setPresetMorph,
     setPresetEvolve,
     setPluckRate,
@@ -235,22 +238,22 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     });
   };
 
-  // Active preset-group tab. The tab follows the active preset's group
-  // when the preset changes (RND, continue-last-scene, shared link),
-  // but stays put when the user manually clicks a different tab to
-  // browse. Tracked via a ref to avoid the lint-fragile "setState
-  // inside useEffect" pattern.
-  const lastSyncedPresetRef = useRef<string | null>(null);
-  const [presetTab, setPresetTab] = useState<PresetGroup>(
-    () => (state.activePresetId
+  // Active preset-group tab. Follows the active preset's group
+  // automatically; a user tab-click overrides until the preset changes.
+  // Purely derived — no refs, no effects.
+  const presetGroupForActive = (
+    state.activePresetId
       ? PRESETS.find((p) => p.id === state.activePresetId)?.group
-      : null) ?? PRESET_GROUPS[0],
-  );
-  if (state.activePresetId && state.activePresetId !== lastSyncedPresetRef.current) {
-    lastSyncedPresetRef.current = state.activePresetId;
-    const g = PRESETS.find((p) => p.id === state.activePresetId)?.group;
-    if (g && g !== presetTab) setPresetTab(g);
-  }
+      : null
+  ) ?? PRESET_GROUPS[0];
+  const [tabOverride, setTabOverride] = useState<{
+    group: PresetGroup;
+    presetId: string | null;
+  } | null>(null);
+  const presetTab =
+    tabOverride && tabOverride.presetId === state.activePresetId
+      ? tabOverride.group
+      : presetGroupForActive;
   const visiblePresets = PRESETS.filter((p) => p.group === presetTab);
 
   // Spacebar toggles HOLD — ignored while typing into an input/textarea
@@ -333,7 +336,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               role="tab"
               aria-selected={presetTab === g}
               className={presetTab === g ? "preset-tab preset-tab-active" : "preset-tab"}
-              onClick={() => setPresetTab(g)}
+              onClick={() => setTabOverride({ group: g, presetId: state.activePresetId })}
             >
               {SHORT_GROUP_LABELS[g] ?? g}
             </button>
@@ -344,7 +347,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           {visiblePresets.map((p) => (
             <button
               key={p.id}
-              onClick={() => { handlePreset(p.id); setPresetTab(p.group); }}
+              onClick={() => { handlePreset(p.id); setTabOverride({ group: p.group, presetId: p.id }); }}
               className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
               title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
             >
@@ -376,6 +379,30 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   {s.label}
                 </button>
               ))}
+            </div>
+            <div className="intonation-row">
+              <select
+                value={state.tuningId ?? ""}
+                onChange={(e) => setTuning(e.target.value === "" ? null : e.target.value as typeof state.tuningId)}
+                className="intonation-select"
+                title="Tuning system — overrides scale intervals when both tuning and relation are set"
+              >
+                <option value="">— Scale</option>
+                {TUNINGS.map((t) => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+              <select
+                value={state.relationId ?? ""}
+                onChange={(e) => setRelation(e.target.value === "" ? null : e.target.value as typeof state.relationId)}
+                className="intonation-select"
+                title="Interval relation — which degrees from the tuning to sound"
+              >
+                <option value="">— Relation</option>
+                {RELATIONS.map((r) => (
+                  <option key={r.id} value={r.id}>{r.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
