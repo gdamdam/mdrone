@@ -5,6 +5,10 @@
   <a href="https://mdrone.mpump.live/">https://mdrone.mpump.live/</a>
 </p>
 
+<p align="center">
+  <img src="public/mdrone_screenshot.png" alt="mloop screenshot" width="1200">
+</p>
+
 ---
 
 mdrone is a browser instrument for sustained sound.
