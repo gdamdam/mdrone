@@ -4,11 +4,25 @@ import {
   useEffect,
   useImperativeHandle,
   useRef,
+  useState,
 } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { VoiceType } from "../engine/VoiceBuilder";
-import { PRESETS } from "../engine/presets";
+import { PRESETS, type PresetGroup } from "../engine/presets";
 import { VuMeter } from "./VuMeter";
+
+const PRESET_GROUPS: PresetGroup[] = [
+  "Sacred / Ritual", "Minimal / Just", "Organ / Chamber",
+  "Ambient / Cinematic", "Noise / Industrial",
+];
+const SHORT_GROUP_LABELS: Partial<Record<PresetGroup, string>> = {
+  "Sacred / Ritual": "SACRED",
+  "Minimal / Just": "MINIMAL",
+  "Organ / Chamber": "ORGAN",
+  "Ambient / Cinematic": "AMBIENT",
+  "Noise / Industrial": "NOISE",
+};
+
 import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
 import { FxBar } from "./FxBar";
@@ -141,6 +155,8 @@ interface DroneViewProps {
   onTransportChange?: (playing: boolean) => void;
   onTonicChange?: (root: PitchClass, octave: number) => void;
   onPresetChange?: (presetId: string | null, presetName: string | null) => void;
+  kbdActive: boolean;
+  onToggleKbd: () => void;
 }
 
 export interface DroneViewHandle {
@@ -162,7 +178,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, kbdActive, onToggleKbd }: DroneViewProps,
   ref,
 ) {
   const {
@@ -197,6 +213,23 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     onTonicChange,
     onPresetChange,
   });
+
+  // Active preset-group tab — defaults to the group of the active preset,
+  // or the first group if no preset is selected.
+  const activePresetGroup = state.activePresetId
+    ? PRESETS.find((p) => p.id === state.activePresetId)?.group ?? PRESET_GROUPS[0]
+    : PRESET_GROUPS[0];
+  const [presetTab, setPresetTab] = useState<PresetGroup>(activePresetGroup);
+  // Sync tab when the active preset changes externally (RND, continue
+  // last scene, shared link) so the tab always shows the active preset.
+  useEffect(() => {
+    if (!state.activePresetId) return;
+    const preset = PRESETS.find((p) => p.id === state.activePresetId);
+    if (preset && preset.group !== presetTab) {
+      setPresetTab(preset.group);
+    }
+  }, [state.activePresetId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const visiblePresets = PRESETS.filter((p) => p.group === presetTab);
 
   // Spacebar toggles HOLD — ignored while typing into an input/textarea
   useEffect(() => {
@@ -265,16 +298,31 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
   return (
     <div className="drone-layout">
+      <div className="preset-vu-wide">
+        <VuMeter analyser={engine?.getAnalyser() ?? null} width={600} height={16} />
+      </div>
       <div className="panel preset-panel preset-panel-wide">
         <div className="panel-label">PRESETS · tap to load</div>
-        <div className="preset-vu">
-          <VuMeter analyser={engine?.getAnalyser() ?? null} width={260} height={10} />
+        {/* Genre tabs — one row of small group buttons */}
+        <div className="preset-tabs" role="tablist">
+          {PRESET_GROUPS.map((g) => (
+            <button
+              key={g}
+              role="tab"
+              aria-selected={presetTab === g}
+              className={presetTab === g ? "preset-tab preset-tab-active" : "preset-tab"}
+              onClick={() => setPresetTab(g)}
+            >
+              {SHORT_GROUP_LABELS[g] ?? g}
+            </button>
+          ))}
         </div>
+        {/* Active group's presets */}
         <div className="preset-grid">
-          {PRESETS.map((p) => (
+          {visiblePresets.map((p) => (
             <button
               key={p.id}
-              onClick={() => handlePreset(p.id)}
+              onClick={() => { handlePreset(p.id); setPresetTab(p.group); }}
               className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
               title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
             >
@@ -294,6 +342,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <div className="preset-row-2">
           <div className="preset-mode-col">
             <div className="panel-label">MODE</div>
+            <div className="panel-hint">Scale intervals stacked on the root</div>
             <div className="scale-grid scale-grid-compact">
               {SCALES.map((s) => (
                 <button
@@ -310,6 +359,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
           <div className="preset-tonic-col">
             <div className="panel-label">TONIC</div>
+            <div className="panel-hint">Root pitch of the drone</div>
             <div className="tonic-wheel tonic-wheel-compact">
               {PITCH_CLASSES.map((pc) => (
                 <button
@@ -322,10 +372,52 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 </button>
               ))}
             </div>
+            {/* Mini piano keyboard + QWERTY toggle below the tonic grid */}
+            <div className="tonic-piano-row">
+              <div className="tonic-keys">
+                {PITCH_CLASSES.map((pc) => {
+                  const isSharp = pc.includes("#");
+                  const isActive = state.root === pc;
+                  return (
+                    <button
+                      key={pc}
+                      className={
+                        `tonic-key${isSharp ? " tonic-key-black" : ""}${isActive ? " tonic-key-active" : ""}`
+                      }
+                      onClick={() => setRoot(pc)}
+                      title={pc}
+                      aria-label={pc}
+                    >
+                      {isActive ? pc.replace("#", "♯") : ""}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                className={kbdActive ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
+                onClick={onToggleKbd}
+                title={kbdActive
+                  ? "QWERTY keyboard active — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up"
+                  : "Enable QWERTY keyboard as tonic controller"}
+              >
+                ⌨
+              </button>
+              <select
+                value={state.octave}
+                onChange={(e) => setOctave(parseInt(e.target.value, 10))}
+                className="header-select header-select-octave"
+                title={`Octave: ${state.octave}`}
+              >
+                {[1, 2, 3, 4, 5, 6].map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="preset-timbre-col">
             <div className="panel-label">TIMBRE · tap to layer</div>
+            <div className="panel-hint">Voice models — combine for texture</div>
             <div className="timbre-grid">
               {VOICES.map((v) => (
                 <button
@@ -382,6 +474,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         {/* Row 3 — MORPH/EVOLVE/PLUCK · MACROS · LFO */}
         <div className="preset-row-3">
           <div className="preset-controls-col">
+            <div className="panel-hint">Transition speed + self-evolution</div>
             <div className="preset-morph-row">
               <span className="preset-morph-label">MORPH</span>
               <input
@@ -422,6 +515,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
           <div className="preset-macros-col">
             <div className="panel-label">MACROS</div>
+            <div className="panel-hint">Global tone shaping — drift, reverb, sub, attack, glide</div>
             <Macro
               label="DRIFT"
               value={state.drift}
@@ -470,6 +564,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
           <div className="preset-breathe-col">
             <div className="panel-label">LFO · BREATHING</div>
+            <div className="panel-hint">Slow volume swell — shape, speed, depth</div>
             <div className="lfo-shape-row">
               {(["sine", "triangle", "square", "sawtooth"] as const).map((s) => (
                 <button
@@ -508,6 +603,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
         <div className="panel climate-panel">
           <div className="panel-label">CLIMATE</div>
+          <div className="panel-hint">X: dark ↔ bright · Y: still ↔ motion</div>
           <div
             ref={xyRef}
             className="climate-xy"

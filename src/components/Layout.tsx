@@ -62,14 +62,6 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
   }, [isRec]);
 
-  const handleChangeTonic = (tonic: PitchClass) => {
-    droneViewRef.current?.setRoot(tonic);
-  };
-
-  const handleChangeOctave = (octave: number) => {
-    droneViewRef.current?.setOctave(octave);
-  };
-
   // MIDI input — external keyboard drives tonic + octave.
   const handleMidiNote = useCallback((note: number) => {
     const { pitchClass, octave } = midiNoteToPitch(note);
@@ -120,6 +112,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
    *  MIDI-style emergency silence: ramp out, flush, ramp back in. */
   const handlePanic = () => {
     engine.panic();
+    // Brief delay so the ramp-out completes before reload kills the context
+    setTimeout(() => window.location.reload(), 300);
   };
 
   const recordingSupport = engine.getRecordingSupport();
@@ -177,8 +171,6 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         displayText={sceneManager.displayText}
         tonic={headerTonic}
         octave={headerOctave}
-        onChangeTonic={handleChangeTonic}
-        onChangeOctave={handleChangeOctave}
         onToggleHold={handleToggleHold}
         holding={headerHolding}
         onToggleRec={handleToggleRec}
@@ -196,8 +188,6 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           setHeaderVolume(v);
           engine.setMasterVolume(v);
         }}
-        kbdActive={kbdActive}
-        onToggleKbd={() => setKbdActive((v) => !v)}
         midiSupported={midi.supported}
         midiEnabled={midi.enabled}
         midiDevices={midi.devices}
@@ -223,6 +213,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             onPresetChange={(_presetId, presetName) => {
               sceneManager.handlePresetNameChange(presetName);
             }}
+            kbdActive={kbdActive}
+            onToggleKbd={() => setKbdActive((v) => !v)}
           />
         </section>
         <section

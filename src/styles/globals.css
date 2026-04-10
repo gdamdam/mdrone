@@ -224,6 +224,16 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .header-row-brand {
   justify-content: space-between;
+  align-items: center;
+}
+
+/* VU meter centered above the preset panel */
+.preset-vu-wide {
+  width: min(100%, 980px);
+  justify-self: center;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
 }
 
 .header-row-main {
@@ -510,6 +520,73 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   align-items: center;
   justify-content: center;
   min-width: 92px;
+}
+
+/* Piano keyboard row below the tonic grid */
+.tonic-piano-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* Mini piano keyboard for tonic selection */
+.tonic-keys {
+  display: flex;
+  position: relative;
+  height: 24px;
+  gap: 1px;
+}
+
+.tonic-key {
+  width: 14px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 0 0 3px 3px;
+  background: color-mix(in srgb, var(--text) 12%, var(--bg-cell));
+  cursor: pointer;
+  font-size: 0;
+  padding: 0;
+  transition: background 0.1s, border-color 0.1s;
+  position: relative;
+  z-index: 1;
+}
+
+.tonic-key:hover {
+  background: color-mix(in srgb, var(--preview) 20%, var(--bg-cell));
+  border-color: color-mix(in srgb, var(--preview) 40%, var(--border));
+}
+
+.tonic-key-black {
+  width: 10px;
+  height: 16px;
+  background: var(--bg);
+  border-color: color-mix(in srgb, var(--text) 15%, var(--border));
+  margin: 0 -4px;
+  z-index: 2;
+  border-radius: 0 0 2px 2px;
+}
+
+.tonic-key-black:hover {
+  background: color-mix(in srgb, var(--preview) 15%, var(--bg));
+}
+
+.tonic-key-active {
+  background: var(--preview);
+  border-color: var(--preview);
+  font-size: 7px;
+  font-weight: 900;
+  color: #160c06;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 1px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--preview) 40%, transparent);
+}
+
+.tonic-key-black.tonic-key-active {
+  background: var(--preview);
+  font-size: 6px;
 }
 
 .header-btn-session,
@@ -887,6 +964,15 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-bottom: 10px;
 }
 
+.panel-hint {
+  font-size: 8px;
+  color: var(--text-dim);
+  opacity: 0.6;
+  margin-top: -8px;
+  margin-bottom: 6px;
+  font-style: italic;
+}
+
 /* ── DroneView layout ─────────────────────────────────────────────── */
 .drone-layout {
   display: grid;
@@ -1148,11 +1234,43 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   color: var(--text-dim);
 }
 
+/* Preset genre tabs — horizontal row of small group buttons */
+.preset-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.preset-tab {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg-cell);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.preset-tab:hover {
+  color: var(--preview);
+  border-color: color-mix(in srgb, var(--preview) 30%, var(--border));
+}
+
+.preset-tab-active {
+  background: var(--preview);
+  color: #160c06;
+  border-color: var(--preview);
+}
+
 /* Preset buttons — a small grid of named scenes */
 .preset-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .preset-btn {

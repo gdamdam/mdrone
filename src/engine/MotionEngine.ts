@@ -168,7 +168,12 @@ export class MotionEngine {
 
   setLfoAmount(amt: number): void {
     this.userLfoAmount = Math.max(0, Math.min(1, amt));
-    this.userLfoDepth.gain.setTargetAtTime(this.userLfoAmount * 0.12, this.ctx.currentTime, this.MACRO_TC);
+    // Scale 0..1 → 0..0.7 of voice gain modulation depth. The old
+    // multiplier (0.12) was inaudible at typical preset values (0.03–
+    // 0.08 × 0.12 = <1% swing). 0.7 means lfoAmount=1 gives ±70%
+    // volume swing (dramatic pumping), and lfoAmount=0.1 gives ±7%
+    // (gentle perceptible breathing).
+    this.userLfoDepth.gain.setTargetAtTime(this.userLfoAmount * 0.7, this.ctx.currentTime, this.MACRO_TC);
   }
 
   getLfoAmount(): number { return this.userLfoAmount; }

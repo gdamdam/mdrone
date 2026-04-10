@@ -170,7 +170,8 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
 
   return (
     <div className="panel fx-bar-panel">
-      <div className="panel-label">EFFECTS · click = toggle · hold = configure · serial chain</div>
+      <div className="panel-label">EFFECTS · click = toggle · hold = configure</div>
+      <div className="panel-hint">Serial chain — signal flows left → right through each enabled effect</div>
       <div className="fx-chain-flow" title="Signal flows left → right through each enabled effect in turn">
         {FX_DEFS.map((fx, i) => (
           <span key={fx.id} className={states[fx.id] ? "fx-chain-step fx-chain-step-on" : "fx-chain-step"}>

@@ -7,7 +7,6 @@ import { midiNoteToPitch } from "../engine/midiInput";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 const PITCH_CLASSES: PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const OCTAVES = [1, 2, 3, 4, 5, 6] as const;
 
 function pitchToFreq(pc: PitchClass, octave: number): number {
   const idx = PITCH_CLASSES.indexOf(pc);
@@ -27,8 +26,6 @@ interface HeaderProps {
   displayText: string;
   tonic: PitchClass;
   octave: number;
-  onChangeTonic: (tonic: PitchClass) => void;
-  onChangeOctave: (octave: number) => void;
   onToggleHold: () => void;
   holding: boolean;
   onToggleRec: () => void;
@@ -36,8 +33,6 @@ interface HeaderProps {
   onOpenShare: () => void;
   onRandomScene: () => void;
   onUndoScene: () => void;
-  kbdActive: boolean;
-  onToggleKbd: () => void;
   isRec: boolean;
   recTimeMs: number;
   recordingSupported: boolean;
@@ -70,8 +65,6 @@ export function Header({
   displayText,
   tonic,
   octave,
-  onChangeTonic,
-  onChangeOctave,
   onToggleHold,
   holding,
   onToggleRec,
@@ -79,8 +72,6 @@ export function Header({
   onOpenShare,
   onRandomScene,
   onUndoScene,
-  kbdActive,
-  onToggleKbd,
   isRec,
   recTimeMs,
   recordingSupported,
@@ -252,45 +243,6 @@ export function Header({
           <span className="header-hold-label">{holding ? "■ HOLDING" : "▶ HOLD"}</span>
           <span className="header-hold-sub">{tonic}{octave}</span>
         </button>
-        <div className="header-tonic">
-          <span className="header-mini-label">TONIC</span>
-          <select
-            value={tonic}
-            onChange={(e) => onChangeTonic(e.target.value as PitchClass)}
-            className="header-select header-select-tonic"
-            title={`Current tonic: ${tonic}${octave}`}
-          >
-            {PITCH_CLASSES.map((pc) => (
-              <option key={pc} value={pc}>
-                {pc}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          className={kbdActive ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
-          onClick={onToggleKbd}
-          title={kbdActive
-            ? "QWERTY keyboard active — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up. Click to disable."
-            : "Enable QWERTY keyboard as tonic controller (same layout as mpump)"}
-        >
-          ⌨
-        </button>
-        <div className="header-tonic">
-          <span className="header-mini-label">OCT</span>
-          <select
-            value={octave}
-            onChange={(e) => onChangeOctave(parseInt(e.target.value, 10))}
-            className="header-select header-select-octave"
-            title={`Current octave: ${octave}`}
-          >
-            {OCTAVES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </div>
         <div className="header-freq">
           <span className="header-mini-label">HZ</span>
           <span className="header-freq-value">{freqHz.toFixed(1)} Hz</span>
