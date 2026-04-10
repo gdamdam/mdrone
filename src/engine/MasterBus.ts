@@ -43,25 +43,27 @@ export class MasterBus {
     this.eqHigh.frequency.value = 4000;
     this.eqHigh.gain.value = 0;
 
+    // Default glue = 0.5 (threshold -9 dB, makeup 1.25×)
     this.glueComp = this.ctx.createDynamicsCompressor();
-    this.glueComp.threshold.value = 0;
+    this.glueComp.threshold.value = -9;
     this.glueComp.ratio.value = 2;
     this.glueComp.attack.value = 0.03;
     this.glueComp.release.value = 0.25;
     this.glueComp.knee.value = 6;
 
     this.glueMakeup = this.ctx.createGain();
-    this.glueMakeup.gain.value = 1;
+    this.glueMakeup.gain.value = 1.25;
 
+    // Default drive = 1.5×
     this.drivePre = this.ctx.createGain();
-    this.drivePre.gain.value = 1;
+    this.drivePre.gain.value = 1.5;
 
     this.drive = this.ctx.createWaveShaper();
-    this.drive.curve = MasterBus.makeDriveCurve(1);
+    this.drive.curve = MasterBus.makeDriveCurve(1.5);
     this.drive.oversample = "2x";
 
     this.drivePost = this.ctx.createGain();
-    this.drivePost.gain.value = 1;
+    this.drivePost.gain.value = 1 / Math.sqrt(1.5);
 
     this.limiter = this.ctx.createDynamicsCompressor();
     this.limiter.threshold.value = this.limiterCeiling;

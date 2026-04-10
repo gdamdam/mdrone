@@ -58,7 +58,7 @@ const ON_LEVELS: Record<EffectId, number> = {
   tape: 1.0,
   wow: 1.0,
   sub: 0.9,
-  comb: 0.85,
+  comb: 0.68,
   delay: 0.9,
   plate: 1.0,
   hall: 1.0,
@@ -123,7 +123,7 @@ export class FxChain {
   private parallelPlateWet!: GainNode;
   private levels: Record<EffectId, number> = { ...ON_LEVELS };
   private delayFeedback = 0.58;
-  private combFeedback = 0.85;
+  private combFeedback = 0.68;
   private freezeMix = ON_LEVELS.freeze;
   private airAmount = 0.6;
   private morphAmount = 0.25;
@@ -362,14 +362,30 @@ export class FxChain {
     this.combDelay.delayTime.value = 1 / 110;
     this.combFbGain = ctx.createGain();
     this.combFbGain.gain.value = 0; // live only while enabled
+
     const dcBlock = ctx.createBiquadFilter();
     dcBlock.type = "highpass";
     dcBlock.frequency.value = 25;
+
+    // Soft clipper inside the feedback loop — prevents runaway energy
+    // from re-entering the delay. Without this, the 0.85 fixed feedback
+    // would let resonant peaks build exponentially until they clipped
+    // the output chain. tanh at drive 1.8 catches anything above ~0.55
+    // and compresses it smoothly.
+    const fbClip = ctx.createWaveShaper();
+    fbClip.curve = FxChain.makeTapeCurve(1.8);
+    fbClip.oversample = "2x";
+
     const outFilter = ctx.createBiquadFilter();
     outFilter.type = "lowpass";
     outFilter.frequency.value = 5000;
+
     ins.insertIn.connect(this.combDelay);
-    this.combDelay.connect(dcBlock).connect(this.combFbGain).connect(this.combDelay);
+    this.combDelay
+      .connect(dcBlock)
+      .connect(fbClip)
+      .connect(this.combFbGain)
+      .connect(this.combDelay);
     this.combDelay.connect(outFilter).connect(ins.wetGain).connect(ins.insertOut);
   }
 

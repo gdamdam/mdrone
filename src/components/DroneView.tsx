@@ -354,6 +354,27 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
                 </div>
               ))}
+              {/* PLUCK — tanpura-only, shown when tanpura layer is active */}
+              {state.voiceLayers.tanpura && (
+                <div className="layer-level-row">
+                  <span className="layer-level-label">PLUCK</span>
+                  <input
+                    type="range"
+                    min={0.2}
+                    max={4}
+                    step={0.05}
+                    value={state.pluckRate}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setPluckRate(v);
+                      engine?.setTanpuraPluckRate(v);
+                    }}
+                    className="macro-slider"
+                    title="Tanpura re-pluck rate. 0.2× = ~15 s between strings (very slow), 1× = traditional ~3 s cycle, 4× = rapid plucking."
+                  />
+                  <span className="layer-level-value">{state.pluckRate.toFixed(1)}×</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -396,24 +417,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 title="How much the drone evolves itself during play. 0 = static · 0.4 = gentle atmosphere drift · 0.7 = + occasional tonic walks (P4/P5) · 1 = active drift + note walks."
               />
               <span className="preset-morph-value">{Math.round(state.evolve * 100)}%</span>
-            </div>
-            <div className="preset-morph-row">
-              <span className="preset-morph-label">PLUCK</span>
-              <input
-                type="range"
-                min={0.2}
-                max={4}
-                step={0.05}
-                value={state.pluckRate}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  setPluckRate(v);
-                  engine?.setTanpuraPluckRate(v);
-                }}
-                className="preset-morph-slider"
-                title="Tanpura re-pluck rate. 0.2× = ~15 s between strings (very slow), 1× = traditional ~3 s cycle, 4× = rapid plucking. Only affects the tanpura voice."
-              />
-              <span className="preset-morph-value">{state.pluckRate.toFixed(1)}×</span>
             </div>
           </div>
 

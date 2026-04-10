@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION } from "../config";
-import type { SavedSession } from "../session";
+import { resetAllLocalStorage, type SavedSession } from "../session";
 import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
 
@@ -36,6 +36,8 @@ interface HeaderProps {
   onOpenShare: () => void;
   onRandomScene: () => void;
   onUndoScene: () => void;
+  kbdActive: boolean;
+  onToggleKbd: () => void;
   isRec: boolean;
   recTimeMs: number;
   recordingSupported: boolean;
@@ -77,6 +79,8 @@ export function Header({
   onOpenShare,
   onRandomScene,
   onUndoScene,
+  kbdActive,
+  onToggleKbd,
   isRec,
   recTimeMs,
   recordingSupported,
@@ -222,8 +226,7 @@ export function Header({
         <div className="header-center">
         <div className="header-display" title={displayText}>
           <div className="header-display-track">
-            <span>{displayText}</span>
-            <span aria-hidden="true">{displayText}</span>
+            {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span>
           </div>
         </div>
         <button
@@ -264,6 +267,15 @@ export function Header({
             ))}
           </select>
         </div>
+        <button
+          className={kbdActive ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
+          onClick={onToggleKbd}
+          title={kbdActive
+            ? "QWERTY keyboard active — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up. Click to disable."
+            : "Enable QWERTY keyboard as tonic controller (same layout as mpump)"}
+        >
+          ⌨
+        </button>
         <div className="header-tonic">
           <span className="header-mini-label">OCT</span>
           <select
@@ -293,10 +305,10 @@ export function Header({
         <button
           className="header-btn header-btn-menu"
           onClick={() => setSessionOpen(true)}
-          title={`Sessions & MIDI — current: ${currentSessionName}`}
-          aria-label="Open sessions and MIDI"
+          title={`Settings — sessions, MIDI, reset`}
+          aria-label="Open settings"
         >
-          ▤
+          ⚙
         </button>
         </div>
       </div>
@@ -342,7 +354,7 @@ export function Header({
         <div className="fx-modal-backdrop" onClick={() => setSessionOpen(false)}>
           <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
             <div className="fx-modal-header">
-              <div className="fx-modal-title">Sessions</div>
+              <div className="fx-modal-title">Settings</div>
               <button
                 className="fx-modal-close"
                 onClick={() => setSessionOpen(false)}
@@ -437,6 +449,25 @@ export function Header({
                 </span>
               </div>
               {midiError && <div className="midi-error">{midiError}</div>}
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">RESET</div>
+              <p className="fx-modal-desc">
+                Wipe all saved sessions, autosave, palette, and every mdrone setting from localStorage. Cannot be undone.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className="header-btn header-btn-danger"
+                  onClick={() => {
+                    if (window.confirm("Reset everything? This wipes all saved sessions, autosave, palette, and every mdrone-* key in localStorage. Cannot be undone.")) {
+                      resetAllLocalStorage();
+                      window.location.reload();
+                    }
+                  }}
+                >
+                  RESET EVERYTHING
+                </button>
+              </div>
             </div>
           </div>
         </div>

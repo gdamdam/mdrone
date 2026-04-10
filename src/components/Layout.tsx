@@ -79,6 +79,38 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   }, []);
   const midi = useMidiInput(handleMidiNote);
 
+  // QWERTY keyboard → tonic. Same layout as mpump: A=C, W=C#, S=D,
+  // E=D#, D=E, F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B.
+  // Z/X shift octave down/up.
+  const [kbdActive, setKbdActive] = useState(false);
+  useEffect(() => {
+    if (!kbdActive) return;
+    const QWERTY: Record<string, PitchClass> = {
+      KeyA: "C", KeyW: "C#", KeyS: "D", KeyE: "D#", KeyD: "E",
+      KeyF: "F", KeyT: "F#", KeyG: "G", KeyY: "G#", KeyH: "A",
+      KeyU: "A#", KeyJ: "B",
+    };
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.metaKey || e.ctrlKey) return;
+      const pc = QWERTY[e.code];
+      if (pc) {
+        e.preventDefault();
+        droneViewRef.current?.setRoot(pc);
+        return;
+      }
+      if (e.code === "KeyZ") {
+        e.preventDefault();
+        droneViewRef.current?.setOctave(Math.max(1, headerOctave - 1));
+      } else if (e.code === "KeyX") {
+        e.preventDefault();
+        droneViewRef.current?.setOctave(Math.min(6, headerOctave + 1));
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [kbdActive, headerOctave]);
+
   const handleToggleHold = () => {
     droneViewRef.current?.togglePlay();
   };
@@ -164,6 +196,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           setHeaderVolume(v);
           engine.setMasterVolume(v);
         }}
+        kbdActive={kbdActive}
+        onToggleKbd={() => setKbdActive((v) => !v)}
         midiSupported={midi.supported}
         midiEnabled={midi.enabled}
         midiDevices={midi.devices}

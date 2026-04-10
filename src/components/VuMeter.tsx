@@ -6,12 +6,10 @@ export function VuMeter({
   analyser,
   width = 240,
   height = 10,
-  label = "BREATH",
 }: {
   analyser: AnalyserNode | null;
   width?: number;
   height?: number;
-  label?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -47,24 +45,42 @@ export function VuMeter({
       }
       const W = canvas.width;
       const H = canvas.height;
+      const cx = W / 2;
       ctx.clearRect(0, 0, W, H);
-      const grad = ctx.createLinearGradient(0, 0, W, 0);
-      grad.addColorStop(0, "#d06a24");
-      grad.addColorStop(0.75, "#e59443");
-      grad.addColorStop(0.92, "#ffcc55");
-      grad.addColorStop(1, "#ff4040");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W * level, H);
-      const px = Math.min(W - 2, Math.floor(W * peakHold));
+
+      // Symmetrical centre-out fill: level spreads from the centre
+      // toward both edges simultaneously.
+      const halfW = cx * level;
+
+      // Gradient: centre warm → edge hot → clip red
+      const gradR = ctx.createLinearGradient(cx, 0, W, 0);
+      gradR.addColorStop(0, "#d06a24");
+      gradR.addColorStop(0.7, "#e59443");
+      gradR.addColorStop(0.9, "#ffcc55");
+      gradR.addColorStop(1, "#ff4040");
+      ctx.fillStyle = gradR;
+      ctx.fillRect(cx, 0, halfW, H);
+
+      // Mirror to the left
+      const gradL = ctx.createLinearGradient(cx, 0, 0, 0);
+      gradL.addColorStop(0, "#d06a24");
+      gradL.addColorStop(0.7, "#e59443");
+      gradL.addColorStop(0.9, "#ffcc55");
+      gradL.addColorStop(1, "#ff4040");
+      ctx.fillStyle = gradL;
+      ctx.fillRect(cx - halfW, 0, halfW, H);
+
+      // Peak hold markers — mirrored
+      const peakOff = Math.min(cx - 1, Math.floor(cx * peakHold));
       ctx.fillStyle = "#ffe6a8";
-      ctx.fillRect(px, 0, 2, H);
+      ctx.fillRect(cx + peakOff, 0, 2, H);
+      ctx.fillRect(cx - peakOff - 2, 0, 2, H);
     };
     tick();
     return () => cancelAnimationFrame(raf);
   }, [analyser]);
   return (
     <div className="vu-meter" title="Master output level">
-      <span className="vu-meter-label">{label}</span>
       <canvas
         ref={canvasRef}
         width={width}

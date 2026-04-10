@@ -50,7 +50,7 @@ function Strip({ label, value, min, max, step, unit, onChange, centre, title }: 
         />
       </div>
       <div className="mixer-strip-value">
-        {value.toFixed(step < 1 ? 1 : 0)}{unit}
+        {value.toFixed(step < 1 ? 1 : 0)}{unit ? ` ${unit}` : ""}
       </div>
     </div>
   );

@@ -520,7 +520,7 @@ export const PRESETS: Preset[] = [
     attribution: "Pure 5-limit ambient · piano + pad · long decay",
     hint: "Piano (for the 1/1-style looped piano figures) over reed pad and a whisper of air, all in just 5-limit intervals. Deep hall + plate + tape for the sunlit-departure-lounge feel of Brian Eno's Music for Airports — no shimmer, no bells.",
     voiceLayers: ["piano", "reed", "air"],
-    voiceLevels: { piano: 1, reed: 0.55, air: 0.2 },
+    voiceLevels: { piano: 1, reed: 0.15, air: 0.2 },
     octaveRange: [3, 4],
     drift: 0.12,      // low for smooth harmonics, no partial clash
     air: 0.52,
@@ -795,7 +795,9 @@ export const PRESETS: Preset[] = [
     // the dense spectral-pressure identity. Ringmod + granular add the
     // inharmonic scrape and stretched-loop quality of Merzbow's noise
     // collage method.
-    effects: ["wow", "tape", "sub", "comb", "hall", "ringmod", "granular"],
+    // wow dropped — ringmod already provides modulation and the 7-effect
+    // serial chain was attenuating the signal too much.
+    effects: ["tape", "sub", "comb", "hall", "ringmod", "granular"],
     scale: "drone",
     gain: 0.75,       // perceptually very loud — slight extra cut vs. before
     motionProfile: motionProfile({
@@ -979,26 +981,29 @@ export const PRESETS: Preset[] = [
   {
     id: "fennesz-endless",
     name: "Endless Summer",
-    attribution: "Processed granular shimmer · bright clouds",
-    hint: "Reed (balanced, for processed-guitar-like chord character) + piano for the melodic fragments + air through granular + shimmer + hall. Fennesz's Endless Summer — bright harmonic textures granulated into shimmering clouds.",
-    voiceLayers: ["reed", "piano", "air"],
-    voiceLevels: { reed: 1, piano: 0.35, air: 0.35 },
-    reedShape: "balanced",
+    attribution: "Warm continuous guitar smear · golden haze",
+    hint: "Reed (even harmonics — closest to processed guitar) with long bloom and glide through plate + hall + tape. Fennesz's Endless Summer — continuous warm melodic smear, no grain wobble. The 'processed laptop guitar' feel comes from the even-harmonic reed held in thick reverb.",
+    voiceLayers: ["reed"],
+    voiceLevels: { reed: 1 },
+    reedShape: "even",
     octaveRange: [3, 4],
-    drift: 0.22,
-    air: 0.62,
-    time: 0.1,
-    sub: 0.18,
-    bloom: 0.72,
-    glide: 0.4,
+    drift: 0.08,       // very stable — Fennesz holds chords, doesn't drift
+    air: 0.58,         // wet into the reverbs
+    time: 0.04,        // near-static
+    sub: 0.14,
+    bloom: 0.88,       // long bloom — the "smear" comes from reverb sustain
+    glide: 0.6,        // slow chord morphs
     lfoShape: "sine",
-    lfoRate: 0.08,
-    lfoAmount: 0.08,
-    climateX: 0.56,
-    climateY: 0.28,
-    effects: ["granular", "shimmer", "hall", "tape"],
-    scale: "just5",
-    gain: 0.88,
+    lfoRate: 0.04,     // very slow
+    lfoAmount: 0.03,   // near-zero — no amplitude wobble
+    climateX: 0.46,
+    climateY: 0.18,
+    // No granular — its grain overlap creates an annoying rhythmic wobble.
+    // Fennesz's smear is CONTINUOUS (laptop feedback + reverb), not
+    // grain-based. Plate + hall + tape give the warmth.
+    effects: ["plate", "hall", "tape"],
+    scale: "major",
+    gain: 0.95,
     motionProfile: motionProfile({
       climateXRange: [0.48, 0.64],
       climateYRange: [0.2, 0.36],
@@ -1199,9 +1204,9 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.08,
     climateX: 0.34,
     climateY: 0.24,
-    // formant added for the distant hummed-vocal quality Grouper's
-    // Dragging a Dead Deer has underneath the lo-fi piano.
-    effects: ["tape", "plate", "hall", "wow", "formant"],
+    // tape + wow + air already give Grouper's lo-fi tape-veiled quality.
+    // formant was over-colouring the signal.
+    effects: ["tape", "plate", "hall", "wow"],
     scale: "minor",
     gain: 0.95,
     motionProfile: motionProfile({
