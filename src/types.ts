@@ -29,6 +29,7 @@ export type RelationId =
   | "unison"
   | "tonic-fifth"
   | "tonic-fourth"
+  | "minor-triad"
   | "drone-triad"
   | "harmonic-stack";
 

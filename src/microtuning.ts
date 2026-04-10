@@ -26,6 +26,7 @@ export type RelationId =
   | "unison"
   | "tonic-fifth"
   | "tonic-fourth"
+  | "minor-triad"
   | "drone-triad"
   | "harmonic-stack";
 
@@ -111,6 +112,12 @@ export const RELATIONS: readonly Relation[] = [
     label: "Tonic + Fourth",
     hint: "Root and fourth — tanpura sa-pa",
     picks: [0, 5],
+  },
+  {
+    id: "minor-triad",
+    label: "Minor Triad",
+    hint: "Root, minor third, fifth",
+    picks: [0, 3, 7],
   },
   {
     id: "drone-triad",

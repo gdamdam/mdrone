@@ -94,6 +94,11 @@ test("resolveTuning returns correct intervals for just5 + tonic-fifth", () => {
   assert.deepEqual(intervals, [0, 701.96]);
 });
 
+test("resolveTuning returns correct intervals for just5 + minor-triad", () => {
+  const intervals = resolveTuning("just5", "minor-triad");
+  assert.deepEqual(intervals, [0, 315.64, 701.96]);
+});
+
 test("resolveTuning returns single-note unison for any tuning", () => {
   for (const tuning of TUNINGS) {
     const intervals = resolveTuning(tuning.id, "unison");
@@ -181,8 +186,8 @@ test("setTuning and setRelation reducer actions update state", () => {
   const withTuning = liveDroneSceneReducer(initial, { type: "setTuning", tuningId: "just5" });
   assert.equal(withTuning.tuningId, "just5");
 
-  const withRelation = liveDroneSceneReducer(withTuning, { type: "setRelation", relationId: "drone-triad" });
-  assert.equal(withRelation.relationId, "drone-triad");
+  const withRelation = liveDroneSceneReducer(withTuning, { type: "setRelation", relationId: "minor-triad" });
+  assert.equal(withRelation.relationId, "minor-triad");
 
   // Clear back to null
   const cleared = liveDroneSceneReducer(withRelation, { type: "setTuning", tuningId: null });

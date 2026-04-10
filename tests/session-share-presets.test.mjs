@@ -291,12 +291,12 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   assert.equal(engineState.presetTrim, preset.gain);
   assert.equal(engineState.motionProfile.tonicWalk, "rare");
   assert.equal(engineState.reedShape, "even");
-  // Stars of the Lid is migrated to just5 + drone-triad
+  // Stars of the Lid is migrated to just5 + minor-triad
   assert.equal(uiState.tuningId, "just5");
-  assert.equal(uiState.relationId, "drone-triad");
+  assert.equal(uiState.relationId, "minor-triad");
   assert.deepEqual(uiState.fineTuneOffsets, []);
-  // Engine intervals should be just5 drone-triad: [0, 386.31, 701.96]
-  assert.deepEqual(engineState.intervals, [0, 386.31, 701.96]);
+  // Engine intervals should be just5 minor-triad: [0, 315.64, 701.96]
+  assert.deepEqual(engineState.intervals, [0, 315.64, 701.96]);
 });
 
 test("preset motion profiles preserve anchored vs unstable evolve behavior", () => {
@@ -325,7 +325,7 @@ test("preset material profiles distinguish stable tones from unstable weather", 
 
 test("all presets carry tuningId and relationId", () => {
   const validTunings = new Set(["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"]);
-  const validRelations = new Set(["unison", "tonic-fifth", "tonic-fourth", "drone-triad", "harmonic-stack"]);
+  const validRelations = new Set(["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"]);
   for (const p of PRESETS) {
     assert.ok(validTunings.has(p.tuningId), `${p.id} has invalid tuningId: ${p.tuningId}`);
     assert.ok(validRelations.has(p.relationId), `${p.id} has invalid relationId: ${p.relationId}`);
@@ -343,6 +343,7 @@ test("migrated preset tuning assignments match musical intent", () => {
   check("dream-house", "just5", "drone-triad");
   check("eno-airport", "just5", "drone-triad");
   check("lamb-prisma", "just5", "drone-triad");
+  check("stars-of-the-lid", "just5", "minor-triad");
   // Meantone presets
   check("malone-organ", "meantone", "drone-triad");
   check("arkbro-chords", "meantone", "drone-triad");
@@ -355,4 +356,6 @@ test("migrated preset tuning assignments match musical intent", () => {
   check("merzbient", "equal", "unison");
   check("doom-bloom", "equal", "tonic-fifth");
   check("windscape", "equal", "tonic-fourth");
+  check("hecker-ravedeath", "equal", "minor-triad");
+  check("frahm-solo", "equal", "minor-triad");
 });

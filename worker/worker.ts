@@ -130,7 +130,7 @@ function normalizeScene(decoded: unknown): PortableScene {
   const tuningId = (allowedTunings as readonly string[]).includes(droneIn.tuningId as string)
     ? (droneIn.tuningId as (typeof allowedTunings)[number])
     : null;
-  const allowedRelations = ["unison", "tonic-fifth", "tonic-fourth", "drone-triad", "harmonic-stack"] as const;
+  const allowedRelations = ["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"] as const;
   const relationId = (allowedRelations as readonly string[]).includes(droneIn.relationId as string)
     ? (droneIn.relationId as (typeof allowedRelations)[number])
     : null;

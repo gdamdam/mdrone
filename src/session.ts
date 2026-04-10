@@ -94,7 +94,7 @@ function hasLocalStorage(): boolean {
 const PITCH_CLASSES: readonly PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
 const SCALE_IDS: readonly ScaleId[] = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
 const TUNING_IDS: readonly TuningId[] = ["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
-const RELATION_IDS: readonly RelationId[] = ["unison", "tonic-fifth", "tonic-fourth", "drone-triad", "harmonic-stack"] as const;
+const RELATION_IDS: readonly RelationId[] = ["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"] as const;
 const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sawtooth"] as const;
 const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk"] as const;
 const VISUALIZERS: readonly Visualizer[] = [
