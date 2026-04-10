@@ -5,12 +5,13 @@ import type { EffectId } from "../engine/FxChain";
 import { PRESETS, applyPreset, getPresetMaterialProfile } from "../engine/presets";
 import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
+import type { RelationId, TuningId } from "../types";
 import {
   createInitialDroneScene,
   freqToPitch,
   liveDroneSceneReducer,
   pitchToFreq,
-  scaleById,
+  resolveIntervals,
   type LiveDroneSceneState,
 } from "./droneSceneModel";
 
@@ -43,6 +44,14 @@ export function useDroneScene({
 
   const setScale = useCallback((scale: LiveDroneSceneState["scale"]) => {
     dispatch({ type: "setScale", scale });
+  }, []);
+
+  const setTuning = useCallback((tuningId: TuningId | null) => {
+    dispatch({ type: "setTuning", tuningId });
+  }, []);
+
+  const setRelation = useCallback((relationId: RelationId | null) => {
+    dispatch({ type: "setRelation", relationId });
   }, []);
 
   const setPlaying = useCallback((playing: boolean) => {
@@ -224,22 +233,26 @@ export function useDroneScene({
   // Scene / shared-link loads). If applySnapshot runs before the timer
   // fires, its engine.startDrone call + didAutostartRef set will
   // pre-empt us so we don't double-start.
+  // Derived intervals — depends only on scale + microtuning fields.
+  const { scale, tuningId, relationId } = state;
+  const intervals = resolveIntervals({ scale, tuningId, relationId });
+
   const didAutostartRef = useRef(false);
   useEffect(() => {
     if (!engine || didAutostartRef.current) return;
     if (!state.playing) return;
     const timer = window.setTimeout(() => {
       if (didAutostartRef.current) return;
-      engine.startDrone(freq, scaleById(state.scale).intervalsCents);
+      engine.startDrone(freq, intervals);
       didAutostartRef.current = true;
     }, 60);
     return () => window.clearTimeout(timer);
-  }, [engine, state.playing, freq, state.scale]);
+  }, [engine, state.playing, freq, intervals]);
 
   useEffect(() => {
     if (!engine) return;
-    engine.setIntervals(scaleById(state.scale).intervalsCents);
-  }, [engine, state.scale]);
+    engine.setIntervals(intervals);
+  }, [engine, intervals]);
 
   const togglePlay = useCallback(() => {
     if (!engine) return;
@@ -247,10 +260,10 @@ export function useDroneScene({
       engine.stopDrone();
       setPlaying(false);
     } else {
-      engine.startDrone(freq, scaleById(state.scale).intervalsCents);
+      engine.startDrone(freq, intervals);
       setPlaying(true);
     }
-  }, [engine, freq, setPlaying, state.playing, state.scale]);
+  }, [engine, freq, setPlaying, state.playing, intervals]);
 
   const handlePreset = useCallback((presetId: string) => {
     const preset = PRESETS.find((p) => p.id === presetId);
@@ -271,6 +284,8 @@ export function useDroneScene({
       setLfoAmount,
       setClimate,
       setScale,
+      setTuning,
+      setRelation,
       setEffectEnabled,
     });
   }, [
@@ -290,6 +305,8 @@ export function useDroneScene({
     setLfoAmount,
     setClimate,
     setScale,
+    setTuning,
+    setRelation,
     setEffectEnabled,
   ]);
 
@@ -334,7 +351,7 @@ export function useDroneScene({
   const applySnapshot = useCallback((snapshot: DroneSessionSnapshot) => {
     const shouldPlay = snapshot.playing ?? false;
     const nextFreq = pitchToFreq(snapshot.root, snapshot.octave);
-    const nextIntervals = scaleById(snapshot.scale).intervalsCents;
+    const nextIntervals = resolveIntervals(snapshot);
 
     if (engine && state.playing && !shouldPlay) {
       engine.stopDrone();
@@ -382,7 +399,7 @@ export function useDroneScene({
 
   const startImmediate = useCallback((nextRoot: PitchClass, nextOctave: number, presetId?: string) => {
     const clampedOctave = Math.max(1, Math.min(6, nextOctave));
-    let nextScale = state.scale;
+    let nextScale = scale;
     if (presetId) {
       const preset = PRESETS.find((item) => item.id === presetId);
       if (preset) {
@@ -402,8 +419,10 @@ export function useDroneScene({
     });
     if (!engine) return;
     const nextFreq = pitchToFreq(nextRoot, clampedOctave);
-    engine.startDrone(nextFreq, scaleById(nextScale).intervalsCents);
-  }, [engine, handlePreset, state.scale]);
+    // Presets clear tuning/relation, so when a presetId is given the
+    // legacy scale path applies. Otherwise honour active microtuning.
+    engine.startDrone(nextFreq, resolveIntervals({ scale: nextScale, tuningId, relationId }));
+  }, [engine, handlePreset, scale, tuningId, relationId]);
 
   return {
     state,
@@ -411,6 +430,8 @@ export function useDroneScene({
     setRoot,
     setOctave,
     setScale,
+    setTuning,
+    setRelation,
     setPresetMorph,
     setPresetEvolve,
     setPluckRate,

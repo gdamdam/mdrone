@@ -1,8 +1,9 @@
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { EffectId } from "../engine/FxChain";
 import type { DroneSessionSnapshot } from "../session";
-import type { PitchClass, ScaleId } from "../types";
+import type { PitchClass, RelationId, ScaleId, TuningId } from "../types";
 import type { VoiceType } from "../engine/VoiceBuilder";
+import { resolveIntervals as resolveIntervalsCore } from "../microtuning";
 
 export const PITCH_CLASSES: PitchClass[] = [
   "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
@@ -52,6 +53,16 @@ export function scaleById(id: ScaleId): Scale {
   return SCALES.find((s) => s.id === id) ?? SCALES[0];
 }
 
+/** Resolve intervals from scene state. Microtuning (tuningId + relationId)
+ *  takes precedence; falls back to the legacy scale lookup. */
+export function resolveIntervals(state: {
+  scale: ScaleId;
+  tuningId?: TuningId | null;
+  relationId?: RelationId | null;
+}): number[] {
+  return resolveIntervalsCore(state, (id) => scaleById(id).intervalsCents);
+}
+
 export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSceneState {
   return {
     activePresetId: null,
@@ -61,6 +72,8 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
     // Default to single-tone drone so the initial startup is one pitch,
     // not a 4-note dorian chord. User picks a preset to shape the scene.
     scale: "drone",
+    tuningId: null,
+    relationId: null,
     voiceLayers: engine?.getVoiceLayers() ?? {
       tanpura: true,
       reed: false,
@@ -117,6 +130,8 @@ export type LiveDroneSceneAction =
   | { type: "setRoot"; root: PitchClass }
   | { type: "setOctave"; octave: number }
   | { type: "setScale"; scale: ScaleId }
+  | { type: "setTuning"; tuningId: TuningId | null }
+  | { type: "setRelation"; relationId: RelationId | null }
   | { type: "setPlaying"; playing: boolean }
   | { type: "setVoiceLayer"; voiceType: VoiceType; on: boolean }
   | { type: "setVoiceLevel"; voiceType: VoiceType; level: number }
@@ -136,6 +151,10 @@ export function liveDroneSceneReducer(
       return { ...state, octave: Math.max(1, Math.min(6, action.octave)) };
     case "setScale":
       return { ...state, scale: action.scale };
+    case "setTuning":
+      return { ...state, tuningId: action.tuningId };
+    case "setRelation":
+      return { ...state, relationId: action.relationId };
     case "setPlaying":
       return { ...state, playing: action.playing };
     case "setVoiceLayer":

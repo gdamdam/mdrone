@@ -22,7 +22,7 @@ import type { AudioEngine } from "./AudioEngine";
 import type { EffectId } from "./FxChain";
 import type { ReedShape, VoiceType } from "./VoiceBuilder";
 import { ALL_VOICE_TYPES } from "./VoiceBuilder";
-import type { ScaleId } from "../types";
+import type { RelationId, ScaleId, TuningId } from "../types";
 import type { DroneSessionSnapshot } from "../session";
 
 export type PresetGroup =
@@ -1561,6 +1561,8 @@ export function createPresetVariation(
     root,
     octave,
     scale: preset.scale,
+    tuningId: null,
+    relationId: null,
     voiceLayers,
     voiceLevels,
     effects,
@@ -1624,6 +1626,8 @@ export interface PresetUiSetters {
   setLfoAmount: (v: number) => void;
   setClimate: (x: number, y: number) => void;
   setScale: (s: ScaleId) => void;
+  setTuning: (id: TuningId | null) => void;
+  setRelation: (id: RelationId | null) => void;
   setEffectEnabled: (id: EffectId, on: boolean) => void;
 }
 
@@ -1678,8 +1682,11 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   // Climate
   ui.setClimate(preset.climateX, preset.climateY);
 
-  // Mode (scale)
+  // Mode (scale) — presets use the legacy scale path, so clear any
+  // active microtuning override so the scale-based intervals apply.
   ui.setScale(preset.scale);
+  ui.setTuning(null);
+  ui.setRelation(null);
 
   if (engine) {
     // (A) Apply per-preset loudness trim before the scene builds so

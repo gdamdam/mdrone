@@ -19,6 +19,8 @@ test("normalizePortableScene clamps and sanitizes decoded scene data", () => {
       root: "H",
       octave: 99,
       scale: "mystery",
+      tuningId: "bogus",
+      relationId: "bogus",
       voiceLayers: { tanpura: true },
       voiceLevels: { tanpura: 5 },
       effects: { tape: true },
@@ -55,6 +57,8 @@ test("normalizePortableScene clamps and sanitizes decoded scene data", () => {
   assert.equal(scene.drone.root, "A");
   assert.equal(scene.drone.octave, 6);
   assert.equal(scene.drone.scale, "dorian");
+  assert.equal(scene.drone.tuningId, null);
+  assert.equal(scene.drone.relationId, null);
   assert.equal(scene.drone.voiceLevels.tanpura, 1);
   assert.equal(scene.drone.climateX, 1);
   assert.equal(scene.drone.climateY, 0);
@@ -71,6 +75,8 @@ test("share codec round-trips a portable scene payload", async () => {
       root: "C",
       octave: 2,
       scale: "drone",
+      tuningId: "just5",
+      relationId: "tonic-fifth",
       voiceLayers: { tanpura: true, reed: false, metal: false, air: false },
       voiceLevels: { tanpura: 1, reed: 0, metal: 0, air: 0 },
       effects: {
@@ -141,6 +147,8 @@ test("share codec round-trips a portable scene payload", async () => {
 
   assert.equal(decoded.name, "Share Me");
   assert.equal(decoded.drone.root, "C");
+  assert.equal(decoded.drone.tuningId, "just5");
+  assert.equal(decoded.drone.relationId, "tonic-fifth");
   assert.equal(decoded.ui.visualizer, "mandala");
 });
 
@@ -160,6 +168,8 @@ test("autosaved scene round-trips through localStorage", () => {
       root: "D",
       octave: 2,
       scale: "drone",
+      tuningId: null,
+      relationId: null,
       voiceLayers: { tanpura: true, reed: false, metal: false, air: false },
       voiceLevels: { tanpura: 1, reed: 0, metal: 0, air: 0 },
       effects: {
@@ -260,6 +270,8 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
     setLfoAmount: (value) => { uiState.lfoAmount = value; },
     setClimate: (x, y) => { uiState.climate = { x, y }; },
     setScale: (value) => { uiState.scale = value; },
+    setTuning: (value) => { uiState.tuningId = value; },
+    setRelation: (value) => { uiState.relationId = value; },
     setEffectEnabled: (id, on) => effectCalls.push([id, on]),
   });
 

@@ -15,6 +15,23 @@ export type ScaleId =
   | "maqam-rast"
   | "slendro";
 
+/** Microtuning table id — selects the pitch grid (cents per degree). */
+export type TuningId =
+  | "equal"
+  | "just5"
+  | "meantone"
+  | "harmonics"
+  | "maqam-rast"
+  | "slendro";
+
+/** Interval-relation preset — selects which degrees from the tuning to sound. */
+export type RelationId =
+  | "unison"
+  | "tonic-fifth"
+  | "tonic-fourth"
+  | "drone-triad"
+  | "harmonic-stack";
+
 /** 12-note pitch class. A4 = 440 Hz reference. */
 export type PitchClass =
   | "C" | "C#" | "D" | "D#" | "E" | "F"

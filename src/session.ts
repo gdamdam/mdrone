@@ -1,7 +1,7 @@
 import { STORAGE_KEYS } from "./config";
 import type { EffectId } from "./engine/FxChain";
 import type { VoiceType } from "./engine/VoiceBuilder";
-import type { PitchClass, ScaleId } from "./types";
+import type { PitchClass, RelationId, ScaleId, TuningId } from "./types";
 import type { PaletteId } from "./themes";
 import type { Visualizer } from "./components/visualizers";
 
@@ -11,6 +11,11 @@ export interface DroneSessionSnapshot {
   root: PitchClass;
   octave: number;
   scale: ScaleId;
+  /** Microtuning: tuning table id. When both tuningId and relationId are
+   *  present they override the legacy scale-based intervals. */
+  tuningId: TuningId | null;
+  /** Microtuning: interval-relation preset id. */
+  relationId: RelationId | null;
   voiceLayers: Record<VoiceType, boolean>;
   voiceLevels: Record<VoiceType, number>;
   effects: Record<EffectId, boolean>;
@@ -85,6 +90,8 @@ function hasLocalStorage(): boolean {
 
 const PITCH_CLASSES: readonly PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
 const SCALE_IDS: readonly ScaleId[] = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
+const TUNING_IDS: readonly TuningId[] = ["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
+const RELATION_IDS: readonly RelationId[] = ["unison", "tonic-fifth", "tonic-fourth", "drone-triad", "harmonic-stack"] as const;
 const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sawtooth"] as const;
 const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk"] as const;
 const VISUALIZERS: readonly Visualizer[] = [
@@ -140,6 +147,8 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   root: "A",
   octave: 2,
   scale: "dorian",
+  tuningId: null,
+  relationId: null,
   voiceLayers: { tanpura: true, reed: false, metal: false, air: false, piano: false, fm: false, amp: false },
   voiceLevels: { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 },
   effects: {
@@ -281,6 +290,8 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     root: isOneOf(value.root, PITCH_CLASSES) ? value.root : DEFAULT_DRONE_SNAPSHOT.root,
     octave: readNumber(value.octave, DEFAULT_DRONE_SNAPSHOT.octave, 1, 6),
     scale: isOneOf(value.scale, SCALE_IDS) ? value.scale : DEFAULT_DRONE_SNAPSHOT.scale,
+    tuningId: isOneOf(value.tuningId, TUNING_IDS) ? value.tuningId : null,
+    relationId: isOneOf(value.relationId, RELATION_IDS) ? value.relationId : null,
     voiceLayers: normalizeVoiceLayers(value.voiceLayers),
     voiceLevels: normalizeVoiceLevels(value.voiceLevels),
     effects: normalizeEffectStates(value.effects),

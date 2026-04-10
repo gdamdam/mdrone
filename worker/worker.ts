@@ -126,6 +126,14 @@ function normalizeScene(decoded: unknown): PortableScene {
   const scale = (allowedScales as readonly string[]).includes(droneIn.scale as string)
     ? (droneIn.scale as (typeof allowedScales)[number])
     : "drone";
+  const allowedTunings = ["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
+  const tuningId = (allowedTunings as readonly string[]).includes(droneIn.tuningId as string)
+    ? (droneIn.tuningId as (typeof allowedTunings)[number])
+    : null;
+  const allowedRelations = ["unison", "tonic-fifth", "tonic-fourth", "drone-triad", "harmonic-stack"] as const;
+  const relationId = (allowedRelations as readonly string[]).includes(droneIn.relationId as string)
+    ? (droneIn.relationId as (typeof allowedRelations)[number])
+    : null;
   const allowedPalettes = ["ember", "copper", "dusk"] as const;
   const paletteId = (allowedPalettes as readonly string[]).includes(uiIn.paletteId as string)
     ? (uiIn.paletteId as (typeof allowedPalettes)[number])
@@ -151,6 +159,8 @@ function normalizeScene(decoded: unknown): PortableScene {
       root,
       octave: num(droneIn.octave, 2, 0, 7),
       scale,
+      tuningId,
+      relationId,
       voiceLayers: {
         tanpura: bool(vLayersIn.tanpura, true),
         reed: bool(vLayersIn.reed, false),
@@ -253,8 +263,22 @@ const SCALE_LABELS: Record<string, string> = {
   slendro: "SLENDRO",
 };
 
+const TUNING_LABELS: Record<string, string> = {
+  equal: "12-TET",
+  just5: "JUST5",
+  meantone: "MEANTONE",
+  harmonics: "HARMONICS",
+  "maqam-rast": "RAST",
+  slendro: "SLENDRO",
+};
+
 function metaTitle(scene: PortableScene): string {
-  return `${scene.drone.root}${scene.drone.octave} ${SCALE_LABELS[scene.drone.scale] ?? "DRONE"}`;
+  const drone = scene.drone;
+  // Show tuning label when microtuning is active, else legacy scale label
+  const label = (drone.tuningId && TUNING_LABELS[drone.tuningId])
+    ? TUNING_LABELS[drone.tuningId]
+    : (SCALE_LABELS[drone.scale] ?? "DRONE");
+  return `${drone.root}${drone.octave} ${label}`;
 }
 
 function activeVoiceSummary(scene: PortableScene): string {
