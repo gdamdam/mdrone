@@ -214,6 +214,27 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     onPresetChange,
   });
 
+  // Progressive disclosure — collapsible sections. Default: collapsed.
+  // Persisted to localStorage so the user's layout survives reloads.
+  const DISCLOSURE_KEY = "mdrone-disclosure";
+  type Section = "timbre" | "controls" | "effects" | "climate";
+  const defaultDisclosure: Record<Section, boolean> = {
+    timbre: false, controls: false, effects: false, climate: false,
+  };
+  const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(DISCLOSURE_KEY);
+      return raw ? { ...defaultDisclosure, ...JSON.parse(raw) } : defaultDisclosure;
+    } catch { return defaultDisclosure; }
+  });
+  const toggle = (s: Section) => {
+    setDisclosed((prev) => {
+      const next = { ...prev, [s]: !prev[s] };
+      try { localStorage.setItem(DISCLOSURE_KEY, JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+  };
+
   // Active preset-group tab. The tab follows the active preset's group
   // when the preset changes (RND, continue-last-scene, shared link),
   // but stays put when the user manually clicks a different tab to
@@ -417,7 +438,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </div>
 
           <div className="preset-timbre-col">
-            <div className="panel-label">TIMBRE · tap to layer</div>
+            <button className="disclosure-toggle" onClick={() => toggle("timbre")}>
+              <span className="disclosure-arrow">{disclosed.timbre ? "▾" : "▸"}</span>
+              TIMBRE
+            </button>
+            {disclosed.timbre && (<>
             <div className="panel-hint">Voice models — combine for texture</div>
             <div className="timbre-grid">
               {VOICES.map((v) => (
@@ -432,7 +457,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 </button>
               ))}
             </div>
-            {/* Per-layer level sliders — only shown for active layers. */}
             <div className="layer-levels">
               {VOICES.map((v) => state.voiceLayers[v.id] && (
                 <div key={v.id} className="layer-level-row">
@@ -447,7 +471,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
                 </div>
               ))}
-              {/* PLUCK — tanpura-only, shown when tanpura layer is active */}
               {state.voiceLayers.tanpura && (
                 <div className="layer-level-row">
                   <span className="layer-level-label">PLUCK</span>
@@ -463,16 +486,22 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                       engine?.setTanpuraPluckRate(v);
                     }}
                     className="macro-slider"
-                    title="Tanpura re-pluck rate. 0.2× = ~15 s between strings (very slow), 1× = traditional ~3 s cycle, 4× = rapid plucking."
+                    title="Tanpura re-pluck rate."
                   />
                   <span className="layer-level-value">{state.pluckRate.toFixed(1)}×</span>
                 </div>
               )}
             </div>
+            </>)}
           </div>
         </div>
 
-        {/* Row 3 — MORPH/EVOLVE/PLUCK · MACROS · LFO */}
+        {/* Row 3 — MORPH/EVOLVE · MACROS · LFO — collapsible */}
+        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("controls")}>
+          <span className="disclosure-arrow">{disclosed.controls ? "▾" : "▸"}</span>
+          CONTROLS · morph · macros · lfo
+        </button>
+        {disclosed.controls && (
         <div className="preset-row-3">
           <div className="preset-controls-col">
             <div className="panel-hint">Transition speed + self-evolution</div>
@@ -595,15 +624,25 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             />
           </div>
         </div>
+        )}
       </div>
 
-      {/* ── Right column: large climate XY surface + effects ───── */}
+      {/* ── Effects + Climate — collapsible ───── */}
       <div className="drone-right">
-        {/* Effects chain — mpump-kaos-style toggle row above the XY pad */}
-        <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
+        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("effects")}>
+          <span className="disclosure-arrow">{disclosed.effects ? "▾" : "▸"}</span>
+          EFFECTS · serial chain
+        </button>
+        {disclosed.effects && (
+          <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
+        )}
 
+        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("climate")}>
+          <span className="disclosure-arrow">{disclosed.climate ? "▾" : "▸"}</span>
+          CLIMATE · XY surface
+        </button>
+        {disclosed.climate && (
         <div className="panel climate-panel">
-          <div className="panel-label">CLIMATE</div>
           <div className="panel-hint">X: dark ↔ bright · Y: still ↔ motion</div>
           <div
             ref={xyRef}
@@ -625,6 +664,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             <span className="climate-axis climate-axis-y-bot">STILL</span>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

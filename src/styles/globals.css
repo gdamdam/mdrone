@@ -964,6 +964,39 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-bottom: 10px;
 }
 
+/* Disclosure toggles — collapsible section headers */
+.disclosure-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 4px 2px;
+  transition: color 0.12s;
+}
+.disclosure-toggle:hover {
+  color: var(--preview);
+}
+.disclosure-toggle-wide {
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 2px;
+  border-top: 1px solid color-mix(in srgb, var(--preview) 10%, var(--border));
+}
+.disclosure-arrow {
+  font-size: 11px;
+  width: 12px;
+  text-align: center;
+  color: var(--preview);
+  opacity: 0.7;
+}
+
 .panel-hint {
   font-size: 8px;
   color: var(--text-dim);
