@@ -5,8 +5,10 @@
  * one per effect, each with an SVG icon and a name. Click to flip the
  * effect on/off. Active effects are lit with the ember accent.
  *
- * Fixed signal order (matches FxChain):
- *   TAPE · WOW · PLATE · HALL · SHIMMER · DELAY · SUB · COMB · FREEZE
+ * Signal order is imported from the engine's canonical EFFECT_ORDER —
+ * this component never defines its own ordering. The numeric badges
+ * on lit buttons and the active-chain preview both derive from the
+ * same array, so the UI can never drift from real DSP order.
  *
  * No per-effect parameter modal in the prototype — each effect is a
  * plain on/off with sensible defaults.
@@ -14,7 +16,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
-import type { EffectId } from "../engine/FxChain";
+import { EFFECT_ORDER, type EffectId } from "../engine/FxChain";
 import { FxModal } from "./FxModal";
 
 /** Long-press duration (ms) before a button opens the settings modal. */
@@ -29,95 +31,83 @@ interface FxBarProps {
 }
 
 interface FxDef {
-  id: EffectId;
   label: string;
   hint: string;
   icon: React.ReactNode;
 }
 
-// Serial chain order. Matches the signal flow in FxChain:
-//   tape → wow → sub → comb → delay → plate → hall → shimmer → freeze
-// Tone shaping → harmonic coloration → time delay → spatial reverbs → capture.
-const FX_DEFS: FxDef[] = [
-  {
-    id: "tape",
+/**
+ * Per-effect presentation metadata. Keyed by EffectId — intentionally
+ * NOT an ordered array, so nobody can accidentally introduce a second
+ * ordering. Render order always comes from EFFECT_ORDER.
+ */
+const FX_DEFS: Record<EffectId, FxDef> = {
+  tape: {
     label: "TAPE",
     hint: "Tape saturation + high-end rolloff. Warm analog colour on the whole signal",
     icon: <IconTape />,
   },
-  {
-    id: "wow",
+  wow: {
     label: "WOW",
     hint: "Wow & flutter — slow pitch wobble (0.55 Hz) + fast flutter (6.2 Hz). Basinski/Grouper instability",
     icon: <IconWow />,
   },
-  {
-    id: "sub",
+  sub: {
     label: "SUB",
     hint: "Sub harmonic enhancer — psychoacoustic bass bloom (bandpass → saturation → lowpass)",
     icon: <IconSubFx />,
   },
-  {
-    id: "comb",
+  comb: {
     label: "COMB",
     hint: "Resonant comb filter tuned to the drone root. Adds a pitched metallic ring",
     icon: <IconComb />,
   },
-  {
-    id: "delay",
-    label: "DELAY",
-    hint: "Tape delay — warm feedback with saturation in the loop",
-    icon: <IconDelay />,
-  },
-  {
-    id: "plate",
-    label: "PLATE",
-    hint: "Plate reverb — short, dense, metallic tail (EMT-140-style)",
-    icon: <IconPlate />,
-  },
-  {
-    id: "hall",
-    label: "HALL",
-    hint: "Hall reverb — long, airy, with pre-delay. Cathedral space",
-    icon: <IconHall />,
-  },
-  {
-    id: "shimmer",
-    label: "SHIMMER",
-    hint: "Shimmer reverb — bright highpassed tail. Pairs with the SHIMMER macro for Eno-style clouds",
-    icon: <IconShimmerFx />,
-  },
-  {
-    id: "freeze",
-    label: "FREEZE",
-    hint: "Freeze — captures the current moment as a self-sustaining loop. Toggle off to decay",
-    icon: <IconFreeze />,
-  },
-  {
-    id: "cistern",
-    label: "CISTERN",
-    hint: "Cistern reverb — 28-second exponential tail. Fort Worden / cathedral space. Used by Deep Listening",
-    icon: <IconCistern />,
-  },
-  {
-    id: "granular",
-    label: "GRAIN",
-    hint: "Granular tail processor — grain-cloud texture on the incoming signal. Used by Köner, Hecker, Fennesz, Basinski",
-    icon: <IconGranular />,
-  },
-  {
-    id: "ringmod",
+  ringmod: {
     label: "RING",
     hint: "Ring modulator — input × fixed sine carrier (~80 Hz). Inharmonic scrape / industrial coloration. Coil, NWW, tape-era noise",
     icon: <IconRingmod />,
   },
-  {
-    id: "formant",
+  formant: {
     label: "FORMANT",
     hint: "Vocal formant bank — three resonant bandpasses at neutral 'ah' vowel formants. Adds human vocal character to any voice",
     icon: <IconFormant />,
   },
-];
+  delay: {
+    label: "DELAY",
+    hint: "Tape delay — warm feedback with saturation in the loop",
+    icon: <IconDelay />,
+  },
+  plate: {
+    label: "PLATE",
+    hint: "Plate reverb — short, dense, metallic tail (EMT-140-style)",
+    icon: <IconPlate />,
+  },
+  hall: {
+    label: "HALL",
+    hint: "Hall reverb — long, airy, with pre-delay. Cathedral space",
+    icon: <IconHall />,
+  },
+  shimmer: {
+    label: "SHIMMER",
+    hint: "Shimmer reverb — bright highpassed tail. Pairs with the SHIMMER macro for Eno-style clouds",
+    icon: <IconShimmerFx />,
+  },
+  freeze: {
+    label: "FREEZE",
+    hint: "Freeze — captures the current moment as a self-sustaining loop. Toggle off to decay",
+    icon: <IconFreeze />,
+  },
+  cistern: {
+    label: "CISTERN",
+    hint: "Cistern reverb — 28-second exponential tail. Fort Worden / cathedral space. Used by Deep Listening",
+    icon: <IconCistern />,
+  },
+  granular: {
+    label: "GRAIN",
+    hint: "Granular tail processor — grain-cloud texture on the incoming signal. Used by Köner, Hecker, Fennesz, Basinski",
+    icon: <IconGranular />,
+  },
+};
 
 export function FxBar({ engine, states, onToggle }: FxBarProps) {
   const [modalFx, setModalFx] = useState<EffectId | null>(null);
@@ -153,48 +143,59 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
     onToggle(id);
   }, [onToggle]);
 
-  // Running position in the active chain — shown on lit buttons so you
-  // can see at a glance in what order the enabled effects process.
-  let activeIdx = 0;
-  const activePositions: Record<EffectId, number | null> = {
-    tape: null, wow: null, sub: null, comb: null,
-    delay: null, plate: null, hall: null, shimmer: null, freeze: null,
-    cistern: null, granular: null, ringmod: null, formant: null,
-  };
-  for (const fx of FX_DEFS) {
-    if (states[fx.id]) {
-      activeIdx += 1;
-      activePositions[fx.id] = activeIdx;
-    }
-  }
+  // Derive the active chain (enabled effects in DSP order) once per
+  // render from the engine's canonical EFFECT_ORDER. The numeric
+  // badges on lit buttons and the preview row below both read from
+  // this same list, so they are guaranteed to agree with each other
+  // and with actual DSP routing.
+  const activeChain: EffectId[] = EFFECT_ORDER.filter((id) => states[id]);
+  const activePositions: Partial<Record<EffectId, number>> = {};
+  activeChain.forEach((id, i) => { activePositions[id] = i + 1; });
 
   return (
     <div className="panel fx-bar-panel">
       <div className="panel-label">EFFECTS · click = toggle · hold = configure</div>
-      <div className="panel-hint">Serial chain — signal flows left → right through each enabled effect</div>
-      <div className="fx-chain-flow" title="Signal flows left → right through each enabled effect in turn">
-        {FX_DEFS.map((fx, i) => (
-          <span key={fx.id} className={states[fx.id] ? "fx-chain-step fx-chain-step-on" : "fx-chain-step"}>
-            {i > 0 && <span className="fx-chain-arrow">▸</span>}
-            {fx.label}
-          </span>
-        ))}
-      </div>
+      {/* Active-chain preview — the only place where order is
+          communicated visually. The grid below is just a toggle
+          surface; reading order off its wrapping rows would be
+          misleading, so the numeric badges on lit buttons and this
+          linear preview are the authoritative cues. */}
+      {activeChain.length > 0 ? (
+        <div
+          className="fx-chain-flow"
+          title="Enabled effects in DSP processing order"
+        >
+          {activeChain.map((id, i) => (
+            <span key={id} className="fx-chain-step fx-chain-step-on">
+              {i > 0 && <span className="fx-chain-arrow">→</span>}
+              <span className="fx-chain-step-num">{i + 1}</span>
+              {FX_DEFS[id].label}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="panel-hint">No effects active — tap a button below to add one to the chain</div>
+      )}
       <div className="fx-bar">
-        {FX_DEFS.map((fx, i) => {
-          const pos = activePositions[fx.id];
+        {EFFECT_ORDER.map((id) => {
+          const fx = FX_DEFS[id];
+          const pos = activePositions[id];
           return (
             <button
-              key={fx.id}
-              onClick={() => handleClick(fx.id)}
-              onPointerDown={() => handlePointerDown(fx.id)}
+              key={id}
+              onClick={() => handleClick(id)}
+              onPointerDown={() => handlePointerDown(id)}
               onPointerUp={cancelLongPress}
               onPointerLeave={cancelLongPress}
               onPointerCancel={cancelLongPress}
-              className={states[fx.id] ? "fx-btn fx-btn-active" : "fx-btn"}
-              title={`${fx.hint}${"\n\n"}Chain slot #${i + 1}. Long-press for settings.`}
+              className={states[id] ? "fx-btn fx-btn-active" : "fx-btn"}
+              title={
+                pos !== undefined
+                  ? `${fx.hint}\n\nActive chain position: ${pos} of ${activeChain.length}. Long-press for settings.`
+                  : `${fx.hint}\n\nInactive — long-press for settings.`
+              }
             >
-              <span className="fx-btn-num" aria-hidden="true">{pos ?? i + 1}</span>
+              <span className="fx-btn-num" aria-hidden="true">{pos ?? ""}</span>
               <span className="fx-btn-icon">{fx.icon}</span>
               <span className="fx-btn-label">{fx.label}</span>
             </button>

@@ -1843,31 +1843,52 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   opacity: 0.9;
 }
 
+/* Active-chain preview row — the authoritative cue for DSP order.
+ * Only renders enabled effects, in the engine's canonical order,
+ * each prefixed with its 1-indexed position. The grid below is just
+ * a toggle surface and must never be read as the signal order. */
 .fx-chain-flow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 4px;
-  font-size: 9px;
-  font-weight: 700;
+  gap: 4px 6px;
+  font-size: 10px;
+  font-weight: 800;
   letter-spacing: 0.8px;
-  color: var(--text-dim);
-  padding: 4px 2px 8px;
+  color: var(--preview);
+  padding: 4px 2px 10px;
 }
 
 .fx-chain-step {
-  opacity: 0.45;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .fx-chain-step-on {
   color: var(--preview);
-  opacity: 1;
+}
+
+.fx-chain-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--preview) 18%, var(--bg-cell));
+  border: 1px solid color-mix(in srgb, var(--preview) 40%, var(--border));
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--preview);
+  margin-right: 3px;
 }
 
 .fx-chain-arrow {
-  margin: 0 4px 0 0;
-  color: var(--text-dim);
-  opacity: 0.5;
+  margin: 0 2px;
+  color: color-mix(in srgb, var(--preview) 55%, var(--text-dim));
+  opacity: 0.85;
 }
 
 /* ── Fx settings modal ────────────────────────────────────────────── */
@@ -1928,6 +1949,42 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .fx-modal-close:hover {
   color: var(--text);
   border-color: var(--preview);
+}
+
+.fx-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fx-modal-help {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  color: var(--preview);
+  border: 1px solid color-mix(in srgb, var(--preview) 35%, var(--border));
+  font-size: 13px;
+  font-weight: 900;
+}
+.fx-modal-help:hover {
+  background: color-mix(in srgb, var(--preview) 14%, var(--bg-cell));
+  border-color: var(--preview);
+}
+
+/* Help modal is wider and scrollable since it carries more prose
+ * than the parameter-focused fx modals. */
+.help-modal {
+  max-width: 560px;
+}
+.help-modal .help-modal-body {
+  max-height: 62vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.help-modal a {
+  color: var(--preview);
+  text-decoration: underline;
 }
 
 .fx-modal-viz {

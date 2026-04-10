@@ -4,6 +4,7 @@ import { APP_VERSION } from "../config";
 import { resetAllLocalStorage, type SavedSession } from "../session";
 import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
+import { HelpModal } from "./HelpModal";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 const PITCH_CLASSES: PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -142,6 +143,7 @@ export function Header({
   // Volume shares the mixer VOL strip range (0..1.5). % is of the 0..1.5 span.
   const volPct = Math.round((volume / 1.5) * 100);
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   useEffect(() => {
     if (!sessionOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSessionOpen(false); };
@@ -316,13 +318,23 @@ export function Header({
           <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
             <div className="fx-modal-header">
               <div className="fx-modal-title">Settings</div>
-              <button
-                className="fx-modal-close"
-                onClick={() => setSessionOpen(false)}
-                title="Close (Esc)"
-              >
-                ×
-              </button>
+              <div className="fx-modal-header-actions">
+                <button
+                  className="fx-modal-help"
+                  onClick={() => setHelpOpen(true)}
+                  title="Open help"
+                  aria-label="Open help"
+                >
+                  ?
+                </button>
+                <button
+                  className="fx-modal-close"
+                  onClick={() => setSessionOpen(false)}
+                  title="Close (Esc)"
+                >
+                  ×
+                </button>
+              </div>
             </div>
             <p className="fx-modal-desc">
               Current: <strong>{currentSessionName}</strong>
@@ -433,6 +445,8 @@ export function Header({
           </div>
         </div>
       )}
+
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
     </header>
   );
 }

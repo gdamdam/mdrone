@@ -1,9 +1,12 @@
 /**
  * FxChain — a TRUE serial effect chain for the drone bus.
  *
- * Signal flow (fixed order):
+ * Signal flow (fixed order — see EFFECT_ORDER below for the canonical
+ * definition; the chain is wired directly from that array so this
+ * comment can never drift):
  *
- *   input → TAPE → WOW → SUB → COMB → DELAY → PLATE → HALL → SHIMMER → FREEZE → dryOut
+ *   input → TAPE → WOW → SUB → COMB → RINGMOD → FORMANT → DELAY
+ *         → PLATE → HALL → SHIMMER → FREEZE → CISTERN → GRANULAR → dryOut
  *
  * Every effect is wrapped in a "wet/bypass crossfade insert": when it
  * is off, its `bypassGain` is 1 and `wetGain` is 0, so the block passes
@@ -41,11 +44,18 @@ export type EffectId =
   | "ringmod"
   | "formant";
 
-/** Fixed serial-chain order. Must match FxBar.tsx's FX_DEFS order. */
-const ALL_EFFECTS: EffectId[] = [
+/**
+ * Canonical serial-chain order. **This is the single source of truth
+ * for effect ordering** — the serial chain is wired from this array
+ * (see constructor) and the UI (FxBar.tsx) imports it to render
+ * buttons, the active-chain preview, and the numeric badges. Do not
+ * duplicate this list; if you need the order in another file, import
+ * it from here.
+ */
+export const EFFECT_ORDER: readonly EffectId[] = [
   "tape", "wow", "sub", "comb", "ringmod", "formant", "delay",
   "plate", "hall", "shimmer", "freeze", "cistern", "granular",
-];
+] as const;
 
 /** Base crossfade time-constant for the bypass/wet toggle. Scaled
  *  at runtime by the MORPH slider via setMorph() — at MORPH=0 the
@@ -169,15 +179,16 @@ export class FxChain {
       formant: makeInsert(),
     };
 
-    // Chain inserts in ALL_EFFECTS order, ending with the last one
-    // feeding dryOut.
-    this.input.connect(this.inserts[ALL_EFFECTS[0]].insertIn);
-    for (let i = 0; i < ALL_EFFECTS.length - 1; i++) {
-      this.inserts[ALL_EFFECTS[i]].insertOut.connect(
-        this.inserts[ALL_EFFECTS[i + 1]].insertIn,
+    // Chain inserts in EFFECT_ORDER, ending with the last one feeding
+    // dryOut. This is the one place that wires the DSP order — the
+    // UI derives its view from the same exported array.
+    this.input.connect(this.inserts[EFFECT_ORDER[0]].insertIn);
+    for (let i = 0; i < EFFECT_ORDER.length - 1; i++) {
+      this.inserts[EFFECT_ORDER[i]].insertOut.connect(
+        this.inserts[EFFECT_ORDER[i + 1]].insertIn,
       );
     }
-    this.inserts[ALL_EFFECTS[ALL_EFFECTS.length - 1]].insertOut.connect(this.dryOut);
+    this.inserts[EFFECT_ORDER[EFFECT_ORDER.length - 1]].insertOut.connect(this.dryOut);
 
     this.wireTape();
     this.wireWow();
@@ -701,7 +712,7 @@ export class FxChain {
   }
 
   restoreEnabledEffects(): void {
-    for (const id of ALL_EFFECTS) {
+    for (const id of EFFECT_ORDER) {
       if (this.enabled[id]) this.setEffect(id, true);
     }
   }
@@ -831,6 +842,4 @@ export class FxChain {
     }
     return curve;
   }
-
-  static readonly ALL: readonly EffectId[] = ALL_EFFECTS;
 }
