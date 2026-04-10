@@ -73,10 +73,14 @@ export async function encodeScenePayload(scene: PortableScene): Promise<{ key: "
   return { key: "b", value: bytesToUrlSafeB64(bytes) };
 }
 
+/** The share-card worker origin. Shared links route through it so
+ *  social-platform unfurl bots see OG meta + card art. The worker
+ *  then meta-redirects humans to the app origin. */
+const SHARE_WORKER_ORIGIN = "https://sd.mpump.live";
+
 export async function buildSceneShareUrl(scene: PortableScene): Promise<string> {
   const { key, value } = await encodeScenePayload(scene);
-  const base = `${window.location.origin}${window.location.pathname}`;
-  return `${base}?${key}=${value}`;
+  return `${SHARE_WORKER_ORIGIN}/?${key}=${value}`;
 }
 
 export function extractScenePayloadFromUrl(url: string | URL): { payload: string; compressed: boolean } | null {
