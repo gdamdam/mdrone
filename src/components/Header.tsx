@@ -184,34 +184,35 @@ export function Header({
         </div>
 
         <button
-          className={isRec ? "header-btn header-btn-rec" : "header-btn"}
+          className={`header-btn header-btn-record${isRec ? " header-btn-rec" : ""}`}
           onClick={onToggleRec}
           title={recordingTitle}
           disabled={!recordingSupported || recordingBusy}
         >
-          {!recordingSupported
-            ? "REC N/A"
-            : recordingBusy
-              ? "REC..."
-              : isRec
-            ? `■ ${Math.floor(recTimeMs / 60000)}:${String(
-                Math.floor((recTimeMs / 1000) % 60)
-              ).padStart(2, "0")}`
-            : "● REC"}
-        </button>
-        <button
-          className="header-btn header-btn-panic"
-          onClick={onPanic}
-          title="Panic — stop the drone and kill any lingering reverb/delay tails. Standard MIDI-style emergency silence."
-        >
-          P
+          {/* Desktop label — hidden on mobile via CSS */}
+          <span className="header-btn-label-full">
+            {!recordingSupported
+              ? "REC N/A"
+              : recordingBusy
+                ? "REC..."
+                : isRec
+              ? `■ ${Math.floor(recTimeMs / 60000)}:${String(
+                  Math.floor((recTimeMs / 1000) % 60)
+                ).padStart(2, "0")}`
+              : "● REC"}
+          </span>
+          {/* Mobile single-char glyph — hidden on desktop */}
+          <span className="header-btn-label-glyph" aria-hidden="true">
+            {!recordingSupported ? "●" : recordingBusy ? "…" : isRec ? "■" : "●"}
+          </span>
         </button>
         <button
           className="header-btn header-btn-share"
           onClick={onOpenShare}
           title="Share the current drone landscape as a link"
         >
-          ⤴ SHARE
+          <span className="header-btn-label-full">⤴ SHARE</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">⤴</span>
         </button>
 
         <div className="header-center">
@@ -225,7 +226,8 @@ export function Header({
           onClick={onRandomScene}
           title="Load a gentle random scene variation"
         >
-          RND
+          <span className="header-btn-label-full">RND</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">🎲</span>
         </button>
         <button
           className="header-btn header-btn-undo"
@@ -251,7 +253,15 @@ export function Header({
           onClick={() => setVolumeOpen(true)}
           title={`Master volume: ${volPct}% — click to adjust`}
         >
-          VOL {volPct}
+          <span className="header-btn-label-full">VOL {volPct}</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">VOL</span>
+        </button>
+        <button
+          className="header-btn header-btn-panic"
+          onClick={onPanic}
+          title="Panic — stop the drone and kill any lingering reverb/delay tails. Standard MIDI-style emergency silence."
+        >
+          P
         </button>
         <button
           className="header-btn header-btn-menu"

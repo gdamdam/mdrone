@@ -812,6 +812,13 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   min-width: 64px;
 }
 
+/* Dual-label spans: desktop shows the full label, mobile shows a
+ * single-char glyph. The mobile media query (see max-width: 620px)
+ * flips which is visible. */
+.header-btn-label-full  { display: inline; }
+.header-btn-label-glyph { display: none; }
+
+
 .header-btn-rec {
   background: var(--record);
   color: #000;
@@ -949,14 +956,27 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-btn-random  { order: 3; }
   .header-btn-undo    { order: 4; }
 
-  /* Row 2 */
-  .header-btn-rec     { order: 6; }
-  .header-btn-share   { order: 7; }
+  /* Row 2: [ VOL ][ ● REC ][ ■ HOLD ][ Hz ][ ⤴ SHARE ][ P ][ ⚙ ] */
+  .header-btn-volume  { order: 6; min-width: auto; padding: 4px 6px; font-size: 10px; font-weight: 800; line-height: 1; letter-spacing: 0.3px; }
+  .header-btn-record  { order: 7; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; letter-spacing: 0; }
   .header-hold-btn    { order: 8; min-width: 72px; }
   .header-freq        { order: 9; }
-  .header-btn-volume  { order: 10; }
+  .header-btn-share   { order: 10; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; letter-spacing: 0; }
   .header-btn-panic   { order: 11; }
   .header-btn-menu    { order: 12; min-width: auto; padding: 6px 10px; }
+
+  /* Swap the desktop label for the single-char glyph on mobile for
+   * the REC and RND buttons. The component renders both spans and we
+   * show exactly one per breakpoint. */
+  .header-btn-label-full  { display: none; }
+  .header-btn-label-glyph { display: inline; }
+
+  .header-btn-random {
+    min-width: auto;
+    padding: 4px 8px;
+    font-size: 14px;
+    line-height: 1;
+  }
 
   /* Compact the view-toggle so it leaves room for the marquee on row 1 */
   .view-toggle .view-btn {
