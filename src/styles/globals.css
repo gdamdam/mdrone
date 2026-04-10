@@ -1217,6 +1217,34 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   outline: none;
 }
 
+.intonation-offsets {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.intonation-offset-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.intonation-offset-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.3px;
+}
+
+.intonation-offset-value {
+  color: var(--preview);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Timbre grid — 3 columns × 2 rows of voice buttons */
 .timbre-grid {
   display: grid;

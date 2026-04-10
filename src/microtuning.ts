@@ -44,6 +44,10 @@ export interface Relation {
   picks: readonly number[];
 }
 
+export const DEGREE_LABELS: readonly string[] = [
+  "P1", "m2", "M2", "m3", "M3", "P4", "TT", "P5", "m6", "M6", "m7", "M7", "P8",
+];
+
 // ── Tuning tables ────────────────────────────────────────────────────
 
 export const TUNINGS: readonly TuningTable[] = [
@@ -144,6 +148,20 @@ export function resolveTuning(tuningId: TuningId, relationId: RelationId): numbe
   return relation.picks.map((idx) => tuning.degrees[idx] ?? 0);
 }
 
+export function relationLabels(relationId: RelationId): string[] {
+  return relationById(relationId).picks.map((idx) => DEGREE_LABELS[idx] ?? `#${idx}`);
+}
+
+function applyFineTuneOffsets(intervals: readonly number[], offsets?: readonly number[]): number[] {
+  return intervals.map((interval, index) => {
+    if (index === 0) return 0;
+    const offset = typeof offsets?.[index] === "number"
+      ? Math.max(-25, Math.min(25, offsets[index]!))
+      : 0;
+    return interval + offset;
+  });
+}
+
 // ── Valid-ID sets (for normalization) ────────────────────────────────
 
 export const TUNING_IDS: readonly TuningId[] = TUNINGS.map((t) => t.id);
@@ -164,9 +182,13 @@ export function resolveIntervals(state: {
   scale: ScaleId;
   tuningId?: TuningId | null;
   relationId?: RelationId | null;
+  fineTuneOffsets?: readonly number[];
 }, scaleIntervalsFallback: (scaleId: ScaleId) => number[]): number[] {
   if (state.tuningId && state.relationId) {
-    return resolveTuning(state.tuningId, state.relationId);
+    return applyFineTuneOffsets(
+      resolveTuning(state.tuningId, state.relationId),
+      state.fineTuneOffsets,
+    );
   }
   return scaleIntervalsFallback(state.scale);
 }

@@ -1597,6 +1597,7 @@ export function createPresetVariation(
     scale: preset.scale,
     tuningId: preset.tuningId ?? null,
     relationId: preset.relationId ?? null,
+    fineTuneOffsets: [],
     voiceLayers,
     voiceLevels,
     effects,
@@ -1662,6 +1663,7 @@ export interface PresetUiSetters {
   setScale: (s: ScaleId) => void;
   setTuning: (id: TuningId | null) => void;
   setRelation: (id: RelationId | null) => void;
+  setFineTuneOffsets: (offsets: number[]) => void;
   setEffectEnabled: (id: EffectId, on: boolean) => void;
 }
 
@@ -1720,6 +1722,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   ui.setScale(preset.scale);
   ui.setTuning(preset.tuningId ?? null);
   ui.setRelation(preset.relationId ?? null);
+  ui.setFineTuneOffsets([]);
 
   const intervals = (preset.tuningId && preset.relationId)
     ? resolveTuning(preset.tuningId, preset.relationId)

@@ -59,6 +59,7 @@ export function resolveIntervals(state: {
   scale: ScaleId;
   tuningId?: TuningId | null;
   relationId?: RelationId | null;
+  fineTuneOffsets?: readonly number[];
 }): number[] {
   return resolveIntervalsCore(state, (id) => scaleById(id).intervalsCents);
 }
@@ -74,6 +75,7 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
     scale: "drone",
     tuningId: null,
     relationId: null,
+    fineTuneOffsets: [],
     voiceLayers: engine?.getVoiceLayers() ?? {
       tanpura: true,
       reed: false,
@@ -132,6 +134,7 @@ export type LiveDroneSceneAction =
   | { type: "setScale"; scale: ScaleId }
   | { type: "setTuning"; tuningId: TuningId | null }
   | { type: "setRelation"; relationId: RelationId | null }
+  | { type: "setFineTuneOffsets"; fineTuneOffsets: number[] }
   | { type: "setPlaying"; playing: boolean }
   | { type: "setVoiceLayer"; voiceType: VoiceType; on: boolean }
   | { type: "setVoiceLevel"; voiceType: VoiceType; level: number }
@@ -152,9 +155,11 @@ export function liveDroneSceneReducer(
     case "setScale":
       return { ...state, scale: action.scale };
     case "setTuning":
-      return { ...state, tuningId: action.tuningId };
+      return { ...state, tuningId: action.tuningId, fineTuneOffsets: [] };
     case "setRelation":
-      return { ...state, relationId: action.relationId };
+      return { ...state, relationId: action.relationId, fineTuneOffsets: [] };
+    case "setFineTuneOffsets":
+      return { ...state, fineTuneOffsets: [...action.fineTuneOffsets] };
     case "setPlaying":
       return { ...state, playing: action.playing };
     case "setVoiceLayer":

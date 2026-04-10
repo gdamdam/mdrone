@@ -134,6 +134,11 @@ function normalizeScene(decoded: unknown): PortableScene {
   const relationId = (allowedRelations as readonly string[]).includes(droneIn.relationId as string)
     ? (droneIn.relationId as (typeof allowedRelations)[number])
     : null;
+  const fineTuneOffsets = Array.isArray(droneIn.fineTuneOffsets)
+    ? droneIn.fineTuneOffsets
+      .slice(0, 12)
+      .map((value) => num(value, 0, -25, 25))
+    : [];
   const allowedPalettes = ["ember", "copper", "dusk"] as const;
   const paletteId = (allowedPalettes as readonly string[]).includes(uiIn.paletteId as string)
     ? (uiIn.paletteId as (typeof allowedPalettes)[number])
@@ -161,6 +166,7 @@ function normalizeScene(decoded: unknown): PortableScene {
       scale,
       tuningId,
       relationId,
+      fineTuneOffsets,
       voiceLayers: {
         tanpura: bool(vLayersIn.tanpura, true),
         reed: bool(vLayersIn.reed, false),

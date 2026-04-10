@@ -54,6 +54,10 @@ export function useDroneScene({
     dispatch({ type: "setRelation", relationId });
   }, []);
 
+  const setFineTuneOffsets = useCallback((fineTuneOffsets: number[]) => {
+    dispatch({ type: "setFineTuneOffsets", fineTuneOffsets });
+  }, []);
+
   const setPlaying = useCallback((playing: boolean) => {
     dispatch({ type: "setPlaying", playing });
   }, []);
@@ -234,8 +238,8 @@ export function useDroneScene({
   // fires, its engine.startDrone call + didAutostartRef set will
   // pre-empt us so we don't double-start.
   // Derived intervals — depends only on scale + microtuning fields.
-  const { scale, tuningId, relationId } = state;
-  const intervals = resolveIntervals({ scale, tuningId, relationId });
+  const { scale, tuningId, relationId, fineTuneOffsets } = state;
+  const intervals = resolveIntervals({ scale, tuningId, relationId, fineTuneOffsets });
 
   const didAutostartRef = useRef(false);
   useEffect(() => {
@@ -286,6 +290,7 @@ export function useDroneScene({
       setScale,
       setTuning,
       setRelation,
+      setFineTuneOffsets,
       setEffectEnabled,
     });
   }, [
@@ -307,6 +312,7 @@ export function useDroneScene({
     setScale,
     setTuning,
     setRelation,
+    setFineTuneOffsets,
     setEffectEnabled,
   ]);
 
@@ -419,10 +425,16 @@ export function useDroneScene({
     });
     if (!engine) return;
     const nextFreq = pitchToFreq(nextRoot, clampedOctave);
-    // Presets clear tuning/relation, so when a presetId is given the
-    // legacy scale path applies. Otherwise honour active microtuning.
-    engine.startDrone(nextFreq, resolveIntervals({ scale: nextScale, tuningId, relationId }));
-  }, [engine, handlePreset, scale, tuningId, relationId]);
+    const nextPreset = presetId
+      ? PRESETS.find((item) => item.id === presetId) ?? null
+      : null;
+    engine.startDrone(nextFreq, resolveIntervals({
+      scale: nextScale,
+      tuningId: nextPreset?.tuningId ?? tuningId,
+      relationId: nextPreset?.relationId ?? relationId,
+      fineTuneOffsets: nextPreset ? [] : fineTuneOffsets,
+    }));
+  }, [engine, handlePreset, scale, tuningId, relationId, fineTuneOffsets]);
 
   return {
     state,
@@ -432,6 +444,7 @@ export function useDroneScene({
     setScale,
     setTuning,
     setRelation,
+    setFineTuneOffsets,
     setPresetMorph,
     setPresetEvolve,
     setPluckRate,

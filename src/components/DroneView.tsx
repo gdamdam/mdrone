@@ -27,7 +27,7 @@ import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
 import { FxBar } from "./FxBar";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
-import { TUNINGS, RELATIONS } from "../microtuning";
+import { relationLabels, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
 import { useDroneScene } from "../scene/useDroneScene";
 
 /** Voice timbre list — each entry has an id, label, hint, and inline SVG.
@@ -189,6 +189,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setScale,
     setTuning,
     setRelation,
+    setFineTuneOffsets,
     setPresetMorph,
     setPresetEvolve,
     setPluckRate,
@@ -255,6 +256,22 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       ? tabOverride.group
       : presetGroupForActive;
   const visiblePresets = PRESETS.filter((p) => p.group === presetTab);
+  const microtunedBaseIntervals =
+    state.tuningId && state.relationId
+      ? resolveTuning(state.tuningId, state.relationId)
+      : [];
+  const microtunedLabels =
+    state.tuningId && state.relationId
+      ? relationLabels(state.relationId)
+      : [];
+  const fineDetuneRows = microtunedBaseIntervals
+    .map((base, index) => ({
+      index,
+      base,
+      label: microtunedLabels[index] ?? `INT ${index + 1}`,
+      offset: state.fineTuneOffsets[index] ?? 0,
+    }))
+    .filter((row) => row.index > 0);
 
   // Spacebar toggles HOLD — ignored while typing into an input/textarea
   useEffect(() => {
@@ -387,7 +404,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 className="intonation-select"
                 title="Tuning system — overrides scale intervals when both tuning and relation are set"
               >
-                <option value="">— Scale</option>
+                <option value="">— Tuning</option>
                 {TUNINGS.map((t) => (
                   <option key={t.id} value={t.id}>{t.label}</option>
                 ))}
@@ -404,6 +421,35 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 ))}
               </select>
             </div>
+            {fineDetuneRows.length > 0 && (
+              <div className="intonation-offsets">
+                <div className="panel-hint">DETUNE · active intervals in cents</div>
+                {fineDetuneRows.map((row) => (
+                  <label key={`${row.label}-${row.index}`} className="intonation-offset-row">
+                    <span className="intonation-offset-label">
+                      {row.label}
+                      <span className="intonation-offset-value">
+                        {row.offset >= 0 ? "+" : ""}{row.offset.toFixed(1)}c
+                      </span>
+                    </span>
+                    <input
+                      type="range"
+                      min={-25}
+                      max={25}
+                      step={0.5}
+                      value={row.offset}
+                      onChange={(e) => {
+                        const next = [...state.fineTuneOffsets];
+                        next[row.index] = parseFloat(e.target.value);
+                        setFineTuneOffsets(next);
+                      }}
+                      className="macro-slider"
+                      title={`${row.label} fine detune around ${row.base.toFixed(2)} cents`}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="preset-tonic-col">

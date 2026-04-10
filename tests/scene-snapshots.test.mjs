@@ -136,6 +136,7 @@ test("capturePortableScene packages drone, mixer, fx, and ui state", () => {
       scale: "minor",
       tuningId: null,
       relationId: null,
+      fineTuneOffsets: [],
       voiceLayers: { tanpura: true, reed: true, metal: false, air: false },
       voiceLevels: { tanpura: 1, reed: 0.5, metal: 0, air: 0 },
       effects: {

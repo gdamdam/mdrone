@@ -21,6 +21,7 @@ test("normalizePortableScene clamps and sanitizes decoded scene data", () => {
       scale: "mystery",
       tuningId: "bogus",
       relationId: "bogus",
+      fineTuneOffsets: [99, -40, "bad"],
       voiceLayers: { tanpura: true },
       voiceLevels: { tanpura: 5 },
       effects: { tape: true },
@@ -59,6 +60,7 @@ test("normalizePortableScene clamps and sanitizes decoded scene data", () => {
   assert.equal(scene.drone.scale, "dorian");
   assert.equal(scene.drone.tuningId, null);
   assert.equal(scene.drone.relationId, null);
+  assert.deepEqual(scene.drone.fineTuneOffsets, [25, -25, 0]);
   assert.equal(scene.drone.voiceLevels.tanpura, 1);
   assert.equal(scene.drone.climateX, 1);
   assert.equal(scene.drone.climateY, 0);
@@ -77,6 +79,7 @@ test("share codec round-trips a portable scene payload", async () => {
       scale: "drone",
       tuningId: "just5",
       relationId: "tonic-fifth",
+      fineTuneOffsets: [0, 4.5],
       voiceLayers: { tanpura: true, reed: false, metal: false, air: false },
       voiceLevels: { tanpura: 1, reed: 0, metal: 0, air: 0 },
       effects: {
@@ -149,6 +152,7 @@ test("share codec round-trips a portable scene payload", async () => {
   assert.equal(decoded.drone.root, "C");
   assert.equal(decoded.drone.tuningId, "just5");
   assert.equal(decoded.drone.relationId, "tonic-fifth");
+  assert.deepEqual(decoded.drone.fineTuneOffsets, [0, 4.5]);
   assert.equal(decoded.ui.visualizer, "mandala");
 });
 
@@ -170,6 +174,7 @@ test("autosaved scene round-trips through localStorage", () => {
       scale: "drone",
       tuningId: null,
       relationId: null,
+      fineTuneOffsets: [],
       voiceLayers: { tanpura: true, reed: false, metal: false, air: false },
       voiceLevels: { tanpura: 1, reed: 0, metal: 0, air: 0 },
       effects: {
@@ -272,6 +277,7 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
     setScale: (value) => { uiState.scale = value; },
     setTuning: (value) => { uiState.tuningId = value; },
     setRelation: (value) => { uiState.relationId = value; },
+    setFineTuneOffsets: (value) => { uiState.fineTuneOffsets = value; },
     setEffectEnabled: (id, on) => effectCalls.push([id, on]),
   });
 
@@ -288,6 +294,7 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   // Stars of the Lid is migrated to just5 + drone-triad
   assert.equal(uiState.tuningId, "just5");
   assert.equal(uiState.relationId, "drone-triad");
+  assert.deepEqual(uiState.fineTuneOffsets, []);
   // Engine intervals should be just5 drone-triad: [0, 386.31, 701.96]
   assert.deepEqual(engineState.intervals, [0, 386.31, 701.96]);
 });

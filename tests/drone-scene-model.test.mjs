@@ -61,6 +61,7 @@ test("createInitialDroneScene reads engine-backed defaults", () => {
   assert.equal(scene.climateX, 0.77);
   assert.equal(scene.lfoShape, "triangle");
   assert.equal(scene.presetTrim, 0.91);
+  assert.deepEqual(scene.fineTuneOffsets, []);
 });
 
 test("liveDroneSceneReducer updates focused scene slices", () => {
@@ -132,6 +133,16 @@ test("resolveIntervals uses tuning+relation when both present", () => {
   const intervals = resolveIntervals({ scale: "major", tuningId: "just5", relationId: "drone-triad" });
   // just5 drone-triad: [0, 386.31, 701.96] — different from equal major [0, 400, 700]
   assert.deepEqual(intervals, [0, 386.31, 701.96]);
+});
+
+test("resolveIntervals applies fine detune offsets only to non-root microtuned intervals", () => {
+  const intervals = resolveIntervals({
+    scale: "major",
+    tuningId: "just5",
+    relationId: "drone-triad",
+    fineTuneOffsets: [7, 5, -3],
+  });
+  assert.deepEqual(intervals, [0, 391.31, 698.96]);
 });
 
 test("resolveIntervals ignores partial tuning (only tuningId, no relationId)", () => {

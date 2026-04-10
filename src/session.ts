@@ -16,6 +16,9 @@ export interface DroneSessionSnapshot {
   tuningId: TuningId | null;
   /** Microtuning: interval-relation preset id. */
   relationId: RelationId | null;
+  /** Per-active-interval fine detune offsets in cents. Only applied when
+   *  both tuningId and relationId are set. Index 0 (root) is ignored. */
+  fineTuneOffsets: number[];
   voiceLayers: Record<VoiceType, boolean>;
   voiceLevels: Record<VoiceType, number>;
   effects: Record<EffectId, boolean>;
@@ -149,6 +152,7 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   scale: "dorian",
   tuningId: null,
   relationId: null,
+  fineTuneOffsets: [],
   voiceLayers: { tanpura: true, reed: false, metal: false, air: false, piano: false, fm: false, amp: false },
   voiceLevels: { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 },
   effects: {
@@ -282,6 +286,13 @@ function normalizeEffectLevels(value: unknown): Record<EffectId, number> {
   };
 }
 
+function normalizeFineTuneOffsets(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, 12)
+    .map((item) => readNumber(item, 0, -25, 25));
+}
+
 export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | null {
   if (!isRecord(value)) return null;
   return {
@@ -292,6 +303,7 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     scale: isOneOf(value.scale, SCALE_IDS) ? value.scale : DEFAULT_DRONE_SNAPSHOT.scale,
     tuningId: isOneOf(value.tuningId, TUNING_IDS) ? value.tuningId : null,
     relationId: isOneOf(value.relationId, RELATION_IDS) ? value.relationId : null,
+    fineTuneOffsets: normalizeFineTuneOffsets(value.fineTuneOffsets),
     voiceLayers: normalizeVoiceLayers(value.voiceLayers),
     voiceLevels: normalizeVoiceLevels(value.voiceLevels),
     effects: normalizeEffectStates(value.effects),
