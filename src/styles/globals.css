@@ -261,6 +261,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .vu-meter-canvas {
   display: block;
+  max-width: 100%;
+  height: auto;
   border: 1px solid color-mix(in srgb, var(--preview) 30%, var(--border));
   border-radius: 3px;
   background: color-mix(in srgb, var(--preview) 6%, var(--bg-cell));
@@ -1009,14 +1011,21 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* ── DroneView layout ─────────────────────────────────────────────── */
 .drone-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  /* minmax(0, 1fr) prevents the column from expanding past the viewport
+   * when a descendant has content that can't shrink (long preset names,
+   * wide select options, etc.) — without this, the preset panel gets
+   * pushed off-screen on mobile and clipped by body's overflow-x hidden. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+  min-width: 0;
 }
 
 .preset-panel-wide {
   width: min(100%, 980px);
+  max-width: 100%;
   justify-self: center;
+  min-width: 0;
 }
 
 .preset-vu {
@@ -1062,7 +1071,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 @media (max-width: 960px) {
   .preset-row-2,
   .preset-row-3 {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1449,6 +1458,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .preset-btn:hover {
