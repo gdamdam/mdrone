@@ -244,7 +244,6 @@ export function Header({
           <span className="header-hold-sub">{tonic}{octave}</span>
         </button>
         <div className="header-freq">
-          <span className="header-mini-label">HZ</span>
           <span className="header-freq-value">{freqHz.toFixed(1)} Hz</span>
         </div>
         <button

@@ -915,8 +915,54 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 @media (max-width: 620px) {
-  .header-hold-btn {
-    min-width: 124px;
+  /* Mobile header layout — two explicit rows:
+   *   Row 1: [ DRONE · MEDITATE · MIXER ][ marquee ][ RND ][ ↶ ]
+   *   Row 2: [ ● REC ][ P ][ ⤴ SHARE ][ ■ HOLD ][ HZ ][ VOL ][ ⚙ ]
+   *
+   * We flatten .header-center via display: contents so all its children
+   * become flex items of .header-row-main, then use `order` to build
+   * the two logical rows. A ::before pseudo with flex-basis: 100% acts
+   * as a forced line-break between them. */
+  .header-row-main {
+    flex-wrap: wrap;
+    gap: 6px;
+    row-gap: 8px;
+    align-items: center;
+  }
+
+  .header-center {
+    display: contents;
+  }
+
+  .header-row-main::before {
+    content: "";
+    order: 5;
+    flex-basis: 100%;
+    width: 100%;
+    height: 0;
+    margin: 0;
+  }
+
+  /* Row 1 */
+  .view-toggle        { order: 1; }
+  .header-display     { order: 2; flex: 1 1 0; width: auto; min-width: 120px; }
+  .header-btn-random  { order: 3; }
+  .header-btn-undo    { order: 4; }
+
+  /* Row 2 */
+  .header-btn-rec     { order: 6; }
+  .header-btn-share   { order: 7; }
+  .header-hold-btn    { order: 8; min-width: 72px; }
+  .header-freq        { order: 9; }
+  .header-btn-volume  { order: 10; }
+  .header-btn-panic   { order: 11; }
+  .header-btn-menu    { order: 12; min-width: auto; padding: 6px 10px; }
+
+  /* Compact the view-toggle so it leaves room for the marquee on row 1 */
+  .view-toggle .view-btn {
+    font-size: 9px;
+    padding: 4px 7px;
+    letter-spacing: 0.6px;
   }
 
   .header-session-name {
@@ -925,10 +971,6 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
   .header-select-session {
     width: 96px;
-  }
-
-  .header-display {
-    width: min(250px, 64vw);
   }
 }
 
