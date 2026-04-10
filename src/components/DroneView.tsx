@@ -214,21 +214,22 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     onPresetChange,
   });
 
-  // Active preset-group tab — defaults to the group of the active preset,
-  // or the first group if no preset is selected.
-  const activePresetGroup = state.activePresetId
-    ? PRESETS.find((p) => p.id === state.activePresetId)?.group ?? PRESET_GROUPS[0]
-    : PRESET_GROUPS[0];
-  const [presetTab, setPresetTab] = useState<PresetGroup>(activePresetGroup);
-  // Sync tab when the active preset changes externally (RND, continue
-  // last scene, shared link) so the tab always shows the active preset.
-  useEffect(() => {
-    if (!state.activePresetId) return;
-    const preset = PRESETS.find((p) => p.id === state.activePresetId);
-    if (preset && preset.group !== presetTab) {
-      setPresetTab(preset.group);
-    }
-  }, [state.activePresetId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Active preset-group tab. The tab follows the active preset's group
+  // when the preset changes (RND, continue-last-scene, shared link),
+  // but stays put when the user manually clicks a different tab to
+  // browse. Tracked via a ref to avoid the lint-fragile "setState
+  // inside useEffect" pattern.
+  const lastSyncedPresetRef = useRef<string | null>(null);
+  const [presetTab, setPresetTab] = useState<PresetGroup>(
+    () => (state.activePresetId
+      ? PRESETS.find((p) => p.id === state.activePresetId)?.group
+      : null) ?? PRESET_GROUPS[0],
+  );
+  if (state.activePresetId && state.activePresetId !== lastSyncedPresetRef.current) {
+    lastSyncedPresetRef.current = state.activePresetId;
+    const g = PRESETS.find((p) => p.id === state.activePresetId)?.group;
+    if (g && g !== presetTab) setPresetTab(g);
+  }
   const visiblePresets = PRESETS.filter((p) => p.group === presetTab);
 
   // Spacebar toggles HOLD — ignored while typing into an input/textarea

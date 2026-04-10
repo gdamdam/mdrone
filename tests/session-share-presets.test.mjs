@@ -239,6 +239,8 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
     setPresetTrim: (value) => { engineState.presetTrim = value; },
     setPresetMotionProfile: (value) => { engineState.motionProfile = value; },
     setPresetMaterialProfile: (value) => { engineState.materialProfile = value; },
+    setReedShape: (value) => { engineState.reedShape = value; },
+    setParallelSends: (value) => { engineState.parallelSends = value; },
     applyDroneScene: (layers, levels, intervals) => {
       engineState.layers = layers;
       engineState.levels = levels;
@@ -261,18 +263,16 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
     setEffectEnabled: (id, on) => effectCalls.push([id, on]),
   });
 
-  const totalActiveLevel =
-    uiState.voiceLevels.tanpura +
-    uiState.voiceLevels.metal +
-    uiState.voiceLevels.air;
-
-  assert.equal(uiState.voiceLayers.reed, false);
-  assert.ok(Math.abs(totalActiveLevel - 1.4) < 0.0001);
-  assert.ok(effectCalls.some(([id, on]) => id === "shimmer" && on === true));
+  // Stars of the Lid: reed(even) + air — no tanpura, no metal, no shimmer
+  assert.equal(uiState.voiceLayers.reed, true);
+  assert.equal(uiState.voiceLayers.tanpura, false);
+  assert.ok(uiState.voiceLevels.reed > 0.8);
+  assert.ok(effectCalls.some(([id, on]) => id === "tape" && on === true));
+  assert.ok(effectCalls.some(([id, on]) => id === "shimmer" && on === false));
   assert.ok(effectCalls.some(([id, on]) => id === "delay" && on === false));
   assert.equal(engineState.presetTrim, preset.gain);
-  assert.equal(engineState.motionProfile.tonicWalk, "gentle");
-  assert.ok(engineState.materialProfile.driftBias.metal > engineState.materialProfile.driftBias.air);
+  assert.equal(engineState.motionProfile.tonicWalk, "rare");
+  assert.equal(engineState.reedShape, "even");
 });
 
 test("preset motion profiles preserve anchored vs unstable evolve behavior", () => {
@@ -283,7 +283,7 @@ test("preset motion profiles preserve anchored vs unstable evolve behavior", () 
   assert.equal(dreamHouse.motionProfile.tonicWalk, "none");
   assert.equal(merzbient.motionProfile.tonicWalk, "restless");
   assert.ok(merzbient.motionProfile.macroStep > dreamHouse.motionProfile.macroStep);
-  assert.deepEqual(airport.motionProfile.tonicIntervals, [-2, 2, -5, 5]);
+  assert.deepEqual(airport.motionProfile.tonicIntervals, [-5, 5]);
 });
 
 test("preset material profiles distinguish stable tones from unstable weather", () => {
