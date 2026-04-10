@@ -613,11 +613,12 @@ const GRANULAR_MAX_GRAINS = 24;
 class FxGranularProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      // Drone-friendly defaults: long grains (0.6 s), sparse density
-      // (~2 grains/sec), narrow pitch spread. Higher density was
-      // creating rhythmic 8 Hz pumping when the original default was 8.
-      { name: "size",        defaultValue: 0.6,  minValue: 0.02, maxValue: 2.0, automationRate: "k-rate" },
-      { name: "density",     defaultValue: 2.2,  minValue: 0.3,  maxValue: 30,  automationRate: "k-rate" },
+      // Drone-friendly defaults: long grains (0.8 s), moderate density
+      // (~3.5 grains/sec = ~0.29 s interval). With 0.8 s grains, overlap
+      // is ~64% — enough that the flat-top trapezoid envelopes sum to
+      // near-constant amplitude with no wobble.
+      { name: "size",        defaultValue: 0.8,  minValue: 0.02, maxValue: 2.0, automationRate: "k-rate" },
+      { name: "density",     defaultValue: 3.5,  minValue: 0.3,  maxValue: 30,  automationRate: "k-rate" },
       { name: "pitchSpread", defaultValue: 0.08, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
       { name: "panSpread",   defaultValue: 0.55, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
       { name: "position",    defaultValue: 0.6,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
@@ -731,13 +732,20 @@ class FxGranularProcessor extends AudioWorkletProcessor {
       for (let gi = 0; gi < this.grains.length; gi++) {
         const g = this.grains[gi];
         if (!g.active) continue;
-        // Hann window envelope over g.len
+        // Trapezoid envelope: 10% fade-in, 80% sustain at unity, 10%
+        // fade-out. Hann windows cause amplitude scalloping at low
+        // density (~2 Hz wobble) because overlapping Hann lobes don't
+        // sum to constant. A flat-top trapezoid eliminates this — the
+        // sustained plateau means overlapping grains hold a steady level.
         const phase = g.age / g.len;
         if (phase >= 1) {
           g.active = false;
           continue;
         }
-        const env = 0.5 * (1 - Math.cos(2 * Math.PI * phase));
+        const fadeIn = 0.1, fadeOut = 0.9;
+        const env = phase < fadeIn ? phase / fadeIn
+                  : phase > fadeOut ? (1 - phase) / (1 - fadeOut)
+                  : 1;
 
         // Read sample at g.pos with linear interpolation
         const idx = g.pos;
