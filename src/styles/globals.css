@@ -974,6 +974,39 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   }
 }
 
+/* ── Update banner ────────────────────────────────────────────────── */
+/* Shown when the polling useEffect in Layout.tsx detects that the
+ * deployed version.json no longer matches the APP_VERSION compiled
+ * into the running bundle. Tap anywhere on the text to reload. */
+.update-banner {
+  background: var(--preview);
+  color: #160c06;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+.update-banner span {
+  cursor: pointer;
+  flex: 1;
+  text-align: center;
+}
+.update-banner span:hover { opacity: 0.85; }
+.update-banner-close {
+  background: none;
+  border: none;
+  color: #160c06;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 0.55;
+}
+.update-banner-close:hover { opacity: 1; }
+
 /* ── Footer ───────────────────────────────────────────────────────── */
 .app-footer {
   display: flex;

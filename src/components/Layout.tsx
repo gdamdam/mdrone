@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
+import { APP_VERSION } from "../config";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { DroneView, type DroneViewHandle } from "./DroneView";
@@ -35,6 +36,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [headerHolding, setHeaderHolding] = useState(false);
   const [headerVolume, setHeaderVolume] = useState<number>(() => engine.getMasterVolume());
   const [shareOpen, setShareOpen] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
   const droneViewRef = useRef<DroneViewHandle | null>(null);
@@ -61,6 +63,24 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       setRecTimeMs(0);
     };
   }, [isRec]);
+
+  // Check for a newer build every 5 minutes. vite.config.ts writes
+  // public/version.json on build; if the fetched version doesn't match
+  // APP_VERSION compiled into this bundle, a banner invites the user
+  // to reload. cache: "no-store" so we see fresh deploys immediately.
+  useEffect(() => {
+    const check = () => {
+      fetch("version.json", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((data: { v?: string }) => {
+          if (data.v && data.v !== APP_VERSION) setUpdateAvailable(true);
+        })
+        .catch(() => { /* offline or 404 — ignore */ });
+    };
+    check();
+    const id = window.setInterval(check, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // MIDI input — external keyboard drives tonic + octave.
   const handleMidiNote = useCallback((note: number) => {
@@ -196,6 +216,21 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleMidi={(on) => midi.setEnabled(on)}
         analyser={engine.getAnalyser()}
       />
+
+      {updateAvailable && (
+        <div className="update-banner">
+          <span onClick={() => location.reload()}>
+            New version available — tap to update
+          </span>
+          <button
+            className="update-banner-close"
+            onClick={(e) => { e.stopPropagation(); setUpdateAvailable(false); }}
+            aria-label="Dismiss update banner"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <main className={`view view-mode-${viewMode}`}>
         <section
