@@ -202,8 +202,40 @@ export class VoiceEngine {
   }
 
   setIntervals(intervalsCents: number[]): void {
-    this.droneIntervalsCents = intervalsCents.length > 0 ? intervalsCents : [0];
-    if (this.droneOn) this.rebuildIntervals();
+    const next = intervalsCents.length > 0 ? intervalsCents : [0];
+    const prevLen = this.droneIntervalsCents.length;
+    this.droneIntervalsCents = next;
+    if (!this.droneOn) return;
+    // Fast path: when the interval count is unchanged we retune the
+    // existing voices via their setFreq() param ramp instead of doing
+    // a full voice rebuild + bloom crossfade. This matters for real-
+    // time use of the fine-tune sliders — a full rebuild would cost a
+    // ≥300ms gain dip per slider tick and allocate ~30 AudioWorklet
+    // voices per second during a drag. Retune-in-place is click-free
+    // and near-zero-cost (one AudioParam ramp per voice per tick).
+    if (next.length === prevLen) {
+      this.retuneIntervalsInPlace(next);
+    } else {
+      this.rebuildIntervals();
+    }
+  }
+
+  /** Retune live voices without rebuilding them. Assumes every layer
+   *  already has `cents.length` voices — if the count ever drifts
+   *  from that invariant we fall back to a full rebuild so we never
+   *  leave stale voices pointing at the wrong frequencies. */
+  private retuneIntervalsInPlace(cents: number[]): void {
+    const glideSec = 0.02; // 20ms ramp — sub-perceptible, click-free
+    for (const voices of this.droneVoicesByLayer.values()) {
+      if (voices.length !== cents.length) {
+        this.rebuildIntervals();
+        return;
+      }
+      for (let i = 0; i < voices.length; i++) {
+        const hz = this.droneRootFreq * Math.pow(2, cents[i] / 1200);
+        voices[i].setFreq(hz, glideSec);
+      }
+    }
   }
 
   setVoiceLayer(type: VoiceType, on: boolean): void {
