@@ -1,11 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { writeFileSync } from "node:fs";
 import pkg from "./package.json" with { type: "json" };
 
-// Auto-update version.json on build so the running client can detect
-// that a new build has been published and prompt the user to reload.
-writeFileSync("./public/version.json", JSON.stringify({ v: pkg.version }) + "\n");
+// NOTE: public/version.json is written by scripts/write-version-json.mjs
+// via the `prebuild` npm lifecycle hook. Keeping the fs write out of
+// vite.config.ts means we don't have to pull in @types/node just to
+// satisfy tsc's check of this file.
 
 // https://vite.dev/config/
 export default defineConfig({

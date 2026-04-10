@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/write-version-json.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "tsc -p tsconfig.test.json && node scripts/fix-test-imports.mjs && node --test tests/*.test.mjs",
