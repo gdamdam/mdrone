@@ -778,15 +778,15 @@ export const PRESETS: Preset[] = [
     hint: "Dense air texture with inharmonic metal crackle — Merzbow's ambient side. No pitched source, just spectral weather with tape wear, comb glare and freeze sustain underneath.",
     voiceLayers: ["air", "metal"],
     voiceLevels: { air: 1, metal: 0.55 },
-    drift: 0.52,      // trimmed — comb resonance sweeps with high drift
-    air: 0.62,
-    time: 0.22,
-    sub: 0.32,        // trimmed — less LF into comb's 0.85 feedback loop
+    drift: 0.38,      // lower — less Q-walk wobble
+    air: 0.58,
+    time: 0.14,       // slower motion
+    sub: 0.28,        // trimmed — less LF into comb feedback
     bloom: 0.55,
     glide: 0.22,
-    lfoShape: "triangle",
-    lfoRate: 0.18,
-    lfoAmount: 0.14,
+    lfoShape: "sine",
+    lfoRate: 0.1,
+    lfoAmount: 0.06,  // was 0.14 triangle — too much amplitude pumping
     climateX: 0.6,
     climateY: 0.5,
     // freeze removed — it captured a moment at enable time and kept
