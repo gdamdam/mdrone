@@ -1168,6 +1168,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .preset-row-3 {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  /* On mobile pull the TONIC column to the top of preset-row-2 so it
+   * sits directly below the preset panel — tonic selection is the
+   * next action after picking a scene, and MODE/TIMBRE are secondary.
+   * Desktop layout is unchanged (3 explicit columns above). */
+  .preset-row-2 .preset-tonic-col { order: 1; }
+  .preset-row-2 .preset-mode-col   { order: 2; }
+  .preset-row-2 .preset-timbre-col { order: 3; }
 }
 
 .drone-right {
