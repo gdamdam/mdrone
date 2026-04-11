@@ -740,6 +740,89 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   border-color: color-mix(in srgb, var(--preview) 60%, var(--border));
 }
 
+/* ── Custom CSS-styled dropdown ─────────────────────────────────────
+ * Used wherever we don't want the OS-native select wheel picker
+ * (iOS) or system combobox (desktop). See DropdownSelect.tsx. The
+ * trigger inherits whatever className is passed (e.g. header-select,
+ * header-tonic-select) so it can blend into any strip. */
+.dropdown-select-root {
+  position: relative;
+  display: inline-flex;
+}
+.dropdown-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.dropdown-select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.dropdown-select-chevron {
+  font-size: 9px;
+  opacity: 0.7;
+  line-height: 1;
+}
+.dropdown-select-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  min-width: 100%;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid color-mix(in srgb, var(--preview) 35%, var(--border));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55),
+              0 0 20px color-mix(in srgb, var(--preview) 18%, transparent);
+  outline: none;
+}
+.dropdown-select-option {
+  padding: 7px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--text);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s;
+}
+.dropdown-select-option-highlight {
+  background: color-mix(in srgb, var(--preview) 14%, var(--bg-cell));
+  color: var(--preview);
+}
+.dropdown-select-option-selected {
+  color: var(--preview);
+}
+.dropdown-select-option-selected.dropdown-select-option-highlight {
+  background: color-mix(in srgb, var(--preview) 22%, var(--bg-cell));
+}
+
+/* Group-header row — non-interactive section label above each
+ * category. Muted, uppercased, slightly indented from the options. */
+.dropdown-select-group-label {
+  padding: 8px 10px 4px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  cursor: default;
+  user-select: none;
+  border-top: 1px solid color-mix(in srgb, var(--preview) 18%, var(--border));
+  margin-top: 2px;
+}
+.dropdown-select-group-label:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
 /* Octave stepper — compact −/+/value trio, styled like header-btn. */
 .header-octave {
   display: inline-flex;

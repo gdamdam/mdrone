@@ -55,6 +55,14 @@ export function useSceneManager({
   const [meditateVisualizer, setMeditateVisualizer] = useState<Visualizer>(() => loadMeditateVisualizer());
   const initSceneRef = useRef(false);
   const ignoreNextPresetNameRef = useRef(false);
+  // Scene-mutation throttle — drone scenes ramp over hundreds of
+  // ms, and overlapping voice rebuilds (RND / cycle-preset /
+  // fullscreen-click) trigger audible glitches. A 1500 ms floor
+  // matches the typical preset transition budget and is
+  // imperceptible as latency at drone pacing. Shared across every
+  // entry point that swaps the current scene wholesale.
+  const lastSceneMutationTsRef = useRef(0);
+  const SCENE_MUTATION_MIN_GAP_MS = 1500;
 
   const applyStartupScene = useCallback(() => {
     // Use the same code path as clicking RND so the first scene on load
@@ -283,6 +291,14 @@ export function useSceneManager({
   const previousSceneRef = useRef<{ scene: PortableScene; name: string } | null>(null);
 
   const handleRandomScene = useCallback(() => {
+    // Throttle — discard clicks that arrive inside the min-gap
+    // window. Drone presets take hundreds of ms to ramp in and
+    // overlapping scene switches glitch the audio. Shared with
+    // cycle-preset / fullscreen-click so none of them can
+    // overlap each other either.
+    const now = Date.now();
+    if (now - lastSceneMutationTsRef.current < SCENE_MUTATION_MIN_GAP_MS) return;
+    lastSceneMutationTsRef.current = now;
     // Capture the current scene before jumping so "undo" can restore it.
     const beforeName = currentPresetName || currentSessionName || "Previous";
     const beforeScene = captureCurrentSceneSnapshot(beforeName);
@@ -314,6 +330,31 @@ export function useSceneManager({
     saveCurrentSessionId(null);
     requestSigilRefresh();
   }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionName, droneViewRef]);
+
+  /** Cycle to the next preset within the current preset's group.
+   *  Used by the meditate fullscreen click handler. Shares the
+   *  scene-mutation throttle so rapid clicks don't stack voice
+   *  rebuilds on top of each other. Falls back to the first preset
+   *  of the first group if nothing is currently active. */
+  const handleCyclePresetInGroup = useCallback(() => {
+    const now = Date.now();
+    if (now - lastSceneMutationTsRef.current < SCENE_MUTATION_MIN_GAP_MS) return;
+    lastSceneMutationTsRef.current = now;
+
+    const currentId = droneViewRef.current?.getSnapshot().activePresetId ?? null;
+    const currentPreset = currentId
+      ? PRESETS.find((pr) => pr.id === currentId) ?? null
+      : null;
+    const group = currentPreset?.group ?? PRESETS[0]?.group;
+    if (!group) return;
+    const groupPresets = PRESETS.filter((pr) => pr.group === group);
+    if (groupPresets.length === 0) return;
+    const currentIdx = currentPreset
+      ? groupPresets.findIndex((pr) => pr.id === currentPreset.id)
+      : -1;
+    const nextPreset = groupPresets[(currentIdx + 1) % groupPresets.length];
+    droneViewRef.current?.applyPresetById(nextPreset.id);
+  }, [droneViewRef]);
 
   /** Restore whatever was playing before the last RND click. No-op if
    *  no previous scene is stored (fresh load, or already undone once). */
@@ -365,6 +406,7 @@ export function useSceneManager({
     handleRenameSession,
     handleLoadSession,
     handleRandomScene,
+    handleCyclePresetInGroup,
     handleUndoScene,
     buildShareSceneData,
     handlePresetNameChange,

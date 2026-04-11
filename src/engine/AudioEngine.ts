@@ -141,6 +141,12 @@ export class AudioEngine {
     this.voiceEngine.setIntervals(intervalsCents);
   }
 
+  /** Ground-truth reads used by the meditate-view pitch mandala to
+   *  derive active pitch classes directly from the engine state
+   *  instead of guessing from a coarse FFT. */
+  getRootFreq(): number { return this.voiceEngine.getRootFreq(); }
+  getIntervalsCents(): readonly number[] { return this.voiceEngine.getIntervalsCents(); }
+
   isPlaying(): boolean { return this.voiceEngine.isPlaying(); }
 
   resume(): Promise<void> {

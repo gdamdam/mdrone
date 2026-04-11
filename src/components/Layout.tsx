@@ -275,6 +275,20 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             active={viewMode === "meditate"}
             visualizer={sceneManager.meditateVisualizer}
             onChangeVisualizer={sceneManager.setMeditateVisualizer}
+            onFullscreenClick={sceneManager.handleCyclePresetInGroup}
+            onFullscreenDrag={(x01, y01) => {
+              // Map normalized (x01, y01) to tonic + octave on a
+              // 12 × 6 grid. X goes 0..11 (C..B), Y is inverted so
+              // the top of the canvas = octave 6, bottom = octave 1.
+              const PCS: PitchClass[] = [
+                "C", "C#", "D", "D#", "E", "F",
+                "F#", "G", "G#", "A", "A#", "B",
+              ];
+              const pcIdx = Math.max(0, Math.min(11, Math.floor(x01 * 12)));
+              const octave = Math.max(1, Math.min(6, Math.round(1 + (1 - y01) * 5)));
+              droneViewRef.current?.setRoot(PCS[pcIdx]);
+              droneViewRef.current?.setOctave(octave);
+            }}
           />
         </section>
         <section

@@ -86,6 +86,11 @@ export class VoiceEngine {
   getFilterNode(): BiquadFilterNode { return this.droneFilter; }
   getVoiceGainNode(): GainNode { return this.droneVoiceGain; }
   getRootFreq(): number { return this.droneRootFreq; }
+  /** Current interval stack in cents, relative to the root. Length
+   *  changes with tuning/relation switches; each value is consumed
+   *  by the pitch-mandala visualizer to derive the active pitch
+   *  classes from ground truth rather than guessing from the FFT. */
+  getIntervalsCents(): readonly number[] { return this.droneIntervalsCents; }
   isPlaying(): boolean { return this.droneOn; }
 
   startDrone(freq: number, intervalsCents: number[] = [0], air: number): void {

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import {
   VISUALIZER_FNS,
+  VISUALIZER_GROUPS,
   VISUALIZER_LABELS,
   VISUALIZER_ORDER,
   type AudioFrame,
@@ -20,12 +21,23 @@ import {
   type Visualizer,
 } from "./visualizers";
 import { clearDeityPreview } from "./deities";
+import { DropdownSelect } from "./DropdownSelect";
 
 interface MeditateViewProps {
   engine: AudioEngine | null;
   active: boolean; // true when meditate tab is visible
   visualizer: Visualizer;
   onChangeVisualizer: (visualizer: Visualizer) => void;
+  /** Called when the user short-clicks the canvas while in
+   *  fullscreen. A click is a pointerdown+pointerup that moved
+   *  less than a few px. Drone-paced cycling — the wiring in
+   *  Layout applies this as "cycle preset within current group". */
+  onFullscreenClick?: () => void;
+  /** Called on every pointermove while pointerdown in fullscreen
+   *  (after the drag threshold has been exceeded). (x01, y01) is
+   *  the normalized canvas position 0..1. Layout maps it to
+   *  tonic pitch class + octave. */
+  onFullscreenDrag?: (x01: number, y01: number) => void;
 }
 
 export function MeditateView({
@@ -33,8 +45,20 @@ export function MeditateView({
   active,
   visualizer,
   onChangeVisualizer,
+  onFullscreenClick,
+  onFullscreenDrag,
 }: MeditateViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Refs that carry the latest click / drag callbacks + fullscreen
+  // state into the tick-loop closure without re-creating the loop.
+  // The useEffect that mounts the rAF tick only runs once; if we
+  // captured the props directly we'd stop seeing prop updates.
+  const onFullscreenClickRef = useRef(onFullscreenClick);
+  const onFullscreenDragRef = useRef(onFullscreenDrag);
+  const isFullscreenRef = useRef(false);
+  useEffect(() => { onFullscreenClickRef.current = onFullscreenClick; }, [onFullscreenClick]);
+  useEffect(() => { onFullscreenDragRef.current = onFullscreenDrag; }, [onFullscreenDrag]);
 
   const cycleVisualizer = useCallback(() => {
     const i = VISUALIZER_ORDER.indexOf(visualizer);
@@ -43,6 +67,7 @@ export function MeditateView({
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => { isFullscreenRef.current = isFullscreen; }, [isFullscreen]);
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsChange);
@@ -114,6 +139,45 @@ export function MeditateView({
       pointer: null,
       pointerDown: false,
       mood: { hue: 30, warmth: 0.5, brightness: 0.5, density: 0.5 },
+      activePitches: new Float32Array(12),
+    };
+    // Scratch buffer the tick loop fills each frame with the
+    // instantaneous pitch-class targets before smoothing them into
+    // phase.activePitches. Hoisted out of tick to avoid allocation.
+    const tmpPitchTarget = new Float32Array(12);
+
+    // Log-scale FFT bucket table. The raw AnalyserNode spectrum is
+    // linear in frequency, which wastes 27/32 reduced-bins on the
+    // silent top half of the spectrum since drone content lives
+    // almost entirely in the low and low-mid bands. We precompute a
+    // table mapping each of the 32 visualizer bins to a range of
+    // underlying fft bins spaced logarithmically from ~30 Hz to
+    // ~10 kHz — 8 octaves, about 4 reduced bins per octave — so
+    // the visualizer slots are densely populated across the range
+    // where drones actually put energy.
+    //
+    // specBuckets[b] = [fftStart, fftEnd] inclusive-exclusive.
+    // Built lazily on first tick because we need the analyser to
+    // know its fftSize / sample rate.
+    let specBuckets: Int32Array | null = null;
+    const buildSpecBuckets = (fftBinCount: number, sampleRate: number) => {
+      const lo = 30;
+      const hi = Math.min(10000, sampleRate / 2 * 0.9);
+      const logLo = Math.log(lo);
+      const logHi = Math.log(hi);
+      const binHz = sampleRate / (fftBinCount * 2);
+      const table = new Int32Array(64);
+      for (let b = 0; b < 32; b++) {
+        const f0 = Math.exp(logLo + (logHi - logLo) * (b / 32));
+        const f1 = Math.exp(logLo + (logHi - logLo) * ((b + 1) / 32));
+        let i0 = Math.max(1, Math.floor(f0 / binHz));
+        let i1 = Math.max(i0 + 1, Math.ceil(f1 / binHz));
+        i0 = Math.min(fftBinCount - 1, i0);
+        i1 = Math.min(fftBinCount, i1);
+        table[b * 2] = i0;
+        table[b * 2 + 1] = i1;
+      }
+      return table;
     };
     // Phase.t only advances when there is audible drone — visualizers
     // freeze in silence and resume from where they left off.
@@ -129,17 +193,67 @@ export function MeditateView({
     const VIS_ATTACK = 0.012;
     const VIS_RELEASE = 0.018;
 
-    // Pointer interactivity — track hover + press on the canvas.
+    // Pointer interactivity — track hover + press on the canvas
+    // AND distinguish a short click (which fires the fullscreen
+    // click callback for cycle-preset) from a drag (which streams
+    // normalized coords to the drag callback for tonic/octave).
+    //
+    // dragStart holds the pointerdown position + time; once the
+    // pointer has moved more than DRAG_THRESHOLD_PX away the
+    // interaction is latched as a drag and the short-click will
+    // not fire on pointerup. During drag we call onFullscreenDrag
+    // on every move. Both callbacks are gated on isFullscreenRef
+    // so normal (non-fullscreen) interaction keeps the old
+    // hover/press semantics untouched.
+    const DRAG_THRESHOLD_PX = 10;
+    let dragStart: { x: number; y: number } | null = null;
+    let dragLatched = false;
+    const emitDrag = (localX: number, localY: number, rect: DOMRect) => {
+      const x01 = Math.max(0, Math.min(1, localX / rect.width));
+      const y01 = Math.max(0, Math.min(1, localY / rect.height));
+      onFullscreenDragRef.current?.(x01, y01);
+    };
     const onMove = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
-      phase.pointer = {
-        x: (e.clientX - rect.left) / rect.width,
-        y: (e.clientY - rect.top) / rect.height,
-      };
+      const localX = e.clientX - rect.left;
+      const localY = e.clientY - rect.top;
+      phase.pointer = { x: localX / rect.width, y: localY / rect.height };
+
+      if (dragStart && phase.pointerDown) {
+        const dx = localX - dragStart.x;
+        const dy = localY - dragStart.y;
+        if (!dragLatched && (dx * dx + dy * dy) > DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
+          dragLatched = true;
+        }
+        if (dragLatched && isFullscreenRef.current) {
+          emitDrag(localX, localY, rect);
+        }
+      }
     };
-    const onLeave = () => { phase.pointer = null; phase.pointerDown = false; };
-    const onDown = (e: PointerEvent) => { phase.pointerDown = true; onMove(e); };
-    const onUp = () => { phase.pointerDown = false; };
+    const onLeave = () => {
+      phase.pointer = null;
+      phase.pointerDown = false;
+      dragStart = null;
+      dragLatched = false;
+    };
+    const onDown = (e: PointerEvent) => {
+      phase.pointerDown = true;
+      const rect = canvas.getBoundingClientRect();
+      const localX = e.clientX - rect.left;
+      const localY = e.clientY - rect.top;
+      dragStart = { x: localX, y: localY };
+      dragLatched = false;
+      phase.pointer = { x: localX / rect.width, y: localY / rect.height };
+    };
+    const onUp = () => {
+      const wasClick = dragStart !== null && !dragLatched;
+      phase.pointerDown = false;
+      dragStart = null;
+      dragLatched = false;
+      if (wasClick && isFullscreenRef.current) {
+        onFullscreenClickRef.current?.();
+      }
+    };
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerleave", onLeave);
     canvas.addEventListener("pointerdown", onDown);
@@ -216,6 +330,46 @@ export function MeditateView({
         phase.mood.warmth = phase.mood.warmth + (climateX - phase.mood.warmth) * k;
         phase.mood.brightness = phase.mood.brightness + (climateX * (0.5 + air * 0.5) - phase.mood.brightness) * k;
         phase.mood.density = activeLayers / 4;
+
+        // Ground-truth pitch-class energies for the pitch mandala.
+        // For each sounding voice we accumulate 8 harmonics with a
+        // 1/n natural rolloff — real drones aren't just fundamentals,
+        // their upper partials spray energy across many pitch classes
+        // (a single D fundamental audibly produces D, A, F#, C via
+        // partials 1-8). This turns the mandala from a static "3
+        // notes lit" readout into a rich, multi-sector display that
+        // still reflects what the instrument is truly playing.
+        //
+        // Smoothing is asymmetric: slow release on a darkening class
+        // (so preset switches don't flicker) but near-instant attack
+        // on a brightening class (so new pitches light immediately).
+        const root = engine.getRootFreq();
+        const intervals = engine.getIntervalsCents();
+        const target = tmpPitchTarget;
+        target.fill(0);
+        if (root > 0 && intervals.length > 0) {
+          for (let i = 0; i < intervals.length; i++) {
+            const fundamentalHz = root * Math.pow(2, intervals[i] / 1200);
+            // Later voices in the stack are slightly quieter so the
+            // root voice dominates the visual.
+            const voiceWeight = Math.max(0.4, 1 - i * 0.08);
+            for (let n = 1; n <= 8; n++) {
+              const hz = fundamentalHz * n;
+              if (hz > 8000) break;
+              const midi = 12 * Math.log2(hz / 440) + 69;
+              const pc = ((Math.round(midi) % 12) + 12) % 12;
+              const weight = voiceWeight / n;
+              if (target[pc] < weight) target[pc] = weight;
+            }
+          }
+        }
+        const ap = phase.activePitches;
+        const attackK = 1 - Math.pow(1 - 0.22, dtScale);
+        const releaseK = 1 - Math.pow(1 - 0.09, dtScale);
+        for (let i = 0; i < 12; i++) {
+          const k = target[i] > ap[i] ? attackK : releaseK;
+          ap[i] += (target[i] - ap[i]) * k;
+        }
       }
 
       // Compute raw audio features, then low-pass into smoothed
@@ -237,11 +391,18 @@ export function MeditateView({
         rawPeak = Math.min(1, peak * 1.1);
 
         analyser.getByteFrequencyData(freqBuf);
-        const bandW = Math.floor(freqBuf.length / 32);
+        if (!specBuckets) {
+          specBuckets = buildSpecBuckets(freqBuf.length, analyser.context.sampleRate);
+        }
         for (let b = 0; b < 32; b++) {
+          const i0 = specBuckets[b * 2];
+          const i1 = specBuckets[b * 2 + 1];
           let s = 0;
-          for (let i = 0; i < bandW; i++) s += freqBuf[b * bandW + i];
-          rawSpectrum[b] = Math.min(1, (s / bandW) / 200);
+          for (let i = i0; i < i1; i++) s += freqBuf[i];
+          const width = Math.max(1, i1 - i0);
+          // Divisor 180 (was 200) gives a tiny boost that matches
+          // the log bucketing's slightly lower per-bin average.
+          rawSpectrum[b] = Math.min(1, (s / width) / 180);
         }
       } else {
         for (let i = 0; i < 32; i++) rawSpectrum[i] = 0;
@@ -307,16 +468,17 @@ export function MeditateView({
     <div className="meditate-view">
       <div className="meditate-toolbar">
         <span className="meditate-toolbar-label">VISUALIZER</span>
-        <select
+        <DropdownSelect<Visualizer>
           value={visualizer}
-          onChange={(e) => onChangeVisualizer(e.target.value as Visualizer)}
+          groups={VISUALIZER_GROUPS.map((g) => ({
+            label: g.label,
+            items: g.items.map((v) => ({ value: v, label: VISUALIZER_LABELS[v] })),
+          }))}
+          onChange={onChangeVisualizer}
           className="header-select"
           title="Choose visualizer — double-click the canvas to cycle"
-        >
-          {VISUALIZER_ORDER.map((v) => (
-            <option key={v} value={v}>{VISUALIZER_LABELS[v]}</option>
-          ))}
-        </select>
+          ariaLabel="Visualizer"
+        />
         <button
           className="header-btn"
           onClick={toggleFullscreen}

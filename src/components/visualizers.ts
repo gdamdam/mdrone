@@ -29,27 +29,82 @@ export type Visualizer =
   | "horizon"
   | "aurora"
   | "orb"
-  | "dreamMachine";
+  | "dreamMachine"
+  | "freqRing"
+  | "pitchMandala"
+  | "harmonograph"
+  | "waterfall"
+  | "strata"
+  | "feedbackTunnel"
+  | "waterfallAscii"
+  | "waterfallBlock"
+  | "waterfallRain"
+  | "waterfallHybrid";
 
-export const VISUALIZER_ORDER: readonly Visualizer[] = [
-  "mandala",
-  "haloGlow",
-  "fractal",
-  "rothko",
-  "tapeDecay",
-  "dreamHouse",
-  "sigil",
-  "starGate",
-  "cymatics",
-  "inkBloom",
-  "horizon",
-  "aurora",
-  "orb",
-  "dreamMachine",
-] as const;
+/**
+ * Visualizer categories — the meditate view dropdown renders these
+ * as group headers with the visualizers grouped underneath. Keep a
+ * visualizer in exactly one group; VISUALIZER_ORDER is derived by
+ * flattening this structure, so don't duplicate.
+ */
+export const VISUALIZER_GROUPS: readonly {
+  label: string;
+  items: readonly Visualizer[];
+}[] = [
+  {
+    label: "GEOMETRIC",
+    items: [
+      "mandala",
+      "pitchMandala",
+      "freqRing",
+      "harmonograph",
+      "sigil",
+      "cymatics",
+    ],
+  },
+  {
+    label: "SPECTRAL",
+    items: [
+      "aurora",
+      "strata",
+      "waterfall",
+      "waterfallBlock",
+      "waterfallAscii",
+      "waterfallHybrid",
+      "waterfallRain",
+    ],
+  },
+  {
+    label: "FIELD / PAINTERLY",
+    items: [
+      "rothko",
+      "tapeDecay",
+      "dreamHouse",
+      "inkBloom",
+      "haloGlow",
+      "horizon",
+      "orb",
+    ],
+  },
+  {
+    label: "HYPNOTIC",
+    items: [
+      "feedbackTunnel",
+      "starGate",
+      "fractal",
+      "dreamMachine",
+    ],
+  },
+];
+
+export const VISUALIZER_ORDER: readonly Visualizer[] =
+  VISUALIZER_GROUPS.flatMap((g) => g.items);
 
 export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   mandala: "BREATHING MANDALA",
+  pitchMandala: "PITCH MANDALA · 12 sectors",
+  freqRing: "FREQUENCY RING · radial FFT",
+  harmonograph: "HARMONOGRAPH · Lissajous attractor",
   haloGlow: "HALO & RAYS",
   fractal: "JULIA FRACTAL · heavy",
   rothko: "ROTHKO FIELD · Radigue",
@@ -58,8 +113,15 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   sigil: "SIGIL BLOOM · Coil",
   starGate: "STAR GATE · Coil / 2001",
   cymatics: "CYMATICS PLATE",
+  waterfall: "SPECTRAL WATERFALL",
+  waterfallBlock: "WATERFALL · unicode blocks",
+  waterfallAscii: "WATERFALL · ASCII gradient",
+  waterfallHybrid: "WATERFALL · hybrid strata",
+  waterfallRain: "WATERFALL · matrix rain",
+  feedbackTunnel: "FEEDBACK TUNNEL · Jarman",
   inkBloom: "INK BLOOM",
   horizon: "HORIZON SUNRISE",
+  strata: "DRONE STRATA",
   aurora: "SPECTRAL AURORA",
   orb: "RESONANT ORB",
   dreamMachine: "DREAM MACHINE",
@@ -92,6 +154,14 @@ export interface PhaseClock {
    *   density    — 0..1, number of active voice layers / 4
    */
   mood: { hue: number; warmth: number; brightness: number; density: number };
+  /** Ground-truth active pitch-class energies, derived from the
+   *  engine's current root frequency + interval stack (in cents).
+   *  Length 12, each slot = 0..1 for that pitch class (0=C, 1=C#,
+   *  …, 11=B). The pitch-mandala visualizer prefers this to the
+   *  FFT because the 32-bin reduced spectrum is too coarse to
+   *  distinguish pitch classes at drone frequencies. All-zero when
+   *  silent or engine isn't available. */
+  activePitches: Float32Array;
 }
 
 // ── Shared colour helpers (ember-leaning but drifting) ─────────────
@@ -394,37 +464,18 @@ export function drawHorizon(
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, w, h);
 
-  // Sun — radius responds to rms + slow clock
-  const horizonY = h * (0.68 - p.slow * 0.08);
+  // Sun — radius responds to rms + slow clock. The old horizon line
+  // and heat-haze shimmer rows have been removed; the visualizer is
+  // now a single suspended sun breathing on the sky gradient.
+  const sunY = h * (0.58 - p.slow * 0.06);
   const sunR = Math.min(w, h) * (0.12 + a.rms * 0.08 + p.slow * 0.02);
   const sunX = w * 0.5;
-  const sunGrad = ctx.createRadialGradient(sunX, horizonY, 0, sunX, horizonY, sunR * 2.2);
-  sunGrad.addColorStop(0, `hsla(${(p.hue + 20) % 360}, 95%, 75%, 0.9)`);
+  const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR * 2.4);
+  sunGrad.addColorStop(0, `hsla(${(p.hue + 20) % 360}, 95%, 75%, 0.95)`);
   sunGrad.addColorStop(0.4, `hsla(${(p.hue + 10) % 360}, 85%, 55%, 0.55)`);
   sunGrad.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = sunGrad;
   ctx.fillRect(0, 0, w, h);
-
-  // Horizon line
-  ctx.strokeStyle = `hsla(${(p.hue + 20) % 360}, 85%, 70%, 0.5)`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, horizonY);
-  ctx.lineTo(w, horizonY);
-  ctx.stroke();
-
-  // Heat-haze shimmer lines above horizon. Count grows over time.
-  const hazeCount = 5 + Math.round(p.growth * 10);
-  ctx.strokeStyle = `hsla(${(p.hue + 30) % 360}, 80%, 80%, ${0.1 + a.peak * 0.15 + p.growth * 0.06})`;
-  for (let i = 0; i < hazeCount; i++) {
-    const yy = horizonY - 8 - i * 10;
-    ctx.beginPath();
-    for (let x = 0; x < w; x += 4) {
-      const dy = Math.sin(x * 0.03 + p.t * 0.15 + i) * (1 + a.peak * 3);
-      if (x === 0) ctx.moveTo(x, yy + dy); else ctx.lineTo(x, yy + dy);
-    }
-    ctx.stroke();
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -1127,28 +1178,22 @@ export function drawSigilBloom(
   const penSpeed = (sigilPoints!.length / SIGIL_PEN_SECONDS) / 60; // pts/frame at 60 fps
   sigilDrawn = Math.min(sigilPoints!.length, sigilDrawn + penSpeed * (1 + a.rms * 0.4));
 
-  // ── Fake 3D rotation around the vertical axis ───────────────
-  // Apply a horizontal scale that oscillates between ~0.35 and 1
-  // over ~20 s to create a "spinning coin" illusion. Also a small
-  // vertical scale wobble.
-  const spinPhase = p.t * (Math.PI * 2 / 20); // full revolution / 20s
-  const rotX = Math.cos(spinPhase);            // -1..1
-  const scaleX = Math.max(0.2, Math.abs(rotX));
-  const scaleY = 1 + Math.sin(p.t * 0.15) * 0.03;
-  // Pulse — breathing in and out on top of the rotation
-  const pulse = 1 + 0.05 * Math.sin(p.t * 0.9) + a.rms * 0.06;
+  // Audio-reactive uniform pulse — the sigil sits flat on the plane
+  // and breathes with RMS + a slow sinus underlay. A small peak-
+  // driven jitter gives it an extra shimmer on transients. The old
+  // fake 3D "spinning coin" rotation (abs(cos(t)) scaleX + edgeDim
+  // fade) looked broken because it flipped through a zero-width
+  // sliver every 10 s; removed entirely.
+  const pulse = 1 + 0.04 * Math.sin(p.t * 0.9) + a.rms * 0.18 + a.peak * 0.04;
 
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.scale(scaleX * pulse, scaleY * pulse);
+  ctx.scale(pulse, pulse);
   ctx.translate(-cx, -cy);
 
   // Deep sigil ink — red ochre bleeding on dark
   const hue = 10 + Math.sin(p.t * 0.1) * 10;
-  // Edge-of-rotation darkening — the ink fades when the sigil is
-  // near-edge-on (small scaleX), like a real rotating disc.
-  const edgeDim = 0.4 + Math.abs(rotX) * 0.6;
-  ctx.strokeStyle = `hsla(${hue}, 85%, 55%, ${(0.75 + a.peak * 0.2) * edgeDim})`;
+  ctx.strokeStyle = `hsla(${hue}, 85%, 55%, ${0.75 + a.peak * 0.2})`;
   ctx.lineWidth = 1.8 + a.peak * 1.5;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -1161,7 +1206,7 @@ export function drawSigilBloom(
   ctx.stroke();
 
   // Glow layer — redraw with larger, more transparent stroke
-  ctx.strokeStyle = `hsla(${hue}, 90%, 70%, ${0.18 * edgeDim + 0.06})`;
+  ctx.strokeStyle = `hsla(${hue}, 90%, 70%, ${0.18 + a.rms * 0.1})`;
   ctx.lineWidth = 5 + a.peak * 4;
   ctx.beginPath();
   for (let i = 0; i < drawn; i++) {
@@ -1172,7 +1217,7 @@ export function drawSigilBloom(
 
   // Bindu nodes at the original points (show faintly)
   if (sigilPoints) {
-    ctx.fillStyle = `hsla(${hue + 30}, 90%, 70%, ${0.6 * edgeDim})`;
+    ctx.fillStyle = `hsla(${hue + 30}, 90%, 70%, 0.6)`;
     const n = Math.min(8, Math.floor(drawn / 160));
     for (let i = 0; i < n; i++) {
       const pt = sigilPoints[i * 160];
@@ -1305,4 +1350,774 @@ export const VISUALIZER_FNS: Record<
   dreamHouse: drawDreamHouse,
   sigil: drawSigilBloom,
   starGate: drawStarGate,
+  freqRing: drawFreqRing,
+  pitchMandala: drawPitchMandala,
+  harmonograph: drawHarmonograph,
+  waterfall: drawWaterfall,
+  strata: drawStrata,
+  feedbackTunnel: drawFeedbackTunnel,
+  waterfallAscii: drawWaterfallAscii,
+  waterfallBlock: drawWaterfallBlock,
+  waterfallRain: drawWaterfallRain,
+  waterfallHybrid: drawWaterfallHybrid,
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// NEW DRONE-FOCUSED VISUALIZERS (commit 2026-04-10)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────
+// 15. FREQUENCY RING — radial FFT in monochrome. Each of the 32
+//     spectrum bins is a spoke from an inner ring outward; length =
+//     bin energy. Drones produce stable radial glow patterns that
+//     slowly rotate and breathe. Pure black-and-white palette.
+// ─────────────────────────────────────────────────────────────────────
+export function drawFreqRing(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const r0 = Math.min(w, h) * 0.22;
+  const rMax = Math.min(w, h) * 0.45;
+  const breath = 1 + a.rms * 0.08 + p.slow * 0.04;
+  const bins = a.spectrum.length;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(p.t * 0.03);
+
+  ctx.lineCap = "round";
+  for (let i = 0; i < bins; i++) {
+    const energy = a.spectrum[i];
+    const angle = (i / bins) * Math.PI * 2;
+    const inner = r0 * breath;
+    const outer = inner + (rMax - r0) * (0.08 + energy);
+    const light = Math.round(35 + energy * 55); // 35..90 grey
+    ctx.strokeStyle = `hsla(0, 0%, ${light}%, ${0.35 + energy * 0.55})`;
+    ctx.lineWidth = 2 + energy * 4 + p.growth * 1.5;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+    ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+    ctx.stroke();
+  }
+
+  // Inner ring — steady anchor, glows with RMS
+  ctx.strokeStyle = `hsla(0, 0%, 80%, ${0.4 + a.rms * 0.4})`;
+  ctx.lineWidth = 1.5 + a.rms * 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, r0 * breath, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Outer ghost ring at peak extent — only visible on loud passages
+  if (a.peak > 0.1) {
+    ctx.strokeStyle = `hsla(0, 0%, 90%, ${a.peak * 0.3})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, rMax * breath, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 16. PITCH MANDALA — 12-sector monochromatic mandala. Sectors are
+//     labeled C..B (C at top). Spectrum bins are log-mapped to pitch
+//     classes via bin-center frequency → MIDI → mod 12. Bin 0 is
+//     skipped: at a 48 kHz / 2048 fft / 32-reduced-bin layout each
+//     visualizer bin covers ~750 Hz, so bin 0 always mapped to F#
+//     and swamped the mandala regardless of what was playing.
+//     Pure black-and-white palette — no hue rotation.
+// ─────────────────────────────────────────────────────────────────────
+const pitchEnergies = new Float32Array(12);
+// Bin width estimate: 48 kHz sample rate → 24 kHz Nyquist, 32 reduced
+// bins → ~750 Hz per visualizer bin.
+const BIN_WIDTH_HZ = 48000 / 2 / 32;
+export function drawPitchMandala(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
+  ctx.fillRect(0, 0, w, h);
+
+  // Prefer ground-truth active pitches from the engine. The 32-bin
+  // reduced FFT spectrum is too coarse (~750 Hz per bin) to
+  // discriminate pitch classes at drone frequencies — a D3 drone
+  // dumps most of its upper-harmonic energy into bin 1 whose center
+  // is ~1125 Hz → MIDI 85 → C#, so the mandala used to light C#
+  // every time. PhaseClock.activePitches carries root+intervals
+  // derived from engine state, which is exact.
+  pitchEnergies.fill(0);
+  const truth = p.activePitches;
+  let hasTruth = false;
+  for (let i = 0; i < 12; i++) {
+    if (truth[i] > 0) { hasTruth = true; break; }
+  }
+  if (hasTruth) {
+    for (let i = 0; i < 12; i++) pitchEnergies[i] = truth[i];
+  } else {
+    // Fallback: the old FFT-based mapping, for visualizer demos
+    // when no engine is attached.
+    const bins = a.spectrum.length;
+    for (let i = 1; i < bins; i++) {
+      const centerHz = (i + 0.5) * BIN_WIDTH_HZ;
+      const midi = 12 * Math.log2(centerHz / 440) + 69;
+      const pc = ((Math.round(midi) % 12) + 12) % 12;
+      pitchEnergies[pc] += a.spectrum[i];
+    }
+    let maxE = 0.001;
+    for (let i = 0; i < 12; i++) if (pitchEnergies[i] > maxE) maxE = pitchEnergies[i];
+    for (let i = 0; i < 12; i++) pitchEnergies[i] /= maxE;
+  }
+
+  // Per-frame wobble — give each sector an independent breathing
+  // phase so the mandala feels alive even when the ground truth
+  // hasn't changed. The wobble also multiplies with RMS so loud
+  // passages visibly pump. This is visualization, not measurement,
+  // so precision isn't the goal — motion is.
+  const rmsBoost = 0.7 + a.rms * 0.7;
+  const wobbleEnergies = tmpPitchWobble;
+  let maxPc = 0, maxE = 0;
+  let secondPc = 0, secondE = 0;
+  for (let pc = 0; pc < 12; pc++) {
+    const base = pitchEnergies[pc];
+    const wob =
+      1 +
+      0.15 * Math.sin(p.t * (0.5 + pc * 0.13)) +
+      0.08 * Math.sin(p.t * (1.3 + pc * 0.23) + pc * 0.7);
+    const e = Math.min(1, base * wob * rmsBoost);
+    wobbleEnergies[pc] = e;
+    if (e > maxE) { secondE = maxE; secondPc = maxPc; maxE = e; maxPc = pc; }
+    else if (e > secondE) { secondE = e; secondPc = pc; }
+  }
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const r0 = Math.min(w, h) * 0.09;
+  const rMax = Math.min(w, h) * 0.38;
+  const breath = 1 + a.rms * 0.06 + p.slow * 0.03;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  // Slow clockwise rotation — ~one revolution per 100 s. Was 0.012
+  // (≈ 8 min per revolution) which was too slow to notice.
+  ctx.rotate(p.t * 0.06);
+
+  const halfAngle = (Math.PI / 12) * 0.86;
+  // Store active sector midpoints for the constellation-line pass
+  const activeX = tmpPitchX;
+  const activeY = tmpPitchY;
+  for (let pc = 0; pc < 12; pc++) {
+    const energy = wobbleEnergies[pc];
+    // C at top (angle = -π/2)
+    const angle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+    const innerR = r0 * breath;
+    const outerR = innerR + (rMax - r0) * (0.22 + energy * 0.78);
+    const midR = (innerR + outerR) * 0.5;
+    activeX[pc] = Math.cos(angle) * midR;
+    activeY[pc] = Math.sin(angle) * midR;
+
+    // Monochromatic sector fill
+    const light = Math.round(16 + energy * 75); // 16..91 grey
+    ctx.fillStyle = `hsla(0, 0%, ${light}%, ${0.25 + energy * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, outerR, angle - halfAngle, angle + halfAngle);
+    ctx.arc(0, 0, innerR, angle + halfAngle, angle - halfAngle, true);
+    ctx.closePath();
+    ctx.fill();
+
+    // Echo sliver just outside the main sector — smaller, phase-
+    // shifted, gives the mandala visual depth without adding clutter
+    if (energy > 0.18) {
+      const echoR = outerR + 6 + energy * 10;
+      const echoInner = outerR + 2;
+      const echoHalf = halfAngle * 0.6;
+      const echoLight = Math.round(40 + energy * 55);
+      ctx.fillStyle = `hsla(0, 0%, ${echoLight}%, ${energy * 0.35})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, echoR, angle - echoHalf, angle + echoHalf);
+      ctx.arc(0, 0, echoInner, angle + echoHalf, angle - echoHalf, true);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Bright outer edge for active pitches
+    if (energy > 0.25) {
+      ctx.strokeStyle = `hsla(0, 0%, 100%, ${energy * 0.75})`;
+      ctx.lineWidth = 1.5 + energy * 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, outerR, angle - halfAngle, angle + halfAngle);
+      ctx.stroke();
+    }
+
+  }
+
+  // Constellation lines — connect every pair of sufficiently-active
+  // sectors with a faint white line. Makes the set of lit classes
+  // feel like a *chord*, not isolated blobs.
+  ctx.lineCap = "round";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 12; i++) {
+    if (wobbleEnergies[i] < 0.22) continue;
+    for (let j = i + 1; j < 12; j++) {
+      if (wobbleEnergies[j] < 0.22) continue;
+      const alpha = Math.min(0.5, (wobbleEnergies[i] + wobbleEnergies[j]) * 0.2);
+      ctx.strokeStyle = `hsla(0, 0%, 95%, ${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(activeX[i], activeY[i]);
+      ctx.lineTo(activeX[j], activeY[j]);
+      ctx.stroke();
+    }
+  }
+
+  // Highlight the two brightest sectors with a thicker link —
+  // the visual "root → dominant" connection.
+  if (maxE > 0.3 && secondE > 0.22) {
+    ctx.strokeStyle = `hsla(0, 0%, 100%, ${0.45 + a.rms * 0.3})`;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(activeX[maxPc], activeY[maxPc]);
+    ctx.lineTo(activeX[secondPc], activeY[secondPc]);
+    ctx.stroke();
+  }
+
+  // Inner hub — pulses with total lit energy
+  let totalE = 0;
+  for (let i = 0; i < 12; i++) totalE += wobbleEnergies[i];
+  const hubPulse = Math.min(1, totalE * 0.18 + a.rms * 0.5);
+  const hubR = r0 * breath * (0.8 + hubPulse * 0.5);
+  const hubGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, hubR * 2);
+  hubGrad.addColorStop(0, `hsla(0, 0%, 100%, ${0.45 + hubPulse * 0.45})`);
+  hubGrad.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = hubGrad;
+  ctx.beginPath();
+  ctx.arc(0, 0, hubR * 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// Module-level scratch buffers for drawPitchMandala — avoid per-
+// frame allocation.
+const tmpPitchWobble = new Float32Array(12);
+const tmpPitchX = new Float32Array(12);
+const tmpPitchY = new Float32Array(12);
+
+// ─────────────────────────────────────────────────────────────────────
+// 17. HARMONOGRAPH — Lissajous attractor. Four decoupled oscillators
+//     with irrational frequency ratios produce a slow-evolving pen
+//     curve. Oscillator frequencies are perturbed by the spectral
+//     centroid and RMS, so the figure morphs continuously with the
+//     drone's tonal color. Classic tabletop-harmonograph / spiral-
+//     sigil aesthetic.
+// ─────────────────────────────────────────────────────────────────────
+const HARM_TRAIL_MAX = 2800;
+const harmTrail = new Float32Array(HARM_TRAIL_MAX * 2); // packed x,y
+let harmTrailHead = 0;
+let harmTrailLen = 0;
+export function drawHarmonograph(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.06)";
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const scale = Math.min(w, h) * 0.34;
+
+  // Rough spectral centroid — weighted mean bin index normalized 0..1
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) {
+    num += i * a.spectrum[i];
+    den += a.spectrum[i];
+  }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+
+  // Four oscillators with irrational ratios, gently audio-modulated
+  const f1 = 0.91 + centroid * 0.18 + p.slow * 0.04;
+  const f2 = 1.37 - a.rms * 0.22 + p.slow * 0.03;
+  const f3 = 2.11 + p.growth * 0.25;
+  const f4 = 1.63 - p.growth * 0.15;
+
+  // Append ~40 new points to the trail this frame. Each is computed
+  // by advancing a local "pen time" — this is decoupled from p.t so
+  // the curve stays smooth even at non-60fps frame rates.
+  const framePoints = 36;
+  const t = p.t;
+  for (let i = 0; i < framePoints; i++) {
+    const tt = t + i * 0.003;
+    const x = (Math.sin(tt * f1) + Math.sin(tt * f3 + 1.1)) * scale * 0.45;
+    const y = (Math.sin(tt * f2 + 0.7) + Math.sin(tt * f4 + 2.3)) * scale * 0.45;
+    harmTrail[harmTrailHead * 2] = cx + x;
+    harmTrail[harmTrailHead * 2 + 1] = cy + y;
+    harmTrailHead = (harmTrailHead + 1) % HARM_TRAIL_MAX;
+    if (harmTrailLen < HARM_TRAIL_MAX) harmTrailLen++;
+  }
+
+  // Draw trail as a continuous line starting from the oldest point.
+  // Monochromatic — single grey stroke with RMS-driven brightness.
+  const strokeLight = 60 + Math.round(a.rms * 25);
+  ctx.strokeStyle = `hsla(0, 0%, ${strokeLight}%, ${0.4 + a.rms * 0.35})`;
+  ctx.lineWidth = 1.3 + a.peak * 1.6;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  const startIdx = harmTrailLen < HARM_TRAIL_MAX
+    ? 0
+    : harmTrailHead; // wrap start = head when full
+  for (let j = 0; j < harmTrailLen; j++) {
+    const k = (startIdx + j) % HARM_TRAIL_MAX;
+    const x = harmTrail[k * 2];
+    const y = harmTrail[k * 2 + 1];
+    if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Soft halo second pass — faint white bloom
+  ctx.strokeStyle = `hsla(0, 0%, 100%, ${0.1 + a.peak * 0.15})`;
+  ctx.lineWidth = 5 + a.peak * 4;
+  ctx.stroke();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 18. SPECTRAL WATERFALL — scrolling spectrogram. Each frame pushes
+//     a new FFT row at the top of an offscreen canvas and scrolls
+//     the rest down by 1 px. Drone harmonics show as persistent
+//     vertical lines; fine-detune sliders visibly curve them in
+//     real time. La Monte Young / Dream House aesthetic.
+// ─────────────────────────────────────────────────────────────────────
+let waterfallCanvas: HTMLCanvasElement | null = null;
+let waterfallCtx: CanvasRenderingContext2D | null = null;
+let waterfallLastScroll = 0;
+export function drawWaterfall(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  // Lazy (re)create offscreen canvas on size change
+  if (!waterfallCanvas || waterfallCanvas.width !== w || waterfallCanvas.height !== h) {
+    waterfallCanvas = document.createElement("canvas");
+    waterfallCanvas.width = w;
+    waterfallCanvas.height = h;
+    waterfallCtx = waterfallCanvas.getContext("2d");
+    if (waterfallCtx) {
+      waterfallCtx.fillStyle = "#060408";
+      waterfallCtx.fillRect(0, 0, w, h);
+    }
+  }
+  const off = waterfallCtx;
+  if (!off || !waterfallCanvas) return;
+
+  // Drone-appropriate scroll rate: advance ~20 rows/sec (a 500-px
+  // canvas takes ~25 s to fill end-to-end). Time-gated so the
+  // scroll rate stays consistent regardless of rAF cadence.
+  if (p.t - waterfallLastScroll >= 0.05) {
+    waterfallLastScroll = p.t;
+    // Scroll everything down 1 px by drawing the canvas onto itself.
+    off.drawImage(waterfallCanvas, 0, 0, w, h - 1, 0, 1, w, h - 1);
+
+    // Draw the new top row from the current spectrum. Frequencies
+    // increase left→right; higher energy = brighter + warmer hue.
+    const bins = a.spectrum.length;
+    for (let i = 0; i < bins; i++) {
+      const energy = a.spectrum[i];
+      const x = (i / bins) * w;
+      const xEnd = ((i + 1) / bins) * w;
+      const hue = (p.hue + i * 4) % 360;
+      const lightness = 10 + energy * 60;
+      off.fillStyle = `hsla(${hue}, 85%, ${lightness}%, ${0.1 + energy})`;
+      off.fillRect(x, 0, xEnd - x + 1, 1);
+    }
+
+    // Slow global fade so ancient rows don't persist forever
+    off.fillStyle = "rgba(6, 4, 8, 0.005)";
+    off.fillRect(0, 0, w, h);
+  }
+
+  ctx.drawImage(waterfallCanvas, 0, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 19. DRONE STRATA — horizontal frequency bands layered like weather
+//     strata. Each band is assigned a frequency range and its
+//     altitude/thickness/hue track the band's energy. Slow sine
+//     drift gives each stratum its own wandering contour. Abstract
+//     atmospheric landscape; meditation-friendly.
+// ─────────────────────────────────────────────────────────────────────
+export function drawStrata(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  // Deep base colour
+  ctx.fillStyle = `hsl(${(p.hue + 220) % 360}, 30%, 5%)`;
+  ctx.fillRect(0, 0, w, h);
+
+  const bandCount = 7 + Math.round(p.growth * 2); // 7..9
+  const bands = a.spectrum.length;
+  const bandH = h / bandCount;
+
+  for (let b = 0; b < bandCount; b++) {
+    // Map this band to a chunk of the spectrum. Low bands → low
+    // frequencies, so the "ground" layer reacts to the fundamental.
+    const specStart = Math.floor((b / bandCount) * bands);
+    const specEnd = Math.floor(((b + 1) / bandCount) * bands);
+    let energy = 0;
+    for (let i = specStart; i < specEnd; i++) energy += a.spectrum[i];
+    energy /= Math.max(1, specEnd - specStart);
+
+    // From top: higher b = lower stratum in the image
+    const y0 = (bandCount - 1 - b) * bandH;
+    const hue = ((p.hue + b * 28) + p.slow * 30) % 360;
+    const lightness = 18 + energy * 35 + p.slow * 4;
+    const alpha = 0.4 + energy * 0.4;
+
+    ctx.fillStyle = `hsla(${hue}, 65%, ${lightness}%, ${alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(0, y0 + bandH);
+    // Wavy top contour — slow sine drift per band
+    for (let x = 0; x <= w; x += 6) {
+      const drift = Math.sin(x * 0.006 + p.t * 0.07 + b * 0.9) * bandH * 0.18;
+      const bump = Math.sin(x * 0.02 + p.t * 0.13 + b * 1.7) * bandH * 0.06;
+      const yy = y0 + drift + bump - energy * bandH * 0.25;
+      ctx.lineTo(x, yy);
+    }
+    ctx.lineTo(w, y0 + bandH);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 20. FEEDBACK TUNNEL — video-feedback emulation. Classic analog
+//     feedback loop simulated on an offscreen canvas: each frame,
+//     the prior frame is scaled slightly larger, rotated slightly,
+//     and blended back underneath a new central pulse. Produces
+//     the hypnotic spiraling inward/outward texture of Ken Russell
+//     / Derek Jarman experimental film.
+// ─────────────────────────────────────────────────────────────────────
+let feedbackCanvas: HTMLCanvasElement | null = null;
+let feedbackCtx: CanvasRenderingContext2D | null = null;
+export function drawFeedbackTunnel(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  if (!feedbackCanvas || feedbackCanvas.width !== w || feedbackCanvas.height !== h) {
+    feedbackCanvas = document.createElement("canvas");
+    feedbackCanvas.width = w;
+    feedbackCanvas.height = h;
+    feedbackCtx = feedbackCanvas.getContext("2d");
+    if (feedbackCtx) {
+      feedbackCtx.fillStyle = "#060408";
+      feedbackCtx.fillRect(0, 0, w, h);
+    }
+  }
+  const off = feedbackCtx;
+  if (!off || !feedbackCanvas) return;
+
+  // Slight fade so old content eventually decays out
+  off.fillStyle = `rgba(4, 2, 6, ${0.05 + a.rms * 0.04})`;
+  off.fillRect(0, 0, w, h);
+
+  // Zoom + rotate the previous frame onto itself. Small transforms
+  // build up over many frames into a visible tunnel.
+  off.save();
+  off.translate(w / 2, h / 2);
+  off.rotate(0.004 + a.rms * 0.008 + Math.sin(p.t * 0.07) * 0.002);
+  const zoom = 1.015 + a.rms * 0.01 + p.growth * 0.002;
+  off.scale(zoom, zoom);
+  off.translate(-w / 2, -h / 2);
+  off.globalAlpha = 0.9;
+  off.drawImage(feedbackCanvas, 0, 0);
+  off.globalAlpha = 1;
+  off.restore();
+
+  // Inject a new central pulse — it's what feeds the feedback loop
+  const pulseR = Math.min(w, h) * (0.04 + a.peak * 0.1 + a.rms * 0.05);
+  const hue = (p.hue + p.t * 4) % 360;
+  const grad = off.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, pulseR * 3);
+  grad.addColorStop(0, `hsla(${hue}, 95%, 70%, ${0.5 + a.peak * 0.4})`);
+  grad.addColorStop(0.5, `hsla(${(hue + 30) % 360}, 85%, 50%, ${0.25 + a.peak * 0.2})`);
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  off.fillStyle = grad;
+  off.fillRect(0, 0, w, h);
+
+  ctx.drawImage(feedbackCanvas, 0, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 21. WATERFALL · ASCII — classic terminal spectrogram. A fixed
+//     grid of monospace cells, each showing one of 11 characters
+//     from a density-ordered gradient. Each frame the whole
+//     bitmap scrolls down by one cell-height and a fresh top row
+//     is drawn from the current spectrum. Drone harmonics appear
+//     as persistent vertical streaks of @ / # / % as they scroll.
+// ─────────────────────────────────────────────────────────────────────
+const ASCII_GRADIENT = " .·-:=+*%#@";
+let wfAsciiCanvas: HTMLCanvasElement | null = null;
+let wfAsciiLastScroll = 0;
+function pickGlyph(gradient: string, energy: number): string {
+  const n = gradient.length - 1;
+  const idx = Math.max(0, Math.min(n, Math.round(energy * n)));
+  return gradient[idx];
+}
+function ensureWaterfallCanvas(
+  existing: HTMLCanvasElement | null,
+  w: number,
+  h: number,
+): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null; fresh: boolean } {
+  if (existing && existing.width === w && existing.height === h) {
+    return { canvas: existing, ctx: existing.getContext("2d"), fresh: false };
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (ctx) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h); }
+  return { canvas, ctx, fresh: true };
+}
+export function drawWaterfallAscii(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  const cellH = 12;
+  const cellW = 8;
+  const { canvas, ctx: off, fresh } = ensureWaterfallCanvas(wfAsciiCanvas, w, h);
+  if (fresh) { wfAsciiCanvas = canvas; }
+  if (!off) return;
+
+  // Scroll one cell-row every ~0.13 s (≈ 7.5 rows/sec × 12 px =
+  // 90 px/sec) — a drone-paced drip, not a disco crawl.
+  if (p.t - wfAsciiLastScroll >= 0.13) {
+    wfAsciiLastScroll = p.t;
+    off.drawImage(canvas, 0, 0, w, h - cellH, 0, cellH, w, h - cellH);
+    off.fillStyle = "#000";
+    off.fillRect(0, 0, w, cellH);
+    off.font = `${cellH}px "SF Mono", "Menlo", "Consolas", monospace`;
+    off.textBaseline = "top";
+    const cols = Math.floor(w / cellW);
+    const bins = a.spectrum.length;
+    for (let c = 0; c < cols; c++) {
+      const binIdx = Math.floor((c / cols) * bins);
+      const energy = a.spectrum[binIdx];
+      if (energy < 0.02) continue;
+      const glyph = pickGlyph(ASCII_GRADIENT, energy);
+      const light = Math.round(35 + energy * 60);
+      off.fillStyle = `hsla(0, 0%, ${light}%, ${0.35 + energy * 0.65})`;
+      off.fillText(glyph, c * cellW, 0);
+    }
+    off.fillStyle = "rgba(0, 0, 0, 0.004)";
+    off.fillRect(0, 0, w, h);
+  }
+  ctx.drawImage(canvas, 0, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 22. WATERFALL · BLOCKS — Unicode block-drawing characters. Same
+//     grid-and-scroll structure as the ASCII variant, but uses
+//     ▁▂▃▄▅▆▇█ which tile flush so the stacked cells merge into
+//     continuous ribbons that look like a real spectrogram.
+// ─────────────────────────────────────────────────────────────────────
+const BLOCK_GRADIENT = " ▁▂▃▄▅▆▇█";
+let wfBlockCanvas: HTMLCanvasElement | null = null;
+let wfBlockLastScroll = 0;
+export function drawWaterfallBlock(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  const cellH = 12;
+  const cellW = 8;
+  const { canvas, ctx: off, fresh } = ensureWaterfallCanvas(wfBlockCanvas, w, h);
+  if (fresh) { wfBlockCanvas = canvas; }
+  if (!off) return;
+
+  if (p.t - wfBlockLastScroll >= 0.13) {
+    wfBlockLastScroll = p.t;
+    off.drawImage(canvas, 0, 0, w, h - cellH, 0, cellH, w, h - cellH);
+    off.fillStyle = "#000";
+    off.fillRect(0, 0, w, cellH);
+    off.font = `${cellH}px "SF Mono", "Menlo", "Consolas", monospace`;
+    off.textBaseline = "top";
+    const cols = Math.floor(w / cellW);
+    const bins = a.spectrum.length;
+    for (let c = 0; c < cols; c++) {
+      const binIdx = Math.floor((c / cols) * bins);
+      const energy = a.spectrum[binIdx];
+      if (energy < 0.02) continue;
+      const glyph = pickGlyph(BLOCK_GRADIENT, energy);
+      const light = Math.round(45 + energy * 55);
+      off.fillStyle = `hsla(0, 0%, ${light}%, ${0.4 + energy * 0.6})`;
+      off.fillText(glyph, c * cellW, 0);
+    }
+    off.fillStyle = "rgba(0, 0, 0, 0.004)";
+    off.fillRect(0, 0, w, h);
+  }
+  ctx.drawImage(canvas, 0, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 23. WATERFALL · RAIN — Matrix-style falling glyph cascades. Each
+//     FFT column gets a vertical column of characters whose head
+//     drops at a speed proportional to its bin energy and leaves a
+//     fading trail behind. Drone harmonics become persistent
+//     glowing rivers running down the screen.
+// ─────────────────────────────────────────────────────────────────────
+interface RainCol {
+  y: number;      // head position in cell units (float so it advances smoothly)
+  salt: number;   // per-column random phase for glyph cycling
+}
+let rainCols: RainCol[] | null = null;
+let rainColsCount = 0;
+let rainCellH = 14;
+const RAIN_GLYPHS = "0123456789アカサタナハマヤラワABCDEFGHJKLMNPQRSTUVWXYZ.-=+*#@";
+export function drawWaterfallRain(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  const cellH = 14;
+  const cellW = 10;
+  rainCellH = cellH;
+  const cols = Math.floor(w / cellW);
+  const rows = Math.floor(h / cellH);
+
+  if (!rainCols || rainColsCount !== cols) {
+    rainCols = new Array(cols);
+    for (let c = 0; c < cols; c++) {
+      rainCols[c] = {
+        y: Math.random() * rows,
+        salt: Math.floor(Math.random() * 9973),
+      };
+    }
+    rainColsCount = cols;
+  }
+
+  // Low-alpha fill to fade the previous frame — this gives the
+  // glowing trail behind each falling head.
+  ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.font = `${cellH}px "SF Mono", "Menlo", "Consolas", monospace`;
+  ctx.textBaseline = "top";
+
+  const bins = a.spectrum.length;
+  const glyphCount = RAIN_GLYPHS.length;
+  for (let c = 0; c < cols; c++) {
+    const col = rainCols[c];
+    const binIdx = Math.floor((c / cols) * bins);
+    const energy = a.spectrum[binIdx];
+    // Speed: slow drip pace suited to drone music — quiet columns
+    // barely move, hot columns fall meaningfully but not disco-fast.
+    // At 60 fps: 0.03..0.21 cells/frame ≈ 1.8..12.6 cells/sec, so
+    // a full column takes several seconds to scroll.
+    col.y += 0.03 + energy * 0.18;
+    if (col.y > rows + 4) {
+      col.y = -Math.random() * 10;
+    }
+    const headY = Math.floor(col.y);
+    if (headY < 0 || headY >= rows) continue;
+    const tickIdx = Math.floor(p.t * 6);
+    const chIdx = (col.salt + headY * 17 + tickIdx) % glyphCount;
+    const glyph = RAIN_GLYPHS[chIdx];
+    // Head is bright white
+    ctx.fillStyle = `hsla(0, 0%, 100%, ${0.85 + energy * 0.15})`;
+    ctx.fillText(glyph, c * cellW, headY * cellH);
+    // One dimmer glyph just behind the head for a brighter tail
+    // start — amplifies the wet-character glow.
+    if (headY > 0) {
+      const prevCh = RAIN_GLYPHS[(col.salt + (headY - 1) * 17 + tickIdx - 1 + glyphCount) % glyphCount];
+      ctx.fillStyle = `hsla(0, 0%, 80%, ${0.35 + energy * 0.35})`;
+      ctx.fillText(prevCh, c * cellW, (headY - 1) * cellH);
+    }
+  }
+  // `rainCellH` read suppresses the unused-var warning if ever needed
+  void rainCellH;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 24. WATERFALL · HYBRID — scrolling spectrogram whose *top row* uses
+//     a different glyph set every few seconds. As frames pile up,
+//     the waterfall develops horizontal bands of different "fonts"
+//     (blocks → ASCII → braille → back). Same grid-and-scroll as
+//     the other waterfalls so older bands keep their original
+//     character set and the whole image looks like geological
+//     strata of terminal fonts.
+// ─────────────────────────────────────────────────────────────────────
+const HYBRID_GRADIENTS: readonly string[] = [
+  " ▁▂▃▄▅▆▇█",         // blocks
+  " .·-:=+*%#@",       // ascii gradient
+  " ⠁⠃⠇⠏⠟⠿⣿",         // braille dots (partial fill)
+  " ░▒▓█",              // shade blocks
+];
+let wfHybridCanvas: HTMLCanvasElement | null = null;
+let wfHybridLastScroll = 0;
+export function drawWaterfallHybrid(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  const cellH = 12;
+  const cellW = 8;
+  const { canvas, ctx: off, fresh } = ensureWaterfallCanvas(wfHybridCanvas, w, h);
+  if (fresh) { wfHybridCanvas = canvas; }
+  if (!off) return;
+
+  if (p.t - wfHybridLastScroll >= 0.13) {
+    wfHybridLastScroll = p.t;
+    off.drawImage(canvas, 0, 0, w, h - cellH, 0, cellH, w, h - cellH);
+    off.fillStyle = "#000";
+    off.fillRect(0, 0, w, cellH);
+    off.font = `${cellH}px "SF Mono", "Menlo", "Consolas", monospace`;
+    off.textBaseline = "top";
+
+    // Rotate glyph set every ~9 s
+    const setIdx = Math.floor(p.t / 9) % HYBRID_GRADIENTS.length;
+    const gradient = HYBRID_GRADIENTS[setIdx];
+
+    const cols = Math.floor(w / cellW);
+    const bins = a.spectrum.length;
+    for (let c = 0; c < cols; c++) {
+      const binIdx = Math.floor((c / cols) * bins);
+      const energy = a.spectrum[binIdx];
+      if (energy < 0.02) continue;
+      const glyph = pickGlyph(gradient, energy);
+      const light = Math.round(40 + energy * 58);
+      off.fillStyle = `hsla(0, 0%, ${light}%, ${0.4 + energy * 0.6})`;
+      off.fillText(glyph, c * cellW, 0);
+    }
+    off.fillStyle = "rgba(0, 0, 0, 0.004)";
+    off.fillRect(0, 0, w, h);
+  }
+  ctx.drawImage(canvas, 0, 0);
+}

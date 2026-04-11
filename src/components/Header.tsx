@@ -5,6 +5,7 @@ import { resetAllLocalStorage, type SavedSession } from "../session";
 import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
 import { HelpModal } from "./HelpModal";
+import { DropdownSelect } from "./DropdownSelect";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 const PITCH_CLASSES: PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -259,17 +260,14 @@ export function Header({
         <div className="header-freq">
           <span className="header-freq-value">{freqHz.toFixed(1)} Hz</span>
         </div>
-        <select
-          className="header-tonic-select"
+        <DropdownSelect<PitchClass>
           value={tonic}
-          onChange={(e) => onChangeTonic(e.target.value as PitchClass)}
+          options={PITCH_CLASSES.map((pc) => ({ value: pc, label: pc }))}
+          onChange={onChangeTonic}
+          className="header-tonic-select"
           title="Drone tonic — pitch class of the root"
-          aria-label="Tonic"
-        >
-          {PITCH_CLASSES.map((pc) => (
-            <option key={pc} value={pc}>{pc}</option>
-          ))}
-        </select>
+          ariaLabel="Tonic"
+        />
         <div className="header-octave" title="Drone octave">
           <button
             className="header-octave-btn"
