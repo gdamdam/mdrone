@@ -578,7 +578,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
             {intervalReadoutRows.length > 0 && (
               <div className="intonation-readout">
-                <div className="panel-hint">INTERVALS · resolved cents</div>
+                <div className="panel-hint">INTERVALS · resolved cents - OVERRIDES SCALE INTERVALS</div>
                 <div className="intonation-chip-grid">
                   {intervalReadoutRows.map((row) => (
                     <div key={`${row.label}-${row.index}`} className="intonation-chip">
