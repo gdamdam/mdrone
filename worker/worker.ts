@@ -26,7 +26,7 @@ import {
   type SceneCardStyle,
   type SceneCardStyleChoice,
 } from "../src/shareCard/svgBuilder";
-import type { PortableScene } from "../src/session";
+import { normalizePortableScene, type PortableScene } from "../src/session";
 
 const APP_ORIGIN = "https://mdrone.mpump.live";
 const VERSION = "0.3.0";
@@ -91,166 +91,36 @@ async function decodePayload(raw: string, compressed: boolean): Promise<unknown>
 
 /* ─── scene normalisation ─────────────────────────────────────────────── */
 
+/**
+ * Share-link scene normaliser. Delegates to the client's
+ * `normalizePortableScene` (src/session.ts) so the OG card, the PNG
+ * card, and the app itself all agree on the exact same clamps and
+ * defaults. A partial or malformed payload used to render one scene in
+ * the worker and load a different one in the app — this keeps them in
+ * lockstep.
+ *
+ * The client normaliser returns `null` when `drone` or `mixer` are
+ * missing from the input; we preserve the worker's forgiving behavior
+ * (never 500 on a weird payload) by filling in empty records as a
+ * baseline before delegating.
+ */
 function normalizeScene(decoded: unknown): PortableScene {
-  const num = (v: unknown, fb: number, lo = -Infinity, hi = Infinity): number => {
-    if (typeof v !== "number" || !isFinite(v)) return fb;
-    return Math.max(lo, Math.min(hi, v));
-  };
-  const bool = (v: unknown, fb: boolean): boolean => (typeof v === "boolean" ? v : fb);
-  const str = (v: unknown, fb: string): string =>
-    typeof v === "string" && v.length > 0 ? v : fb;
-
-  const d = (decoded && typeof decoded === "object" ? decoded : {}) as Record<string, unknown>;
-  const droneIn = (d.drone && typeof d.drone === "object" ? d.drone : {}) as Record<string, unknown>;
-  const fxIn = (d.fx && typeof d.fx === "object" ? d.fx : {}) as Record<string, unknown>;
-  const levelsIn = (fxIn.levels && typeof fxIn.levels === "object" ? fxIn.levels : {}) as Record<
-    string,
-    unknown
-  >;
-  const uiIn = (d.ui && typeof d.ui === "object" ? d.ui : {}) as Record<string, unknown>;
-  const vLayersIn = (droneIn.voiceLayers && typeof droneIn.voiceLayers === "object"
-    ? droneIn.voiceLayers
-    : {}) as Record<string, unknown>;
-  const vLevelsIn = (droneIn.voiceLevels && typeof droneIn.voiceLevels === "object"
-    ? droneIn.voiceLevels
-    : {}) as Record<string, unknown>;
-  const effectsIn = (droneIn.effects && typeof droneIn.effects === "object"
-    ? droneIn.effects
-    : {}) as Record<string, unknown>;
-
-  const allowedRoots = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
-  const root = (allowedRoots as readonly string[]).includes(droneIn.root as string)
-    ? (droneIn.root as (typeof allowedRoots)[number])
-    : "A";
-  const allowedScales = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
-  const scale = (allowedScales as readonly string[]).includes(droneIn.scale as string)
-    ? (droneIn.scale as (typeof allowedScales)[number])
-    : "drone";
-  const allowedTunings = ["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
-  const tuningId = (allowedTunings as readonly string[]).includes(droneIn.tuningId as string)
-    ? (droneIn.tuningId as (typeof allowedTunings)[number])
-    : null;
-  const allowedRelations = ["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"] as const;
-  const relationId = (allowedRelations as readonly string[]).includes(droneIn.relationId as string)
-    ? (droneIn.relationId as (typeof allowedRelations)[number])
-    : null;
-  const fineTuneOffsets = Array.isArray(droneIn.fineTuneOffsets)
-    ? droneIn.fineTuneOffsets
-      .slice(0, 12)
-      .map((value) => num(value, 0, -25, 25))
-    : [];
-  const allowedPalettes = ["ember", "copper", "dusk"] as const;
-  const paletteId = (allowedPalettes as readonly string[]).includes(uiIn.paletteId as string)
-    ? (uiIn.paletteId as (typeof allowedPalettes)[number])
-    : "ember";
-  const allowedVisualizers = [
-    "mandala", "haloGlow", "fractal", "rothko", "tapeDecay", "dreamHouse",
-    "sigil", "starGate", "cymatics", "inkBloom", "horizon", "aurora", "orb", "dreamMachine",
-  ] as const;
-  const visualizer = (allowedVisualizers as readonly string[]).includes(uiIn.visualizer as string)
-    ? (uiIn.visualizer as (typeof allowedVisualizers)[number])
-    : "mandala";
-  const allowedLfoShapes = ["sine", "triangle", "square", "sawtooth"] as const;
-  const lfoShape = (allowedLfoShapes as readonly string[]).includes(droneIn.lfoShape as string)
-    ? (droneIn.lfoShape as (typeof allowedLfoShapes)[number])
-    : "sine";
-
-  return {
-    version: 1,
-    name: str(d.name, "Shared Scene"),
-    drone: {
-      activePresetId: (typeof droneIn.activePresetId === "string" ? droneIn.activePresetId : null),
-      playing: bool(droneIn.playing, false),
-      root,
-      octave: num(droneIn.octave, 2, 0, 7),
-      scale,
-      tuningId,
-      relationId,
-      fineTuneOffsets,
-      voiceLayers: {
-        tanpura: bool(vLayersIn.tanpura, true),
-        reed: bool(vLayersIn.reed, false),
-        metal: bool(vLayersIn.metal, false),
-        air: bool(vLayersIn.air, false),
-        piano: bool(vLayersIn.piano, false),
-        fm: bool(vLayersIn.fm, false),
-        amp: bool(vLayersIn.amp, false),
-      },
-      voiceLevels: {
-        tanpura: num(vLevelsIn.tanpura, 1, 0, 1),
-        reed: num(vLevelsIn.reed, 1, 0, 1),
-        metal: num(vLevelsIn.metal, 1, 0, 1),
-        air: num(vLevelsIn.air, 1, 0, 1),
-        piano: num(vLevelsIn.piano, 1, 0, 1),
-        fm: num(vLevelsIn.fm, 1, 0, 1),
-        amp: num(vLevelsIn.amp, 1, 0, 1),
-      },
-      effects: {
-        tape: bool(effectsIn.tape, false),
-        wow: bool(effectsIn.wow, false),
-        sub: bool(effectsIn.sub, false),
-        comb: bool(effectsIn.comb, false),
-        delay: bool(effectsIn.delay, false),
-        plate: bool(effectsIn.plate, false),
-        hall: bool(effectsIn.hall, false),
-        shimmer: bool(effectsIn.shimmer, false),
-        freeze: bool(effectsIn.freeze, false),
-        cistern: bool(effectsIn.cistern, false),
-        granular: bool(effectsIn.granular, false),
-        ringmod: bool(effectsIn.ringmod, false),
-        formant: bool(effectsIn.formant, false),
-      },
-      drift: num(droneIn.drift, 0.3, 0, 1),
-      air: num(droneIn.air, 0.4, 0, 1),
-      time: num(droneIn.time, 0.5, 0, 1),
-      sub: num(droneIn.sub, 0, 0, 1),
-      bloom: num(droneIn.bloom, 0.15, 0, 1),
-      glide: num(droneIn.glide, 0.15, 0, 1),
-      climateX: num(droneIn.climateX, 0.5, 0, 1),
-      climateY: num(droneIn.climateY, 0.5, 0, 1),
-      lfoShape,
-      lfoRate: num(droneIn.lfoRate, 0.4, 0, 10),
-      lfoAmount: num(droneIn.lfoAmount, 0, 0, 1),
-      presetMorph: num(droneIn.presetMorph, 0.25, 0, 1),
-      evolve: num(droneIn.evolve, 0, 0, 1),
-      pluckRate: num(droneIn.pluckRate, 1, 0, 4),
-      presetTrim: num(droneIn.presetTrim, 1, 0, 1),
-    },
-    mixer: {
-      hpfHz: 20,
-      low: 0,
-      mid: 0,
-      high: 0,
-      glue: 0,
-      drive: 0,
-      limiterOn: false,
-      ceiling: -1,
-      volume: 0.8,
-    },
-    fx: {
-      levels: {
-        tape: num(levelsIn.tape, 1, 0, 1),
-        wow: num(levelsIn.wow, 1, 0, 1),
-        sub: num(levelsIn.sub, 0.9, 0, 1),
-        comb: num(levelsIn.comb, 0.85, 0, 1),
-        delay: num(levelsIn.delay, 0.9, 0, 1),
-        plate: num(levelsIn.plate, 1, 0, 1),
-        hall: num(levelsIn.hall, 1, 0, 1),
-        shimmer: num(levelsIn.shimmer, 0.95, 0, 1),
-        freeze: num(levelsIn.freeze, 1, 0, 1),
-        cistern: num(levelsIn.cistern, 1, 0, 1),
-        granular: num(levelsIn.granular, 0.9, 0, 1),
-        ringmod: num(levelsIn.ringmod, 0.7, 0, 1),
-        formant: num(levelsIn.formant, 0.85, 0, 1),
-      },
-      delayTime: num(fxIn.delayTime, 0.55, 0, 1),
-      delayFeedback: num(fxIn.delayFeedback, 0.58, 0, 1),
-      combFeedback: num(fxIn.combFeedback, 0.85, 0, 1),
-      subCenter: num(fxIn.subCenter, 110, 20, 400),
-      freezeMix: num(fxIn.freezeMix, 1, 0, 1),
-    },
-    ui: { paletteId, visualizer },
-  };
+  const record = (decoded && typeof decoded === "object")
+    ? (decoded as Record<string, unknown>)
+    : {};
+  const droneIn = (record.drone && typeof record.drone === "object")
+    ? record.drone
+    : {};
+  const mixerIn = (record.mixer && typeof record.mixer === "object")
+    ? record.mixer
+    : {};
+  // With drone + mixer guaranteed to be records, normalizePortableScene
+  // never returns null — the non-null assertion is load-bearing.
+  return normalizePortableScene({
+    ...record,
+    drone: droneIn,
+    mixer: mixerIn,
+  })!;
 }
 
 /* ─── description helpers for OG text ─────────────────────────────────── */
