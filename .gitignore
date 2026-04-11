@@ -25,3 +25,6 @@ misc/
 
 # Wrangler local dev cache
 worker/.wrangler/
+
+# Claude Code local workspace
+.claude/
