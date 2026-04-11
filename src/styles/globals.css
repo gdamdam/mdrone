@@ -722,6 +722,62 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   min-width: 78px;
 }
 
+/* Tonic select — matches the header-btn visual language. */
+.header-tonic-select {
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  color: var(--preview);
+  border: 1px solid color-mix(in srgb, var(--preview) 26%, var(--border));
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+}
+.header-tonic-select:hover {
+  border-color: color-mix(in srgb, var(--preview) 60%, var(--border));
+}
+
+/* Octave stepper — compact −/+/value trio, styled like header-btn. */
+.header-octave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  border: 1px solid color-mix(in srgb, var(--preview) 26%, var(--border));
+}
+.header-octave-btn {
+  width: 20px;
+  height: 22px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--preview);
+  border: none;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0;
+}
+.header-octave-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--preview) 14%, transparent);
+}
+.header-octave-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.header-octave-value {
+  min-width: 16px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--preview);
+  font-family: monospace;
+}
+
 .header-freq-value {
   min-height: 30px;
   display: inline-flex;
@@ -784,6 +840,11 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   letter-spacing: 0.6px;
   opacity: 0.82;
 }
+
+/* HOLD button mobile single-char glyph. Hidden on desktop; the mobile
+ * media query swaps it in place of the label/sub so the button
+ * collapses to a play/stop icon. */
+.header-hold-glyph { display: none; }
 
 .view-btn {
   font-size: 10px;
@@ -956,14 +1017,22 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-btn-random  { order: 3; }
   .header-btn-undo    { order: 4; }
 
-  /* Row 2: [ VOL ][ ● REC ][ ■ HOLD ][ Hz ][ ⤴ SHARE ][ P ][ ⚙ ] */
-  .header-btn-volume  { order: 6; min-width: auto; padding: 4px 6px; font-size: 10px; font-weight: 800; line-height: 1; letter-spacing: 0.3px; }
-  .header-btn-record  { order: 7; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; letter-spacing: 0; }
-  .header-hold-btn    { order: 8; min-width: 72px; }
-  .header-freq        { order: 9; }
-  .header-btn-share   { order: 10; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; letter-spacing: 0; }
-  .header-btn-panic   { order: 11; }
-  .header-btn-menu    { order: 12; min-width: auto; padding: 6px 10px; }
+  /* Row 2: [ VOL ][ ● REC ][ ■ HOLD ][ Tonic ][ Oct ][ ⤴ ][ P ][ ⚙ ]
+   * Hz readout is hidden on mobile — the HOLD button sub-label
+   * already shows the current tonic+octave, and the tonic/octave
+   * controls next to it make the Hz redundant on small screens. */
+  .header-btn-volume   { order: 6; min-width: auto; padding: 4px 6px; font-size: 10px; font-weight: 800; line-height: 1; letter-spacing: 0.3px; }
+  .header-btn-record   { order: 7; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; letter-spacing: 0; }
+  .header-hold-btn     { order: 8; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
+  .header-hold-label,
+  .header-hold-sub     { display: none; }
+  .header-hold-glyph   { display: inline; }
+  .header-freq         { display: none; }
+  .header-tonic-select { order: 10; }
+  .header-octave       { order: 11; }
+  .header-btn-share    { order: 12; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; letter-spacing: 0; }
+  .header-btn-panic    { order: 13; }
+  .header-btn-menu     { order: 14; min-width: auto; padding: 6px 10px; }
 
   /* Swap the desktop label for the single-char glyph on mobile for
    * the REC and RND buttons. The component renders both spans and we

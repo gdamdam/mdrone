@@ -205,6 +205,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         displayText={sceneManager.displayText}
         tonic={headerTonic}
         octave={headerOctave}
+        onChangeTonic={(pc) => droneViewRef.current?.setRoot(pc)}
+        onChangeOctave={(o) => droneViewRef.current?.setOctave(Math.max(1, Math.min(6, o)))}
         onToggleHold={handleToggleHold}
         holding={headerHolding}
         onToggleRec={handleToggleRec}

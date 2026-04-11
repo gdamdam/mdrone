@@ -27,6 +27,8 @@ interface HeaderProps {
   displayText: string;
   tonic: PitchClass;
   octave: number;
+  onChangeTonic: (pc: PitchClass) => void;
+  onChangeOctave: (octave: number) => void;
   onToggleHold: () => void;
   holding: boolean;
   onToggleRec: () => void;
@@ -66,6 +68,8 @@ export function Header({
   displayText,
   tonic,
   octave,
+  onChangeTonic,
+  onChangeOctave,
   onToggleHold,
   holding,
   onToggleRec,
@@ -244,11 +248,46 @@ export function Header({
           onClick={onToggleHold}
           title={holding ? "Release the drone" : "Hold the current tonic"}
         >
+          {/* Desktop label + sub — hidden on mobile via CSS */}
           <span className="header-hold-label">{holding ? "■ HOLDING" : "▶ HOLD"}</span>
           <span className="header-hold-sub">{tonic}{octave}</span>
+          {/* Mobile single-char glyph — hidden on desktop */}
+          <span className="header-hold-glyph" aria-hidden="true">
+            {holding ? "■" : "▶"}
+          </span>
         </button>
         <div className="header-freq">
           <span className="header-freq-value">{freqHz.toFixed(1)} Hz</span>
+        </div>
+        <select
+          className="header-tonic-select"
+          value={tonic}
+          onChange={(e) => onChangeTonic(e.target.value as PitchClass)}
+          title="Drone tonic — pitch class of the root"
+          aria-label="Tonic"
+        >
+          {PITCH_CLASSES.map((pc) => (
+            <option key={pc} value={pc}>{pc}</option>
+          ))}
+        </select>
+        <div className="header-octave" title="Drone octave">
+          <button
+            className="header-octave-btn"
+            onClick={() => onChangeOctave(Math.max(1, octave - 1))}
+            disabled={octave <= 1}
+            aria-label="Octave down"
+          >
+            −
+          </button>
+          <span className="header-octave-value">{octave}</span>
+          <button
+            className="header-octave-btn"
+            onClick={() => onChangeOctave(Math.min(6, octave + 1))}
+            disabled={octave >= 6}
+            aria-label="Octave up"
+          >
+            +
+          </button>
         </div>
         <button
           className="header-btn header-btn-volume"
