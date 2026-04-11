@@ -1883,6 +1883,10 @@ export interface PresetUiSetters {
   setRelation: (id: RelationId | null) => void;
   setFineTuneOffsets: (offsets: number[]) => void;
   setEffectEnabled: (id: EffectId, on: boolean) => void;
+  /** Optional pre-resolved interval list for the engine build path.
+   *  Lets callers preserve extra derived layers (e.g. partner drone)
+   *  without forcing a second rebuild after preset apply. */
+  engineIntervals?: number[];
 }
 
 /**
@@ -1945,6 +1949,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   const intervals = (preset.tuningId && preset.relationId)
     ? resolveTuning(preset.tuningId, preset.relationId)
     : SCALE_INTERVALS[preset.scale] ?? [0];
+  const engineIntervals = ui.engineIntervals ?? intervals;
 
   if (engine) {
     // (A) Apply per-preset loudness trim before the scene builds so
@@ -1958,7 +1963,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     // Parallel reverb send levels — reset every preset so stale sends
     // from a previous scene don't leak through.
     engine.setParallelSends(preset.parallelSends ?? {});
-    engine.applyDroneScene(layers, levels, intervals);
+    engine.applyDroneScene(layers, levels, engineIntervals);
   }
 
   // Effects — turn on the listed ones, off the rest

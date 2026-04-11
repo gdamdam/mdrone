@@ -4,6 +4,8 @@ import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
 import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type Voice, type VoiceType } from "./VoiceBuilder";
 
 export class VoiceEngine {
+  private static readonly MIN_REBUILD_XFADE_SEC = 0.3;
+  private static readonly MAX_REBUILD_XFADE_SEC = 1.8;
   private readonly ctx: AudioContext;
   private readonly fxChain: FxChain;
   private readonly wetSend: GainNode;
@@ -418,7 +420,13 @@ export class VoiceEngine {
   private rebuildIntervals(): void {
     const now = this.ctx.currentTime;
     const morphMul = 0.4 + this.morphAmount * 3.6;
-    const bloom = Math.max(0.3, this.bloomAttackTime() * morphMul);
+    const bloom = Math.min(
+      VoiceEngine.MAX_REBUILD_XFADE_SEC,
+      Math.max(
+        VoiceEngine.MIN_REBUILD_XFADE_SEC,
+        this.bloomAttackTime() * morphMul,
+      ),
+    );
 
     const retiring: { gain: GainNode; voices: Voice[] }[] = [];
     for (const [type, voices] of this.droneVoicesByLayer.entries()) {

@@ -2,7 +2,7 @@
  * `define` so there's a single source of truth. Bump package.json on
  * release and the banner in Layout will prompt existing clients to
  * reload once the new build is deployed. */
-export const APP_VERSION = "1.4.1";
+export const APP_VERSION = "1.4.2";
 
 /** LocalStorage keys, namespaced so mpump/mloop don't collide. */
 export const STORAGE_KEYS = {

@@ -338,6 +338,15 @@ export function useDroneScene({
       setRelation,
       setFineTuneOffsets,
       setEffectEnabled,
+      engineIntervals: withPartnerIntervals(
+        resolveIntervals({
+          scale: preset.scale,
+          tuningId: preset.tuningId ?? null,
+          relationId: preset.relationId ?? null,
+          fineTuneOffsets: [],
+        }),
+        partner,
+      ),
     });
   }, [
     engine,
@@ -360,6 +369,7 @@ export function useDroneScene({
     setRelation,
     setFineTuneOffsets,
     setEffectEnabled,
+    partner,
   ]);
 
   useEffect(() => {
@@ -403,7 +413,10 @@ export function useDroneScene({
   const applySnapshot = useCallback((snapshot: DroneSessionSnapshot) => {
     const shouldPlay = snapshot.playing ?? false;
     const nextFreq = pitchToFreq(snapshot.root, snapshot.octave);
-    const nextIntervals = resolveIntervals(snapshot);
+    const nextIntervals = withPartnerIntervals(
+      resolveIntervals(snapshot),
+      snapshot.partner,
+    );
 
     if (engine && state.playing && !shouldPlay) {
       engine.stopDrone();
