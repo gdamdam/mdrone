@@ -1,6 +1,49 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import { PRESETS, createSafeRandomScene, mutateScene, mulberry32 } from "../engine/presets";
+import { applyJourneyTick } from "../journey";
+import {
+  SceneRecorder,
+  scheduleMotionReplay,
+  MOTION_PARAM_IDS,
+  indexToPitchClass,
+  type MotionParamId,
+} from "../sceneRecorder";
+import type { DroneSessionSnapshot } from "../session";
+
+/**
+ * Apply a single replayed motion event by reading the current
+ * snapshot, patching the changed field, and pushing it back through
+ * applySnapshot. Slower than calling the targeted setter directly,
+ * but it works without expanding the DroneViewHandle surface and
+ * the throttle in SceneRecorder caps the call rate at ~5 Hz/param.
+ */
+function dispatchMotionEvent(
+  handle: { getSnapshot(): DroneSessionSnapshot; applySnapshot(s: DroneSessionSnapshot): void },
+  paramId: MotionParamId,
+  value: number,
+): void {
+  const snap = handle.getSnapshot();
+  let next: DroneSessionSnapshot | null = null;
+  switch (paramId) {
+    case MOTION_PARAM_IDS.drift:       next = { ...snap, drift: value };       break;
+    case MOTION_PARAM_IDS.air:         next = { ...snap, air: value };         break;
+    case MOTION_PARAM_IDS.time:        next = { ...snap, time: value };        break;
+    case MOTION_PARAM_IDS.sub:         next = { ...snap, sub: value };         break;
+    case MOTION_PARAM_IDS.bloom:       next = { ...snap, bloom: value };       break;
+    case MOTION_PARAM_IDS.glide:       next = { ...snap, glide: value };       break;
+    case MOTION_PARAM_IDS.climateX:    next = { ...snap, climateX: value };    break;
+    case MOTION_PARAM_IDS.climateY:    next = { ...snap, climateY: value };    break;
+    case MOTION_PARAM_IDS.octave:      next = { ...snap, octave: value };      break;
+    case MOTION_PARAM_IDS.root:        next = { ...snap, root: indexToPitchClass(value) }; break;
+    case MOTION_PARAM_IDS.evolve:      next = { ...snap, evolve: value };      break;
+    case MOTION_PARAM_IDS.presetMorph: next = { ...snap, presetMorph: value }; break;
+    case MOTION_PARAM_IDS.pluckRate:   next = { ...snap, pluckRate: value };   break;
+    case MOTION_PARAM_IDS.lfoRate:     next = { ...snap, lfoRate: value };     break;
+    case MOTION_PARAM_IDS.lfoAmount:   next = { ...snap, lfoAmount: value };   break;
+  }
+  if (next) handle.applySnapshot(next);
+}
 import { generateDroneName, hashSceneSeed } from "./droneNames";
 import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState";
 import { buildSceneShareUrl, loadSceneFromCurrentUrlOnce } from "../shareCodec";
@@ -71,6 +114,18 @@ export function useSceneManager({
   const evolveTickRef = useRef(0);
   const evolveLastSeedRef = useRef<number | null>(null);
 
+  // Motion recorder + replay machinery. The recorder is a long-lived
+  // instance the rest of the app reaches via `recordParam`. Replay
+  // uses scheduleMotionReplay against droneViewRef setters; the
+  // cancel handle is stored in motionReplayCancelRef so a second
+  // share-load wipes the prior queue cleanly.
+  const recorderRef = useRef<SceneRecorder>(new SceneRecorder());
+  const motionReplayCancelRef = useRef<(() => void) | null>(null);
+  const [isRecordingMotion, setIsRecordingMotion] = useState(false);
+  const recordParam = useCallback((id: MotionParamId, v: number) => {
+    recorderRef.current.record(id, v);
+  }, []);
+
   const applyStartupScene = useCallback(() => {
     // Use the same code path as clicking RND so the first scene on load
     // is effectively a random-scene click — same tonic pool, same jitter,
@@ -98,7 +153,14 @@ export function useSceneManager({
   const captureCurrentSceneSnapshot = useCallback((name: string): PortableScene | null => {
     const drone = droneViewRef.current?.getSnapshot();
     if (!drone) return null;
-    return capturePortableScene(engine, drone, meditateVisualizer, name);
+    const scene = capturePortableScene(engine, drone, meditateVisualizer, name);
+    // Attach the recorded motion (if any) so the share URL carries
+    // the performance back out. SceneRecorder.getEvents() returns []
+    // when nothing is recorded; only attach when non-empty so legacy
+    // shares stay byte-identical.
+    const events = recorderRef.current.getEvents();
+    if (events.length > 0) scene.motion = events;
+    return scene;
   }, [droneViewRef, engine, meditateVisualizer]);
 
   const applyPortableScene = useCallback((
@@ -121,6 +183,26 @@ export function useSceneManager({
     setCurrentSessionName(scene.name);
     setCurrentPresetName(scene.name);
     saveCurrentSessionId(options?.sessionId ?? null);
+
+    // Cancel any previous motion replay (e.g. share-URL load arriving
+    // while a Continue Last Scene replay was still in flight).
+    motionReplayCancelRef.current?.();
+    motionReplayCancelRef.current = null;
+    // Reset the recorder so a fresh recording doesn't carry over
+    // events from the previous scene.
+    recorderRef.current.stop();
+    setIsRecordingMotion(false);
+
+    // Schedule motion replay if the loaded scene carries one.
+    if (scene.motion && scene.motion.length >= 3) {
+      const handle = droneViewRef.current;
+      if (handle) {
+        motionReplayCancelRef.current = scheduleMotionReplay(
+          scene.motion,
+          (paramId, value) => dispatchMotionEvent(handle, paramId, value),
+        );
+      }
+    }
   }, [droneViewRef, engine, onMixerSync]);
 
   useEffect(() => {
@@ -393,6 +475,19 @@ export function useSceneManager({
     droneViewRef.current?.applyPresetById(nextPreset.id);
   }, [droneViewRef]);
 
+  /** Toggle motion recording on/off. Starting clears any prior
+   *  recording; stopping leaves the events in the recorder so the
+   *  next share-URL build picks them up via captureCurrentScene. */
+  const handleToggleMotionRecord = useCallback(() => {
+    if (recorderRef.current.isRecording()) {
+      recorderRef.current.stop();
+      setIsRecordingMotion(false);
+    } else {
+      recorderRef.current.start();
+      setIsRecordingMotion(true);
+    }
+  }, []);
+
   /** Restore whatever was playing before the last RND click. No-op if
    *  no previous scene is stored (fresh load, or already undone once). */
   const handleUndoScene = useCallback(() => {
@@ -424,12 +519,16 @@ export function useSceneManager({
   }, []);
 
   // URL-deterministic evolve loop. When the current scene is playing
-  // and its `evolve` knob is > 0, perturb numeric params on a fixed
-  // cadence using a PRNG seeded from (scene.seed + tick × golden).
-  // Two visitors opening the same share URL walk the same
-  // (seed, tick) sequence from tick=0 — the URL is the recipe and
-  // the tick counter lives in local memory only (reloading the URL
-  // resets tick to 0 by construction).
+  // and either `evolve > 0` or a `journey` is set, the loop steps the
+  // scene on a fixed cadence:
+  //
+  // - if `journey` is set: deterministic walk through authored
+  //   arrival → bloom → suspension → dissolve phases (src/journey.ts).
+  //   Tick is reset whenever the seed changes (RND / MUT / share-URL
+  //   load) so two visitors with the same URL hear the same journey
+  //   from phase 0.
+  // - else if `evolve > 0`: PRNG-perturbed mutate step seeded from
+  //   (scene.seed + tick × golden ratio), same URL ⇒ same drift.
   useEffect(() => {
     const INTERVAL_MS = 4000;
     const id = window.setInterval(() => {
@@ -439,19 +538,23 @@ export function useSceneManager({
         evolveTickRef.current = 0;
         evolveLastSeedRef.current = snap.seed;
       }
-      if (!snap.playing || snap.evolve <= 0) return;
+      if (!snap.playing) return;
       evolveTickRef.current += 1;
-      // Mix tick into seed via the 32-bit golden ratio so adjacent
-      // ticks produce perceptibly-different perturbations.
-      const mixed = (snap.seed + evolveTickRef.current * 0x9E3779B1) >>> 0;
-      const rng = mulberry32(mixed);
-      // Amount scales with evolve — 0.15 at evolve=1 reads as gentle
-      // drift rather than violent warping at a 4 s cadence.
-      const amt = snap.evolve * 0.15;
-      const perturbed = mutateScene(snap, amt, rng);
+      let next: typeof snap;
+      if (snap.journey) {
+        // Journey takes precedence over the random evolve perturbation.
+        next = applyJourneyTick(snap, snap.journey, evolveTickRef.current);
+      } else if (snap.evolve > 0) {
+        const mixed = (snap.seed + evolveTickRef.current * 0x9E3779B1) >>> 0;
+        const rng = mulberry32(mixed);
+        const amt = snap.evolve * 0.15;
+        next = mutateScene(snap, amt, rng);
+      } else {
+        return;
+      }
       // Preserve the original seed so the (seed, tick+1) chain
       // continues to derive from the same origin.
-      droneViewRef.current?.applySnapshot({ ...perturbed, seed: snap.seed });
+      droneViewRef.current?.applySnapshot({ ...next, seed: snap.seed });
     }, INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [droneViewRef]);
@@ -477,6 +580,9 @@ export function useSceneManager({
     handleLoadSession,
     handleRandomScene,
     handleMutateScene,
+    handleToggleMotionRecord,
+    isRecordingMotion,
+    recordParam,
     handleCyclePresetInGroup,
     handleUndoScene,
     buildShareSceneData,

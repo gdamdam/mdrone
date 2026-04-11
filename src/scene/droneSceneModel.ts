@@ -4,6 +4,8 @@ import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass, RelationId, ScaleId, TuningId } from "../types";
 import type { VoiceType } from "../engine/VoiceBuilder";
 import { resolveIntervals as resolveIntervalsCore } from "../microtuning";
+import type { JourneyId } from "../journey";
+import { DEFAULT_PARTNER, type PartnerState } from "../partner";
 
 export const PITCH_CLASSES: PitchClass[] = [
   "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
@@ -125,6 +127,8 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
     pluckRate: engine?.getTanpuraPluckRate() ?? 1,
     presetTrim: engine?.getPresetTrim() ?? 1,
     seed: 0,
+    journey: null,
+    partner: { ...DEFAULT_PARTNER },
   };
 }
 
@@ -140,7 +144,9 @@ export type LiveDroneSceneAction =
   | { type: "setVoiceLayer"; voiceType: VoiceType; on: boolean }
   | { type: "setVoiceLevel"; voiceType: VoiceType; level: number }
   | { type: "setEffect"; effectId: EffectId; on: boolean }
-  | { type: "setClimate"; x: number; y: number };
+  | { type: "setClimate"; x: number; y: number }
+  | { type: "setJourney"; journey: JourneyId | null }
+  | { type: "setPartner"; partner: PartnerState };
 
 export function liveDroneSceneReducer(
   state: LiveDroneSceneState,
@@ -184,6 +190,10 @@ export function liveDroneSceneReducer(
         climateX: action.x,
         climateY: action.y,
       };
+    case "setJourney":
+      return { ...state, journey: action.journey };
+    case "setPartner":
+      return { ...state, partner: { ...action.partner } };
     default:
       return state;
   }

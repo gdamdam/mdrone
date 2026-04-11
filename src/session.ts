@@ -4,6 +4,9 @@ import type { VoiceType } from "./engine/VoiceBuilder";
 import type { PitchClass, RelationId, ScaleId, TuningId } from "./types";
 import type { PaletteId } from "./themes";
 import type { Visualizer } from "./components/visualizers";
+import { JOURNEY_IDS, type JourneyId } from "./journey";
+import { PARTNER_RELATIONS, DEFAULT_PARTNER, type PartnerRelation, type PartnerState } from "./partner";
+import { normalizeMotionEvents } from "./sceneRecorder";
 
 export interface DroneSessionSnapshot {
   activePresetId: string | null;
@@ -42,6 +45,15 @@ export interface DroneSessionSnapshot {
    *  the share URL so reloading a shared scene preserves reproducibility
    *  for follow-up mutations. */
   seed: number;
+  /** Optional ritual journey id. When set, the evolve loop replaces
+   *  its generic mutate-perturb step with a deterministic
+   *  arrival → bloom → suspension → dissolve walk authored in
+   *  src/journey.ts. null = journey is off (default). */
+  journey: JourneyId | null;
+  /** Optional sympathetic-partner drone layer. When enabled, the
+   *  partner cents are appended to the main interval list and the
+   *  audio engine spawns parallel voices automatically. */
+  partner: PartnerState;
 }
 
 export interface MixerSessionSnapshot {
@@ -77,6 +89,10 @@ export interface PortableScene {
   mixer: MixerSessionSnapshot;
   fx: FxSessionSnapshot;
   ui: UiSessionSnapshot;
+  /** Optional motion-recording payload — flat tuple list
+   *  [t_ms, paramId, value, ...]. Absent on legacy URLs.
+   *  See src/sceneRecorder.ts for the format and replay rules. */
+  motion?: number[];
 }
 
 export interface SavedSession {
@@ -191,6 +207,8 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   pluckRate: 1,
   presetTrim: 1,
   seed: 0,
+  journey: null,
+  partner: DEFAULT_PARTNER,
 };
 
 const DEFAULT_MIXER_SNAPSHOT: MixerSessionSnapshot = {
@@ -329,6 +347,18 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     pluckRate: readNumber(value.pluckRate, DEFAULT_DRONE_SNAPSHOT.pluckRate, 0.2, 4),
     presetTrim: readNumber(value.presetTrim, DEFAULT_DRONE_SNAPSHOT.presetTrim, 0.1, 4),
     seed: readNumber(value.seed, DEFAULT_DRONE_SNAPSHOT.seed, 0, 0xFFFFFFFF),
+    journey: isOneOf(value.journey, JOURNEY_IDS) ? value.journey : null,
+    partner: normalizePartner(value.partner),
+  };
+}
+
+function normalizePartner(value: unknown): PartnerState {
+  if (!isRecord(value)) return { ...DEFAULT_PARTNER };
+  return {
+    enabled: readBoolean(value.enabled, DEFAULT_PARTNER.enabled),
+    relation: isOneOf(value.relation, PARTNER_RELATIONS)
+      ? (value.relation as PartnerRelation)
+      : DEFAULT_PARTNER.relation,
   };
 }
 
@@ -372,7 +402,8 @@ export function normalizePortableScene(value: unknown, fallbackName = "Shared Sc
   const drone = normalizeDroneSnapshot(value.drone);
   const mixer = normalizeMixerSnapshot(value.mixer);
   if (!drone || !mixer) return null;
-  return {
+  const motion = normalizeMotionEvents(value.motion);
+  const scene: PortableScene = {
     version: 1,
     name: readString(value.name, fallbackName),
     drone,
@@ -380,6 +411,8 @@ export function normalizePortableScene(value: unknown, fallbackName = "Shared Sc
     fx: normalizeFxSnapshot(value.fx),
     ui: normalizeUiSnapshot(value.ui),
   };
+  if (motion) scene.motion = motion;
+  return scene;
 }
 
 function migrateLegacySession(value: Record<string, unknown>): SavedSession | null {

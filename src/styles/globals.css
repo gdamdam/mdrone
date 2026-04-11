@@ -287,6 +287,33 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .preset-mut-btn:active {
   background: color-mix(in srgb, var(--preview) 25%, var(--bg-cell));
 }
+.preset-mut-btn-rec {
+  background: color-mix(in srgb, #c83838 30%, var(--bg-cell));
+  color: #ffd0c8;
+  border-color: #c83838;
+}
+.preset-mut-btn-rec:hover {
+  background: color-mix(in srgb, #c83838 45%, var(--bg-cell));
+  border-color: #ff5050;
+  color: #ffe0d8;
+}
+.preset-journey-select {
+  background: var(--bg-cell);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.preset-journey-select:hover {
+  border-color: color-mix(in srgb, var(--preview) 35%, var(--border));
+  color: var(--preview);
+}
 .preset-mut-intensity {
   flex: 0 0 100px;
   width: 100px;

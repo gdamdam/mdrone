@@ -266,6 +266,9 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             onPresetChange={handlePresetChange}
             onMutateScene={sceneManager.handleMutateScene}
             onTuneOffsetChange={setHeaderTuneHint}
+            onParamRecord={sceneManager.recordParam}
+            isRecordingMotion={sceneManager.isRecordingMotion}
+            onToggleMotionRecord={sceneManager.handleToggleMotionRecord}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
           />

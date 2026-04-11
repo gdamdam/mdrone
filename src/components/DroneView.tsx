@@ -9,6 +9,8 @@ import {
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { VoiceType } from "../engine/VoiceBuilder";
 import { PRESETS, type PresetGroup } from "../engine/presets";
+import { JOURNEYS, JOURNEY_IDS, type JourneyId } from "../journey";
+import { PARTNER_RELATIONS, type PartnerRelation } from "../partner";
 import { VuMeter } from "./VuMeter";
 
 const PRESET_GROUPS: PresetGroup[] = [
@@ -161,6 +163,14 @@ interface DroneViewProps {
    *  (e.g. "±7 ¢"), or null when no offsets are non-zero or
    *  microtuning isn't engaged. */
   onTuneOffsetChange?: (hint: string | null) => void;
+  /** Optional motion-recorder hook — forwarded into useDroneScene so
+   *  every meaningful dispatch can be captured for the share URL. */
+  onParamRecord?: (id: import("../sceneRecorder").MotionParamId, value: number) => void;
+  /** Whether the motion recorder is currently capturing. Drives the
+   *  REC MOTION button's active state in the preset panel header. */
+  isRecordingMotion?: boolean;
+  /** Toggle the motion recorder on/off. */
+  onToggleMotionRecord?: () => void;
   kbdActive: boolean;
   onToggleKbd: () => void;
 }
@@ -184,7 +194,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, kbdActive, onToggleKbd }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, kbdActive, onToggleKbd }: DroneViewProps,
   ref,
 ) {
   const {
@@ -216,11 +226,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     getSnapshot,
     applySnapshot,
     startImmediate,
+    setJourney,
+    setPartner,
   } = useDroneScene({
     engine,
     onTransportChange,
     onTonicChange,
     onPresetChange,
+    onParamRecord,
   });
 
   // Progressive disclosure — collapsible sections. Default: collapsed.
@@ -253,9 +266,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // authored detune). Only opens — never auto-closes — so a user
   // who manually collapses it stays collapsed until the next time
   // offsets transition from all-zero to non-zero.
+  //
+  // This is a deliberate set-state-in-effect: the trigger is an
+  // external source-of-truth change (state.fineTuneOffsets, mutated
+  // by reducer dispatch), and we sync the local disclosure state to
+  // it. There's no derived alternative that lets the user manually
+  // collapse without re-opening on the next render.
   useEffect(() => {
     if (disclosed.detune) return;
     if (!state.fineTuneOffsets.some((o) => o !== 0)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDisclosed((prev) => {
       const next = { ...prev, detune: true };
       try { localStorage.setItem(DISCLOSURE_KEY, JSON.stringify(next)); } catch { /* noop */ }
@@ -408,6 +428,50 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <div className="preset-panel-header">
           <div className="panel-label">PRESETS · tap to load</div>
           <div className="preset-mut-row">
+            <select
+              className="preset-journey-select"
+              value={state.journey ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                setJourney(v === "" ? null : (v as JourneyId));
+              }}
+              title="JOURNEY — authored ritual phases (arrival → bloom → suspension → dissolve). Replaces evolve drift while active."
+              aria-label="Journey"
+            >
+              <option value="">JOURNEY: off</option>
+              {JOURNEY_IDS.map((id) => (
+                <option key={id} value={id}>JOURNEY: {JOURNEYS[id].label}</option>
+              ))}
+            </select>
+            <select
+              className="preset-journey-select"
+              value={state.partner.enabled ? state.partner.relation : ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") {
+                  setPartner({ ...state.partner, enabled: false });
+                } else {
+                  setPartner({ enabled: true, relation: v as PartnerRelation });
+                }
+              }}
+              title="PARTNER — sympathetic second drone layer at a fixed musical relation."
+              aria-label="Sympathetic partner"
+            >
+              <option value="">PARTNER: off</option>
+              {PARTNER_RELATIONS.map((r) => (
+                <option key={r} value={r}>PARTNER: {r}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={isRecordingMotion ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
+              onClick={() => onToggleMotionRecord?.()}
+              title={isRecordingMotion
+                ? "Stop motion recording — captured gestures travel with the next share URL"
+                : "Record meaningful gestures (60 s / 200 events max) into the next share URL"}
+            >
+              {isRecordingMotion ? "● REC MOTION" : "REC MOTION"}
+            </button>
             <button
               type="button"
               className="preset-mut-btn"

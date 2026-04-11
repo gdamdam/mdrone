@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useMemo } from "react";
 import type { AudioEngine, EngineSceneMutation } from "../engine/AudioEngine";
 import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
 import type { EffectId } from "../engine/FxChain";
@@ -6,6 +6,9 @@ import { PRESETS, applyPreset, getPresetMaterialProfile } from "../engine/preset
 import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
 import type { RelationId, TuningId } from "../types";
+import type { JourneyId } from "../journey";
+import { withPartnerIntervals, type PartnerState } from "../partner";
+import { MOTION_PARAM_IDS, pitchClassToIndex, type MotionParamId } from "../sceneRecorder";
 import {
   createInitialDroneScene,
   freqToPitch,
@@ -20,6 +23,12 @@ interface UseDroneSceneArgs {
   onTransportChange?: (playing: boolean) => void;
   onTonicChange?: (root: PitchClass, octave: number) => void;
   onPresetChange?: (presetId: string | null, presetName: string | null) => void;
+  /** Optional motion-recorder hook. When set, every meaningful
+   *  dispatch (macros, tonic, octave, climate, evolve, morph, lfo)
+   *  forwards a (paramId, value) pair to the recorder, which
+   *  decides whether to actually capture it (throttle + caps live
+   *  in src/sceneRecorder.ts). */
+  onParamRecord?: (id: MotionParamId, value: number) => void;
 }
 
 export function useDroneScene({
@@ -27,7 +36,14 @@ export function useDroneScene({
   onTransportChange,
   onTonicChange,
   onPresetChange,
+  onParamRecord,
 }: UseDroneSceneArgs) {
+  // The setter useCallbacks below depend on this; useSceneManager
+  // provides a stable onParamRecord reference, so the cascade of
+  // re-creations is bounded to "the recorder identity actually changed."
+  const recordParam = useCallback((id: MotionParamId, v: number) => {
+    onParamRecord?.(id, v);
+  }, [onParamRecord]);
   const [state, dispatch] = useReducer(liveDroneSceneReducer, engine, createInitialDroneScene);
 
   const setActivePresetId = useCallback((presetId: string | null) => {
@@ -36,11 +52,13 @@ export function useDroneScene({
 
   const setRoot = useCallback((root: PitchClass) => {
     dispatch({ type: "setRoot", root });
-  }, []);
+    recordParam(MOTION_PARAM_IDS.root, pitchClassToIndex(root));
+  }, [recordParam]);
 
   const setOctave = useCallback((octave: number) => {
     dispatch({ type: "setOctave", octave });
-  }, []);
+    recordParam(MOTION_PARAM_IDS.octave, octave);
+  }, [recordParam]);
 
   const setScale = useCallback((scale: LiveDroneSceneState["scale"]) => {
     dispatch({ type: "setScale", scale });
@@ -94,11 +112,21 @@ export function useDroneScene({
     dispatch({ type: "merge", patch: { glide } });
   }, []);
 
+  const setJourney = useCallback((journey: JourneyId | null) => {
+    dispatch({ type: "setJourney", journey });
+  }, []);
+
+  const setPartner = useCallback((partner: PartnerState) => {
+    dispatch({ type: "setPartner", partner });
+  }, []);
+
   const setClimate = useCallback((x: number, y: number) => {
     dispatch({ type: "setClimate", x, y });
     engine?.setClimateX(x);
     engine?.setClimateY(y);
-  }, [engine]);
+    recordParam(MOTION_PARAM_IDS.climateX, x);
+    recordParam(MOTION_PARAM_IDS.climateY, y);
+  }, [engine, recordParam]);
 
   const setLfoShapeState = useCallback((lfoShape: OscillatorType) => {
     dispatch({ type: "merge", patch: { lfoShape } });
@@ -114,15 +142,18 @@ export function useDroneScene({
 
   const setPresetMorph = useCallback((presetMorph: number) => {
     dispatch({ type: "merge", patch: { presetMorph } });
-  }, []);
+    recordParam(MOTION_PARAM_IDS.presetMorph, presetMorph);
+  }, [recordParam]);
 
   const setPresetEvolve = useCallback((evolve: number) => {
     dispatch({ type: "merge", patch: { evolve } });
-  }, []);
+    recordParam(MOTION_PARAM_IDS.evolve, evolve);
+  }, [recordParam]);
 
   const setPluckRate = useCallback((pluckRate: number) => {
     dispatch({ type: "merge", patch: { pluckRate } });
-  }, []);
+    recordParam(MOTION_PARAM_IDS.pluckRate, pluckRate);
+  }, [recordParam]);
 
   const setPresetTrim = useCallback((presetTrim: number) => {
     dispatch({ type: "merge", patch: { presetTrim } });
@@ -153,32 +184,38 @@ export function useDroneScene({
   const setDrift = useCallback((drift: number) => {
     setDriftState(drift);
     engine?.setDrift(drift);
-  }, [engine, setDriftState]);
+    recordParam(MOTION_PARAM_IDS.drift, drift);
+  }, [engine, setDriftState, recordParam]);
 
   const setAir = useCallback((air: number) => {
     setAirState(air);
     engine?.setAir(air);
-  }, [engine, setAirState]);
+    recordParam(MOTION_PARAM_IDS.air, air);
+  }, [engine, setAirState, recordParam]);
 
   const setTime = useCallback((time: number) => {
     setTimeState(time);
     engine?.setTime(time);
-  }, [engine, setTimeState]);
+    recordParam(MOTION_PARAM_IDS.time, time);
+  }, [engine, setTimeState, recordParam]);
 
   const setSub = useCallback((sub: number) => {
     setSubState(sub);
     engine?.setSub(sub);
-  }, [engine, setSubState]);
+    recordParam(MOTION_PARAM_IDS.sub, sub);
+  }, [engine, setSubState, recordParam]);
 
   const setBloom = useCallback((bloom: number) => {
     setBloomState(bloom);
     engine?.setBloom(bloom);
-  }, [engine, setBloomState]);
+    recordParam(MOTION_PARAM_IDS.bloom, bloom);
+  }, [engine, setBloomState, recordParam]);
 
   const setGlide = useCallback((glide: number) => {
     setGlideState(glide);
     engine?.setGlide(glide);
-  }, [engine, setGlideState]);
+    recordParam(MOTION_PARAM_IDS.glide, glide);
+  }, [engine, setGlideState, recordParam]);
 
   const setLfoShape = useCallback((lfoShape: OscillatorType) => {
     setLfoShapeState(lfoShape);
@@ -188,12 +225,14 @@ export function useDroneScene({
   const setLfoRate = useCallback((lfoRate: number) => {
     setLfoRateState(lfoRate);
     engine?.setLfoRate(lfoRate);
-  }, [engine, setLfoRateState]);
+    recordParam(MOTION_PARAM_IDS.lfoRate, lfoRate);
+  }, [engine, setLfoRateState, recordParam]);
 
   const setLfoAmount = useCallback((lfoAmount: number) => {
     setLfoAmountState(lfoAmount);
     engine?.setLfoAmount(lfoAmount);
-  }, [engine, setLfoAmountState]);
+    recordParam(MOTION_PARAM_IDS.lfoAmount, lfoAmount);
+  }, [engine, setLfoAmountState, recordParam]);
 
   // When the engine first becomes available, push current scene state down.
   useEffect(() => {
@@ -238,8 +277,15 @@ export function useDroneScene({
   // fires, its engine.startDrone call + didAutostartRef set will
   // pre-empt us so we don't double-start.
   // Derived intervals — depends only on scale + microtuning fields.
-  const { scale, tuningId, relationId, fineTuneOffsets } = state;
-  const intervals = resolveIntervals({ scale, tuningId, relationId, fineTuneOffsets });
+  // The sympathetic partner (if enabled) appends a parallel cents
+  // list to the main intervals so each main voice is mirrored at the
+  // chosen relation. Memoised so referential equality is stable
+  // across renders that don't touch the underlying inputs.
+  const { scale, tuningId, relationId, fineTuneOffsets, partner } = state;
+  const intervals = useMemo(() => {
+    const base = resolveIntervals({ scale, tuningId, relationId, fineTuneOffsets });
+    return withPartnerIntervals(base, partner);
+  }, [scale, tuningId, relationId, fineTuneOffsets, partner]);
 
   const didAutostartRef = useRef(false);
   useEffect(() => {
@@ -445,6 +491,8 @@ export function useDroneScene({
     setTuning,
     setRelation,
     setFineTuneOffsets,
+    setJourney,
+    setPartner,
     setPresetMorph,
     setPresetEvolve,
     setPluckRate,

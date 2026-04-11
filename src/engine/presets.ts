@@ -25,6 +25,7 @@ import { ALL_VOICE_TYPES } from "./VoiceBuilder";
 import type { RelationId, ScaleId, TuningId } from "../types";
 import { resolveTuning } from "../microtuning";
 import type { DroneSessionSnapshot } from "../session";
+import { DEFAULT_PARTNER } from "../partner";
 
 export type PresetGroup =
   | "Sacred / Ritual"
@@ -1831,6 +1832,8 @@ export function createPresetVariation(
     pluckRate: 1,
     presetTrim: preset.gain ?? 1,
     seed: 0,
+    journey: null,
+    partner: { ...DEFAULT_PARTNER },
   };
 }
 
