@@ -63,10 +63,19 @@ export function useSceneManager({
     // range; only fall back if the preset has no range.
     const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
     const { preset, snapshot } = createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE);
+    // See handleRandomScene — guard against handlePresetNameChange
+    // stomping on the generated name when applySnapshot fires the
+    // onPresetChange effect.
+    ignoreNextPresetNameRef.current = true;
     droneViewRef.current?.applySnapshot(snapshot);
     setCurrentSessionId(null);
     setCurrentSessionName(DEFAULT_SESSION_NAME);
-    setCurrentPresetName(preset.name);
+    const generated = generateDroneName(
+      preset.group,
+      hashSceneSeed(snapshot),
+      preset.attribution,
+    );
+    setCurrentPresetName(generated);
     saveCurrentSessionId(null);
     requestSigilRefresh();
   }, [droneViewRef]);
@@ -283,6 +292,11 @@ export function useSceneManager({
 
     const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
     const { preset, snapshot } = createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE);
+    // Suppress the handlePresetNameChange fire that applySnapshot
+    // would otherwise trigger — it would overwrite our generated
+    // name with preset.name the moment DroneView's onPresetChange
+    // callback runs.
+    ignoreNextPresetNameRef.current = true;
     droneViewRef.current?.applySnapshot(snapshot);
     setCurrentSessionId(null);
     setCurrentSessionName(DEFAULT_SESSION_NAME);

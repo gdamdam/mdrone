@@ -53,7 +53,6 @@ const WORDBANKS: Record<PresetGroup, Wordbank> = {
  *  collision. */
 const TEMPLATES: readonly ((a: string, n1: string, n2: string) => string)[] = [
   (a, n1) => `${a} ${n1}`,
-  (a, n1) => `The ${a} ${n1}`,
   (_a, n1, n2) => (n1 === n2 ? n1 : `${n1} of ${n2}`),
 ];
 

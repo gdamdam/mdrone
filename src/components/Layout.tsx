@@ -48,6 +48,20 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     startupMode,
   });
 
+  // Memoize the onPresetChange wrapper so DroneView's effect that
+  // watches it (useDroneScene:319) only re-fires when the preset
+  // actually changes. Without this, the inline arrow was a fresh
+  // reference every Layout render, re-firing the effect multiple
+  // times per RND click and racing against the ignoreNextPresetNameRef
+  // one-shot guard — which let preset.name overwrite a generated
+  // drone name on the second fire.
+  const handlePresetChange = useCallback(
+    (_presetId: string | null, presetName: string | null) => {
+      sceneManager.handlePresetNameChange(presetName);
+    },
+    [sceneManager.handlePresetNameChange],
+  );
+
   // REC timer tick — sync to external timer (Date.now). When isRec flips
   // off, the timer interval is cleared and we reset in the next frame via
   // a cleanup setter to avoid setState-in-effect lint warning.
@@ -245,9 +259,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
               setHeaderTonic(root);
               setHeaderOctave(octave);
             }}
-            onPresetChange={(_presetId, presetName) => {
-              sceneManager.handlePresetNameChange(presetName);
-            }}
+            onPresetChange={handlePresetChange}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
           />
