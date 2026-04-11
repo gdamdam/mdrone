@@ -236,15 +236,22 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-bottom: 8px;
 }
 
-/* MUTATE controls — sit at the top of the preset panel,
- * perturb the current scene by the intensity slider. */
+/* Preset panel header — panel label on the left, MUTATE controls
+ * on the right, sharing one flex row at the top of the panel. */
+.preset-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+/* MUTATE controls — top-right of the preset panel. */
 .preset-mut-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px 8px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 8px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .preset-mut-btn {
   background: var(--bg-cell);
@@ -267,8 +274,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   background: color-mix(in srgb, var(--preview) 25%, var(--bg-cell));
 }
 .preset-mut-intensity {
-  flex: 1 1 auto;
-  max-width: 260px;
+  flex: 0 0 100px;
+  width: 100px;
   height: 4px;
   -webkit-appearance: none;
   appearance: none;

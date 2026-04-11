@@ -359,31 +359,33 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <VuMeter analyser={engine?.getAnalyser() ?? null} width={600} height={16} />
       </div>
       <div className="panel preset-panel preset-panel-wide">
-        <div className="preset-mut-row">
-          <button
-            type="button"
-            className="preset-mut-btn"
-            onClick={() => onMutateScene?.(mutateIntensity)}
-            title={`MUTATE — perturb the current scene by ${Math.round(mutateIntensity * 100)}%`}
-          >
-            MUTATE
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={mutateIntensity}
-            onChange={(e) => setMutateIntensity(parseFloat(e.target.value))}
-            className="preset-mut-intensity"
-            title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
-            aria-label="Mutation intensity"
-          />
-          <span className="preset-mut-value" aria-hidden="true">
-            {Math.round(mutateIntensity * 100)}%
-          </span>
+        <div className="preset-panel-header">
+          <div className="panel-label">PRESETS · tap to load</div>
+          <div className="preset-mut-row">
+            <button
+              type="button"
+              className="preset-mut-btn"
+              onClick={() => onMutateScene?.(mutateIntensity)}
+              title={`MUTATE — perturb the current scene by ${Math.round(mutateIntensity * 100)}%`}
+            >
+              MUTATE
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={mutateIntensity}
+              onChange={(e) => setMutateIntensity(parseFloat(e.target.value))}
+              className="preset-mut-intensity"
+              title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
+              aria-label="Mutation intensity"
+            />
+            <span className="preset-mut-value" aria-hidden="true">
+              {Math.round(mutateIntensity * 100)}%
+            </span>
+          </div>
         </div>
-        <div className="panel-label">PRESETS · tap to load</div>
         {/* Genre tabs — one row of small group buttons */}
         <div className="preset-tabs" role="tablist">
           {PRESET_GROUPS.map((g) => (
