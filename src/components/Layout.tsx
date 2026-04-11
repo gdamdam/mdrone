@@ -48,6 +48,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     onMixerSync: () => setMixerSyncToken((value) => value + 1),
     startupMode,
   });
+  const handlePresetNameChange = sceneManager.handlePresetNameChange;
 
   // Memoize the onPresetChange wrapper so DroneView's effect that
   // watches it (useDroneScene:319) only re-fires when the preset
@@ -58,9 +59,9 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // drone name on the second fire.
   const handlePresetChange = useCallback(
     (_presetId: string | null, presetName: string | null) => {
-      sceneManager.handlePresetNameChange(presetName);
+      handlePresetNameChange(presetName);
     },
-    [sceneManager.handlePresetNameChange],
+    [handlePresetNameChange],
   );
 
   // REC timer tick — sync to external timer (Date.now). When isRec flips

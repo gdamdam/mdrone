@@ -440,6 +440,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     inset 0 0 10px color-mix(in srgb, var(--preview) 8%, transparent),
     0 0 4px color-mix(in srgb, var(--preview) 6%, transparent);
   padding: 5px 8px;
+  contain: paint;
 }
 
 .header-brand {
@@ -480,6 +481,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   -webkit-font-smoothing: none;
   -moz-osx-font-smoothing: unset;
   animation: header-marquee 12s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
 }
 .header-display:hover .header-display-track {
   animation-play-state: paused;
@@ -547,6 +550,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   color: var(--preview);
   letter-spacing: 0;
   white-space: pre;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .title-version {
@@ -892,6 +897,27 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 9px;
   opacity: 0.7;
   line-height: 1;
+}
+
+.title-art,
+.title-version,
+.title-badge,
+.header-display-track,
+.header-display-sep,
+.dropdown-select-chevron,
+.header-btn-label-full,
+.header-btn-label-glyph,
+.header-hold-label,
+.header-hold-sub,
+.header-hold-glyph,
+.preset-btn-icon,
+.preset-btn-meta,
+.timbre-btn-icon,
+.timbre-btn-label,
+.fx-btn-label,
+.mixer-clip-label {
+  pointer-events: none;
+  user-select: none;
 }
 .dropdown-select-popup {
   position: absolute;

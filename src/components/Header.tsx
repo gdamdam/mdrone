@@ -107,9 +107,13 @@ export function Header({
     if (!el) return;
     const buf = new Uint8Array(analyser.fftSize);
     let raf = 0;
+    let lastPaint = -Infinity;
     let smoothedRms = 0;
-    const tick = () => {
+    const FRAME_MS = 1000 / 30;
+    const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      if (now - lastPaint < FRAME_MS) return;
+      lastPaint = now;
       analyser.getByteTimeDomainData(buf);
       let sum = 0;
       for (let i = 0; i < buf.length; i++) {
@@ -118,7 +122,7 @@ export function Header({
       }
       const rms = Math.min(1, Math.sqrt(sum / buf.length) * 3);
       smoothedRms += (rms - smoothedRms) * 0.25;
-      const t = performance.now() / 1000;
+      const t = now / 1000;
       // Two-axis jitter — fast micro-sine on top of the rms amplitude
       const amp = smoothedRms * 1.8;
       const dx = Math.sin(t * 23.1) * amp;
@@ -132,7 +136,7 @@ export function Header({
         `0 0 ${glowR.toFixed(1)}px rgba(255, 160, 60, ${glowA.toFixed(2)}),` +
         ` 0 0 ${(glowR * 0.35).toFixed(1)}px rgba(255, 220, 120, ${(glowA * 1.1).toFixed(2)})`;
     };
-    tick();
+    raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
       if (el) {

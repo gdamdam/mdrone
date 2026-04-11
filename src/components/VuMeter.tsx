@@ -22,8 +22,12 @@ export function VuMeter({
     let peakHold = 0;
     let peakDecay = 0;
     let raf = 0;
-    const tick = () => {
+    let lastPaint = -Infinity;
+    const FRAME_MS = 1000 / 30;
+    const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      if (now - lastPaint < FRAME_MS) return;
+      lastPaint = now;
       analyser.getByteTimeDomainData(buf);
       let sum = 0;
       let peak = 0;
@@ -76,7 +80,7 @@ export function VuMeter({
       ctx.fillRect(cx + peakOff, 0, 2, H);
       ctx.fillRect(cx - peakOff - 2, 0, 2, H);
     };
-    tick();
+    raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [analyser]);
   return (

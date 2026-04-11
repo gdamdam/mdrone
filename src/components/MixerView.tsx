@@ -78,9 +78,13 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
   useEffect(() => {
     let raf = 0;
     let holdUntil = 0;
+    let lastSample = -Infinity;
+    const FRAME_MS = 1000 / 30;
     const buf = new Uint8Array(2048);
-    const tick = () => {
+    const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      if (now - lastSample < FRAME_MS) return;
+      lastSample = now;
       const el = clipLedRef.current;
       const eng = engineRef.current;
       if (!el || !eng) return;
@@ -90,11 +94,10 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
         const v = Math.abs(buf[i] - 128) / 127;
         if (v > peak) peak = v;
       }
-      const now = performance.now();
       if (peak > 0.98) holdUntil = now + 120;
       el.classList.toggle("clip-on", now < holdUntil);
     };
-    tick();
+    raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
 

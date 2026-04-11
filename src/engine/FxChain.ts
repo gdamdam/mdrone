@@ -149,6 +149,8 @@ export class FxChain {
   private subLow!: BiquadFilterNode;
   private hallVerb!: ConvolverNode;
   private cisternVerb!: ConvolverNode;
+  private hallImpulse: AudioBuffer | null = null;
+  private cisternImpulse: AudioBuffer | null = null;
 
   private plateWorklet: AudioWorkletNode | null = null;
   private shimmerWorklet: AudioWorkletNode | null = null;
@@ -311,7 +313,6 @@ export class FxChain {
 
     // Parallel hall (native convolver, shares the hall IR generator)
     this.parallelHallVerb = ctx.createConvolver();
-    this.parallelHallVerb.buffer = FxChain.makeHallImpulse(ctx, 4.8);
     this.parallelHallWet = ctx.createGain();
     this.parallelHallWet.gain.value = 0;
     this.input
@@ -321,7 +322,6 @@ export class FxChain {
 
     // Parallel cistern (native convolver, shares the cistern IR)
     this.parallelCisternVerb = ctx.createConvolver();
-    this.parallelCisternVerb.buffer = FxChain.makeCisternImpulse(ctx, 28);
     this.parallelCisternWet = ctx.createGain();
     this.parallelCisternWet.gain.value = 0;
     this.input
@@ -475,7 +475,6 @@ export class FxChain {
     const ctx = this.ctx;
     const ins = this.inserts.hall;
     this.hallVerb = ctx.createConvolver();
-    this.hallVerb.buffer = FxChain.makeHallImpulse(ctx, 4.8);
     ins.insertIn
       .connect(this.hallVerb)
       .connect(ins.wetGain)
@@ -490,11 +489,51 @@ export class FxChain {
     const ctx = this.ctx;
     const ins = this.inserts.cistern;
     this.cisternVerb = ctx.createConvolver();
-    this.cisternVerb.buffer = FxChain.makeCisternImpulse(ctx, 28);
     ins.insertIn
       .connect(this.cisternVerb)
       .connect(ins.wetGain)
       .connect(ins.insertOut);
+  }
+
+  private ensureHallImpulse(): AudioBuffer {
+    if (!this.hallImpulse) {
+      this.hallImpulse = FxChain.makeHallImpulse(this.ctx, 4.8);
+    }
+    return this.hallImpulse;
+  }
+
+  private ensureCisternImpulse(): AudioBuffer {
+    if (!this.cisternImpulse) {
+      this.cisternImpulse = FxChain.makeCisternImpulse(this.ctx, 28);
+    }
+    return this.cisternImpulse;
+  }
+
+  private setConvolverBuffer(node: ConvolverNode, buffer: AudioBuffer | null): void {
+    if (node.buffer === buffer) return;
+    try {
+      node.buffer = buffer;
+    } catch {
+      // Ignore transient buffer swap failures during panic/reconnect.
+    }
+  }
+
+  private syncNativeReverbBuffers(): void {
+    const anyHall = this.enabled.hall || this.parallelSendLevels.hall > 0;
+    const anyCistern = this.enabled.cistern || this.parallelSendLevels.cistern > 0;
+    const hallBuffer = anyHall ? this.ensureHallImpulse() : null;
+    const cisternBuffer = anyCistern ? this.ensureCisternImpulse() : null;
+
+    this.setConvolverBuffer(this.hallVerb, this.enabled.hall ? hallBuffer : null);
+    this.setConvolverBuffer(
+      this.parallelHallVerb,
+      this.parallelSendLevels.hall > 0 ? hallBuffer : null,
+    );
+    this.setConvolverBuffer(this.cisternVerb, this.enabled.cistern ? cisternBuffer : null);
+    this.setConvolverBuffer(
+      this.parallelCisternVerb,
+      this.parallelSendLevels.cistern > 0 ? cisternBuffer : null,
+    );
   }
 
   /**
@@ -589,6 +628,7 @@ export class FxChain {
   }
 
   private applyParallelSends(): void {
+    this.syncNativeReverbBuffers();
     const now = this.ctx.currentTime;
     const tc = 0.12;
     this.parallelHallWet.gain.setTargetAtTime(this.parallelSendLevels.hall, now, tc);
@@ -605,11 +645,6 @@ export class FxChain {
     // any in-flight reverb tail. Then swap back on the next tick.
     const ctx = this.ctx;
     const empty = ctx.createBuffer(2, 1, ctx.sampleRate);
-    const hallBuf = this.hallVerb.buffer;
-    const cisternBuf = this.cisternVerb.buffer;
-    const parHallBuf = this.parallelHallVerb.buffer;
-    const parCisternBuf = this.parallelCisternVerb.buffer;
-
     try { this.hallVerb.buffer = empty; } catch { /* noop */ }
     try { this.cisternVerb.buffer = empty; } catch { /* noop */ }
     try { this.parallelHallVerb.buffer = empty; } catch { /* noop */ }
@@ -618,10 +653,7 @@ export class FxChain {
     // Restore the real IRs after a short delay so the next start has
     // the full reverb available again.
     setTimeout(() => {
-      try { if (hallBuf) this.hallVerb.buffer = hallBuf; } catch { /* noop */ }
-      try { if (cisternBuf) this.cisternVerb.buffer = cisternBuf; } catch { /* noop */ }
-      try { if (parHallBuf) this.parallelHallVerb.buffer = parHallBuf; } catch { /* noop */ }
-      try { if (parCisternBuf) this.parallelCisternVerb.buffer = parCisternBuf; } catch { /* noop */ }
+      this.syncNativeReverbBuffers();
     }, 220);
 
     // Post clear messages to worklet-backed effects (plate, shimmer,
@@ -649,6 +681,10 @@ export class FxChain {
     this.enabled[id] = on;
     const ins = this.inserts[id];
     const now = this.ctx.currentTime;
+
+    if (id === "hall" || id === "cistern") {
+      this.syncNativeReverbBuffers();
+    }
 
     // Apply the bypass / wet crossfade. Wet target is per-effect
     // level × (air for reverbs only).

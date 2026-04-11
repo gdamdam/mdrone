@@ -21,7 +21,7 @@
  * move the highlight, Enter commits, Escape closes.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export interface DropdownOption<T extends string> {
   value: T;
@@ -62,25 +62,19 @@ export function DropdownSelect<T extends string>({
   // Build a flat option list (for keyboard nav + label lookup) out of
   // whichever prop was supplied. When using groups, we still need a
   // flat index for highlight/arrow-key nav.
-  const flat: readonly DropdownOption<T>[] = options
-    ?? (groups?.flatMap((g) => g.items) ?? []);
+  const flat = useMemo<readonly DropdownOption<T>[]>(
+    () => options ?? (groups?.flatMap((g) => g.items) ?? []),
+    [groups, options],
+  );
 
   const [open, setOpen] = useState(false);
-  const [highlight, setHighlight] = useState(() =>
-    Math.max(0, flat.findIndex((o) => o.value === value)),
-  );
+  const selectedIndex = Math.max(0, flat.findIndex((o) => o.value === value));
+  const [highlight, setHighlight] = useState(selectedIndex);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const current = flat.find((o) => o.value === value);
   const label = current?.label ?? String(value);
-
-  // Keep highlight in sync with value when the popup opens
-  useEffect(() => {
-    if (open) {
-      setHighlight(Math.max(0, flat.findIndex((o) => o.value === value)));
-    }
-  }, [open, flat, value]);
 
   // Close on outside pointer / Escape
   useEffect(() => {
@@ -109,14 +103,31 @@ export function DropdownSelect<T extends string>({
     triggerRef.current?.focus();
   }, [onChange]);
 
+  const openPopup = useCallback(() => {
+    if (disabled) return;
+    setHighlight(selectedIndex);
+    setOpen(true);
+  }, [disabled, selectedIndex]);
+
+  const togglePopup = useCallback(() => {
+    if (disabled) return;
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setHighlight(selectedIndex);
+    setOpen(true);
+  }, [disabled, open, selectedIndex]);
+
   const handleTriggerKey = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
       e.preventDefault();
-      setOpen(true);
+      openPopup();
     }
-  }, []);
+  }, [openPopup]);
 
   const handleListKey = useCallback((e: React.KeyboardEvent) => {
+    if (flat.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlight((h) => (h + 1) % flat.length);
@@ -142,7 +153,7 @@ export function DropdownSelect<T extends string>({
         ref={triggerRef}
         type="button"
         className={`dropdown-select-trigger ${className ?? ""}`}
-        onClick={() => !disabled && setOpen((o) => !o)}
+        onClick={togglePopup}
         onKeyDown={handleTriggerKey}
         title={title}
         aria-label={ariaLabel}
