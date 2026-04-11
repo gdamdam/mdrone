@@ -221,9 +221,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
   const DISCLOSURE_KEY = "mdrone-disclosure";
-  type Section = "timbre" | "controls" | "effects" | "climate";
+  type Section = "timbre" | "controls" | "effects" | "climate" | "detune";
   const defaultDisclosure: Record<Section, boolean> = {
-    timbre: false, controls: false, effects: false, climate: false,
+    timbre: true, controls: false, effects: false, climate: false, detune: false,
   };
   const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
     try {
@@ -451,8 +451,18 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             )}
             {fineDetuneRows.length > 0 && (
               <div className="intonation-offsets">
-                <div className="panel-hint">DETUNE · active intervals in cents</div>
-                {fineDetuneRows.map((row) => (
+                {/* Closed by default — fine detune is an advanced
+                 * microtonal control and tends to confuse users who
+                 * stumble onto it. Click to reveal. */}
+                <button
+                  className="disclosure-toggle"
+                  onClick={() => toggle("detune")}
+                  title="Fine-detune the resolved interval cents"
+                >
+                  <span className="disclosure-arrow">{disclosed.detune ? "▾" : "▸"}</span>
+                  DETUNE · active intervals in cents
+                </button>
+                {disclosed.detune && fineDetuneRows.map((row) => (
                   <label key={`${row.label}-${row.index}`} className="intonation-offset-row">
                     <span className="intonation-offset-label">
                       {row.label}
