@@ -355,6 +355,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       offset,
     };
   });
+  // Microtonal mode is active when both a tuning and a relation are
+  // set — the same condition that gates `resolveTuning` above. Kept
+  // as a single derived boolean so the MODE tab UI and the downstream
+  // rendering can't disagree.
+  const modeIsMicro = Boolean(state.tuningId && state.relationId);
 
   // Spacebar toggles HOLD — ignored while typing into an input/textarea
   useEffect(() => {
@@ -539,99 +544,147 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <div className="preset-row-2">
           <div className="preset-mode-col">
             <div className="panel-label">MODE</div>
-            <div className="panel-hint">Scale intervals stacked on the root</div>
-            <div className="scale-grid scale-grid-compact">
-              {SCALES.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setScale(s.id)}
-                  className={s.id === state.scale ? "scale-btn scale-btn-active" : "scale-btn"}
-                  title={`Modal set: ${s.label} — biases the harmonic voices that fit the tonic`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <div className="intonation-row">
-              <select
-                value={state.tuningId ?? ""}
-                onChange={(e) => setTuning(e.target.value === "" ? null : e.target.value as typeof state.tuningId)}
-                className="intonation-select"
-                title="Tuning system — overrides scale intervals when both tuning and relation are set"
+            {/* Mutually exclusive tabs. The active tab is derived from
+             * state: if both tuningId and relationId are set, we're in
+             * microtonal mode; otherwise scale mode. Clicking a tab
+             * clears / seeds the opposing state to keep the two sets
+             * truly exclusive — a scene can never be both at once. */}
+            <div className="mode-tabs" role="tablist">
+              <button
+                role="tab"
+                aria-selected={!modeIsMicro}
+                className={!modeIsMicro ? "mode-tab mode-tab-active" : "mode-tab"}
+                onClick={() => {
+                  if (!modeIsMicro) return;
+                  setTuning(null);
+                  setRelation(null);
+                  setFineTuneOffsets([]);
+                }}
+                title="Scale intervals stacked on the root"
               >
-                <option value="">— Tuning</option>
-                {TUNINGS.map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
-              <select
-                value={state.relationId ?? ""}
-                onChange={(e) => setRelation(e.target.value === "" ? null : e.target.value as typeof state.relationId)}
-                className="intonation-select"
-                title="Interval relation — which degrees from the tuning to sound"
+                SCALE
+              </button>
+              <button
+                role="tab"
+                aria-selected={modeIsMicro}
+                className={modeIsMicro ? "mode-tab mode-tab-active" : "mode-tab"}
+                onClick={() => {
+                  if (modeIsMicro) return;
+                  // Seed with a reasonable default so the user
+                  // immediately hears a microtonal result instead of
+                  // an empty selector pair.
+                  setTuning(TUNINGS[0].id);
+                  setRelation(RELATIONS[1]?.id ?? RELATIONS[0].id);
+                }}
+                title="Alternative tuning system overriding the scale intervals"
               >
-                <option value="">— Relation</option>
-                {RELATIONS.map((r) => (
-                  <option key={r.id} value={r.id}>{r.label}</option>
-                ))}
-              </select>
+                MICROTONAL
+              </button>
             </div>
-            {intervalReadoutRows.length > 0 && (
-              <div className="intonation-readout">
-                <div className="panel-hint">INTERVALS · resolved cents - OVERRIDES SCALE INTERVALS</div>
-                <div className="intonation-chip-grid">
-                  {intervalReadoutRows.map((row) => (
-                    <div key={`${row.label}-${row.index}`} className="intonation-chip">
-                      <span className="intonation-chip-label">{row.label}</span>
-                      <span className="intonation-chip-value">{row.final.toFixed(2)}c</span>
-                      {row.index > 0 && row.offset !== 0 && (
-                        <span className="intonation-chip-offset">
-                          {row.offset > 0 ? "+" : ""}{row.offset.toFixed(1)}
-                        </span>
-                      )}
-                    </div>
+            {!modeIsMicro && (
+              <>
+                <div className="panel-hint">Scale intervals stacked on the root</div>
+                <div className="scale-grid scale-grid-compact">
+                  {SCALES.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setScale(s.id)}
+                      className={s.id === state.scale ? "scale-btn scale-btn-active" : "scale-btn"}
+                      title={`Modal set: ${s.label} — biases the harmonic voices that fit the tonic`}
+                    >
+                      {s.label}
+                    </button>
                   ))}
                 </div>
-              </div>
+              </>
             )}
-            {fineDetuneRows.length > 0 && (
-              <div className="intonation-offsets">
-                {/* Closed by default — fine detune is an advanced
-                 * microtonal control and tends to confuse users who
-                 * stumble onto it. Click to reveal. */}
-                <button
-                  className="disclosure-toggle"
-                  onClick={() => toggle("detune")}
-                  title="Fine-detune the resolved interval cents"
-                >
-                  <span className="disclosure-arrow">{disclosed.detune ? "▾" : "▸"}</span>
-                  DETUNE · active intervals in cents
-                </button>
-                {disclosed.detune && fineDetuneRows.map((row) => (
-                  <label key={`${row.label}-${row.index}`} className="intonation-offset-row">
-                    <span className="intonation-offset-label">
-                      {row.label}
-                      <span className="intonation-offset-value">
-                        {row.offset >= 0 ? "+" : ""}{row.offset.toFixed(1)}c
-                      </span>
-                    </span>
-                    <input
-                      type="range"
-                      min={-25}
-                      max={25}
-                      step={0.5}
-                      value={row.offset}
-                      onChange={(e) => {
-                        const next = [...state.fineTuneOffsets];
-                        next[row.index] = parseFloat(e.target.value);
-                        setFineTuneOffsets(next);
-                      }}
-                      className="macro-slider"
-                      title={`${row.label} fine detune around ${row.base.toFixed(2)} cents`}
-                    />
-                  </label>
-                ))}
-              </div>
+            {modeIsMicro && (
+              <>
+                <div className="panel-hint">Tuning system + interval relation</div>
+                <div className="intonation-row">
+                  <select
+                    value={state.tuningId ?? ""}
+                    onChange={(e) => setTuning(e.target.value === "" ? null : e.target.value as typeof state.tuningId)}
+                    className="intonation-select"
+                    title="Tuning system — pitch degrees in cents above the root"
+                  >
+                    {TUNINGS.map((t) => (
+                      <option key={t.id} value={t.id}>{t.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={state.relationId ?? ""}
+                    onChange={(e) => setRelation(e.target.value === "" ? null : e.target.value as typeof state.relationId)}
+                    className="intonation-select"
+                    title="Interval relation — which degrees from the tuning to sound"
+                  >
+                    {RELATIONS.map((r) => (
+                      <option key={r.id} value={r.id}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <PitchWheel
+                  intervalsCents={intervalReadoutRows.map((r) => r.final)}
+                  labels={intervalReadoutRows.map((r) => r.label)}
+                />
+                {intervalReadoutRows.length > 0 && (
+                  <div className="intonation-readout">
+                    <div className="panel-hint">INTERVALS · resolved cents</div>
+                    <div className="intonation-chip-grid">
+                      {intervalReadoutRows.map((row) => (
+                        <div key={`${row.label}-${row.index}`} className="intonation-chip">
+                          <span className="intonation-chip-label">{row.label}</span>
+                          <span className="intonation-chip-value">{row.final.toFixed(2)}c</span>
+                          {row.index > 0 && row.offset !== 0 && (
+                            <span className="intonation-chip-offset">
+                              {row.offset > 0 ? "+" : ""}{row.offset.toFixed(1)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {fineDetuneRows.length > 0 && (
+                  <div className="intonation-offsets">
+                    {/* Closed by default — fine detune is an advanced
+                     * microtonal control and tends to confuse users who
+                     * stumble onto it. Click to reveal. */}
+                    <button
+                      className="disclosure-toggle"
+                      onClick={() => toggle("detune")}
+                      title="Fine-detune the resolved interval cents"
+                    >
+                      <span className="disclosure-arrow">{disclosed.detune ? "▾" : "▸"}</span>
+                      DETUNE · active intervals in cents
+                    </button>
+                    {disclosed.detune && fineDetuneRows.map((row) => (
+                      <label key={`${row.label}-${row.index}`} className="intonation-offset-row">
+                        <span className="intonation-offset-label">
+                          {row.label}
+                          <span className="intonation-offset-value">
+                            {row.offset >= 0 ? "+" : ""}{row.offset.toFixed(1)}c
+                          </span>
+                        </span>
+                        <input
+                          type="range"
+                          min={-25}
+                          max={25}
+                          step={0.5}
+                          value={row.offset}
+                          onChange={(e) => {
+                            const next = [...state.fineTuneOffsets];
+                            next[row.index] = parseFloat(e.target.value);
+                            setFineTuneOffsets(next);
+                          }}
+                          className="macro-slider"
+                          title={`${row.label} fine detune around ${row.base.toFixed(2)} cents`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -1092,4 +1145,98 @@ function IconShape({ shape }: { shape: OscillatorType }) {
     default:
       return null;
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PitchWheel — circular visualization of the active microtonal set.
+// Each resolved interval is drawn as a dot placed around the octave
+// at `angle = cents / 1200 * 2π − π/2` so 0¢ (root) sits at 12 o'clock
+// and the circle advances clockwise. Twelve faint 100¢ guide ticks
+// give a familiar 12-TET reference so the eye can read how far each
+// microtonal degree departs from equal temperament.
+// ─────────────────────────────────────────────────────────────────────
+function PitchWheel({
+  intervalsCents,
+  labels,
+}: {
+  intervalsCents: number[];
+  labels: string[];
+}) {
+  const size = 140;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 52;
+  const toXY = (cents: number, r: number) => {
+    const a = (cents / 1200) * Math.PI * 2 - Math.PI / 2;
+    return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
+  };
+  // 100-cent equal-temperament guides
+  const guides = Array.from({ length: 12 }, (_, i) => i * 100);
+  return (
+    <div className="pitch-wheel" aria-hidden>
+      <svg
+        width="100%"
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <circle
+          cx={cx}
+          cy={cy}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity={0.22}
+          strokeWidth={1}
+        />
+        {guides.map((g) => {
+          const p1 = toXY(g, radius - 3);
+          const p2 = toXY(g, radius + 3);
+          return (
+            <line
+              key={g}
+              x1={p1.x}
+              y1={p1.y}
+              x2={p2.x}
+              y2={p2.y}
+              stroke="currentColor"
+              strokeOpacity={0.22}
+              strokeWidth={1}
+            />
+          );
+        })}
+        {intervalsCents.map((c, i) => {
+          // Normalize to 0..1200 so octave-shifted intervals still
+          // land on the wheel.
+          const norm = ((c % 1200) + 1200) % 1200;
+          const p = toXY(norm, radius);
+          const isRoot = i === 0;
+          return (
+            <g key={`${labels[i] ?? i}-${i}`}>
+              <line
+                x1={cx}
+                y1={cy}
+                x2={p.x}
+                y2={p.y}
+                stroke="var(--preview)"
+                strokeOpacity={isRoot ? 0.55 : 0.35}
+                strokeWidth={1}
+              />
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={isRoot ? 4.5 : 3.5}
+                fill="var(--preview)"
+                stroke="var(--preview)"
+                strokeWidth={isRoot ? 1.5 : 0}
+                fillOpacity={isRoot ? 1 : 0.85}
+              >
+                <title>{`${labels[i] ?? `INT ${i + 1}`} · ${c.toFixed(2)}¢`}</title>
+              </circle>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
 }

@@ -1580,6 +1580,53 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   box-shadow: 0 0 16px color-mix(in srgb, var(--preview) 45%, transparent);
 }
 
+/* MODE tabs — mutually exclusive SCALE / MICROTONAL selector */
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.mode-tab {
+  padding: 6px 4px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.mode-tab:hover {
+  color: var(--preview);
+  border-color: color-mix(in srgb, var(--preview) 40%, var(--border));
+}
+
+.mode-tab-active,
+.mode-tab-active:hover {
+  background: var(--preview);
+  color: #160c06;
+  border-color: var(--preview);
+}
+
+/* Pitch wheel — circular visualization of the active microtonal set */
+.pitch-wheel {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+  color: var(--text-dim);
+}
+
+.pitch-wheel svg {
+  max-width: 140px;
+  height: auto;
+}
+
 /* Scale/mode picker */
 .scale-grid {
   display: grid;
