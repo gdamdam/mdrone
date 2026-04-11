@@ -1,7 +1,7 @@
 {
   "name": "mdrone",
   "version": "1.5.0",
-  "description": "A browser drone instrument with 28 authored scenes across the drone-music canon, shareable links.",
+  "description": "A browser drone machine for long-form listening and live performance.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
