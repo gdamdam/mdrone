@@ -236,6 +236,87 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-bottom: 8px;
 }
 
+/* MUTATE controls — sit at the top of the preset panel,
+ * perturb the current scene by the intensity slider. */
+.preset-mut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.preset-mut-btn {
+  background: var(--bg-cell);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms, border-color 120ms;
+}
+.preset-mut-btn:hover {
+  background: color-mix(in srgb, var(--preview) 12%, var(--bg-cell));
+  border-color: color-mix(in srgb, var(--preview) 35%, var(--border));
+  color: var(--preview);
+}
+.preset-mut-btn:active {
+  background: color-mix(in srgb, var(--preview) 25%, var(--bg-cell));
+}
+.preset-mut-intensity {
+  flex: 1 1 auto;
+  max-width: 260px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.preset-mut-intensity::-webkit-slider-runnable-track {
+  height: 4px;
+  background: transparent;
+}
+.preset-mut-intensity::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.preset-mut-intensity::-moz-range-track {
+  height: 4px;
+  background: transparent;
+  border: none;
+}
+.preset-mut-intensity::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.preset-mut-intensity:focus-visible {
+  border-color: color-mix(in srgb, var(--preview) 50%, var(--border));
+}
+.preset-mut-value {
+  min-width: 34px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 .header-row-main {
   flex-wrap: wrap;
   gap: 10px;

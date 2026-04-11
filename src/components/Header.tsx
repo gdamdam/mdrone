@@ -36,7 +36,6 @@ interface HeaderProps {
   onPanic: () => void;
   onOpenShare: () => void;
   onRandomScene: () => void;
-  onMutateScene: (intensity: number) => void;
   onUndoScene: () => void;
   isRec: boolean;
   recTimeMs: number;
@@ -78,7 +77,6 @@ export function Header({
   onPanic,
   onOpenShare,
   onRandomScene,
-  onMutateScene,
   onUndoScene,
   isRec,
   recTimeMs,
@@ -95,10 +93,6 @@ export function Header({
   onToggleMidi,
   analyser,
 }: HeaderProps) {
-  // Mutate intensity slider — local state, not persisted. Default
-  // 0.25 gives audible but coherent perturbation for typical drones.
-  const [mutateIntensity, setMutateIntensity] = useState(0.25);
-
   // Drone logo vibration — rAF loop reads the master analyser's RMS
   // and writes a tiny translate transform on the title-art element.
   // Purely imperative: no React state, so no re-renders.
@@ -242,26 +236,6 @@ export function Header({
           <span className="header-btn-label-full">RND</span>
           <span className="header-btn-label-glyph" aria-hidden="true">🎲</span>
         </button>
-        <button
-          className="header-btn header-btn-random"
-          onClick={() => onMutateScene(mutateIntensity)}
-          title={`MUT — perturb the current scene by ${Math.round(mutateIntensity * 100)}%`}
-        >
-          <span className="header-btn-label-full">MUT</span>
-          <span className="header-btn-label-glyph" aria-hidden="true">✧</span>
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={mutateIntensity}
-          onChange={(e) => setMutateIntensity(parseFloat(e.target.value))}
-          className="header-mutate-intensity"
-          style={{ width: "56px" }}
-          title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
-          aria-label="Mutation intensity"
-        />
         <button
           className="header-btn header-btn-undo"
           onClick={onUndoScene}

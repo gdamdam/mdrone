@@ -156,6 +156,7 @@ interface DroneViewProps {
   onTransportChange?: (playing: boolean) => void;
   onTonicChange?: (root: PitchClass, octave: number) => void;
   onPresetChange?: (presetId: string | null, presetName: string | null) => void;
+  onMutateScene?: (intensity: number) => void;
   kbdActive: boolean;
   onToggleKbd: () => void;
 }
@@ -179,7 +180,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, kbdActive, onToggleKbd }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, kbdActive, onToggleKbd }: DroneViewProps,
   ref,
 ) {
   const {
@@ -238,6 +239,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       return next;
     });
   };
+
+  // MUTATE intensity — local state, not persisted across reloads.
+  // 0.25 is an audible but coherent default for typical drones.
+  const [mutateIntensity, setMutateIntensity] = useState(0.25);
 
   // Active preset-group tab. Follows the active preset's group
   // automatically; a user tab-click overrides until the preset changes.
@@ -354,6 +359,30 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <VuMeter analyser={engine?.getAnalyser() ?? null} width={600} height={16} />
       </div>
       <div className="panel preset-panel preset-panel-wide">
+        <div className="preset-mut-row">
+          <button
+            type="button"
+            className="preset-mut-btn"
+            onClick={() => onMutateScene?.(mutateIntensity)}
+            title={`MUTATE — perturb the current scene by ${Math.round(mutateIntensity * 100)}%`}
+          >
+            MUTATE
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={mutateIntensity}
+            onChange={(e) => setMutateIntensity(parseFloat(e.target.value))}
+            className="preset-mut-intensity"
+            title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
+            aria-label="Mutation intensity"
+          />
+          <span className="preset-mut-value" aria-hidden="true">
+            {Math.round(mutateIntensity * 100)}%
+          </span>
+        </div>
         <div className="panel-label">PRESETS · tap to load</div>
         {/* Genre tabs — one row of small group buttons */}
         <div className="preset-tabs" role="tablist">
