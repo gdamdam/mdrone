@@ -30,7 +30,7 @@ import type { PitchClass } from "../types";
 import { FxBar } from "./FxBar";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
 import { relationLabels, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
-import { useDroneScene } from "../scene/useDroneScene";
+import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
 
 /** Voice timbre list — each entry has an id, label, hint, and inline SVG.
  * Icons are defined inline (not as separate components) to avoid React
@@ -178,6 +178,7 @@ interface DroneViewProps {
 export interface DroneViewHandle {
   getSnapshot(): DroneSessionSnapshot;
   applySnapshot(snapshot: DroneSessionSnapshot): void;
+  applyLivePatch(patch: DroneLivePatch): void;
   togglePlay(): void;
   setRoot(root: PitchClass): void;
   setOctave(octave: number): void;
@@ -225,6 +226,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     handlePreset,
     getSnapshot,
     applySnapshot,
+    applyLivePatch,
     startImmediate,
     setJourney,
     setPartner,
@@ -402,6 +404,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   useImperativeHandle(ref, () => ({
     getSnapshot,
     applySnapshot,
+    applyLivePatch,
     togglePlay,
     setRoot,
     setOctave,
@@ -411,6 +414,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     startImmediate,
   }), [
     applySnapshot,
+    applyLivePatch,
     getSnapshot,
     setOctave,
     setRoot,

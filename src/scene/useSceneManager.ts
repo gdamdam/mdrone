@@ -10,39 +10,61 @@ import {
   type MotionParamId,
 } from "../sceneRecorder";
 import type { DroneSessionSnapshot } from "../session";
+import type { DroneLivePatch } from "./useDroneScene";
 
 /**
- * Apply a single replayed motion event by reading the current
- * snapshot, patching the changed field, and pushing it back through
- * applySnapshot. Slower than calling the targeted setter directly,
- * but it works without expanding the DroneViewHandle surface and
- * the throttle in SceneRecorder caps the call rate at ~5 Hz/param.
+ * Build the lightweight live-update delta between two snapshots.
+ * This powers journey/evolve ticks so macro drift doesn't keep
+ * reapplying the whole drone scene underneath a held note.
  */
+function buildLivePatch(
+  prev: DroneSessionSnapshot,
+  next: DroneSessionSnapshot,
+): DroneLivePatch {
+  const patch: DroneLivePatch = {};
+  if (prev.root !== next.root) patch.root = next.root;
+  if (prev.octave !== next.octave) patch.octave = next.octave;
+  if (prev.voiceLevels !== next.voiceLevels) patch.voiceLevels = next.voiceLevels;
+  if (prev.drift !== next.drift) patch.drift = next.drift;
+  if (prev.air !== next.air) patch.air = next.air;
+  if (prev.time !== next.time) patch.time = next.time;
+  if (prev.sub !== next.sub) patch.sub = next.sub;
+  if (prev.bloom !== next.bloom) patch.bloom = next.bloom;
+  if (prev.glide !== next.glide) patch.glide = next.glide;
+  if (prev.climateX !== next.climateX) patch.climateX = next.climateX;
+  if (prev.climateY !== next.climateY) patch.climateY = next.climateY;
+  if (prev.lfoRate !== next.lfoRate) patch.lfoRate = next.lfoRate;
+  if (prev.lfoAmount !== next.lfoAmount) patch.lfoAmount = next.lfoAmount;
+  if (prev.presetMorph !== next.presetMorph) patch.presetMorph = next.presetMorph;
+  if (prev.evolve !== next.evolve) patch.evolve = next.evolve;
+  if (prev.pluckRate !== next.pluckRate) patch.pluckRate = next.pluckRate;
+  return patch;
+}
+
 function dispatchMotionEvent(
-  handle: { getSnapshot(): DroneSessionSnapshot; applySnapshot(s: DroneSessionSnapshot): void },
+  handle: { applyLivePatch(patch: DroneLivePatch): void },
   paramId: MotionParamId,
   value: number,
 ): void {
-  const snap = handle.getSnapshot();
-  let next: DroneSessionSnapshot | null = null;
+  let patch: DroneLivePatch | null = null;
   switch (paramId) {
-    case MOTION_PARAM_IDS.drift:       next = { ...snap, drift: value };       break;
-    case MOTION_PARAM_IDS.air:         next = { ...snap, air: value };         break;
-    case MOTION_PARAM_IDS.time:        next = { ...snap, time: value };        break;
-    case MOTION_PARAM_IDS.sub:         next = { ...snap, sub: value };         break;
-    case MOTION_PARAM_IDS.bloom:       next = { ...snap, bloom: value };       break;
-    case MOTION_PARAM_IDS.glide:       next = { ...snap, glide: value };       break;
-    case MOTION_PARAM_IDS.climateX:    next = { ...snap, climateX: value };    break;
-    case MOTION_PARAM_IDS.climateY:    next = { ...snap, climateY: value };    break;
-    case MOTION_PARAM_IDS.octave:      next = { ...snap, octave: value };      break;
-    case MOTION_PARAM_IDS.root:        next = { ...snap, root: indexToPitchClass(value) }; break;
-    case MOTION_PARAM_IDS.evolve:      next = { ...snap, evolve: value };      break;
-    case MOTION_PARAM_IDS.presetMorph: next = { ...snap, presetMorph: value }; break;
-    case MOTION_PARAM_IDS.pluckRate:   next = { ...snap, pluckRate: value };   break;
-    case MOTION_PARAM_IDS.lfoRate:     next = { ...snap, lfoRate: value };     break;
-    case MOTION_PARAM_IDS.lfoAmount:   next = { ...snap, lfoAmount: value };   break;
+    case MOTION_PARAM_IDS.drift:       patch = { drift: value }; break;
+    case MOTION_PARAM_IDS.air:         patch = { air: value }; break;
+    case MOTION_PARAM_IDS.time:        patch = { time: value }; break;
+    case MOTION_PARAM_IDS.sub:         patch = { sub: value }; break;
+    case MOTION_PARAM_IDS.bloom:       patch = { bloom: value }; break;
+    case MOTION_PARAM_IDS.glide:       patch = { glide: value }; break;
+    case MOTION_PARAM_IDS.climateX:    patch = { climateX: value }; break;
+    case MOTION_PARAM_IDS.climateY:    patch = { climateY: value }; break;
+    case MOTION_PARAM_IDS.octave:      patch = { octave: value }; break;
+    case MOTION_PARAM_IDS.root:        patch = { root: indexToPitchClass(value) }; break;
+    case MOTION_PARAM_IDS.evolve:      patch = { evolve: value }; break;
+    case MOTION_PARAM_IDS.presetMorph: patch = { presetMorph: value }; break;
+    case MOTION_PARAM_IDS.pluckRate:   patch = { pluckRate: value }; break;
+    case MOTION_PARAM_IDS.lfoRate:     patch = { lfoRate: value }; break;
+    case MOTION_PARAM_IDS.lfoAmount:   patch = { lfoAmount: value }; break;
   }
-  if (next) handle.applySnapshot(next);
+  if (patch) handle.applyLivePatch(patch);
 }
 import { generateDroneName, hashSceneSeed } from "./droneNames";
 import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState";
@@ -552,9 +574,7 @@ export function useSceneManager({
       } else {
         return;
       }
-      // Preserve the original seed so the (seed, tick+1) chain
-      // continues to derive from the same origin.
-      droneViewRef.current?.applySnapshot({ ...next, seed: snap.seed });
+      droneViewRef.current?.applyLivePatch(buildLivePatch(snap, next));
     }, INTERVAL_MS);
     return () => window.clearInterval(id);
   }, [droneViewRef]);

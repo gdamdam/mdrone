@@ -31,6 +31,53 @@ interface UseDroneSceneArgs {
   onParamRecord?: (id: MotionParamId, value: number) => void;
 }
 
+export interface DroneLivePatch {
+  root?: PitchClass;
+  octave?: number;
+  voiceLevels?: LiveDroneSceneState["voiceLevels"];
+  drift?: number;
+  air?: number;
+  time?: number;
+  sub?: number;
+  bloom?: number;
+  glide?: number;
+  climateX?: number;
+  climateY?: number;
+  lfoRate?: number;
+  lfoAmount?: number;
+  presetMorph?: number;
+  evolve?: number;
+  pluckRate?: number;
+}
+
+function sameIntervals(a: readonly number[], b: readonly number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function sameVoiceLayers(
+  a: LiveDroneSceneState["voiceLayers"],
+  b: LiveDroneSceneState["voiceLayers"],
+): boolean {
+  for (const type of ALL_VOICE_TYPES) {
+    if (a[type] !== b[type]) return false;
+  }
+  return true;
+}
+
+function sameVoiceLevels(
+  a: LiveDroneSceneState["voiceLevels"],
+  b: LiveDroneSceneState["voiceLevels"],
+): boolean {
+  for (const type of ALL_VOICE_TYPES) {
+    if (a[type] !== b[type]) return false;
+  }
+  return true;
+}
+
 export function useDroneScene({
   engine,
   onTransportChange,
@@ -45,6 +92,10 @@ export function useDroneScene({
     onParamRecord?.(id, v);
   }, [onParamRecord]);
   const [state, dispatch] = useReducer(liveDroneSceneReducer, engine, createInitialDroneScene);
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const setActivePresetId = useCallback((presetId: string | null) => {
     dispatch({ type: "merge", patch: { activePresetId: presetId } });
@@ -237,31 +288,32 @@ export function useDroneScene({
   // When the engine first becomes available, push current scene state down.
   useEffect(() => {
     if (!engine) return;
-    const preset = state.activePresetId
-      ? PRESETS.find((item) => item.id === state.activePresetId) ?? null
+    const snap = stateRef.current;
+    const preset = snap.activePresetId
+      ? PRESETS.find((item) => item.id === snap.activePresetId) ?? null
       : null;
     engine.setPresetMotionProfile(preset?.motionProfile ?? null);
     engine.setPresetMaterialProfile(getPresetMaterialProfile(preset));
-    engine.setDrift(state.drift);
-    engine.setAir(state.air);
-    engine.setTime(state.time);
-    engine.setSub(state.sub);
-    engine.setBloom(state.bloom);
-    engine.setGlide(state.glide);
-    engine.setClimateX(state.climateX);
-    engine.setClimateY(state.climateY);
-    engine.setLfoShape(state.lfoShape);
-    engine.setLfoRate(state.lfoRate);
-    engine.setLfoAmount(state.lfoAmount);
-    engine.setPresetMorph(state.presetMorph);
-    engine.setEvolve(state.evolve);
-    engine.setTanpuraPluckRate(state.pluckRate);
-    engine.setPresetTrim(state.presetTrim);
+    engine.setDrift(snap.drift);
+    engine.setAir(snap.air);
+    engine.setTime(snap.time);
+    engine.setSub(snap.sub);
+    engine.setBloom(snap.bloom);
+    engine.setGlide(snap.glide);
+    engine.setClimateX(snap.climateX);
+    engine.setClimateY(snap.climateY);
+    engine.setLfoShape(snap.lfoShape);
+    engine.setLfoRate(snap.lfoRate);
+    engine.setLfoAmount(snap.lfoAmount);
+    engine.setPresetMorph(snap.presetMorph);
+    engine.setEvolve(snap.evolve);
+    engine.setTanpuraPluckRate(snap.pluckRate);
+    engine.setPresetTrim(snap.presetTrim);
     for (const t of ALL_VOICE_TYPES) {
-      engine.setVoiceLayer(t, state.voiceLayers[t]);
-      engine.setVoiceLevel(t, state.voiceLevels[t]);
+      engine.setVoiceLayer(t, snap.voiceLayers[t]);
+      engine.setVoiceLevel(t, snap.voiceLevels[t]);
     }
-  }, [engine, state]);
+  }, [engine]);
 
   const freq = pitchToFreq(state.root, state.octave);
 
@@ -407,35 +459,85 @@ export function useDroneScene({
   }, [engine]);
 
   const getSnapshot = useCallback((): DroneSessionSnapshot => {
-    return { ...state };
-  }, [state]);
+    return { ...stateRef.current };
+  }, []);
+
+  const applyLivePatch = useCallback((patch: DroneLivePatch) => {
+    const current = stateRef.current;
+    const next = { ...current, ...patch };
+    const nextRoot = patch.root ?? current.root;
+    const nextOctave = patch.octave ?? current.octave;
+    stateRef.current = next;
+    dispatch({ type: "merge", patch });
+    if (!engine) return;
+    if (patch.voiceLevels) {
+      for (const type of ALL_VOICE_TYPES) {
+        if (patch.voiceLevels[type] !== current.voiceLevels[type]) {
+          engine.setVoiceLevel(type, patch.voiceLevels[type]);
+        }
+      }
+    }
+    if (patch.drift !== undefined) engine.setDrift(patch.drift);
+    if (patch.air !== undefined) engine.setAir(patch.air);
+    if (patch.time !== undefined) engine.setTime(patch.time);
+    if (patch.sub !== undefined) engine.setSub(patch.sub);
+    if (patch.bloom !== undefined) engine.setBloom(patch.bloom);
+    if (patch.glide !== undefined) engine.setGlide(patch.glide);
+    if (patch.climateX !== undefined) engine.setClimateX(patch.climateX);
+    if (patch.climateY !== undefined) engine.setClimateY(patch.climateY);
+    if (patch.lfoRate !== undefined) engine.setLfoRate(patch.lfoRate);
+    if (patch.lfoAmount !== undefined) engine.setLfoAmount(patch.lfoAmount);
+    if (patch.presetMorph !== undefined) engine.setPresetMorph(patch.presetMorph);
+    if (patch.evolve !== undefined) engine.setEvolve(patch.evolve);
+    if (patch.pluckRate !== undefined) engine.setTanpuraPluckRate(patch.pluckRate);
+    if (current.playing && (patch.root !== undefined || patch.octave !== undefined)) {
+      engine.setDroneFreq(pitchToFreq(nextRoot, nextOctave));
+    }
+  }, [engine]);
 
   const applySnapshot = useCallback((snapshot: DroneSessionSnapshot) => {
+    const current = stateRef.current;
     const shouldPlay = snapshot.playing ?? false;
+    const nextSnapshot = { ...snapshot, playing: shouldPlay };
     const nextFreq = pitchToFreq(snapshot.root, snapshot.octave);
+    const currentIntervals = withPartnerIntervals(
+      resolveIntervals(current),
+      current.partner,
+    );
     const nextIntervals = withPartnerIntervals(
       resolveIntervals(snapshot),
       snapshot.partner,
     );
+    const currentPreset = current.activePresetId
+      ? PRESETS.find((item) => item.id === current.activePresetId) ?? null
+      : null;
 
-    if (engine && state.playing && !shouldPlay) {
+    if (engine && current.playing && !shouldPlay) {
       engine.stopDrone();
     }
 
-    dispatch({ type: "merge", patch: { ...snapshot, playing: shouldPlay } });
+    stateRef.current = nextSnapshot;
+    dispatch({ type: "merge", patch: nextSnapshot });
 
     if (!engine) return;
 
     const preset = snapshot.activePresetId
       ? PRESETS.find((item) => item.id === snapshot.activePresetId) ?? null
       : null;
+    const needsVoiceRebuild =
+      !sameIntervals(currentIntervals, nextIntervals) ||
+      !sameVoiceLayers(current.voiceLayers, snapshot.voiceLayers) ||
+      !sameVoiceLevels(current.voiceLevels, snapshot.voiceLevels) ||
+      (currentPreset?.reedShape ?? "odd") !== (preset?.reedShape ?? "odd");
     engine.setPresetMotionProfile(preset?.motionProfile ?? null);
     engine.setPresetMaterialProfile(getPresetMaterialProfile(preset));
     // Preset-derived engine state must be restored BEFORE applyDroneScene
     // — the voice rebuild picks up the current reedShape.
     engine.setReedShape(preset?.reedShape ?? "odd");
     engine.setParallelSends(preset?.parallelSends ?? {});
-    engine.applyDroneScene(snapshot.voiceLayers, snapshot.voiceLevels, nextIntervals);
+    if (needsVoiceRebuild) {
+      engine.applyDroneScene(snapshot.voiceLayers, snapshot.voiceLevels, nextIntervals);
+    }
     for (const id of Object.keys(snapshot.effects) as EffectId[]) {
       engine.setEffect(id, snapshot.effects[id]);
     }
@@ -455,12 +557,16 @@ export function useDroneScene({
     engine.setTanpuraPluckRate(snapshot.pluckRate);
     engine.setPresetTrim(snapshot.presetTrim);
     if (shouldPlay) {
-      engine.startDrone(nextFreq, nextIntervals);
+      if (!current.playing || needsVoiceRebuild) {
+        engine.startDrone(nextFreq, nextIntervals);
+      } else if (current.root !== snapshot.root || current.octave !== snapshot.octave) {
+        engine.setDroneFreq(nextFreq);
+      }
     }
     // Pre-empt the delayed auto-start so we don't get a second startDrone
     // on top of this one.
     didAutostartRef.current = true;
-  }, [engine, state.playing]);
+  }, [engine]);
 
   const startImmediate = useCallback((nextRoot: PitchClass, nextOctave: number, presetId?: string) => {
     const clampedOctave = Math.max(1, Math.min(6, nextOctave));
@@ -526,6 +632,7 @@ export function useDroneScene({
     handlePreset,
     getSnapshot,
     applySnapshot,
+    applyLivePatch,
     startImmediate,
   };
 }
