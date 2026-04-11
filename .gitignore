@@ -20,6 +20,12 @@ coverage
 *.tsbuildinfo
 .test-dist
 
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
 # Local project knowledge — gitignored by design
 misc/
 
