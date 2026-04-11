@@ -58,6 +58,21 @@ export const EFFECT_ORDER: readonly EffectId[] = [
 ] as const;
 
 /**
+ * Derive the ordered enabled-effect chain from a snapshot's
+ * `effects` record. Returns the canonical EFFECT_ORDER-ordered list
+ * of effect ids whose flag is true. The output is guaranteed to pass
+ * `validateChain` by construction — this helper exists so callers
+ * can convert the Record<EffectId, boolean> storage form into the
+ * ordered-array form that validateChain (and any future chain
+ * consumers) expect, without re-implementing the filter each time.
+ */
+export function enabledChainFromSnapshot(
+  effects: Record<EffectId, boolean>,
+): EffectId[] {
+  return EFFECT_ORDER.filter((id) => effects[id] === true);
+}
+
+/**
  * Validate a serial chain of enabled effects.
  *
  * Returns true iff `chain`:

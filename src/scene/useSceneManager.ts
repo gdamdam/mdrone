@@ -64,6 +64,13 @@ export function useSceneManager({
   const lastSceneMutationTsRef = useRef(0);
   const SCENE_MUTATION_MIN_GAP_MS = 1500;
 
+  // Tick-count for the URL-deterministic evolve loop. Reset whenever
+  // the seed changes (RND / MUT / share-URL load) so two visitors
+  // opening the same URL walk the same (seed, tick) sequence from 0.
+  // See the useEffect below that drives the interval.
+  const evolveTickRef = useRef(0);
+  const evolveLastSeedRef = useRef<number | null>(null);
+
   const applyStartupScene = useCallback(() => {
     // Use the same code path as clicking RND so the first scene on load
     // is effectively a random-scene click — same tonic pool, same jitter,
@@ -415,6 +422,39 @@ export function useSceneManager({
     // look broken.
     if (presetName) setCurrentPresetName(presetName);
   }, []);
+
+  // URL-deterministic evolve loop. When the current scene is playing
+  // and its `evolve` knob is > 0, perturb numeric params on a fixed
+  // cadence using a PRNG seeded from (scene.seed + tick × golden).
+  // Two visitors opening the same share URL walk the same
+  // (seed, tick) sequence from tick=0 — the URL is the recipe and
+  // the tick counter lives in local memory only (reloading the URL
+  // resets tick to 0 by construction).
+  useEffect(() => {
+    const INTERVAL_MS = 4000;
+    const id = window.setInterval(() => {
+      const snap = droneViewRef.current?.getSnapshot();
+      if (!snap) return;
+      if (evolveLastSeedRef.current !== snap.seed) {
+        evolveTickRef.current = 0;
+        evolveLastSeedRef.current = snap.seed;
+      }
+      if (!snap.playing || snap.evolve <= 0) return;
+      evolveTickRef.current += 1;
+      // Mix tick into seed via the 32-bit golden ratio so adjacent
+      // ticks produce perceptibly-different perturbations.
+      const mixed = (snap.seed + evolveTickRef.current * 0x9E3779B1) >>> 0;
+      const rng = mulberry32(mixed);
+      // Amount scales with evolve — 0.15 at evolve=1 reads as gentle
+      // drift rather than violent warping at a 4 s cadence.
+      const amt = snap.evolve * 0.15;
+      const perturbed = mutateScene(snap, amt, rng);
+      // Preserve the original seed so the (seed, tick+1) chain
+      // continues to derive from the same origin.
+      droneViewRef.current?.applySnapshot({ ...perturbed, seed: snap.seed });
+    }, INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [droneViewRef]);
 
   const displayText = currentSessionId
     ? currentSessionName

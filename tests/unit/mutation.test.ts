@@ -5,7 +5,11 @@ import {
   createPresetVariation,
   PRESETS,
 } from "../../src/engine/presets";
-import { validateChain } from "../../src/engine/FxChain";
+import {
+  validateChain,
+  enabledChainFromSnapshot,
+  EFFECT_ORDER,
+} from "../../src/engine/FxChain";
 import { normalizePortableScene } from "../../src/session";
 
 const baseScene = () => createPresetVariation(PRESETS[0], "A", 2, mulberry32(1));
@@ -124,6 +128,104 @@ describe("validateChain", () => {
 
   it("rejects non-arrays", () => {
     expect(validateChain(null as unknown as unknown[])).toBe(false);
+  });
+});
+
+describe("enabledChainFromSnapshot", () => {
+  it("returns an EFFECT_ORDER-ordered subset of the enabled effects", () => {
+    const effects = {
+      tape: false, wow: true, sub: false, comb: false,
+      ringmod: false, formant: false, delay: true, plate: false,
+      hall: true, shimmer: false, freeze: false, cistern: false,
+      granular: false,
+    };
+    expect(enabledChainFromSnapshot(effects)).toEqual(["wow", "delay", "hall"]);
+  });
+
+  it("always produces a chain that passes validateChain", () => {
+    const scene = createPresetVariation(PRESETS[0], "A", 2, mulberry32(1));
+    const chain = enabledChainFromSnapshot(scene.effects);
+    expect(validateChain(chain)).toBe(true);
+  });
+
+  it("always produces a valid chain across all authored presets", () => {
+    for (const preset of PRESETS) {
+      const scene = createPresetVariation(preset, "A", 2, mulberry32(1));
+      expect(validateChain(enabledChainFromSnapshot(scene.effects))).toBe(true);
+    }
+  });
+});
+
+describe("URL evolution (seeded tick perturbation)", () => {
+  // Mirror of the evolve-loop body in useSceneManager.useEffect so
+  // we can assert its determinism without mounting React.
+  const evolveTick = (snap: ReturnType<typeof createPresetVariation>, tick: number) => {
+    const mixed = (snap.seed + tick * 0x9E3779B1) >>> 0;
+    const rng = mulberry32(mixed);
+    const amt = snap.evolve * 0.15;
+    return { ...mutateScene(snap, amt, rng), seed: snap.seed };
+  };
+
+  const seededScene = (seed: number, evolve: number) => {
+    const base = createPresetVariation(PRESETS[0], "A", 2, mulberry32(1));
+    return { ...base, seed, evolve, playing: true };
+  };
+
+  it("the same (seed, tick) produces the same perturbation", () => {
+    const s = seededScene(12345, 0.5);
+    const a = evolveTick(s, 1);
+    const b = evolveTick(s, 1);
+    expect(a).toEqual(b);
+  });
+
+  it("adjacent ticks differ (golden-ratio seed mixing)", () => {
+    const s = seededScene(12345, 0.5);
+    const t1 = evolveTick(s, 1);
+    const t2 = evolveTick(s, 2);
+    expect(t1).not.toEqual(t2);
+  });
+
+  it("two visitors with the same URL walk the same sequence from tick 0", () => {
+    // Visitor A
+    let stateA = seededScene(98765, 0.4);
+    const seqA: number[] = [];
+    for (let i = 1; i <= 5; i++) {
+      stateA = evolveTick(stateA, i);
+      seqA.push(stateA.drift);
+    }
+    // Visitor B — same URL, same tick 0 starting point
+    let stateB = seededScene(98765, 0.4);
+    const seqB: number[] = [];
+    for (let i = 1; i <= 5; i++) {
+      stateB = evolveTick(stateB, i);
+      seqB.push(stateB.drift);
+    }
+    expect(seqA).toEqual(seqB);
+  });
+
+  it("evolve=0 is a no-op (guarded at the loop level, but safe here too)", () => {
+    const s = seededScene(12345, 0);
+    const t = evolveTick(s, 1);
+    // mutateScene with intensity=0 is a no-op for numeric fields
+    expect(t.drift).toBe(s.drift);
+    expect(t.air).toBe(s.air);
+    expect(t.lfoRate).toBe(s.lfoRate);
+  });
+
+  it("preserves seed through each tick so the chain stays URL-anchored", () => {
+    let s = seededScene(42, 0.5);
+    for (let i = 1; i <= 10; i++) {
+      s = evolveTick(s, i);
+      expect(s.seed).toBe(42);
+    }
+  });
+
+  it("effects chain remains valid after many evolve ticks", () => {
+    let s = seededScene(42, 0.5);
+    for (let i = 1; i <= 20; i++) {
+      s = evolveTick(s, i);
+    }
+    expect(validateChain(enabledChainFromSnapshot(s.effects))).toBe(true);
   });
 });
 
