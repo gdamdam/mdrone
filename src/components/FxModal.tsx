@@ -286,10 +286,24 @@ function FreezeParams({ fx }: { fx: FxChainLike }) {
 function useFxViz() {
   const [phase, setPhase] = useState(0);
   useEffect(() => {
+    // Frame-limit to ~20 fps. The original loop fired setPhase every
+    // rAF tick (~60 fps), reconciling the entire FxModal subtree three
+    // times as often as necessary and competing with audio scheduling
+    // while the modal is open. 20 fps is still smooth for the SVG
+    // vizzes and cuts React commit work to a third.
     let raf = 0;
-    const loop = () => {
-      setPhase((p) => (p + 0.02) % (Math.PI * 2));
+    let phase = 0;
+    let lastPaint = -Infinity;
+    const FRAME_MS = 1000 / 20;
+    const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      if (now - lastPaint < FRAME_MS) return;
+      const dt = lastPaint < 0 ? FRAME_MS : now - lastPaint;
+      lastPaint = now;
+      // Advance at the same angular rate as before (~1.2 rad/s) so
+      // existing viz easing and periods are unchanged.
+      phase = (phase + 0.02 * (dt / (1000 / 60))) % (Math.PI * 2);
+      setPhase(phase);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);

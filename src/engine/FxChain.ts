@@ -722,7 +722,9 @@ export class FxChain {
 
   /** AIR macro — reverb-family wet multiplier (plate / hall / shimmer). */
   setAir(v: number): void {
-    this.airAmount = Math.max(0, Math.min(1, v));
+    const next = Math.max(0, Math.min(1, v));
+    if (next === this.airAmount) return;
+    this.airAmount = next;
     const now = this.ctx.currentTime;
     for (const id of ["plate", "hall", "shimmer"] as const) {
       const target = this.enabled[id] ? this.wetTargetFor(id) : 0;
@@ -777,6 +779,7 @@ export class FxChain {
   /** Set per-effect wet level (the modal's AMOUNT knob). */
   setEffectLevel(id: EffectId, level: number): void {
     const v = Math.max(0, Math.min(1, level));
+    if (v === this.levels[id]) return;
     this.levels[id] = v;
     if (id === "freeze") this.freezeMix = v;
     const now = this.ctx.currentTime;

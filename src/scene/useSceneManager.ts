@@ -292,13 +292,21 @@ export function useSceneManager({
     };
   }, [applyPortableScene, applyStartupScene, currentSessionId, startupMode]);
 
+  const lastAutoSavedSerializedRef = useRef<string>("");
   useEffect(() => {
-    const doAutoSave = () => {
+    const doAutoSave = (force = false) => {
       const name = currentSessionId
         ? currentSessionName
         : (currentPresetName || currentSessionName || "Last Scene");
       const scene = captureCurrentSceneSnapshot(name);
       if (!scene) return;
+      // Dirty-check: serialize once, skip the localStorage write when
+      // nothing changed since the last save. localStorage.setItem is
+      // synchronous and blocks the main thread, so in a long idle
+      // session this eliminates ~every 3 s of needless jitter.
+      const serialized = JSON.stringify(scene);
+      if (!force && serialized === lastAutoSavedSerializedRef.current) return;
+      lastAutoSavedSerializedRef.current = serialized;
       saveAutosavedScene(scene);
     };
 
@@ -310,7 +318,10 @@ export function useSceneManager({
     return () => {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onHide);
-      doAutoSave();
+      // Final flush on unmount — force in case the effect is tearing
+      // down with pending changes that never made it through the
+      // dirty-check window.
+      doAutoSave(true);
     };
   }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionId, currentSessionName]);
 
