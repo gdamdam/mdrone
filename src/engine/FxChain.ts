@@ -678,6 +678,11 @@ export class FxChain {
 
   /** Toggle an effect on/off. Smooth-ramped via bypass/wet crossfade. */
   setEffect(id: EffectId, on: boolean): void {
+    // No-op if already in the requested state — callers (applyPreset,
+    // scene restore) iterate every effect id unconditionally, and
+    // re-triggering setTargetAtTime crossfades with no state change
+    // produces audible wet-level flutter over long sessions.
+    if (this.enabled[id] === on) return;
     this.enabled[id] = on;
     const ins = this.inserts[id];
     const now = this.ctx.currentTime;

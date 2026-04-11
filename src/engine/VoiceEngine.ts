@@ -16,6 +16,12 @@ export class VoiceEngine {
 
   private droneVoicesByLayer: Map<VoiceType, Voice[]> = new Map();
   private layerGains: Map<VoiceType, GainNode> = new Map();
+  // Retiring voices from a previous rebuild whose tail hasn't finished.
+  // Tracked on the instance (not in a local inside rebuildIntervals) so
+  // a fresh rebuild can fast-kill them and avoid voice stacking under
+  // rapid preset / layer churn.
+  private pendingRetire: { gain: GainNode; voices: Voice[]; stopTimeout: number }[] = [];
+  private stopDroneTimeout: number | null = null;
   private voiceUpdateDepth = 0;
   private voiceRebuildPending = false;
   private layerLevels: Record<VoiceType, number> = {
@@ -163,6 +169,10 @@ export class VoiceEngine {
     this.wetSend.gain.linearRampToValueAtTime(0, now + release);
     this.fxChain.releaseTails();
 
+    // Pull any still-retiring voices forward so they go silent with the
+    // drone instead of lingering past it.
+    this.killPendingRetire(now);
+
     const allVoices: Voice[] = [];
     for (const vs of this.droneVoicesByLayer.values()) {
       for (const v of vs) allVoices.push(v);
@@ -174,7 +184,11 @@ export class VoiceEngine {
     this.subOscs = null;
     this.shimmerOscs = null;
 
-    setTimeout(() => {
+    if (this.stopDroneTimeout != null) {
+      clearTimeout(this.stopDroneTimeout);
+    }
+    this.stopDroneTimeout = window.setTimeout(() => {
+      this.stopDroneTimeout = null;
       for (const v of allVoices) v.stop();
       if (sub) {
         try { sub.a.stop(); sub.a.disconnect(); } catch { /* ok */ }
@@ -419,6 +433,13 @@ export class VoiceEngine {
 
   private rebuildIntervals(): void {
     const now = this.ctx.currentTime;
+
+    // Pull forward any still-retiring voices from a prior rebuild —
+    // they are at 0.0001 gain but still burning AudioWorklet process()
+    // slots. Without this, rapid rebuilds stack voices across the
+    // whole bloom tail window and overload the audio thread.
+    this.killPendingRetire(now);
+
     const morphMul = 0.4 + this.morphAmount * 3.6;
     const bloom = Math.min(
       VoiceEngine.MAX_REBUILD_XFADE_SEC,
@@ -428,8 +449,16 @@ export class VoiceEngine {
       ),
     );
 
-    const retiring: { gain: GainNode; voices: Voice[] }[] = [];
-    for (const [type, voices] of this.droneVoicesByLayer.entries()) {
+    const targetIntervalCount = this.droneIntervalsCents.length;
+
+    // Incremental diff: retire layers that should be off OR whose
+    // voice count no longer matches the target interval count; keep
+    // every other live layer untouched so unrelated layers don't dip.
+    for (const [type, voices] of Array.from(this.droneVoicesByLayer.entries())) {
+      const shouldKeep =
+        this.voiceLayers[type] && voices.length === targetIntervalCount;
+      if (shouldKeep) continue;
+
       const oldGain = this.layerGains.get(type);
       if (oldGain) {
         const cur = oldGain.gain.value;
@@ -437,13 +466,16 @@ export class VoiceEngine {
         oldGain.gain.setValueAtTime(cur, now);
         oldGain.gain.linearRampToValueAtTime(0.0001, now + bloom);
         this.layerGains.delete(type);
-        retiring.push({ gain: oldGain, voices });
+        this.scheduleRetire(oldGain, voices, bloom);
       }
+      this.droneVoicesByLayer.delete(type);
     }
-    this.droneVoicesByLayer.clear();
 
+    // Bring up layers that should be on but aren't currently live.
     for (const type of ALL_VOICE_TYPES) {
       if (!this.voiceLayers[type]) continue;
+      if (this.droneVoicesByLayer.has(type)) continue;
+
       const layerGain = this.ctx.createGain();
       layerGain.gain.value = 0;
       layerGain.connect(this.droneVoiceGain);
@@ -461,18 +493,54 @@ export class VoiceEngine {
       this.droneVoicesByLayer.set(type, voices);
     }
 
+    // Anchor the current value before setTargetAtTime so repeated
+    // rebuilds don't drift (setTargetAtTime alone never converges).
+    const vg = this.droneVoiceGain.gain;
+    const curVg = vg.value;
+    vg.cancelScheduledValues(now);
+    vg.setValueAtTime(curVg, now);
+    vg.setTargetAtTime(this.voiceStackGain(), now, 0.2);
+  }
+
+  private scheduleRetire(gain: GainNode, voices: Voice[], bloom: number): void {
     const stopAtMs = bloom * 1000 + 150;
-    setTimeout(() => {
-      for (const retiringLayer of retiring) {
-        for (const voice of retiringLayer.voices) {
+    const entry: { gain: GainNode; voices: Voice[]; stopTimeout: number } = {
+      gain,
+      voices,
+      stopTimeout: 0,
+    };
+    entry.stopTimeout = window.setTimeout(() => {
+      const idx = this.pendingRetire.indexOf(entry);
+      if (idx >= 0) this.pendingRetire.splice(idx, 1);
+      for (const voice of voices) {
+        try { voice.stop(); } catch { /* ok */ }
+      }
+      try { gain.disconnect(); } catch { /* ok */ }
+    }, stopAtMs);
+    this.pendingRetire.push(entry);
+  }
+
+  private killPendingRetire(now: number): void {
+    if (this.pendingRetire.length === 0) return;
+    const entries = this.pendingRetire;
+    this.pendingRetire = [];
+    for (const entry of entries) {
+      clearTimeout(entry.stopTimeout);
+      // Fast-fade over 30 ms to avoid a click, then stop + disconnect.
+      try {
+        const g = entry.gain.gain;
+        g.cancelScheduledValues(now);
+        g.setValueAtTime(g.value, now);
+        g.linearRampToValueAtTime(0, now + 0.03);
+      } catch { /* ok */ }
+      const { voices, gain } = entry;
+      window.setTimeout(() => {
+        for (const voice of voices) {
           try { voice.stop(); } catch { /* ok */ }
         }
-        try { retiringLayer.gain.disconnect(); } catch { /* ok */ }
-      }
-    }, stopAtMs);
-
-    this.droneVoiceGain.gain.cancelScheduledValues(now);
-    this.droneVoiceGain.gain.setTargetAtTime(this.voiceStackGain(), now, 0.2);
+        try { gain.disconnect(); } catch { /* ok */ }
+      }, 50);
+    }
   }
 
   private ensureLayerGain(type: VoiceType): GainNode {
