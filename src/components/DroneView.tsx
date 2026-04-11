@@ -157,6 +157,10 @@ interface DroneViewProps {
   onTonicChange?: (root: PitchClass, octave: number) => void;
   onPresetChange?: (presetId: string | null, presetName: string | null) => void;
   onMutateScene?: (intensity: number) => void;
+  /** Push a short "fine-tune active" hint string up to the header
+   *  (e.g. "±7 ¢"), or null when no offsets are non-zero or
+   *  microtuning isn't engaged. */
+  onTuneOffsetChange?: (hint: string | null) => void;
   kbdActive: boolean;
   onToggleKbd: () => void;
 }
@@ -180,7 +184,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, kbdActive, onToggleKbd }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, kbdActive, onToggleKbd }: DroneViewProps,
   ref,
 ) {
   const {
@@ -243,6 +247,48 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // MUTATE intensity — local state, not persisted across reloads.
   // 0.25 is an audible but coherent default for typical drones.
   const [mutateIntensity, setMutateIntensity] = useState(0.25);
+
+  // Auto-open the DETUNE disclosure once when fine-tune offsets
+  // become non-zero (e.g. when loading a preset or share URL with
+  // authored detune). Only opens — never auto-closes — so a user
+  // who manually collapses it stays collapsed until the next time
+  // offsets transition from all-zero to non-zero.
+  useEffect(() => {
+    if (disclosed.detune) return;
+    if (!state.fineTuneOffsets.some((o) => o !== 0)) return;
+    setDisclosed((prev) => {
+      const next = { ...prev, detune: true };
+      try { localStorage.setItem(DISCLOSURE_KEY, JSON.stringify(next)); } catch { /* noop */ }
+      return next;
+    });
+  }, [state.fineTuneOffsets, disclosed.detune]);
+
+  // Push a short "fine-tune active" hint to the header. The hint is
+  // `±N ¢` where N is the largest absolute offset, only when both
+  // tuningId + relationId are set and at least one finite, non-zero
+  // offset exists. Otherwise null (header hides the pill).
+  //
+  // Note: state.fineTuneOffsets can contain sparse slots (undefined)
+  // because the slider onChange spreads an empty array and assigns
+  // by index. Filter to finite numbers before computing the peak so
+  // the hint never reads "±NaN ¢".
+  useEffect(() => {
+    if (!onTuneOffsetChange) return;
+    if (!state.tuningId || !state.relationId) {
+      onTuneOffsetChange(null);
+      return;
+    }
+    const finite = state.fineTuneOffsets.filter(
+      (o): o is number => typeof o === "number" && Number.isFinite(o),
+    );
+    const peak = finite.length > 0 ? Math.max(...finite.map(Math.abs)) : 0;
+    if (peak === 0) {
+      onTuneOffsetChange(null);
+      return;
+    }
+    const rounded = Math.round(peak * 10) / 10;
+    onTuneOffsetChange(`±${rounded.toFixed(1)} ¢`);
+  }, [state.fineTuneOffsets, state.tuningId, state.relationId, onTuneOffsetChange]);
 
   // Active preset-group tab. Follows the active preset's group
   // automatically; a user tab-click overrides until the preset changes.

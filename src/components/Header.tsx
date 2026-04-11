@@ -37,6 +37,9 @@ interface HeaderProps {
   onOpenShare: () => void;
   onRandomScene: () => void;
   onUndoScene: () => void;
+  /** Pre-formatted "fine-tune active" hint string (e.g. "±7 ¢"),
+   *  or null when no offsets are non-zero or microtuning isn't on. */
+  tuneOffsetHint?: string | null;
   isRec: boolean;
   recTimeMs: number;
   recordingSupported: boolean;
@@ -78,6 +81,7 @@ export function Header({
   onOpenShare,
   onRandomScene,
   onUndoScene,
+  tuneOffsetHint,
   isRec,
   recTimeMs,
   recordingSupported,
@@ -268,6 +272,11 @@ export function Header({
           title="Drone tonic — pitch class of the root"
           ariaLabel="Tonic"
         />
+        {tuneOffsetHint && (
+          <span className="header-tune-hint" title="Active fine-tune deviation">
+            {tuneOffsetHint}
+          </span>
+        )}
         <div className="header-octave" title="Drone octave">
           <button
             className="header-octave-btn"

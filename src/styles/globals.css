@@ -236,6 +236,20 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-bottom: 8px;
 }
 
+/* Inline "fine-tune active" pill next to the header tonic dropdown.
+ * Visible only when DroneView pushes a non-null tuneOffsetHint
+ * (i.e. tuningId + relationId set AND any fineTuneOffset !== 0). */
+.header-tune-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-cell);
+  white-space: nowrap;
+}
+
 /* Preset panel header — panel label on the left, MUTATE controls
  * on the right, sharing one flex row at the top of the panel. */
 .preset-panel-header {

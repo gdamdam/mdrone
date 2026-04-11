@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { EFFECT_ORDER, type EffectId } from "../../src/engine/FxChain";
 import { PRESETS, getPresetMaterialProfile } from "../../src/engine/presets";
+import { TUNINGS, RELATIONS } from "../../src/microtuning";
 
 /**
  * Serial effect chain — the single source of truth for FX ordering lives
@@ -84,6 +85,33 @@ describe("PRESETS (authored) validation", () => {
       for (const id of ids) {
         expect(KNOWN_EFFECTS.has(id), `preset "${p.id}" has unknown effect "${id}"`).toBe(true);
       }
+    }
+  });
+
+  it("every shipped tuning is referenced by at least one authored preset", () => {
+    // Guards against the "shipped but orphaned" condition: tunings in
+    // src/microtuning.ts that ship to production but no preset uses,
+    // so users can't encounter them via preset browsing.
+    const usedTuningIds = new Set(
+      PRESETS.map((p) => p.tuningId).filter((id): id is NonNullable<typeof id> => id != null),
+    );
+    for (const tuning of TUNINGS) {
+      expect(
+        usedTuningIds.has(tuning.id),
+        `tuning "${tuning.id}" is shipped but no preset uses it`,
+      ).toBe(true);
+    }
+  });
+
+  it("every shipped relation is referenced by at least one authored preset", () => {
+    const usedRelationIds = new Set(
+      PRESETS.map((p) => p.relationId).filter((id): id is NonNullable<typeof id> => id != null),
+    );
+    for (const relation of RELATIONS) {
+      expect(
+        usedRelationIds.has(relation.id),
+        `relation "${relation.id}" is shipped but no preset uses it`,
+      ).toBe(true);
     }
   });
 

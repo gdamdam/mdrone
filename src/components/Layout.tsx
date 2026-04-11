@@ -34,6 +34,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
   const [headerOctave, setHeaderOctave] = useState(2);
   const [headerHolding, setHeaderHolding] = useState(false);
+  const [headerTuneHint, setHeaderTuneHint] = useState<string | null>(null);
   const [headerVolume, setHeaderVolume] = useState<number>(() => engine.getMasterVolume());
   const [shareOpen, setShareOpen] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -214,6 +215,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onOpenShare={() => setShareOpen(true)}
         onRandomScene={sceneManager.handleRandomScene}
         onUndoScene={sceneManager.handleUndoScene}
+        tuneOffsetHint={headerTuneHint}
         isRec={isRec}
         recTimeMs={recTimeMs}
         recordingSupported={recordingSupport.supported}
@@ -263,6 +265,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             }}
             onPresetChange={handlePresetChange}
             onMutateScene={sceneManager.handleMutateScene}
+            onTuneOffsetChange={setHeaderTuneHint}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
           />
