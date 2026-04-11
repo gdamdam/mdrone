@@ -95,21 +95,55 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </p>
 
           <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">RANDOM &amp; UNDO</div>
+          <div className="fx-modal-section-label">RANDOM, MUTATE &amp; UNDO</div>
           <p className="fx-modal-desc">
             <strong>🎲 RND</strong> loads a gentle variation of a random
-            scene. <strong>↶</strong> restores the scene that was playing
-            before the last RND.
+            scene. <strong>MUTATE</strong> perturbs the current scene's
+            macros by the intensity slider next to it — small intensity
+            for a nudge, large for a hard shake. <strong>↶</strong>{" "}
+            restores the scene that was playing before the last RND or
+            MUTATE. RND and MUTATE both reset the URL-deterministic
+            evolve seed so reloads play back the same drift.
+          </p>
+
+          <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">JOURNEY · ritual phases</div>
+          <p className="fx-modal-desc">
+            <strong>JOURNEY</strong> picks an authored multi-phase walk:{" "}
+            <em>arrival → bloom → suspension → dissolve</em>. Pick one
+            from the dropdown above the preset grid (morning, evening,
+            dusk, void). Each phase gently steers a small set of macros
+            toward authored targets over a few minutes; past the
+            dissolve the scene rests on the final settings. Journey is
+            deterministic from the share URL — two visitors hear the
+            same sequence from phase 0.
+          </p>
+
+          <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">PARTNER · sympathetic drone</div>
+          <p className="fx-modal-desc">
+            <strong>PARTNER</strong> adds an optional second voice layer
+            at a fixed musical relation to the main drone:{" "}
+            <em>fifth</em> (+702 ¢), <em>octave-up</em> (+1200 ¢),{" "}
+            <em>octave-down</em> (-1200 ¢), or <em>beat-detune</em>{" "}
+            (+7 ¢ for slow audible beating). The partner doubles the
+            voice count while it's on — keep an eye on CPU on lower-end
+            devices.
           </p>
 
           <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">RECORD &amp; SHARE</div>
           <p className="fx-modal-desc">
-            <strong>● REC</strong> captures the full master output to a
-            WAV file. <strong>⤴ SHARE</strong> builds a link that encodes
-            the current scene — open it anywhere to reconstruct the exact
-            sound. Sessions can be saved, renamed, and loaded from the
-            Settings modal (⚙).
+            <strong>● REC</strong> (header) captures the full master
+            output to a WAV file. <strong>REC MOTION</strong> (preset
+            panel) records meaningful gestures — tonic / octave / macro /
+            climate / lfo changes — into the next share URL, capped at
+            60 s and 200 events. Loading a share URL with a recording
+            replays those gestures deterministically against the
+            starting scene. <strong>⤴ SHARE</strong> builds a link that
+            encodes the current scene plus any motion recording — open
+            it anywhere to reconstruct the exact sound. Sessions can be
+            saved, renamed, and loaded from the Settings modal (⚙).
           </p>
 
           <div className="fx-modal-divider" />
