@@ -1550,6 +1550,66 @@ function jitter(value: number, spread: number, min = 0, max = 1, random = Math.r
   return clamp(value + (random() * 2 - 1) * spread, min, max);
 }
 
+/**
+ * mulberry32 — 32-bit seedable PRNG, ~2^32 period. Tiny and
+ * deterministic; good enough for scene randomisation and mutation
+ * perturbation where we just need reproducibility from a seed, not
+ * cryptographic quality. Same seed ⇒ same sequence.
+ */
+export function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Perturb a scene snapshot's numeric parameters by a given intensity
+ * (0..1 = perturbation range, NOT probability). Booleans and
+ * categorical fields (effects, lfoShape, scale, voiceLayers, tuning)
+ * are left untouched. Result is clamped to each field's natural range
+ * so the output is always valid and never contains NaN.
+ *
+ * Voice levels are only perturbed for currently-active layers.
+ */
+export function mutateScene(
+  current: DroneSessionSnapshot,
+  intensity: number,
+  random: () => number = Math.random,
+): DroneSessionSnapshot {
+  const amt = Math.max(0, Math.min(1, intensity));
+  const j01 = (v: number) => clamp(v + (random() - 0.5) * 2 * amt, 0, 1);
+  const jRange = (v: number, lo: number, hi: number) => {
+    const span = hi - lo;
+    return clamp(v + (random() - 0.5) * 2 * amt * span, lo, hi);
+  };
+  const voiceLevels = { ...current.voiceLevels };
+  for (const t of ALL_VOICE_TYPES) {
+    if (current.voiceLayers[t]) voiceLevels[t] = j01(current.voiceLevels[t]);
+  }
+  return {
+    ...current,
+    voiceLevels,
+    drift: j01(current.drift),
+    air: j01(current.air),
+    time: j01(current.time),
+    sub: j01(current.sub),
+    bloom: j01(current.bloom),
+    glide: j01(current.glide),
+    climateX: j01(current.climateX),
+    climateY: j01(current.climateY),
+    lfoRate: jRange(current.lfoRate, 0.05, 8),
+    lfoAmount: j01(current.lfoAmount),
+    presetMorph: j01(current.presetMorph),
+    evolve: j01(current.evolve),
+    pluckRate: jRange(current.pluckRate, 0.2, 4),
+  };
+}
+
 export function createPresetVariation(
   preset: Preset,
   root: DroneSessionSnapshot["root"],
@@ -1616,6 +1676,7 @@ export function createPresetVariation(
     evolve: 0,
     pluckRate: 1,
     presetTrim: preset.gain ?? 1,
+    seed: 0,
   };
 }
 

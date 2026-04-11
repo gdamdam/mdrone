@@ -37,6 +37,11 @@ export interface DroneSessionSnapshot {
   evolve: number;
   pluckRate: number;
   presetTrim: number;
+  /** PRNG seed captured the last time this scene was randomised or
+   *  mutated. 0 = no explicit seed (initial default). Travels through
+   *  the share URL so reloading a shared scene preserves reproducibility
+   *  for follow-up mutations. */
+  seed: number;
 }
 
 export interface MixerSessionSnapshot {
@@ -185,6 +190,7 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   evolve: 0,
   pluckRate: 1,
   presetTrim: 1,
+  seed: 0,
 };
 
 const DEFAULT_MIXER_SNAPSHOT: MixerSessionSnapshot = {
@@ -322,6 +328,7 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     evolve: readNumber(value.evolve, DEFAULT_DRONE_SNAPSHOT.evolve, 0, 1),
     pluckRate: readNumber(value.pluckRate, DEFAULT_DRONE_SNAPSHOT.pluckRate, 0.2, 4),
     presetTrim: readNumber(value.presetTrim, DEFAULT_DRONE_SNAPSHOT.presetTrim, 0.1, 4),
+    seed: readNumber(value.seed, DEFAULT_DRONE_SNAPSHOT.seed, 0, 0xFFFFFFFF),
   };
 }
 

@@ -124,6 +124,7 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
     evolve: engine?.getEvolve() ?? 0,
     pluckRate: engine?.getTanpuraPluckRate() ?? 1,
     presetTrim: engine?.getPresetTrim() ?? 1,
+    seed: 0,
   };
 }
 

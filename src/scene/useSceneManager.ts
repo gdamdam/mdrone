@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
-import { PRESETS, createSafeRandomScene } from "../engine/presets";
+import { PRESETS, createSafeRandomScene, mutateScene, mulberry32 } from "../engine/presets";
 import { generateDroneName, hashSceneSeed } from "./droneNames";
 import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState";
 import { buildSceneShareUrl, loadSceneFromCurrentUrlOnce } from "../shareCodec";
@@ -307,13 +307,20 @@ export function useSceneManager({
     }
 
     const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
-    const { preset, snapshot } = createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE);
+    // Mint a fresh PRNG seed and feed a seeded RNG into the scene
+    // generator so the resulting snapshot is fully reproducible from
+    // its `seed` field (stored in-snapshot and round-tripped in share
+    // URLs via normalizeDroneSnapshot).
+    const seed = Math.floor(Math.random() * 0x100000000);
+    const rng = mulberry32(seed);
+    const { preset, snapshot } = createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE, rng);
+    const seeded = { ...snapshot, seed };
     // Suppress the handlePresetNameChange fire that applySnapshot
     // would otherwise trigger — it would overwrite our generated
     // name with preset.name the moment DroneView's onPresetChange
     // callback runs.
     ignoreNextPresetNameRef.current = true;
-    droneViewRef.current?.applySnapshot(snapshot);
+    droneViewRef.current?.applySnapshot(seeded);
     setCurrentSessionId(null);
     setCurrentSessionName(DEFAULT_SESSION_NAME);
     // RND "shake" swaps the scene label from the plain preset name to
@@ -323,12 +330,35 @@ export function useSceneManager({
     // Preset name is still visible on the preset button itself.
     const generated = generateDroneName(
       preset.group,
-      hashSceneSeed(snapshot),
+      hashSceneSeed(seeded),
       preset.attribution,
     );
     setCurrentPresetName(generated);
     saveCurrentSessionId(null);
     requestSigilRefresh();
+  }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionName, droneViewRef]);
+
+  /** Perturb the current scene's numeric parameters by `intensity`
+   *  (0..1). Preserves undo by writing to the same previousSceneRef
+   *  that handleRandomScene uses, so the ↶ button reverts either. */
+  const handleMutateScene = useCallback((intensity: number) => {
+    const now = Date.now();
+    if (now - lastSceneMutationTsRef.current < SCENE_MUTATION_MIN_GAP_MS) return;
+    lastSceneMutationTsRef.current = now;
+
+    const currentSnapshot = droneViewRef.current?.getSnapshot();
+    if (!currentSnapshot) return;
+
+    const beforeName = currentPresetName || currentSessionName || "Previous";
+    const beforeScene = captureCurrentSceneSnapshot(beforeName);
+    if (beforeScene) {
+      previousSceneRef.current = { scene: beforeScene, name: beforeName };
+    }
+
+    const seed = Math.floor(Math.random() * 0x100000000);
+    const rng = mulberry32(seed);
+    const mutated = mutateScene(currentSnapshot, intensity, rng);
+    droneViewRef.current?.applySnapshot({ ...mutated, seed });
   }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionName, droneViewRef]);
 
   /** Cycle to the next preset within the current preset's group.
@@ -406,6 +436,7 @@ export function useSceneManager({
     handleRenameSession,
     handleLoadSession,
     handleRandomScene,
+    handleMutateScene,
     handleCyclePresetInGroup,
     handleUndoScene,
     buildShareSceneData,

@@ -57,6 +57,36 @@ export const EFFECT_ORDER: readonly EffectId[] = [
   "plate", "hall", "shimmer", "freeze", "cistern", "granular",
 ] as const;
 
+/**
+ * Validate a serial chain of enabled effects.
+ *
+ * Returns true iff `chain`:
+ * - is an array of known EffectId strings (no unknown entries)
+ * - contains no duplicate effect types
+ * - preserves EFFECT_ORDER order (each entry's EFFECT_ORDER index
+ *   is strictly greater than the previous entry's)
+ *
+ * Cheap post-check for share-link loads and the mutation path — the
+ * current Record<EffectId, boolean> storage form already satisfies all
+ * three rules by construction, but this lets us validate arbitrary
+ * external input and guards future shape changes.
+ */
+export function validateChain(chain: readonly unknown[]): chain is readonly EffectId[] {
+  if (!Array.isArray(chain)) return false;
+  const known = new Set<string>(EFFECT_ORDER);
+  const seen = new Set<string>();
+  let lastIdx = -1;
+  for (const entry of chain) {
+    if (typeof entry !== "string" || !known.has(entry)) return false;
+    if (seen.has(entry)) return false;
+    seen.add(entry);
+    const idx = EFFECT_ORDER.indexOf(entry as EffectId);
+    if (idx <= lastIdx) return false;
+    lastIdx = idx;
+  }
+  return true;
+}
+
 /** Base crossfade time-constant for the bypass/wet toggle. Scaled
  *  at runtime by the MORPH slider via setMorph() — at MORPH=0 the
  *  toggle is snappy (~0.15 s), at MORPH=1 it's glacial (~2.5 s). */
