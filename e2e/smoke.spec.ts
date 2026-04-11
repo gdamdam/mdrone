@@ -6,7 +6,11 @@ import { test, expect, type Page } from "@playwright/test";
  * deep logic coverage is in tests/unit (vitest).
  */
 
-const START_BUTTONS = /start mdrone|start new|continue last scene/i;
+// Any button that starts audio + reveals the main UI. The normal
+// StartGate uses "Start mdrone" / "Start New" / "Continue Last Scene";
+// when the page loads from a share URL the gate is replaced with a
+// "▶ Play this scene" button instead.
+const START_BUTTONS = /start mdrone|start new|continue last scene|play this scene/i;
 
 type ErrorBucket = string[];
 
@@ -75,13 +79,15 @@ test("3. selecting a preset updates the UI without errors", async ({ page }) => 
   await page.goto("/");
   await dismissStartGate(page);
 
-  // "Tanpura Drone" is the first preset in the Sacred / Ritual group.
-  const preset = page.getByRole("button", { name: /Tanpura Drone/i }).first();
+  // Click whichever preset is first in the active tab. The default tab
+  // isn't stable (random-scene flows may switch it), so we don't
+  // hardcode a specific preset name.
+  const preset = page.locator(".preset-btn").first();
   await expect(preset).toBeVisible();
   await preset.click();
 
-  // Clicking shouldn't throw and the button should remain in the DOM.
-  await expect(preset).toBeVisible();
+  // After clicking, the preset button should gain the active class.
+  await expect(preset).toHaveClass(/preset-btn-active/);
   expect(errors).toEqual([]);
 });
 
@@ -89,6 +95,10 @@ test("4. FX bar DOM order matches engine EFFECT_ORDER", async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto("/");
   await dismissStartGate(page);
+
+  // FxBar lives inside a collapsible "EFFECTS · serial chain"
+  // disclosure — expand it so .fx-bar is mounted and visible.
+  await page.getByText(/EFFECTS.*serial chain/i).first().click();
 
   // Engine EFFECT_ORDER — kept in sync with src/engine/FxChain.ts. If
   // FxBar.tsx ever hand-rolls its own order, this assertion catches it.
@@ -110,7 +120,7 @@ test("4. FX bar DOM order matches engine EFFECT_ORDER", async ({ page }) => {
 
   const fxBar = page.locator(".fx-bar").first();
   await expect(fxBar).toBeVisible();
-  const texts = await fxBar.locator("button").allInnerTexts();
+  const texts = await fxBar.locator(".fx-btn").allInnerTexts();
 
   // Each label must appear, and in the expected order relative to the
   // previous one. Extra buttons (e.g. morph slider trigger) are allowed.
@@ -124,39 +134,51 @@ test("4. FX bar DOM order matches engine EFFECT_ORDER", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, context }) => {
+test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, browser }) => {
   const errors = trackErrors(page);
   await page.goto("/");
   await dismissStartGate(page);
 
-  // Mutate to a non-default root so the share payload carries signal.
-  await page.getByRole("button", { name: /^D$/ }).first().click();
+  // Mutate tonic to D so the share URL encodes a non-default state.
+  // Scope to the chromatic tonic grid (.tonic-cell) so we don't hit
+  // other "D"-labelled elements (e.g. piano keyboard or mode pickers).
+  await page.locator(".tonic-cell", { hasText: /^D$/ }).first().click();
 
-  // Open the share modal — header trigger is either a "share" button
-  // or an icon button with aria-label="share" / "Share".
+  // Open the share modal from the header action bar.
   await page.getByRole("button", { name: /share/i }).first().click();
 
-  // Share URL is rendered into a readonly textarea.
+  // The share URL is computed async (CompressionStream), so the
+  // readonly textarea starts empty and populates once encoding lands.
   const shareUrlLocator = page.locator(".share-modal-url").first();
   await expect(shareUrlLocator).toBeVisible();
+  await expect(shareUrlLocator).toHaveValue(/^https?:\/\//, { timeout: 10_000 });
   const shareUrl = await shareUrlLocator.inputValue();
-  expect(shareUrl).toMatch(/^https?:\/\//);
 
-  // Load the share URL in a fresh page and confirm D is active there.
-  const fresh = await context.newPage();
+  // The share URL points at the production share-worker origin
+  // (e.g. sd.mpump.live). Rewrite it to the local dev server.
+  const parsed = new URL(shareUrl);
+  const localShareUrl = `http://localhost:5173/${parsed.search}`;
+
+  // Use a fresh *context* (not just a fresh page) so that localStorage
+  // from the first page doesn't short-circuit the share-URL boot flow
+  // by auto-continuing the autosaved scene instead.
+  const freshContext = await browser.newContext();
+  const fresh = await freshContext.newPage();
   const freshErrors = trackErrors(fresh);
-  await fresh.goto(shareUrl);
+  await fresh.goto(localShareUrl);
 
-  // Dismiss StartGate if it reappears on the fresh page.
+  // A share URL replaces StartGate with a "▶ Play this scene" button.
+  // Either gate flavor is covered by START_BUTTONS.
   const gate = fresh.getByRole("button", { name: START_BUTTONS }).first();
-  if (await gate.isVisible().catch(() => false)) {
-    await gate.click();
-  }
+  await expect(gate).toBeVisible({ timeout: 10_000 });
+  await gate.click();
 
-  // `tonic-cell-active` is the class FxBar-adjacent tonic grid applies
-  // to the currently-selected root (see DroneView.tsx tonic grid).
-  const dBtn = fresh.getByRole("button", { name: /^D$/ }).first();
-  await expect(dBtn).toHaveClass(/tonic-cell-active/, { timeout: 10_000 });
+  // Header tonic dropdown has aria-label="Tonic" (exact: true
+  // because fuzzy match would also hit the "Pentatonic" scale button).
+  // Its text reflects the current root and is always visible.
+  const headerTonic = fresh.getByRole("button", { name: "Tonic", exact: true });
+  await expect(headerTonic).toContainText("D", { timeout: 10_000 });
 
+  await freshContext.close();
   expect(errors.concat(freshErrors)).toEqual([]);
 });
