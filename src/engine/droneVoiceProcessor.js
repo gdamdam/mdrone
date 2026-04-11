@@ -191,22 +191,33 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   }
 
   doPluck(delayLen, delayLenR) {
-    // Fill delay lines with band-limited noise burst.
-    // A short 50% amplitude burst filtered by a moving average gives
-    // a characteristic plucked attack.
-    let last = 0;
+    // Fill delay lines with a band-limited noise excitation. A one-
+    // pole IIR lowpass (corner ~2.5 kHz at 48 kHz) replaces the old
+    // 2-sample moving-average smoothing so the pluck transient doesn't
+    // slam downstream effects — notably PLATE's input diffuser — with
+    // full-spectrum white-noise content. That full-spectrum hit was
+    // audible as a brief "frrrrr" of dense allpass coloration every
+    // re-pluck (~every 3 s). The filter corner sits above the string
+    // fundamental and first few harmonics but below the 3–10 kHz range
+    // where the diffuser ringing lived, so the sustained string
+    // timbre is unchanged while the attack stops exciting the chain.
+    // Real tanpura plucks are mid-rich, not bright white bursts
+    // either — this is more physically plausible, not less.
+    const lpCoef = 0.32;
+    let lpL = 0;
     for (let i = 0; i < delayLen; i++) {
       const n = (this.rng() * 2 - 1);
-      const smoothed = (n + last) * 0.5;
-      this.ksBuf[i] = smoothed * 0.7;
-      last = n;
+      lpL += lpCoef * (n - lpL);
+      // Slightly higher scale than the old 0.7 compensates for the
+      // RMS loss from the stronger lowpass so perceived attack
+      // loudness is similar to before.
+      this.ksBuf[i] = lpL * 0.9;
     }
-    let lastR = 0;
+    let lpR = 0;
     for (let i = 0; i < delayLenR; i++) {
       const n = (this.rng() * 2 - 1);
-      const smoothed = (n + lastR) * 0.5;
-      this.ksBufR[i] = smoothed * 0.7;
-      lastR = n;
+      lpR += lpCoef * (n - lpR);
+      this.ksBufR[i] = lpR * 0.9;
     }
   }
 
