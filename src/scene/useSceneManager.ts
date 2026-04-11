@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
-import { createSafeRandomScene } from "../engine/presets";
+import { PRESETS, createSafeRandomScene } from "../engine/presets";
+import { generateDroneName, hashSceneSeed } from "./droneNames";
 import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState";
 import { buildSceneShareUrl, loadSceneFromCurrentUrlOnce } from "../shareCodec";
 import { applyPalette, getPaletteById, loadPaletteId, savePaletteId } from "../themes";
@@ -234,10 +235,21 @@ export function useSceneManager({
       return;
     }
 
-    const proposed = window.prompt("Save session as:", currentSessionName);
+    // Fresh session — propose a generated drone name (matched to the
+    // current preset's group + attribution, seeded by the scene) as
+    // the default. The user can accept, edit, or blank it out.
+    const snapshot = droneViewRef.current?.getSnapshot();
+    const preset = snapshot?.activePresetId
+      ? PRESETS.find((p) => p.id === snapshot.activePresetId)
+      : null;
+    const defaultName = snapshot && preset
+      ? generateDroneName(preset.group, hashSceneSeed(snapshot), preset.attribution)
+      : currentSessionName;
+
+    const proposed = window.prompt("Save session as:", defaultName);
     if (!proposed) return;
     storeSession(makeSessionId(), proposed);
-  }, [currentSessionId, currentSessionName, storeSession]);
+  }, [currentSessionId, currentSessionName, droneViewRef, storeSession]);
 
   const handleRenameSession = useCallback(() => {
     const proposed = window.prompt("Rename session:", currentSessionName);
@@ -274,7 +286,17 @@ export function useSceneManager({
     droneViewRef.current?.applySnapshot(snapshot);
     setCurrentSessionId(null);
     setCurrentSessionName(DEFAULT_SESSION_NAME);
-    setCurrentPresetName(preset.name);
+    // RND "shake" swaps the scene label from the plain preset name to
+    // a generated drone name matched to the preset's genre group and
+    // seeded by the scene state — so the same shake always reads as
+    // the same name, and different shakes produce different ones.
+    // Preset name is still visible on the preset button itself.
+    const generated = generateDroneName(
+      preset.group,
+      hashSceneSeed(snapshot),
+      preset.attribution,
+    );
+    setCurrentPresetName(generated);
     saveCurrentSessionId(null);
     requestSigilRefresh();
   }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionName, droneViewRef]);
