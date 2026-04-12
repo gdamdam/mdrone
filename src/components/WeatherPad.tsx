@@ -71,7 +71,7 @@ export function WeatherPad({
   // Cursor wake trail
   const trailRef = useRef<{ x: number; y: number; age: number }[]>([]);
   const visualRef = useRef(visual);
-  visualRef.current = visual;
+  useEffect(() => { visualRef.current = visual; }, [visual]);
 
   // ── Pointer handling ────────────────────────────────────────────
   const updateXy = useCallback((clientX: number, clientY: number) => {
@@ -112,9 +112,6 @@ export function WeatherPad({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // FFT for spectral bands (smaller FFT = cheaper)
-    const fftSize = analyser ? Math.min(analyser.fftSize, 256) : 0;
-    const freqBuf = analyser ? new Uint8Array(fftSize / 2) : null;
     const timeBuf = analyser ? new Uint8Array(analyser.fftSize) : null;
     let raf = 0;
     let spawnAccum = 0;
@@ -138,10 +135,9 @@ export function WeatherPad({
       timeRef.current += 0.016;
       const time = timeRef.current;
 
-      // Read audio data
+      // Read RMS from analyser
       let rms = 0;
-      const bands = [0, 0, 0, 0, 0, 0]; // 6 spectral bands
-      if (analyser && timeBuf && freqBuf) {
+      if (analyser && timeBuf) {
         analyser.getByteTimeDomainData(timeBuf);
         let sum = 0;
         for (let i = 0; i < timeBuf.length; i++) {
@@ -150,18 +146,6 @@ export function WeatherPad({
         }
         rms = Math.min(1, Math.sqrt(sum / timeBuf.length) * 3);
         rmsRef.current += (rms - rmsRef.current) * 0.15;
-
-        // FFT bands
-        analyser.getByteFrequencyData(freqBuf);
-        const binCount = freqBuf.length;
-        const bandSize = Math.floor(binCount / bands.length);
-        for (let b = 0; b < bands.length; b++) {
-          let bandSum = 0;
-          for (let i = b * bandSize; i < (b + 1) * bandSize && i < binCount; i++) {
-            bandSum += freqBuf[i];
-          }
-          bands[b] = (bandSum / bandSize) / 255;
-        }
       }
       rms = rmsRef.current;
 
@@ -195,31 +179,7 @@ export function WeatherPad({
         return;
       }
 
-      // ── Layer 1: Spectral bands (flow mode only, subtle)
-      if (vis === "flow") {
-      const bandH = h / bands.length;
-      for (let b = 0; b < bands.length; b++) {
-        const energy = bands[b] * rms;
-        if (energy < 0.02) continue;
-        const bandY = h - (b + 0.5) * bandH;
-        const warmth = cx;
-        const r = Math.round(120 + warmth * 100 + b * 15);
-        const g = Math.round(80 + warmth * 50 - b * 5);
-        const bl = Math.round(40 + (1 - warmth) * 80 + b * 20);
-        // Horizontal gradient band
-        const grad = ctx.createLinearGradient(0, bandY - bandH * 0.4, 0, bandY + bandH * 0.4);
-        grad.addColorStop(0, `rgba(${r},${g},${bl},0)`);
-        grad.addColorStop(0.5, `rgba(${r},${g},${bl},${(energy * 0.1).toFixed(3)})`);
-        grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
-        ctx.fillStyle = grad;
-        // Shift band position with time and Y axis (motion)
-        const drift = Math.sin(time * 0.3 + b * 1.2) * cy * 15;
-        ctx.fillRect(0, bandY - bandH * 0.5 + drift, w, bandH);
-      }
-
-      } // end aurora layer
-
-      // ── Layer 2: Flow-field particles (flow mode only) ──────
+      // ── Flow-field particles (flow mode only) ──────────────
       if (vis === "flow") {
       const particles = particlesRef.current;
       const spawnRate = rms * (0.3 + cy * 2);
@@ -284,26 +244,21 @@ export function WeatherPad({
           // Position in trail: 0 = oldest, 1 = newest
           const recency = i / (trailLen - 1);
           const glow = fade * fade * recency;
-          const dotR = 1 + glow * 5;
-          const glowR = dotR * 3;
-          const brightness = Math.max(0.3, rms);
+          const dotR = 1 + glow * 2.5; // max ~3.5px (cursor is 6px radius)
+          const brightness = Math.max(0.2, rms);
 
-          // Soft radial glow halo
-          const grad = ctx.createRadialGradient(tp.x, tp.y, 0, tp.x, tp.y, glowR);
-          grad.addColorStop(0, `rgba(232,204,120,${(glow * brightness * 0.4).toFixed(3)})`);
-          grad.addColorStop(0.3, `rgba(232,180,80,${(glow * brightness * 0.15).toFixed(3)})`);
-          grad.addColorStop(1, `rgba(232,160,60,0)`);
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = grad;
+          // Small glow halo — proportional to dot, not oversized
+          ctx.globalAlpha = glow * brightness * 0.3;
           ctx.beginPath();
-          ctx.arc(tp.x, tp.y, glowR, 0, Math.PI * 2);
+          ctx.arc(tp.x, tp.y, dotR + 3, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(232,200,100,0.3)";
           ctx.fill();
 
-          // Sharp bright core
-          ctx.globalAlpha = glow * brightness;
+          // Dot core
+          ctx.globalAlpha = glow * brightness * 0.8;
           ctx.beginPath();
           ctx.arc(tp.x, tp.y, dotR, 0, Math.PI * 2);
-          ctx.fillStyle = "#f0d878";
+          ctx.fillStyle = "#e8c870";
           ctx.fill();
         }
       }
