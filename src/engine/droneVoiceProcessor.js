@@ -156,9 +156,6 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // audible after the body resonator adds mid-low weight.
     this.hsKsL = 0;
     this.hsKsR = 0;
-    // Allpass fractional delay state (one per channel)
-    this.apL = 0;
-    this.apR = 0;
   }
 
   tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
@@ -208,18 +205,12 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // CPU slowdowns on x86 as samples decay toward zero.
     const ANTI_DENORMAL = 1e-25;
 
-    // Allpass coefficient for fractional delay interpolation
-    const apCoefL = (1 - fracL) / (1 + fracL);
-    const apCoefR = (1 - fracR) / (1 + fracR);
-
     for (let i = 0; i < n; i++) {
-      // Read with allpass fractional delay interpolation
+      // Read with linear fractional delay interpolation —
+      // eliminates ±1 sample pitch quantization of integer delay.
       const cur = this.ksBuf[this.ksIdx];
       const nxt = this.ksBuf[(this.ksIdx + 1) % delayLen];
-      const intY = (cur + nxt) * 0.5;
-      const apOut = apCoefL * (intY - this.apL) + cur;
-      this.apL = apOut;
-      let y = apOut + ANTI_DENORMAL;
+      let y = cur * (1 - fracL) + nxt * fracL + ANTI_DENORMAL;
       // Additional gentle lowpass smoothing (string body)
       this.ksLast = this.ksLast * 0.2 + y * 0.8;
       y = this.ksLast * damping;
@@ -232,10 +223,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Right channel — independent delay line with fractional interp
       const curR = this.ksBufR[this.ksIdxR];
       const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
-      const intYR = (curR + nxtR) * 0.5;
-      const apOutR = apCoefR * (intYR - this.apR) + curR;
-      this.apR = apOutR;
-      let yR = apOutR + ANTI_DENORMAL;
+      let yR = curR * (1 - fracR) + nxtR * fracR + ANTI_DENORMAL;
       this.ksLastR = this.ksLastR * 0.2 + yR * 0.8;
       yR = this.ksLastR * damping;
       const jyR = Math.tanh(jawK * yR) + jawMix * Math.sin(jawK * 2.1 * yR);
