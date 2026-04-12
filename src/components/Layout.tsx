@@ -188,7 +188,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     },
   );
   const [weatherVisual, setWeatherVisualState] = useState<WeatherVisual>(() => {
-    try { return (localStorage.getItem(STORAGE_KEYS.weatherVisual) as WeatherVisual) || "flow"; }
+    try { return (localStorage.getItem(STORAGE_KEYS.weatherVisual) as WeatherVisual) || "waveform"; }
     catch { return "flow"; }
   });
   const setWeatherVisual = useCallback((v: WeatherVisual) => {
