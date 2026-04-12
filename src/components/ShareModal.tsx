@@ -175,20 +175,6 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
           presses Start, and lands in the same scene.
         </p>
 
-        <div className="share-card-preview">
-          <canvas
-            ref={canvasRef}
-            className="share-card-canvas"
-            aria-label={`Scene card preview in ${SCENE_CARD_STYLE_LABELS[resolvedStyle]} style`}
-          />
-          <div className="share-card-meta">
-            <span className="share-card-meta-chip">CARD</span>
-            <span className="share-card-meta-value">{SCENE_CARD_STYLE_LABELS[resolvedStyle]}</span>
-            <span className="share-card-meta-sep">·</span>
-            <span className="share-card-meta-value">{scene ? scene.ui.visualizer.toUpperCase() : "BUILDING"}</span>
-          </div>
-        </div>
-
         <div className="fx-modal-params">
           <label className="fx-modal-param">
             <span className="fx-modal-param-label">SCENE NAME</span>
@@ -200,28 +186,35 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
               maxLength={80}
             />
           </label>
+        </div>
 
-          <div className="fx-modal-param">
-            <span className="fx-modal-param-label">CARD STYLE</span>
-            <div className="share-style-row" role="radiogroup" aria-label="Card style">
-              {(["auto", "sigil", "tarot", "fractal"] as SceneCardStyleChoice[]).map((style) => (
-                <button
-                  type="button"
-                  key={style}
-                  role="radio"
-                  aria-checked={styleChoice === style}
-                  className={
-                    styleChoice === style
-                      ? "share-style-btn share-style-btn-active"
-                      : "share-style-btn"
-                  }
-                  onClick={() => setStyleChoice(style)}
-                >
-                  {SCENE_CARD_STYLE_LABELS[style]}
-                </button>
-              ))}
-            </div>
+        <div className="share-card-preview">
+          <canvas
+            ref={canvasRef}
+            className="share-card-canvas"
+            aria-label={`Scene card preview in ${SCENE_CARD_STYLE_LABELS[resolvedStyle]} style`}
+          />
+          <div className="share-style-row" role="radiogroup" aria-label="Card style">
+            {(["auto", "sigil", "tarot", "fractal"] as SceneCardStyleChoice[]).map((style) => (
+              <button
+                type="button"
+                key={style}
+                role="radio"
+                aria-checked={styleChoice === style}
+                className={
+                  styleChoice === style
+                    ? "share-style-btn share-style-btn-active"
+                    : "share-style-btn"
+                }
+                onClick={() => setStyleChoice(style)}
+              >
+                {SCENE_CARD_STYLE_LABELS[style]}
+              </button>
+            ))}
           </div>
+        </div>
+
+        <div className="fx-modal-params">
 
           <label className="fx-modal-param">
             <span className="fx-modal-param-label">

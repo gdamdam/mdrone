@@ -96,35 +96,56 @@ function layoutPoints(
   });
 }
 
-/** Build a single continuous quadratic-Bézier path through all points,
- *  closing back to the start. */
+/** Build a Spare-style sigil path: mostly straight strokes with
+ *  sharp angular junctions, occasional controlled curves, and
+ *  small terminal flourishes. Not a smooth blobby loop. */
 function buildContinuousPath(points: Pt[], cx: number, cy: number, rng: () => number): string {
   if (points.length === 0) return "";
+  const cmds: string[] = [];
   const first = points[0];
-  const cmds: string[] = [`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`];
+  cmds.push(`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`);
+
   for (let i = 1; i < points.length; i++) {
     const p0 = points[i - 1];
     const p1 = points[i];
-    // Control point midway between the two, offset perpendicular by
-    // RNG-controlled amount so each edge curves differently.
-    const mx = (p0.x + p1.x) / 2;
-    const my = (p0.y + p1.y) / 2;
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len;
-    const ny = dx / len;
-    const bulge = rngRange(rng, -90, 90);
-    const bx = mx + nx * bulge;
-    const by = my + ny * bulge;
-    cmds.push(`Q ${bx.toFixed(2)} ${by.toFixed(2)} ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    const choice = rng();
+
+    if (choice < 0.55) {
+      // Straight stroke — the angular Spare signature
+      cmds.push(`L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    } else if (choice < 0.8) {
+      // Gentle controlled curve — small perpendicular offset
+      const mx = (p0.x + p1.x) / 2;
+      const my = (p0.y + p1.y) / 2;
+      const dx = p1.x - p0.x;
+      const dy = p1.y - p0.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const bulge = rngRange(rng, -18, 18);
+      cmds.push(`Q ${(mx + nx * bulge).toFixed(2)} ${(my + ny * bulge).toFixed(2)} ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    } else {
+      // Angled detour through centre — Spare often routed strokes
+      // through the glyph's interior for knot-like crossings
+      const via_x = cx + rngRange(rng, -20, 20);
+      const via_y = cy + rngRange(rng, -20, 20);
+      cmds.push(`L ${via_x.toFixed(2)} ${via_y.toFixed(2)}`);
+      cmds.push(`L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    }
+
+    // Terminal tick/flourish at ~30% of nodes — small crossbar or dot
+    if (rng() < 0.3) {
+      const angle = rng() * Math.PI * 2;
+      const tickLen = rngRange(rng, 6, 14);
+      const tx = p1.x + Math.cos(angle) * tickLen;
+      const ty = p1.y + Math.sin(angle) * tickLen;
+      cmds.push(`M ${tx.toFixed(2)} ${ty.toFixed(2)}`);
+      cmds.push(`L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    }
   }
-  // Close back to the start, looping through the centre for a ritual feel.
-  const last = points[points.length - 1];
-  const cpx = cx + rngRange(rng, -40, 40);
-  const cpy = cy + rngRange(rng, -40, 40);
-  cmds.push(`Q ${cpx.toFixed(2)} ${cpy.toFixed(2)} ${first.x.toFixed(2)} ${first.y.toFixed(2)}`);
-  void last;
+
+  // Close with a straight stroke back to start (Spare sigils are closed)
+  cmds.push(`L ${first.x.toFixed(2)} ${first.y.toFixed(2)}`);
   return cmds.join(" ");
 }
 
@@ -184,13 +205,13 @@ export function buildSigilSvg(ctx: ShareCardContext): string {
   // The sigil itself — three strokes stacked for a hand-inked weight.
   // Widest underpainting, medium mid, crisp top stroke in full ink.
   parts.push(
-    `<path d="${pathD}" fill="none" stroke="${PALETTE.inkDim}" stroke-width="9" stroke-opacity="0.22" stroke-linecap="round" stroke-linejoin="round"/>`,
+    `<path d="${pathD}" fill="none" stroke="${PALETTE.inkDim}" stroke-width="9" stroke-opacity="0.22" stroke-linecap="round" stroke-linejoin="miter"/>`,
   );
   parts.push(
-    `<path d="${pathD}" fill="none" stroke="${PALETTE.inkDim}" stroke-width="5" stroke-opacity="0.45" stroke-linecap="round" stroke-linejoin="round"/>`,
+    `<path d="${pathD}" fill="none" stroke="${PALETTE.inkDim}" stroke-width="5" stroke-opacity="0.45" stroke-linecap="round" stroke-linejoin="miter"/>`,
   );
   parts.push(
-    `<path d="${pathD}" fill="none" stroke="${PALETTE.ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`,
+    `<path d="${pathD}" fill="none" stroke="${PALETTE.ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="miter"/>`,
   );
 
   // Vertex beads at each letter point.
