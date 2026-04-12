@@ -2935,7 +2935,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-weight: 800;
   color: var(--text);
   text-shadow: 0 0 14px color-mix(in srgb, var(--preview) 22%, transparent);
-  animation: start-logo-pulse 4.2s ease-out infinite;
+  animation: start-logo-pulse 4.2s ease-out infinite, start-logo-vibrate 0.12s linear infinite;
 }
 
 .start-gate-title.logo-flash {
@@ -3092,6 +3092,15 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   color: var(--text-dim);
   letter-spacing: 1px;
   text-transform: uppercase;
+}
+
+@keyframes start-logo-vibrate {
+  0%   { transform: translate(0.3px, -0.2px); }
+  20%  { transform: translate(-0.4px, 0.3px); }
+  40%  { transform: translate(0.2px, 0.4px); }
+  60%  { transform: translate(-0.3px, -0.3px); }
+  80%  { transform: translate(0.4px, 0.2px); }
+  100% { transform: translate(0.3px, -0.2px); }
 }
 
 @keyframes start-logo-pulse {
