@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
+import { loadCcMap, saveCcMap, assignCc, resetCcMap, type CcMap, type MidiTarget } from "../engine/midiMapping";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION, STORAGE_KEYS } from "../config";
@@ -41,6 +42,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
   const droneViewRef = useRef<DroneViewHandle | null>(null);
+  const holdToggleRef = useRef<(() => void) | null>(null);
 
   const sceneManager = useSceneManager({
     engine,
@@ -105,7 +107,72 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     droneViewRef.current?.setRoot(pitchClass);
     droneViewRef.current?.setOctave(clamped);
   }, []);
-  const midi = useMidiInput(handleMidiNote);
+
+  // MIDI CC mapping — hardcoded defaults + user learn overrides.
+  const [ccMap, setCcMap] = useState<CcMap>(loadCcMap);
+  const [midiLearnTarget, setMidiLearnTarget] = useState<MidiTarget | null>(null);
+  const ccMapRef = useRef(ccMap);
+  const midiLearnRef = useRef(midiLearnTarget);
+  useEffect(() => { ccMapRef.current = ccMap; }, [ccMap]);
+  useEffect(() => { midiLearnRef.current = midiLearnTarget; }, [midiLearnTarget]);
+
+  const handleMidiCc = useCallback((cc: number, value: number) => {
+    // Learn mode: assign this CC to the pending target
+    if (midiLearnRef.current) {
+      const next = assignCc(ccMapRef.current, cc, midiLearnRef.current);
+      setCcMap(next);
+      saveCcMap(next);
+      setMidiLearnTarget(null);
+      return;
+    }
+
+    const target = ccMapRef.current[cc];
+    if (!target) return;
+    const norm = value / 127; // 0..1
+
+    switch (target) {
+      case "weatherX":
+        droneViewRef.current?.applyLivePatch?.({ climateX: norm });
+        break;
+      case "weatherY":
+        droneViewRef.current?.applyLivePatch?.({ climateY: norm });
+        break;
+      case "drift":
+        droneViewRef.current?.applyLivePatch?.({ drift: norm });
+        break;
+      case "air":
+        droneViewRef.current?.applyLivePatch?.({ air: norm });
+        break;
+      case "time":
+        droneViewRef.current?.applyLivePatch?.({ time: norm });
+        break;
+      case "bloom":
+        droneViewRef.current?.applyLivePatch?.({ bloom: norm });
+        break;
+      case "glide":
+        droneViewRef.current?.applyLivePatch?.({ glide: norm });
+        break;
+      case "sub":
+        droneViewRef.current?.applyLivePatch?.({ sub: norm });
+        break;
+      case "volume":
+        engine?.setMasterVolume?.(norm * 1.5); // 0..1.5 range
+        break;
+      case "hold":
+        // CC64 sustain pedal: ≥64 = on, <64 = off
+        if (value >= 64) {
+          if (!engine?.isPlaying()) holdToggleRef.current?.();
+        } else {
+          if (engine?.isPlaying()) holdToggleRef.current?.();
+        }
+        break;
+    }
+  }, [engine]);
+
+  // Exposed for the Settings modal's MIDI section
+  const handleResetCcMap = useCallback(() => { setCcMap(resetCcMap()); }, []);
+
+  const midi = useMidiInput(handleMidiNote, handleMidiCc);
 
   // QWERTY keyboard → tonic. Same layout as mpump: A=C, W=C#, S=D,
   // E=D#, D=E, F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B.
@@ -157,6 +224,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const handleToggleHold = () => {
     droneViewRef.current?.togglePlay();
   };
+  holdToggleRef.current = handleToggleHold;
 
   /** Panic — stop the drone and kill any lingering effect tails
    *  (convolver IRs, delay buffers, granular ring buffer). Standard
@@ -249,6 +317,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         midiLastNote={midi.lastNote}
         midiError={midi.error}
         onToggleMidi={(on) => midi.setEnabled(on)}
+        midiCcMap={ccMap}
+        midiLearnTarget={midiLearnTarget}
+        onMidiLearn={setMidiLearnTarget}
+        onMidiResetMap={handleResetCcMap}
         motionRecEnabled={motionRecEnabled}
         onToggleMotionRec={setMotionRecEnabled}
         analyser={engine.getAnalyser()}

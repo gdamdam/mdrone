@@ -67,6 +67,7 @@ interface MIDIInputLike {
 
 export function useMidiInput(
   onNote: (note: number, velocity: number) => void,
+  onCc?: (cc: number, value: number) => void,
 ): UseMidiInputResult {
   const [supported] = useState(() =>
     typeof navigator !== "undefined" && typeof (navigator as Navigator & {
@@ -80,8 +81,10 @@ export function useMidiInput(
 
   const accessRef = useRef<MidiAccessLike | null>(null);
   const onNoteRef = useRef(onNote);
+  const onCcRef = useRef(onCc);
   const enabledRef = useRef(enabled);
   useEffect(() => { onNoteRef.current = onNote; });
+  useEffect(() => { onCcRef.current = onCc; });
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
   const refreshDevices = useCallback(() => {
@@ -109,6 +112,10 @@ export function useMidiInput(
         if ((status & 0xf0) === 0x90 && d2 > 0) {
           setLastNote(d1);
           onNoteRef.current(d1, d2);
+        }
+        // CC (0xB0). Any channel.
+        if ((status & 0xf0) === 0xb0) {
+          onCcRef.current?.(d1, d2);
         }
       };
     });
