@@ -140,9 +140,8 @@ test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, br
   await dismissStartGate(page);
 
   // Mutate tonic to D so the share URL encodes a non-default state.
-  // Scope to the chromatic tonic grid (.tonic-cell) so we don't hit
-  // other "D"-labelled elements (e.g. piano keyboard or mode pickers).
-  await page.locator(".tonic-cell", { hasText: /^D$/ }).first().click();
+  // Piano keyboard keys use aria-label for the pitch class name.
+  await page.locator(".tonic-key[aria-label='D']").first().click();
 
   // Open the share modal from the header action bar.
   await page.getByRole("button", { name: /share/i }).first().click();
@@ -173,11 +172,10 @@ test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, br
   await expect(gate).toBeVisible({ timeout: 10_000 });
   await gate.click();
 
-  // Header tonic dropdown has aria-label="Tonic" (exact: true
-  // because fuzzy match would also hit the "Pentatonic" scale button).
-  // Its text reflects the current root and is always visible.
-  const headerTonic = fresh.getByRole("button", { name: "Tonic", exact: true });
-  await expect(headerTonic).toContainText("D", { timeout: 10_000 });
+  // The HOLD button shows the current tonic+octave in its sub-label.
+  // Check that the shared scene's tonic (D) appears there.
+  const holdBtn = fresh.locator(".header-hold-btn").first();
+  await expect(holdBtn).toContainText("D", { timeout: 10_000 });
 
   await freshContext.close();
   expect(errors.concat(freshErrors)).toEqual([]);
