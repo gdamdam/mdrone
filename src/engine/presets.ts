@@ -2031,7 +2031,7 @@ export const PRESETS: Preset[] = [
   {
     id: "niblock-wall", group: "Minimal / Just",
     name: "Microtone Wall",
-    attribution: "Dense beating · close intervals · Phill Niblock",
+    attribution: "Dense beating · close intervals",
     hint: "Phill Niblock's wall of close-tuned instruments. Even-harmonic PolyBLEP reed in drone-triad with very high drift — the partials wander in pitch creating dense beating patterns. The beating between near-unison tones is the entire composition.",
     tuningId: "just5", relationId: "drone-triad",
     voiceLayers: ["reed", "air"],
