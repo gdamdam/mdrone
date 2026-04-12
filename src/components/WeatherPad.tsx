@@ -125,8 +125,21 @@ export function WeatherPad({
       const cy = climateY;
       const particles = particlesRef.current;
 
-      // Spawn particles — rate increases with Y (motion) and RMS
-      const spawnRate = SPAWN_RATE_BASE + (SPAWN_RATE_PEAK - SPAWN_RATE_BASE) * cy * (0.4 + rms * 0.6);
+      // Only spawn when the drone is sounding (RMS > threshold)
+      const active = rms > 0.01;
+      if (!active) {
+        // Clear canvas when silent — particles fade out naturally
+        ctx.clearRect(0, 0, w, h);
+        // Age existing particles faster so they vanish quickly
+        for (let i = particles.length - 1; i >= 0; i--) {
+          particles[i].life += 4;
+          if (particles[i].life >= particles[i].maxLife) particles.splice(i, 1);
+        }
+        return;
+      }
+
+      // Spawn particles — rate driven by Y (motion) and audio RMS
+      const spawnRate = rms * (SPAWN_RATE_BASE + (SPAWN_RATE_PEAK - SPAWN_RATE_BASE) * cy);
       spawnAccum += spawnRate;
       while (spawnAccum >= 1 && particles.length < MAX_PARTICLES) {
         spawnAccum -= 1;
@@ -168,7 +181,7 @@ export function WeatherPad({
         const g = Math.round(120 + warmth * 40);
         const b = Math.round(60 + (1 - warmth) * 80);
 
-        ctx.globalAlpha = alpha * (0.15 + rms * 0.25);
+        ctx.globalAlpha = alpha * rms * 0.5;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;

@@ -78,6 +78,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.voiceType = opts.voiceType || "tanpura";
     this.reedShape = opts.reedShape || "odd";
     this.fmRatioOpt = opts.fmRatio || 2.0;
+    this.fmIndexOpt = opts.fmIndex || 2.4;
     this.seed = opts.seed || 1;
     this.rng = makeRng(this.seed);
 
@@ -883,7 +884,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.fmCarrierPhaseR = this.rng() * Math.PI * 2;
     this.fmModPhase = this.rng() * Math.PI * 2;
     this.fmRatio = this.fmRatioOpt;  // modulator : carrier frequency ratio (from preset)
-    this.fmIndex = 2.4;    // modulation index (sideband richness)
+    this.fmIndex = this.fmIndexOpt; // modulation index (from preset)
+    // fmIndex is now set from processorOptions in the constructor
     this.fmLfoPhase = this.rng() * Math.PI * 2;
     this.fmLfoRate = 0.08 + this.rng() * 0.06;
     // Slow index-envelope LFO — modulates fmIndex across ~±55 % so

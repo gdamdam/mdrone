@@ -62,6 +62,7 @@ export function buildVoice(
   startAt: number,
   reedShape: ReedShape = "odd",
   fmRatio = 2.0,
+  fmIndex = 2.4,
 ): Voice {
   const targetFreq = rootFreq * Math.pow(2, intervalCents / 1200);
 
@@ -74,6 +75,7 @@ export function buildVoice(
       seed: Math.floor(Math.random() * 0x7fffffff) + 1,
       reedShape,
       fmRatio,
+      fmIndex,
     },
   });
 

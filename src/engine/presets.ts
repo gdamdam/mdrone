@@ -74,6 +74,9 @@ export interface Preset {
   /** FM voice modulator:carrier frequency ratio. Default 2.0 (octave bell).
    *  1.4 = gong, 3.5 = chime, 7.0 = glass bell. */
   fmRatio?: number;
+  /** FM modulation index (sideband richness). Default 2.4.
+   *  Higher = more metallic/complex. Lower = purer, bell-like. */
+  fmIndex?: number;
 
   /** Optional preferred octave range for random-scene selection.
    *  If set, createSafeRandomScene picks an octave in [lo, hi] inclusive.
@@ -831,12 +834,13 @@ export const PRESETS: Preset[] = [
   {
     id: "fm-glass-bell", group: "Minimal / Just",
     name: "Glass Bell",
-    attribution: "Pure FM bell · crystalline overtones",
-    hint: "High-ratio FM synthesis (7:1) producing glass-like bell tones with slowly blooming sidebands. The index LFO makes the bell breathe — sidebands appear and recede over tens of seconds. Clean, bright, minimal.",
+    attribution: "FM bell · crystalline inharmonic overtones",
+    hint: "FM synthesis at 3.5:1 ratio with high modulation index producing dense inharmonic bell sidebands. The index LFO makes the bell breathe — sidebands bloom and recede over tens of seconds. Metallic, bright, crystalline.",
     tuningId: "harmonics", relationId: "tonic-fifth",
     voiceLayers: ["fm", "air"],
     voiceLevels: { fm: 1, air: 0.15 },
-    fmRatio: 7.0,
+    fmRatio: 3.5,
+    fmIndex: 4.5,
     octaveRange: [3, 4],
     drift: 0.06,
     air: 0.45,
@@ -2292,6 +2296,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     // voices) so the reed worklet picks up the new harmonic profile.
     engine.setReedShape(preset.reedShape ?? "odd");
     engine.setFmRatio?.(preset.fmRatio ?? 2.0);
+    engine.setFmIndex?.(preset.fmIndex ?? 2.4);
     // Parallel reverb send levels — reset every preset so stale sends
     // from a previous scene don't leak through.
     engine.setParallelSends(preset.parallelSends ?? {});

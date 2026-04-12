@@ -253,6 +253,8 @@ export class AudioEngine {
 
   setFmRatio(ratio: number): void { this.voiceEngine.setFmRatio(ratio); }
   getFmRatio(): number { return this.voiceEngine.getFmRatio(); }
+  setFmIndex(index: number): void { this.voiceEngine.setFmIndex(index); }
+  getFmIndex(): number { return this.voiceEngine.getFmIndex(); }
 
   setParallelSends(sends: Partial<{ plate: number; hall: number; cistern: number }>): void {
     this.fxChain.setParallelSends(sends);
