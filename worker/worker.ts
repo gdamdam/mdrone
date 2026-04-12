@@ -29,7 +29,7 @@ import {
 import { normalizePortableScene, type PortableScene } from "../src/session";
 
 const APP_ORIGIN = "https://mdrone.mpump.live";
-const VERSION = "0.3.0";
+const VERSION = "1.7.2";
 
 /* ─── resvg-wasm init ─────────────────────────────────────────────────── */
 
