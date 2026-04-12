@@ -263,6 +263,65 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 /* Preset panel header — panel label on the left, MUTATE controls
  * on the right, sharing one flex row at the top of the panel. */
+/* Compact preset strip — shows active preset, click to expand grid */
+.preset-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  width: 100%;
+  text-align: left;
+  transition: border-color 0.15s;
+  margin-bottom: 8px;
+}
+.preset-strip:hover { border-color: var(--preview); }
+
+.preset-strip-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: var(--preview);
+  -webkit-mask: var(--icon) center/contain no-repeat;
+  mask: var(--icon) center/contain no-repeat;
+}
+
+.preset-strip-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.preset-strip-name {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-strip-attr {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-strip-chevron {
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
 .preset-panel-header {
   display: flex;
   align-items: center;

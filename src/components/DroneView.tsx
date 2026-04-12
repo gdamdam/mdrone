@@ -245,9 +245,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
   const DISCLOSURE_KEY = "mdrone-disclosure";
-  type Section = "timbre" | "effects" | "tuning" | "advanced" | "detune";
+  type Section = "presets" | "timbre" | "effects" | "tuning" | "advanced" | "detune";
   const defaultDisclosure: Record<Section, boolean> = {
-    timbre: false, effects: false, tuning: false, advanced: false, detune: false,
+    presets: false, timbre: false, effects: false, tuning: false, advanced: false, detune: false,
   };
   const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
     try {
@@ -420,10 +420,34 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <VuMeter analyser={engine?.getAnalyser() ?? null} width={600} height={16} />
       </div>
       <div className="panel preset-panel preset-panel-wide">
-        <div className="preset-panel-header">
-          <div className="panel-label">PRESETS · tap to load</div>
-        </div>
-        {/* Genre tabs — one row of small group buttons */}
+        {/* Compact preset strip — shows active preset, click to expand */}
+        <button
+          className="preset-strip"
+          onClick={() => toggle("presets" as Section)}
+          title="Click to browse presets"
+        >
+          {(() => {
+            const active = PRESETS.find((p) => p.id === state.activePresetId);
+            return active ? (
+              <>
+                <span
+                  className="preset-strip-icon"
+                  style={{ ["--icon" as string]: `url(/preset-icons/${active.id}.svg)` } as React.CSSProperties}
+                  aria-hidden="true"
+                />
+                <span className="preset-strip-meta">
+                  <span className="preset-strip-name">{active.name}</span>
+                  <span className="preset-strip-attr">{active.attribution}</span>
+                </span>
+              </>
+            ) : (
+              <span className="preset-strip-name">No preset</span>
+            );
+          })()}
+          <span className="preset-strip-chevron">{disclosed.presets ? "▾" : "▸"}</span>
+        </button>
+        {disclosed.presets && (
+        <>
         <div className="preset-tabs" role="tablist">
           {PRESET_GROUPS.map((g) => (
             <button
@@ -437,7 +461,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </button>
           ))}
         </div>
-        {/* Active group's presets */}
         <div className="preset-grid">
           {visiblePresets.map((p) => (
             <button
@@ -458,6 +481,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </button>
           ))}
         </div>
+        </>
+        )}
 
         {/* ── WEATHER + MACROS — two-column primary row ───── */}
         <div className="weather-macro-row">
