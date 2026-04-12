@@ -342,7 +342,7 @@ test("migrated preset tuning assignments match musical intent", () => {
   check("tanpura-drone", "just5", "tonic-fifth");
   check("dream-house", "just5", "drone-triad");
   check("eno-airport", "just5", "drone-triad");
-  check("lamb-prisma", "just5", "drone-triad");
+  check("lamb-prisma", "harmonics", "harmonic-stack");
   check("stars-of-the-lid", "just5", "minor-triad");
   // Meantone presets
   check("malone-organ", "meantone", "drone-triad");

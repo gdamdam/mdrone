@@ -251,6 +251,9 @@ export class AudioEngine {
 
   getReedShape(): import("./VoiceBuilder").ReedShape { return this.voiceEngine.getReedShape(); }
 
+  setFmRatio(ratio: number): void { this.voiceEngine.setFmRatio(ratio); }
+  getFmRatio(): number { return this.voiceEngine.getFmRatio(); }
+
   setParallelSends(sends: Partial<{ plate: number; hall: number; cistern: number }>): void {
     this.fxChain.setParallelSends(sends);
   }

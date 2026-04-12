@@ -42,6 +42,7 @@ export class VoiceEngine {
   private morphAmount = 0.25;
   private tanpuraPluckRate = 1;
   private reedShape: ReedShape = "odd";
+  private fmRatio = 2.0;
   private readonly baseMacroTC = 0.4;
 
   private presetMaterialProfile: PresetMaterialProfile = DEFAULT_PRESET_MATERIAL_PROFILE;
@@ -122,7 +123,7 @@ export class VoiceEngine {
       const layerGain = this.ensureLayerGain(type);
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape);
+        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);
@@ -398,6 +399,12 @@ export class VoiceEngine {
 
   getReedShape(): ReedShape { return this.reedShape; }
 
+  setFmRatio(ratio: number): void {
+    this.fmRatio = Math.max(0.5, Math.min(12, ratio));
+  }
+
+  getFmRatio(): number { return this.fmRatio; }
+
   setShimmerEnabled(on: boolean): void {
     if (!this.droneOn) return;
     this.shimmerVoiceGain.gain.setTargetAtTime(on ? this.effectiveShimmerGain() : 0, this.ctx.currentTime, 0.15);
@@ -485,7 +492,7 @@ export class VoiceEngine {
 
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape);
+        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);
