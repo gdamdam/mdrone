@@ -201,6 +201,11 @@ export const SAFE_RANDOM_PRESET_IDS = [
   "arkbro-chords",
   "young-well-tuned",
   "lamb-prisma",
+  "sotl-tired-eyes",
+  "sotl-dopamine-clouds",
+  "marconi-weightless",
+  "liles-closed-doors",
+  "liles-submariner",
 ] as const;
 
 /**
@@ -265,7 +270,7 @@ export const PRESETS: Preset[] = [
     glide: 0.18,
     lfoShape: "sine",
     lfoRate: 0.2,    // ~5 s bellows period
-    lfoAmount: 0.14, // stronger bellows swell
+    lfoAmount: 0.06, // subtle breath swell — heavier modulation read as unnatural pulsing
     climateX: 0.4,
     climateY: 0.14,
     effects: ["hall", "tape"],
@@ -336,6 +341,7 @@ export const PRESETS: Preset[] = [
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.1 },
     reedShape: "sine",
+    octaveRange: [2, 3],
     drift: 0.06,
     air: 0.2,
     time: 0.03,
@@ -579,7 +585,9 @@ export const PRESETS: Preset[] = [
       subRange: [0.22, 0.38],
       macroStep: 0.52,
       tonicWalk: "rare",
-      tonicIntervals: [-5, 7],
+      // Descending-only so the SOTL exhale shape is preserved —
+      // the ascending seventh was out of character with the album.
+      tonicIntervals: [-5, -7],
       tonicFloor: 0.72,
       textureFloor: 0.68,
       texturePeriod: 6,
@@ -1547,6 +1555,7 @@ export const PRESETS: Preset[] = [
     voiceLayers: ["piano", "reed"],
     voiceLevels: { piano: 1, reed: 0.15 },
     reedShape: "sine",
+    octaveRange: [3, 4],
     drift: 0.06,
     air: 0.4,
     time: 0.03,
@@ -1661,9 +1670,10 @@ export const PRESETS: Preset[] = [
     id: "slendro-bamboo", group: "Sacred / Ritual",
     name: "Slendro Bamboo",
     attribution: "Suling bamboo flute · breath drone",
-    hint: "Suling-flute breath drone in slendro. Soft attack, audible air, longer glide between intervals — a single bamboo voice held in a small wooden room.",
-    voiceLayers: ["air"],
-    voiceLevels: { air: 1 },
+    hint: "Suling-flute breath drone in slendro. A pure sine reed gives the bamboo fundamental; the air layer supplies the breath across the mouthpiece. A single bamboo voice held in a small wooden room.",
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 1, air: 0.28 },
+    reedShape: "sine",
     octaveRange: [3, 4],
     drift: 0.18,
     air: 0.55,
