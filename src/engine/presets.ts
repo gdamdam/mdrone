@@ -499,6 +499,93 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
+    id: "sotl-tired-eyes", group: "Ambient / Cinematic",
+    name: "Tired Eyes",
+    attribution: "Requiem for dying mothers · pedal + lifting fifth · tape body",
+    hint: "The heaviest SOTL texture: a low pedal tone with a bowed-string reed (even harmonics) over an amp bed and a whisper of air. Tape + wow + plate + hall for the looped-strings-through-a-tape-loop body of 'Requiem for Dying Mothers' and the slowest moments of The Tired Sounds Of…. Near-zero drift, long glide, long bloom — the record's exhale.",
+    tuningId: "just5", relationId: "tonic-fifth",
+    voiceLayers: ["reed", "amp", "air"],
+    voiceLevels: { reed: 1, amp: 0.5, air: 0.24 },
+    reedShape: "even",
+    octaveRange: [2, 3],
+    drift: 0.08,      // almost static — SOTL pedal tones don't waver
+    air: 0.72,        // reverb-saturated
+    time: 0.04,       // glacial
+    sub: 0.4,
+    bloom: 0.96,      // ~9 s rebuild fade
+    glide: 0.68,      // long pitch-shift time
+    lfoShape: "sine",
+    lfoRate: 0.025,   // ~40 s swell — slower exhale than Nitrous Oxide
+    lfoAmount: 0.12,  // subtle, the pedal stays present
+    climateX: 0.36,   // toward cold
+    climateY: 0.18,   // dim
+    // tape + wow give the looped-string tape-drift body; plate + hall
+    // carry the cathedral swell. No shimmer (wrong for SOTL).
+    effects: ["tape", "wow", "plate", "hall"],
+    // Heavier parallel hall than Nitrous Oxide — the pedal needs the
+    // wet tail to feel "tired" and endless without the dry being
+    // shoved back through every serial insert first.
+    parallelSends: { hall: 0.45 },
+    scale: "minor",
+    gain: 0.82,       // headroom for the pedal + swell peaks
+    motionProfile: motionProfile({
+      climateXRange: [0.3, 0.42],
+      climateYRange: [0.12, 0.24],
+      bloomRange: [0.88, 0.98],
+      timeRange: [0.02, 0.06],
+      driftRange: [0.05, 0.14],
+      subRange: [0.32, 0.48],
+      macroStep: 0.42,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.78,
+      texturePeriod: 7,
+    }),
+  },
+  {
+    id: "sotl-dopamine-clouds", group: "Ambient / Cinematic",
+    name: "Dopamine Clouds",
+    attribution: "Slow brass-organ breath · deep chamber · long swell",
+    hint: "The warmer, more open SOTL facet — 'Dopamine Clouds Over Craven Cottage' and the brass-organ stretches of The Tired Sounds Of…. Balanced-harmonic reed (organ / vocal 'ahh') + air bed, a slow ~33 s breath, hall + cistern for deep-chamber distance. No shimmer, no bells — just the long exhale of a room too big for the sound in it.",
+    tuningId: "just5", relationId: "drone-triad",
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 1, air: 0.42 },
+    reedShape: "balanced",
+    octaveRange: [3, 3],
+    drift: 0.12,      // breathier than Tired Eyes
+    air: 0.68,
+    time: 0.05,
+    sub: 0.3,
+    bloom: 0.9,
+    glide: 0.58,
+    lfoShape: "sine",
+    lfoRate: 0.03,    // ~33 s swell — between Nitrous Oxide (25 s) and Tired Eyes (40 s)
+    lfoAmount: 0.16,
+    climateX: 0.46,
+    climateY: 0.26,
+    // tape for recording grain; plate + hall + cistern stack the
+    // reverb depth so the chamber feels larger than any single verb.
+    effects: ["tape", "plate", "hall", "cistern"],
+    parallelSends: { hall: 0.32, cistern: 0.22 },
+    scale: "minor",
+    gain: 0.86,
+    motionProfile: motionProfile({
+      climateXRange: [0.4, 0.54],
+      climateYRange: [0.18, 0.34],
+      bloomRange: [0.78, 0.96],
+      timeRange: [0.03, 0.08],
+      driftRange: [0.08, 0.2],
+      subRange: [0.22, 0.38],
+      macroStep: 0.52,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 7],
+      tonicFloor: 0.72,
+      textureFloor: 0.68,
+      texturePeriod: 6,
+    }),
+  },
+  {
     id: "radigue-drift", group: "Minimal / Just",
     name: "Radig Drift",
     attribution: "Pure sine drone · microscopic motion",
