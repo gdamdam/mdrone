@@ -370,6 +370,9 @@ class ShimmerReverbProcessor extends AudioWorkletProcessor {
     // Lowpass on feedback (tame shimmer harshness)
     this.lpL = 0;
     this.lpR = 0;
+    // Input-gate envelope — decays the feedback when input goes silent
+    // so the shimmer tail dies instead of self-oscillating forever.
+    this.gateEnv = 0;
   }
 
   process(_inputs, outputs, parameters) {
@@ -390,9 +393,17 @@ class ShimmerReverbProcessor extends AudioWorkletProcessor {
     const ANTI_DENORMAL = 1e-25;
 
     for (let i = 0; i < n; i++) {
+      // Input gate — track whether signal is present. When input
+      // goes silent the gate closes over ~200ms, decaying the
+      // feedback so the shimmer tail dies instead of ringing forever.
+      const inPower = inL[i] * inL[i] + inR[i] * inR[i];
+      const gateTarget = inPower > 1e-8 ? 1 : 0;
+      this.gateEnv += (gateTarget - this.gateEnv) * 0.0002;
+      const gateFb = fb * (0.3 + 0.7 * this.gateEnv);
+
       // Write input + feedback into shift buffer
-      const inSampleL = inL[i] + this.fbL * fb + ANTI_DENORMAL;
-      const inSampleR = inR[i] + this.fbR * fb + ANTI_DENORMAL;
+      const inSampleL = inL[i] + this.fbL * gateFb + ANTI_DENORMAL;
+      const inSampleR = inR[i] + this.fbR * gateFb + ANTI_DENORMAL;
       this.shiftBufL[this.writeIdx] = inSampleL;
       this.shiftBufR[this.writeIdx] = inSampleR;
 
