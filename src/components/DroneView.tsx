@@ -3,7 +3,6 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useRef,
   useState,
 } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
@@ -13,6 +12,7 @@ import { JOURNEYS, JOURNEY_IDS, type JourneyId } from "../journey";
 import { PARTNER_RELATIONS, type PartnerRelation } from "../partner";
 import { VuMeter } from "./VuMeter";
 import { DropdownSelect } from "./DropdownSelect";
+import { WeatherPad } from "./WeatherPad";
 
 const PRESET_GROUPS: PresetGroup[] = [
   "Sacred / Ritual", "Minimal / Just", "Organ / Chamber",
@@ -390,38 +390,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePlay]);
 
-  // XY surface interaction — pointer capture lives on the container
-  // itself so drags that leave the bounds still update. `draggingRef`
-  // gates pointermove events instead of relying on `e.buttons`, which
-  // is unreliable on touch/pen.
-  const xyRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
-
-  const updateXy = useCallback((clientX: number, clientY: number) => {
-    const el = xyRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
-    setClimate(x, y);
-  }, [setClimate]);
-
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    draggingRef.current = true;
-    setWeatherIntro(false);
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ok */ }
-    updateXy(e.clientX, e.clientY);
-  }, [updateXy]);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!draggingRef.current) return;
-    updateXy(e.clientX, e.clientY);
-  }, [updateXy]);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    draggingRef.current = false;
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ok */ }
-  }, []);
+  const dismissWeatherIntro = useCallback(() => setWeatherIntro(false), []);
 
   useImperativeHandle(ref, () => ({
     getSnapshot,
@@ -492,31 +461,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
         {/* ── WEATHER + MACROS — two-column primary row ───── */}
         <div className="weather-macro-row">
-          <div className="weather-section">
-            <div className="weather-header">
-              <span className={`weather-title${weatherIntro ? " weather-title-intro" : ""}`}>WEATHER</span>
-              <span className={`weather-hint${weatherIntro ? " weather-hint-intro" : ""}`}>drag to change the room</span>
-            </div>
-            <div
-              ref={xyRef}
-              className="climate-xy weather-xy"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              onPointerLeave={handlePointerUp}
-              title="Weather — X: DARK ↔ BRIGHT   Y: STILL ↔ MOVING"
-            >
-              <div
-                className="climate-cursor"
-                style={{ left: `${state.climateX * 100}%`, bottom: `${state.climateY * 100}%` }}
-              />
-              <span className="climate-axis climate-axis-x-left">DARK</span>
-              <span className="climate-axis climate-axis-x-right">BRIGHT</span>
-              <span className="climate-axis climate-axis-y-top">MOVING</span>
-              <span className="climate-axis climate-axis-y-bot">STILL</span>
-            </div>
-          </div>
+          <WeatherPad
+            climateX={state.climateX}
+            climateY={state.climateY}
+            onChange={setClimate}
+            intro={weatherIntro}
+            onDismissIntro={dismissWeatherIntro}
+            analyser={engine?.getAnalyser() ?? null}
+          />
 
           <div className="weather-controls">
             <div className="shape-header">
