@@ -290,34 +290,30 @@ export class FxChain {
     const ctx = this.ctx;
     const ins = this.inserts.formant;
 
-    // Dry pass-through goes directly to insertOut so the AMOUNT
-    // slider only controls the formant colour, not the full signal.
-    const dryTap = ctx.createGain();
-    dryTap.gain.value = 1.0;
-    ins.insertIn.connect(dryTap).connect(ins.insertOut);
-
-    // Formant accent bank — sharper Q and higher gain so vowel changes
-    // are clearly audible. Dry signal is attenuated to let the formants
-    // dominate the timbre instead of being buried underneath.
-    dryTap.gain.value = 0.7;
-    const formantGain = ctx.createGain();
-    formantGain.gain.value = 1.2;
-
+    // Professional formant: 3 serial peaking EQ filters with high
+    // gain (+14-18 dB) at vowel centers. Unlike bandpass (which cuts
+    // everything outside the band), peaking filters BOOST the formant
+    // frequencies while letting the rest of the spectrum pass through.
+    // This produces the dramatic vowel-shaping that real vocoders and
+    // formant processors achieve.
     const formants = [
-      { freq: 700,  Q: 8 },
-      { freq: 1220, Q: 8 },
-      { freq: 2600, Q: 6 },
+      { freq: 700,  Q: 5, gain: 18 },  // F1
+      { freq: 1220, Q: 6, gain: 16 },  // F2
+      { freq: 2600, Q: 6, gain: 14 },  // F3
     ];
     this.formantFilters = [];
+    let chain: AudioNode = ins.insertIn;
     for (const f of formants) {
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = f.freq;
-      bp.Q.value = f.Q;
-      ins.insertIn.connect(bp).connect(formantGain);
-      this.formantFilters.push(bp);
+      const peak = ctx.createBiquadFilter();
+      peak.type = "peaking";
+      peak.frequency.value = f.freq;
+      peak.Q.value = f.Q;
+      peak.gain.value = f.gain;
+      chain.connect(peak);
+      chain = peak;
+      this.formantFilters.push(peak);
     }
-    formantGain.connect(ins.wetGain);
+    chain.connect(ins.wetGain);
     ins.wetGain.connect(ins.insertOut);
   }
 
