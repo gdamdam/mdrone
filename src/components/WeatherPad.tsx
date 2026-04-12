@@ -1,14 +1,13 @@
 /**
  * WeatherPad — the signature XY expressive control for mdrone.
  *
- * Extracted from DroneView to keep the component focused and enable
- * richer visual feedback. The pad renders:
- *   - a gradient background that shifts with cursor position
- *     (dark↔bright on X, calm↔turbulent on Y)
- *   - a canvas overlay with drifting particles whose speed and
- *     density respond to Y position + audio RMS
- *   - the cursor dot with glow
- *   - axis labels
+ * Visual layers (all canvas 2D, no WebGL):
+ *   1. Spectral aurora — horizontal bands whose height/opacity respond
+ *      to FFT frequency bands. Breathes with the drone's harmonics.
+ *   2. Flow-field particles — follow a coherent noise field that
+ *      rotates with Y (motion axis). Not random scatter.
+ *   3. Cursor wake — luminous trail when dragging.
+ *   4. Position-reactive gradient background (CSS).
  */
 
 import { useCallback, useEffect, useRef } from "react";
@@ -17,27 +16,41 @@ interface WeatherPadProps {
   climateX: number;
   climateY: number;
   onChange: (x: number, y: number) => void;
-  /** Show intro glow emphasis */
   intro: boolean;
   onDismissIntro: () => void;
-  /** Master analyser for audio-reactive particles (optional) */
   analyser: AnalyserNode | null;
 }
 
-// Particle state for the canvas overlay
 interface Particle {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
   life: number;
   maxLife: number;
   size: number;
 }
 
-const MAX_PARTICLES = 60;
-const SPAWN_RATE_BASE = 0.3;   // particles per frame at Y=0
-const SPAWN_RATE_PEAK = 2.5;   // particles per frame at Y=1
+const MAX_PARTICLES = 50;
+
+// Simple 2D value noise for flow field (no library needed)
+function noise2d(x: number, y: number): number {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  // Hash corners
+  const h = (a: number, b: number) => {
+    const n = a * 127.1 + b * 311.7;
+    return (Math.sin(n) * 43758.5453) % 1;
+  };
+  const a = h(ix, iy);
+  const b = h(ix + 1, iy);
+  const c = h(ix, iy + 1);
+  const d = h(ix + 1, iy + 1);
+  // Smooth interpolation
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
 
 export function WeatherPad({
   climateX,
@@ -52,6 +65,9 @@ export function WeatherPad({
   const draggingRef = useRef(false);
   const particlesRef = useRef<Particle[]>([]);
   const rmsRef = useRef(0);
+  const timeRef = useRef(0);
+  // Cursor wake trail
+  const trailRef = useRef<{ x: number; y: number; age: number }[]>([]);
 
   // ── Pointer handling ────────────────────────────────────────────
   const updateXy = useCallback((clientX: number, clientY: number) => {
@@ -61,6 +77,10 @@ export function WeatherPad({
     const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const y = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
     onChange(x, y);
+    // Record trail point
+    const trail = trailRef.current;
+    trail.push({ x: x * rect.width, y: (1 - y) * rect.height, age: 0 });
+    if (trail.length > 20) trail.shift();
   }, [onChange]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -80,7 +100,7 @@ export function WeatherPad({
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ok */ }
   }, []);
 
-  // ── Visual feedback: gradient + particles ───────────────────────
+  // ── Visual feedback ─────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = xyRef.current;
@@ -88,7 +108,10 @@ export function WeatherPad({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const buf = analyser ? new Uint8Array(analyser.fftSize) : null;
+    // FFT for spectral bands (smaller FFT = cheaper)
+    const fftSize = analyser ? Math.min(analyser.fftSize, 256) : 0;
+    const freqBuf = analyser ? new Uint8Array(fftSize / 2) : null;
+    const timeBuf = analyser ? new Uint8Array(analyser.fftSize) : null;
     let raf = 0;
     let spawnAccum = 0;
 
@@ -105,88 +128,149 @@ export function WeatherPad({
 
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      const w = canvas.width / (Math.min(window.devicePixelRatio || 1, 2));
-      const h = canvas.height / (Math.min(window.devicePixelRatio || 1, 2));
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
+      timeRef.current += 0.016;
+      const time = timeRef.current;
 
-      // Read RMS from analyser
-      if (analyser && buf) {
-        analyser.getByteTimeDomainData(buf);
+      // Read audio data
+      let rms = 0;
+      const bands = [0, 0, 0, 0, 0, 0]; // 6 spectral bands
+      if (analyser && timeBuf && freqBuf) {
+        analyser.getByteTimeDomainData(timeBuf);
         let sum = 0;
-        for (let i = 0; i < buf.length; i++) {
-          const v = (buf[i] - 128) / 128;
+        for (let i = 0; i < timeBuf.length; i++) {
+          const v = (timeBuf[i] - 128) / 128;
           sum += v * v;
         }
-        const rms = Math.min(1, Math.sqrt(sum / buf.length) * 3);
+        rms = Math.min(1, Math.sqrt(sum / timeBuf.length) * 3);
         rmsRef.current += (rms - rmsRef.current) * 0.15;
-      }
 
-      const rms = rmsRef.current;
+        // FFT bands
+        analyser.getByteFrequencyData(freqBuf);
+        const binCount = freqBuf.length;
+        const bandSize = Math.floor(binCount / bands.length);
+        for (let b = 0; b < bands.length; b++) {
+          let bandSum = 0;
+          for (let i = b * bandSize; i < (b + 1) * bandSize && i < binCount; i++) {
+            bandSum += freqBuf[i];
+          }
+          bands[b] = (bandSum / bandSize) / 255;
+        }
+      }
+      rms = rmsRef.current;
+
       const cx = climateX;
       const cy = climateY;
-      const particles = particlesRef.current;
-
-      // Only spawn when the drone is sounding (RMS > threshold)
       const active = rms > 0.01;
+
+      // Clear with slight trail persistence for motion blur
+      ctx.globalAlpha = active ? 0.3 : 1;
+      ctx.fillStyle = "rgba(0,0,0,1)";
+      ctx.fillRect(0, 0, w, h);
+      ctx.globalAlpha = 1;
+
       if (!active) {
-        // Clear canvas when silent — particles fade out naturally
-        ctx.clearRect(0, 0, w, h);
-        // Age existing particles faster so they vanish quickly
+        // Age out particles and trail
+        const particles = particlesRef.current;
         for (let i = particles.length - 1; i >= 0; i--) {
           particles[i].life += 4;
           if (particles[i].life >= particles[i].maxLife) particles.splice(i, 1);
         }
+        trailRef.current = [];
         return;
       }
 
-      // Spawn particles — rate driven by Y (motion) and audio RMS
-      const spawnRate = rms * (SPAWN_RATE_BASE + (SPAWN_RATE_PEAK - SPAWN_RATE_BASE) * cy);
+      // ── Layer 1: Spectral aurora bands ──────────────────────
+      const bandH = h / bands.length;
+      for (let b = 0; b < bands.length; b++) {
+        const energy = bands[b] * rms;
+        if (energy < 0.02) continue;
+        const bandY = h - (b + 0.5) * bandH;
+        const warmth = cx;
+        const r = Math.round(120 + warmth * 100 + b * 15);
+        const g = Math.round(80 + warmth * 50 - b * 5);
+        const bl = Math.round(40 + (1 - warmth) * 80 + b * 20);
+        // Horizontal gradient band
+        const grad = ctx.createLinearGradient(0, bandY - bandH * 0.4, 0, bandY + bandH * 0.4);
+        grad.addColorStop(0, `rgba(${r},${g},${bl},0)`);
+        grad.addColorStop(0.5, `rgba(${r},${g},${bl},${(energy * 0.25).toFixed(3)})`);
+        grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
+        ctx.fillStyle = grad;
+        // Shift band position with time and Y axis (motion)
+        const drift = Math.sin(time * 0.3 + b * 1.2) * cy * 15;
+        ctx.fillRect(0, bandY - bandH * 0.5 + drift, w, bandH);
+      }
+
+      // ── Layer 2: Flow-field particles ───────────────────────
+      const particles = particlesRef.current;
+      const spawnRate = rms * (0.3 + cy * 2);
       spawnAccum += spawnRate;
       while (spawnAccum >= 1 && particles.length < MAX_PARTICLES) {
         spawnAccum -= 1;
-        const angle = Math.random() * Math.PI * 2;
-        const speed = (0.2 + cy * 1.2 + rms * 0.8) * (0.5 + Math.random());
         particles.push({
           x: Math.random() * w,
           y: Math.random() * h,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
           life: 0,
-          maxLife: 40 + Math.random() * 80,
-          size: 1 + Math.random() * 2 + rms * 1.5,
+          maxLife: 60 + Math.random() * 100,
+          size: 1 + Math.random() * 2 + rms,
         });
       }
 
-      // Clear
-      ctx.clearRect(0, 0, w, h);
+      // Flow field parameters — rotation based on Y (motion)
+      const fieldScale = 0.008;
+      const fieldSpeed = 0.3 + cy * 1.5;
 
-      // Draw particles
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
+        // Flow field direction from noise
+        const n = noise2d(p.x * fieldScale + time * 0.1, p.y * fieldScale + time * 0.05);
+        const angle = n * Math.PI * 4 + cy * Math.PI; // Y rotates the field
+        p.x += Math.cos(angle) * fieldSpeed;
+        p.y += Math.sin(angle) * fieldSpeed;
         p.life++;
 
-        // Fade in/out
-        const t = p.life / p.maxLife;
-        const alpha = t < 0.15 ? t / 0.15 : t > 0.7 ? (1 - t) / 0.3 : 1;
-
-        if (p.life >= p.maxLife || p.x < -10 || p.x > w + 10 || p.y < -10 || p.y > h + 10) {
+        if (p.life >= p.maxLife || p.x < -5 || p.x > w + 5 || p.y < -5 || p.y > h + 5) {
           particles.splice(i, 1);
           continue;
         }
 
-        // Color: warm on bright side (high X), cool on dark side (low X)
+        const t = p.life / p.maxLife;
+        const alpha = t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1;
         const warmth = cx;
         const r = Math.round(180 + warmth * 75);
-        const g = Math.round(120 + warmth * 40);
-        const b = Math.round(60 + (1 - warmth) * 80);
+        const g = Math.round(130 + warmth * 30);
+        const b = Math.round(60 + (1 - warmth) * 60);
 
-        ctx.globalAlpha = alpha * rms * 0.5;
+        ctx.globalAlpha = alpha * rms * 0.4;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
         ctx.fill();
       }
+
+      // ── Layer 3: Cursor wake trail ──────────────────────────
+      const trail = trailRef.current;
+      if (trail.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(trail[0].x, trail[0].y);
+        for (let i = 1; i < trail.length; i++) {
+          ctx.lineTo(trail[i].x, trail[i].y);
+        }
+        ctx.strokeStyle = `rgba(232,204,120,${(0.3 * rms).toFixed(2)})`;
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.globalAlpha = 1;
+        ctx.stroke();
+      }
+      // Age trail points
+      for (let i = trail.length - 1; i >= 0; i--) {
+        trail[i].age++;
+        if (trail[i].age > 30) trail.splice(i, 1);
+      }
+
       ctx.globalAlpha = 1;
     };
 
