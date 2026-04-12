@@ -123,7 +123,8 @@ export function MeditateView({
     const freqBuf = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
     const rawSpectrum = new Float32Array(32);
     const spectrum = new Float32Array(32); // smoothed copy handed to visualizers
-    const frame: AudioFrame = { rms: 0, peak: 0, spectrum };
+    const waveform = timeBuf ?? new Uint8Array(128);
+    const frame: AudioFrame = { rms: 0, peak: 0, spectrum, waveform };
     // Persistent smoothing state — these accumulate across frames so
     // motion never jitters regardless of frame-rate hiccups.
     let smoothedRms = 0;

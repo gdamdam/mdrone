@@ -36,7 +36,8 @@ export type Visualizer =
   | "feedbackTunnel"
   | "waterfallAscii"
   | "waterfallRain"
-  | "waterfallHybrid";
+  | "waterfallHybrid"
+  | "waveformRing";
 
 /**
  * Visualizer categories — the meditate view dropdown renders these
@@ -54,6 +55,7 @@ export const VISUALIZER_GROUPS: readonly {
       "mandala",
       "pitchMandala",
       "flowField",
+      "waveformRing",
       "sigil",
       "cymatics",
     ],
@@ -98,6 +100,7 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   mandala: "BREATHING MANDALA",
   pitchMandala: "PITCH MANDALA · 12 sectors",
   flowField: "FLOW FIELD · particle streams",
+  waveformRing: "WAVEFORM RING · circular oscilloscope",
   haloGlow: "HALO & RAYS",
   fractal: "JULIA FRACTAL · heavy",
   rothko: "ROTHKO FIELD · Radigue",
@@ -122,6 +125,7 @@ export interface AudioFrame {
   rms: number;         // 0..1
   peak: number;        // 0..1
   spectrum: Float32Array; // 32 normalized bins, 0..1
+  waveform?: Uint8Array;  // raw time-domain data (128 = silence)
 }
 
 export interface PhaseClock {
@@ -1327,6 +1331,7 @@ export const VISUALIZER_FNS: Record<
   starGate: drawStarGate,
   pitchMandala: drawPitchMandala,
   flowField: drawFlowField,
+  waveformRing: drawWaveformRing,
   waterfall: drawWaterfall,
   feedbackTunnel: drawFeedbackTunnel,
   waterfallAscii: drawWaterfallAscii,
@@ -1791,6 +1796,69 @@ export function drawFlowField(
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// WAVEFORM RING — circular oscilloscope centered on screen.
+// Radius proportional to RMS volume (up to a max). The audio
+// waveform draws as a ring, breathing with the drone. Pure B&W.
+// ─────────────────────────────────────────────────────────────────────
+export function drawWaveformRing(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  _p: PhaseClock,
+): void {
+  // Motion blur
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+
+  void _p;
+  const cx = w / 2;
+  const cy = h / 2;
+  const rms = a.rms;
+  const maxR = Math.min(w, h) * 0.38;
+  const baseR = maxR * Math.min(1, rms * 2.5); // radius proportional to volume
+  if (baseR < 3) return;
+
+  const wave = a.waveform;
+  if (!wave) return;
+  const samples = wave.length;
+  const step = Math.max(1, Math.floor(samples / 180));
+
+  // Main waveform ring
+  ctx.beginPath();
+  for (let i = 0; i < 180; i++) {
+    const si = i * step;
+    const v = (wave[si] - 128) / 128;
+    const angle = (i / 180) * Math.PI * 2 - Math.PI / 2;
+    const r = baseR + v * baseR * 0.35;
+    const px = cx + Math.cos(angle) * r;
+    const py = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = `rgba(255,255,255,${(0.5 + rms * 0.4).toFixed(3)})`;
+  ctx.lineWidth = 1.5 + rms;
+  ctx.stroke();
+
+  // Inner ghost ring — steady reference
+  ctx.beginPath();
+  ctx.arc(cx, cy, baseR * 0.4, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255,255,255,${(0.1 + rms * 0.15).toFixed(3)})`;
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+
+  // Centre dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 1.5 + rms * 2, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(255,255,255,${(0.3 + rms * 0.4).toFixed(3)})`;
+  ctx.fill();
 }
 
 let waterfallCanvas: HTMLCanvasElement | null = null;

@@ -15,10 +15,9 @@ export const STORAGE_KEYS = {
   weatherVisual: "mdrone-weather-visual",
 } as const;
 
-export type WeatherVisual = "flow" | "waveform" | "spectrum" | "minimal";
+export type WeatherVisual = "waveform" | "flow" | "minimal";
 export const WEATHER_VISUAL_LABELS: Record<WeatherVisual, string> = {
-  flow: "FLOW FIELD",
   waveform: "WAVEFORM",
-  spectrum: "SPECTRUM",
+  flow: "FLOW FIELD",
   minimal: "MINIMAL",
 };
