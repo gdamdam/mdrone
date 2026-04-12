@@ -43,6 +43,21 @@ function makeRng(seed) {
   };
 }
 
+// ─── PolyBLEP — bandlimited discontinuity correction ────────────
+// Used by the reed "even" (bowed-string) shape to produce a
+// sawtooth with natural harmonic content instead of summing sines.
+function polyblep(phase01, dt) {
+  if (phase01 < dt) {
+    const t = phase01 / dt;
+    return t + t - t * t - 1;
+  }
+  if (phase01 > 1 - dt) {
+    const t = (phase01 - 1) / dt;
+    return t * t + t + t + 1;
+  }
+  return 0;
+}
+
 class DroneVoiceProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
@@ -62,6 +77,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const opts = options?.processorOptions || {};
     this.voiceType = opts.voiceType || "tanpura";
     this.reedShape = opts.reedShape || "odd";
+    this.fmRatioOpt = opts.fmRatio || 2.0;
+    this.fmIndexOpt = opts.fmIndex || 2.4;
     this.seed = opts.seed || 1;
     this.rng = makeRng(this.seed);
 
@@ -149,8 +166,14 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // where the offset modifies the fundamental ratio per pluck.
     const stringRatios = [1.5, 1.0, 1.0, 0.5];
     const ratio = stringRatios[this.pluckPhase];
-    const delayLen = Math.min(this.ksMax - 2, Math.max(8, Math.floor(baseLen / ratio)));
-    const delayLenR = Math.min(this.ksMax - 2, Math.max(8, Math.floor(baseLen / ratio * 1.003))); // 5 cents offset for stereo width
+    // Fractional delay — allpass interpolation eliminates the ±1 sample
+    // pitch quantization of integer-length delay lines.
+    const exactLen = Math.min(this.ksMax - 2, Math.max(8, baseLen / ratio));
+    const delayLen = Math.floor(exactLen);
+    const fracL = exactLen - delayLen;
+    const exactLenR = Math.min(this.ksMax - 2, Math.max(8, baseLen / ratio * 1.003));
+    const delayLenR = Math.floor(exactLenR);
+    const fracR = exactLenR - delayLenR;
 
     // Per-string damping — lower-pitched strings sustain longer on a
     // real tanpura. Pa (1.5× ratio, highest) decays fastest; the low
@@ -183,10 +206,11 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const ANTI_DENORMAL = 1e-25;
 
     for (let i = 0; i < n; i++) {
-      // Read current sample, average with next for one-pole lowpass
+      // Read with linear fractional delay interpolation —
+      // eliminates ±1 sample pitch quantization of integer delay.
       const cur = this.ksBuf[this.ksIdx];
       const nxt = this.ksBuf[(this.ksIdx + 1) % delayLen];
-      let y = (cur + nxt) * 0.5 + ANTI_DENORMAL;
+      let y = cur * (1 - fracL) + nxt * fracL + ANTI_DENORMAL;
       // Additional gentle lowpass smoothing (string body)
       this.ksLast = this.ksLast * 0.2 + y * 0.8;
       y = this.ksLast * damping;
@@ -196,10 +220,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       this.ksBuf[this.ksIdx] = y;
       this.ksIdx = (this.ksIdx + 1) % delayLen;
 
-      // Right channel — independent delay line with slight offset
+      // Right channel — independent delay line with fractional interp
       const curR = this.ksBufR[this.ksIdxR];
       const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
-      let yR = (curR + nxtR) * 0.5 + ANTI_DENORMAL;
+      let yR = curR * (1 - fracR) + nxtR * fracR + ANTI_DENORMAL;
       this.ksLastR = this.ksLastR * 0.2 + yR * 0.8;
       yR = this.ksLastR * damping;
       const jyR = Math.tanh(jawK * yR) + jawMix * Math.sin(jawK * 2.1 * yR);
@@ -301,6 +325,18 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.bellowsPhase = 0;
     this.bellowsRate = 0.22 + this.rng() * 0.08;
 
+    // PolyBLEP saw state for "even" (bowed-string) shape — a
+    // bandlimited sawtooth is fundamentally richer than summing
+    // 12 sines. Phase is 0..1 (not 0..2pi) for PolyBLEP.
+    this.useSaw = this.reedShape === "even";
+    if (this.useSaw) {
+      this.sawPhaseL = this.rng();
+      this.sawPhaseR = this.rng();
+      // Slow wobble on the saw frequency for life
+      this.sawLfoPhase = this.rng() * Math.PI * 2;
+      this.sawLfoRate = 0.12 + this.rng() * 0.08;
+    }
+
     // Formant layer — wide bandpass peaks that give the additive
     // harmonic stack a "body". Without this the reed reads as "7
     // sines + LFO"; with it, it reads as sines *through* a physical
@@ -309,15 +345,18 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     //   even     — bowed string: classic cello/viola body
     //   balanced — pipe organ / vocal "ahh" formant
     //   sine     — none (pure fundamental bypasses formants)
-    // Each entry: [centerHz, Q, mixGain]. Q is deliberately low
-    // (1.5) — narrow resonant Q would ring for ~13 ms and breathe
-    // audibly with the bellows LFO at ~0.25 Hz, producing a rhythmic
-    // "frrr frrr" artifact (we tested this at Q=3-4 and backed off).
-    // Wide Q reads as instrument body, not as a resonator.
+    // Each entry: [centerHz, Q, mixGain]. Q=2.0 gives more pronounced
+    // body than the original 1.2 while staying below the Q=3-4
+    // threshold where bellows AM interaction caused "frrr" artifacts.
+    // Bellows depth was reduced to ±2.5% to keep the safe zone.
+    // Q raised to 2.0 from 1.2 — more pronounced instrument body.
+    // Bellows depth reduced to ±2.5% (was ±4%) to prevent the
+    // bellows×formant interaction "frrr" artifact that Q=3-4 caused.
+    // Q=2.0 + gentle bellows sits in the safe zone.
     const FORMANTS = {
-      odd:      [[500, 1.2, 0.06], [1200, 1.2, 0.04], [2500, 1.2, 0.025]],
-      even:     [[300, 1.2, 0.07], [700, 1.2, 0.055], [1400, 1.2, 0.035]],
-      balanced: [[400, 1.2, 0.065], [900, 1.2, 0.05], [1800, 1.2, 0.03]],
+      odd:      [[500, 2.0, 0.07], [1200, 2.0, 0.05], [2500, 2.0, 0.03]],
+      even:     [[300, 2.0, 0.08], [700, 2.0, 0.06], [1400, 2.0, 0.04]],
+      balanced: [[400, 2.0, 0.075], [900, 2.0, 0.055], [1800, 2.0, 0.035]],
       sine:     [],
     };
     const formants = FORMANTS[this.reedShape] || FORMANTS.odd;
@@ -360,36 +399,52 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Advance bellows amplitude LFO
       this.bellowsPhase += twoPi * this.bellowsRate * invSr;
       if (this.bellowsPhase > twoPi) this.bellowsPhase -= twoPi;
-      const bellows = 1 + Math.sin(this.bellowsPhase) * 0.04; // ±4%
+      const bellows = 1 + Math.sin(this.bellowsPhase) * 0.025; // ±2.5% (reduced from 4% to avoid formant×bellows artifact at Q=2)
 
       let l = 0, r = 0;
-      for (let p = 0; p < this.reedN; p++) {
-        // Advance partial's slow LFO (drives detune)
-        this.reedLfoPhases[p] += twoPi * this.reedLfoRates[p] * invSr;
-        if (this.reedLfoPhases[p] > twoPi) this.reedLfoPhases[p] -= twoPi;
-        const wobble = Math.sin(this.reedLfoPhases[p]) * detuneDepth;
 
-        const partialFreq = freq * (p + 1) * (1 + wobble);
-        if (partialFreq > nyquist) continue; // anti-alias guard
-        // Advance phase accumulators
-        this.reedPhasesL[p] += twoPi * partialFreq * invSr;
-        this.reedPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.5); // tiny stereo detune
-        if (this.reedPhasesL[p] > twoPi) this.reedPhasesL[p] -= twoPi;
-        if (this.reedPhasesR[p] > twoPi) this.reedPhasesR[p] -= twoPi;
+      if (this.useSaw) {
+        // PolyBLEP sawtooth path — "even" (bowed-string) shape.
+        // A bandlimited saw has all harmonics falling at 1/n,
+        // fundamentally richer than summing 12 sines.
+        this.sawLfoPhase += twoPi * this.sawLfoRate * invSr;
+        if (this.sawLfoPhase > twoPi) this.sawLfoPhase -= twoPi;
+        const wobble = Math.sin(this.sawLfoPhase) * detuneDepth;
+        const sawFreq = freq * (1 + wobble);
+        const dtL = sawFreq * invSr;
+        const dtR = sawFreq * (1 + detuneDepth * 0.5) * invSr;
+        this.sawPhaseL += dtL;
+        if (this.sawPhaseL >= 1) this.sawPhaseL -= 1;
+        this.sawPhaseR += dtR;
+        if (this.sawPhaseR >= 1) this.sawPhaseR -= 1;
+        const rawL = 2 * this.sawPhaseL - 1 - polyblep(this.sawPhaseL, dtL);
+        const rawR = 2 * this.sawPhaseR - 1 - polyblep(this.sawPhaseR, dtR);
+        l = rawL * 0.22 * bellows;
+        r = rawR * 0.22 * bellows;
+      } else {
+        // Additive partial path — odd, balanced, sine shapes
+        for (let p = 0; p < this.reedN; p++) {
+          this.reedLfoPhases[p] += twoPi * this.reedLfoRates[p] * invSr;
+          if (this.reedLfoPhases[p] > twoPi) this.reedLfoPhases[p] -= twoPi;
+          const wobble = Math.sin(this.reedLfoPhases[p]) * detuneDepth;
 
-        const amp_p = this.reedAmps[p] * bellows;
-        // Odd partials lean left, even lean right — subtle stereo
-        const pan = (p % 2 === 0) ? 1 : 0.85; // left weight
-        const panR = (p % 2 === 0) ? 0.85 : 1;
-        l += Math.sin(this.reedPhasesL[p]) * amp_p * pan;
-        r += Math.sin(this.reedPhasesR[p]) * amp_p * panR;
+          const partialFreq = freq * (p + 1) * (1 + wobble);
+          if (partialFreq > nyquist) continue;
+          this.reedPhasesL[p] += twoPi * partialFreq * invSr;
+          this.reedPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.5);
+          if (this.reedPhasesL[p] > twoPi) this.reedPhasesL[p] -= twoPi;
+          if (this.reedPhasesR[p] > twoPi) this.reedPhasesR[p] -= twoPi;
+
+          const amp_p = this.reedAmps[p] * bellows;
+          const pan = (p % 2 === 0) ? 1 : 0.85;
+          const panR = (p % 2 === 0) ? 0.85 : 1;
+          l += Math.sin(this.reedPhasesL[p]) * amp_p * pan;
+          r += Math.sin(this.reedPhasesR[p]) * amp_p * panR;
+        }
+        // Scale the raw additive stack before the formant bank
+        l *= 0.22;
+        r *= 0.22;
       }
-      // Scale the raw additive stack before the formant bank —
-      // the SVFs need a predictable input range, and feeding them
-      // the clean pre-tanh stack produces a calm body resonance
-      // rather than re-filtering the tanh-generated harmonics.
-      l *= 0.22;
-      r *= 0.22;
 
       // Formant bank — parallel bandpass peaks add body resonance.
       // Each SVF advances one sample on the *clean* scaled stack;
@@ -465,6 +520,16 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       this.metalWalkRates[i] = 0.01 + this.rng() * 0.05; // very slow movement
     }
     this.metalTickCounter = 0;
+    // Per-partial decay — high modes settle over ~5-15s while the
+    // fundamental sustains. A slow re-excitation LFO periodically
+    // "re-strikes" the upper partials so the bowl breathes.
+    this.metalDecay = new Float32Array(this.metalN).fill(1);
+    this.metalDecayRates = new Float32Array(this.metalN);
+    for (let i = 0; i < this.metalN; i++) {
+      // Fundamental barely decays; highest mode decays in ~5s
+      this.metalDecayRates[i] = i < 2 ? 0.00001 : 0.00004 + i * 0.000015;
+    }
+    this.metalRestrikePhase = 0;
   }
 
   metalProcess(L, R, n, freq, drift, amp) {
@@ -474,12 +539,6 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
 
     for (let i = 0; i < n; i++) {
       // Every ~256 samples, pick new random walk targets.
-      // Per-partial breadth: low modes (p<2) are the bowl's stable
-      // fundamental — they barely walk. High modes (p>=2) are the
-      // "deformation modes" that physically fade in and out as the
-      // bowl settles and re-excites, so they walk across a wider
-      // range. This is what makes a real bowl sound alive rather
-      // than a uniformly-randomised additive stack.
       this.metalTickCounter++;
       if ((this.metalTickCounter & 255) === 0) {
         for (let p = 0; p < this.metalN; p++) {
@@ -490,9 +549,20 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         }
       }
 
+      // Slow re-excitation — a ~0.08 Hz cycle that periodically
+      // boosts upper partials back, simulating rim-friction or
+      // ambient re-excitation of a singing bowl.
+      this.metalRestrikePhase += twoPi * 0.08 * invSr;
+      if (this.metalRestrikePhase > twoPi) this.metalRestrikePhase -= twoPi;
+      const restrike = 0.5 + 0.5 * Math.sin(this.metalRestrikePhase);
+
       let l = 0, r = 0;
       for (let p = 0; p < this.metalN; p++) {
-        // Advance walk toward targets with slow exponential
+        // Per-partial decay — high modes settle, fundamental sustains
+        this.metalDecay[p] = Math.max(0.05, this.metalDecay[p] - this.metalDecayRates[p]);
+        // Re-excitation lifts decayed partials back toward 0.7
+        const decayEnv = this.metalDecay[p] + (1 - this.metalDecay[p]) * restrike * 0.6;
+
         this.metalAmpWalks[p] += (this.metalAmpTargets[p] - this.metalAmpWalks[p]) * 0.000015;
         this.metalDetuneWalks[p] += (this.metalDetuneTargets[p] - this.metalDetuneWalks[p]) * 0.000015;
         this.metalWalkPhases[p] += twoPi * this.metalWalkRates[p] * invSr;
@@ -500,12 +570,12 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
 
         const partialFreq = freq * this.metalRatios[p] * (1 + this.metalDetuneWalks[p]);
         this.metalPhasesL[p] += twoPi * partialFreq * invSr;
-        this.metalPhasesR[p] += twoPi * partialFreq * invSr * 1.00018; // preserve center image
+        this.metalPhasesR[p] += twoPi * partialFreq * invSr * 1.00018;
         if (this.metalPhasesL[p] > twoPi) this.metalPhasesL[p] -= twoPi;
         if (this.metalPhasesR[p] > twoPi) this.metalPhasesR[p] -= twoPi;
 
         const beat = 0.94 + 0.06 * Math.sin(this.metalWalkPhases[p]);
-        const amp_p = this.metalBaseAmps[p] * this.metalAmpWalks[p] * beat;
+        const amp_p = this.metalBaseAmps[p] * this.metalAmpWalks[p] * beat * decayEnv;
         const pan = this.metalPans[p];
         const lGain = amp_p * (1 - Math.max(0, pan));
         const rGain = amp_p * (1 - Math.max(0, -pan));
@@ -548,6 +618,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.airQWalks = new Float32Array(this.airN).fill(11);
     this.airQTargets = new Float32Array(this.airN).fill(11);
     this.airTickCounter = 0;
+    // Wind gusting — slow random amplitude walk on noise input
+    this.airGustLevel = 1;
+    this.airGustTarget = 1;
+    this.airGustPhase = this.rng() * Math.PI * 2;
     // Independent pink noise states for L and R to avoid mono
     this.pinkR = { b0: 0, b1: 0, b2: 0, b3: 0, b4: 0, b5: 0, b6: 0 };
     // High-shelf state for air character (one-pole)
@@ -584,8 +658,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         }
       }
 
-      const noiseL = this.pinkNoise() * 4.5;
-      const noiseR = this.pinkNoiseR() * 4.5;
+      // Wind gusting — slow amplitude walk (~0.1 Hz) on the noise
+      // source gives breath-like character instead of flat pink.
+      this.airGustLevel += (this.airGustTarget - this.airGustLevel) * 0.00004;
+      this.airGustPhase += 6.283 * 0.12 / sampleRate;
+      if (this.airGustPhase > 6.283) {
+        this.airGustPhase -= 6.283;
+        this.airGustTarget = 0.6 + this.rng() * 0.4;
+      }
+      const gust = this.airGustLevel;
+      const noiseL = this.pinkNoise() * 4.5 * gust;
+      const noiseR = this.pinkNoiseR() * 4.5 * gust;
 
       let sumL = 0, sumR = 0;
       for (let r = 0; r < this.airN; r++) {
@@ -788,8 +871,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.fmCarrierPhaseL = this.rng() * Math.PI * 2;
     this.fmCarrierPhaseR = this.rng() * Math.PI * 2;
     this.fmModPhase = this.rng() * Math.PI * 2;
-    this.fmRatio = 2.0;    // modulator : carrier frequency ratio
-    this.fmIndex = 2.4;    // modulation index (sideband richness)
+    this.fmRatio = this.fmRatioOpt;  // modulator : carrier frequency ratio (from preset)
+    this.fmIndex = this.fmIndexOpt; // modulation index (from preset)
+    // fmIndex is now set from processorOptions in the constructor
     this.fmLfoPhase = this.rng() * Math.PI * 2;
     this.fmLfoRate = 0.08 + this.rng() * 0.06;
     // Slow index-envelope LFO — modulates fmIndex across ~±55 % so
