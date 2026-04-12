@@ -151,10 +151,18 @@ class DattorroPlateProcessor extends AudioWorkletProcessor {
     const modInc2 = 2 * Math.PI * 0.7 / sampleRate;
     const modDepth = 8; // ±8 samples
 
-    const idAp1 = this.ID_AP1 * (diffusion / 0.75);
-    const idAp2 = this.ID_AP2 * (diffusion / 0.75);
-    const tap1 = this.TAP_1 * (decay / 0.5);
-    const tap2 = this.TAP_2 * (decay / 0.5);
+    // Input diffusion allpass coefficients — scale with the diffusion
+    // param, clamped to safe range (>0.85 causes metallic ringing).
+    const idAp1 = Math.min(0.85, this.ID_AP1 * (diffusion / 0.75));
+    const idAp2 = Math.min(0.75, this.ID_AP2 * (diffusion / 0.75));
+    // Tank (decay) allpass coefficients — fixed per the Dattorro paper.
+    // These control reverb texture/density, NOT decay length. Decay
+    // length is controlled by the `decay` gain multiplier in the tank
+    // feedback path (lines sig *= decay). Previously these were scaled
+    // by (decay/0.5) which pushed them above 1.0 at high decay,
+    // making the allpasses unstable.
+    const tap1 = this.TAP_1;  // 0.7
+    const tap2 = this.TAP_2;  // 0.5
 
     for (let i = 0; i < n; i++) {
       const inSample = (inL[i] + inR[i]) * 0.5;
@@ -851,7 +859,7 @@ class FxGranularProcessor extends AudioWorkletProcessor {
         envSumR += env * g.gR;
 
         g.pos += g.ratio;
-        if (g.pos >= this.bufLen) g.pos -= this.bufLen;
+        while (g.pos >= this.bufLen) g.pos -= this.bufLen;
         g.age++;
       }
 

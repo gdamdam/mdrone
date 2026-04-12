@@ -156,6 +156,11 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // audible after the body resonator adds mid-low weight.
     this.hsKsL = 0;
     this.hsKsR = 0;
+    // Sympathetic string resonance — cross-couples the L/R delay
+    // lines so energy bleeds between strings via the shared body,
+    // like real tanpura strings on one gourd. Without this, the
+    // two delay lines are fully independent.
+    this.sympatheticAmount = 0.04; // subtle: 4% cross-bleed
   }
 
   tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
@@ -217,9 +222,6 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Jawari: nonlinear shaping that emphasizes overtones
       const jy = Math.tanh(jawK * y) + jawMix * Math.sin(jawK * 2.1 * y);
       y = y * 0.78 + jy * 0.22;
-      this.ksBuf[this.ksIdx] = y;
-      this.ksIdx = (this.ksIdx + 1) % delayLen;
-
       // Right channel — independent delay line with fractional interp
       const curR = this.ksBufR[this.ksIdxR];
       const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
@@ -228,7 +230,15 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       yR = this.ksLastR * damping;
       const jyR = Math.tanh(jawK * yR) + jawMix * Math.sin(jawK * 2.1 * yR);
       yR = yR * 0.78 + jyR * 0.22;
-      this.ksBufR[this.ksIdxR] = yR;
+
+      // Sympathetic resonance — cross-bleed between L/R strings
+      // via the shared gourd body. 4% energy transfer per sample.
+      const sym = this.sympatheticAmount;
+      const yBlend  = y  + yR * sym;
+      const yRBlend = yR + y  * sym;
+      this.ksBuf[this.ksIdx] = yBlend;
+      this.ksIdx = (this.ksIdx + 1) % delayLen;
+      this.ksBufR[this.ksIdxR] = yRBlend;
       this.ksIdxR = (this.ksIdxR + 1) % delayLenR;
 
       // Body resonator — parallel 150 Hz bandpass feeding the output.
@@ -445,6 +455,13 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         l *= 0.22;
         r *= 0.22;
       }
+
+      // Bellows breath noise — real harmoniums have audible air
+      // leakage modulated by bellows pressure. Adds physical breath
+      // character that pure additive/saw lacks.
+      const breathNoise = (Math.random() * 2 - 1) * 0.008 * bellows;
+      l += breathNoise;
+      r += breathNoise * 0.92; // slight stereo decorrelation
 
       // Formant bank — parallel bandpass peaks add body resonance.
       // Each SVF advances one sample on the *clean* scaled stack;
@@ -794,6 +811,11 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // Presence shelf state — compensate body energy
     this.hsPianoL = 0;
     this.hsPianoR = 0;
+    // Sympathetic string coupling — L/R partials bleed into each
+    // other via the shared soundboard, like undamped piano strings
+    // resonating sympathetically. Without this the two channels are
+    // fully independent additive stacks.
+    this.pianoSympathetic = 0.03;
   }
 
   pianoProcess(L, R, n, freq, drift, amp) {
@@ -821,6 +843,12 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       }
       l *= 0.16;
       r *= 0.16;
+      // Sympathetic string coupling — cross-bleed via soundboard
+      const pSym = this.pianoSympathetic;
+      const plB = l + r * pSym;
+      const prB = r + l * pSym;
+      l = plB;
+      r = prB;
 
       // Strike transient — a decaying pink-noise burst during the first
       // ~220 ms of the voice. Gives it a hammer-hit attack.
@@ -959,11 +987,16 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.ampCabL = 0;
     this.ampCabR = 0;
     // DC blocker state — removes offset from asymmetric saturation.
-    // Standard form: y[n] = x[n] − x[n−1] + R·y[n−1], R ≈ 0.995
     this.ampDcPrevInL  = 0;
     this.ampDcPrevOutL = 0;
     this.ampDcPrevInR  = 0;
     this.ampDcPrevOutR = 0;
+    // Speaker feedback — a tiny fraction of cabinet output feeds back
+    // into the saturation input, simulating how real speakers excite
+    // the preamp via physical coupling. Makes the amp self-exciting
+    // at a controlled level instead of a static chain.
+    this.ampSpkFbL = 0;
+    this.ampSpkFbR = 0;
   }
 
   ampProcess(L, R, n, freq, drift, amp) {
@@ -993,6 +1026,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       }
       l *= swell;
       r *= swell;
+      // Speaker feedback — cabinet resonance feeds back into preamp
+      l += this.ampSpkFbL * 0.06;
+      r += this.ampSpkFbR * 0.06;
       // Asymmetric soft-clip — a small positive DC bias before tanh
       // causes positive peaks to clip earlier than negative, generating
       // even harmonics (2nd, 4th…) like a real tube amplifier. Without
@@ -1031,6 +1067,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
 
       this.ampCabL = this.ampCabL * cabCoef + shapedL * (1 - cabCoef);
       this.ampCabR = this.ampCabR * cabCoef + shapedR * (1 - cabCoef);
+      // Store for speaker feedback (next sample)
+      this.ampSpkFbL = this.ampCabL;
+      this.ampSpkFbR = this.ampCabR;
       L[i] = this.ampCabL * amp;
       R[i] = this.ampCabR * amp;
     }
