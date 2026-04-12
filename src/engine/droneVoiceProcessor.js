@@ -123,6 +123,16 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // Simple one-pole lowpass state for feedback damping
     this.ksLast = 0;
     this.ksLastR = 0;
+    // Body resonator — a 2-pole bandpass at ~150 Hz simulates the
+    // gourd resonance of a real tanpura. Mixed in parallel with the
+    // KS string output; without it the voice reads slightly "synthy".
+    // SVF (Chamberlin) form; state is {low, band} per channel.
+    this.ksBodyF = 2 * Math.sin(Math.PI * 150 / sampleRate);
+    this.ksBodyDamp = 1 / 4; // Q = 4
+    this.ksBodyLowL = 0;
+    this.ksBodyBandL = 0;
+    this.ksBodyLowR = 0;
+    this.ksBodyBandR = 0;
   }
 
   tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
@@ -174,7 +184,6 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       y = y * 0.78 + jy * 0.22;
       this.ksBuf[this.ksIdx] = y;
       this.ksIdx = (this.ksIdx + 1) % delayLen;
-      L[i] = y * amp;
 
       // Right channel — independent delay line with slight offset
       const curR = this.ksBufR[this.ksIdxR];
@@ -186,7 +195,19 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       yR = yR * 0.78 + jyR * 0.22;
       this.ksBufR[this.ksIdxR] = yR;
       this.ksIdxR = (this.ksIdxR + 1) % delayLenR;
-      R[i] = yR * amp;
+
+      // Body resonator — parallel 150 Hz bandpass feeding the output.
+      // SVF at Q=4 gives a prominent gourd-like mid-low coloration
+      // that the raw KS string lacks. 0.12 mix keeps it subtle.
+      const bodyHighL = y - this.ksBodyLowL - this.ksBodyDamp * this.ksBodyBandL;
+      this.ksBodyBandL += this.ksBodyF * bodyHighL;
+      this.ksBodyLowL += this.ksBodyF * this.ksBodyBandL;
+      const bodyHighR = yR - this.ksBodyLowR - this.ksBodyDamp * this.ksBodyBandR;
+      this.ksBodyBandR += this.ksBodyF * bodyHighR;
+      this.ksBodyLowR += this.ksBodyF * this.ksBodyBandR;
+
+      L[i] = (y + this.ksBodyBandL * 0.12) * amp;
+      R[i] = (yR + this.ksBodyBandR * 0.12) * amp;
     }
   }
 
@@ -253,6 +274,41 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // Bellows amplitude LFO — slow, shared
     this.bellowsPhase = 0;
     this.bellowsRate = 0.22 + this.rng() * 0.08;
+
+    // Formant layer — static bandpass peaks that give the additive
+    // harmonic stack a "body". Without this the reed reads as "7
+    // sines + LFO"; with it, it reads as sines *through* a physical
+    // resonator. Shape picks the formant set:
+    //   odd      — shruti/clarinet: bright upper body
+    //   even     — bowed string: classic cello/viola body
+    //   balanced — pipe organ / vocal "ahh" formant
+    //   sine     — none (pure fundamental bypasses formants)
+    // Each entry: [centerHz, Q, mixGain]. Gains are small because
+    // the SVF bandpass output at resonance is Q× the input, so
+    // 0.08 × 4 ≈ +10 dB at the formant frequency — natural body.
+    const FORMANTS = {
+      odd:      [[500, 4, 0.09], [1200, 3, 0.07], [2500, 3, 0.05]],
+      even:     [[300, 3, 0.09], [700, 4, 0.08], [1400, 4, 0.05]],
+      balanced: [[400, 3, 0.09], [900, 3, 0.08], [1800, 3, 0.05]],
+      sine:     [],
+    };
+    const formants = FORMANTS[this.reedShape] || FORMANTS.odd;
+    this.reedFormN = formants.length;
+    this.reedFormF    = new Float32Array(this.reedFormN);
+    this.reedFormDamp = new Float32Array(this.reedFormN);
+    this.reedFormGain = new Float32Array(this.reedFormN);
+    this.reedFormLowL  = new Float32Array(this.reedFormN);
+    this.reedFormBandL = new Float32Array(this.reedFormN);
+    this.reedFormLowR  = new Float32Array(this.reedFormN);
+    this.reedFormBandR = new Float32Array(this.reedFormN);
+    for (let i = 0; i < this.reedFormN; i++) {
+      const fc = formants[i][0];
+      const q  = formants[i][1];
+      const g  = formants[i][2];
+      this.reedFormF[i] = 2 * Math.sin(Math.PI * fc / sampleRate);
+      this.reedFormDamp[i] = 1 / q;
+      this.reedFormGain[i] = g;
+    }
   }
 
   reedProcess(L, R, n, freq, drift, amp) {
@@ -293,6 +349,27 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       r *= 0.22;
       l = Math.tanh(l * 1.6) * 0.7;
       r = Math.tanh(r * 1.6) * 0.7;
+
+      // Formant bank — parallel bandpass peaks add body resonance.
+      // Each SVF advances one sample; its band output is mixed in
+      // with a static gain. See initReed() for shape→formant table.
+      let formL = 0, formR = 0;
+      for (let f = 0; f < this.reedFormN; f++) {
+        const fc = this.reedFormF[f];
+        const dampF = this.reedFormDamp[f];
+        const g = this.reedFormGain[f];
+        const hL = l - this.reedFormLowL[f] - dampF * this.reedFormBandL[f];
+        this.reedFormBandL[f] += fc * hL;
+        this.reedFormLowL[f]  += fc * this.reedFormBandL[f];
+        const hR = r - this.reedFormLowR[f] - dampF * this.reedFormBandR[f];
+        this.reedFormBandR[f] += fc * hR;
+        this.reedFormLowR[f]  += fc * this.reedFormBandR[f];
+        formL += this.reedFormBandL[f] * g;
+        formR += this.reedFormBandR[f] * g;
+      }
+      l += formL;
+      r += formR;
+
       L[i] = l * amp;
       R[i] = r * amp;
     }
@@ -336,11 +413,19 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const driftDepth = drift * 0.0024; // keep the bowl centered; max ~4 cents walk
 
     for (let i = 0; i < n; i++) {
-      // Every ~256 samples, pick new random walk targets
+      // Every ~256 samples, pick new random walk targets.
+      // Per-partial breadth: low modes (p<2) are the bowl's stable
+      // fundamental — they barely walk. High modes (p>=2) are the
+      // "deformation modes" that physically fade in and out as the
+      // bowl settles and re-excites, so they walk across a wider
+      // range. This is what makes a real bowl sound alive rather
+      // than a uniformly-randomised additive stack.
       this.metalTickCounter++;
       if ((this.metalTickCounter & 255) === 0) {
         for (let p = 0; p < this.metalN; p++) {
-          this.metalAmpTargets[p] = 0.93 + this.rng() * 0.14;
+          const breadth = p < 2 ? 0.08 : 0.26 + p * 0.03;
+          const center  = p < 2 ? 0.99 : 0.78;
+          this.metalAmpTargets[p] = center - breadth * 0.5 + this.rng() * breadth;
           this.metalDetuneTargets[p] = (this.rng() * 2 - 1) * driftDepth;
         }
       }
@@ -382,10 +467,13 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // AIR — pink noise through 3 modulated state-variable resonators
   // ═══════════════════════════════════════════════════════════════════
   initAir() {
-    this.airN = 3;
-    this.airRatios = new Float32Array([1.0, 2.0, 3.0]);
-    this.airAmps   = new Float32Array([0.55, 0.30, 0.16]);
-    this.airPans   = new Float32Array([0.0, -0.25, 0.25]);
+    // 5 resonators (was 3) at semi-inharmonic ratios so the air
+    // voice reads as "rustling wind with pitched energy" instead of
+    // the strictly-harmonic whistle the old 1/2/3 ratios produced.
+    this.airN = 5;
+    this.airRatios = new Float32Array([1.0, 1.48, 2.07, 2.93, 4.16]);
+    this.airAmps   = new Float32Array([0.48, 0.32, 0.24, 0.18, 0.12]);
+    this.airPans   = new Float32Array([0.0, -0.3, 0.28, -0.15, 0.18]);
     // Two-pole state-variable bandpass state per resonator (L + R independent)
     // state: [lowL, bandL, lowR, bandR]
     this.airStates = [];
@@ -595,6 +683,12 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.fmIndex = 2.4;    // modulation index (sideband richness)
     this.fmLfoPhase = this.rng() * Math.PI * 2;
     this.fmLfoRate = 0.08 + this.rng() * 0.06;
+    // Slow index-envelope LFO — modulates fmIndex across ~±55 % so
+    // the bell "rings out" and comes back over a 30-50 s period.
+    // Fixed 2.0 index is audibly static; this is what turns a dead
+    // DX7-style bell into a living one.
+    this.fmIndexLfoPhase = this.rng() * Math.PI * 2;
+    this.fmIndexLfoRate = 0.015 + this.rng() * 0.012;
   }
 
   fmProcess(L, R, n, freq, drift, amp) {
@@ -607,11 +701,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       if (this.fmLfoPhase > twoPi) this.fmLfoPhase -= twoPi;
       const breath = 1 + Math.sin(this.fmLfoPhase) * 0.035;
 
+      // Slow index envelope — sidebands bloom and recede over tens
+      // of seconds so the voice is never harmonically static.
+      this.fmIndexLfoPhase += twoPi * this.fmIndexLfoRate * invSr;
+      if (this.fmIndexLfoPhase > twoPi) this.fmIndexLfoPhase -= twoPi;
+      const dynIndex = this.fmIndex * (1 + Math.sin(this.fmIndexLfoPhase) * 0.55);
+
       // Modulator oscillator
       const modFreq = freq * this.fmRatio * (1 + depth);
       this.fmModPhase += twoPi * modFreq * invSr;
       if (this.fmModPhase > twoPi) this.fmModPhase -= twoPi;
-      const modOut = Math.sin(this.fmModPhase) * this.fmIndex * freq;
+      const modOut = Math.sin(this.fmModPhase) * dynIndex * freq;
 
       // Carrier oscillators — frequency-modulated by the modulator
       const cFreq = freq + modOut;
@@ -644,7 +744,25 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     }
     this.ampLfoPhase = this.rng() * Math.PI * 2;
     this.ampLfoRate = 0.06 + this.rng() * 0.08;
-    // One-pole lowpass state for cabinet simulation
+    // Cabinet shaper — a proper guitar-cab-style response needs a
+    // low body resonance (~90 Hz), a presence peak (~3.5 kHz), and
+    // a steep rolloff above ~5 kHz. The old one-pole lowpass gave
+    // only the rolloff, so the voice read as "distorted additive"
+    // rather than "amplifier". SVF bandpasses for body + presence,
+    // then a final one-pole at 5 kHz for the cab rolloff.
+    this.ampBodyF    = 2 * Math.sin(Math.PI * 90   / sampleRate);
+    this.ampBodyDamp = 1 / 2;      // Q = 2
+    this.ampBodyLowL  = 0;
+    this.ampBodyBandL = 0;
+    this.ampBodyLowR  = 0;
+    this.ampBodyBandR = 0;
+    this.ampPresF    = 2 * Math.sin(Math.PI * 3500 / sampleRate);
+    this.ampPresDamp = 1 / 1.8;    // Q = 1.8
+    this.ampPresLowL  = 0;
+    this.ampPresBandL = 0;
+    this.ampPresLowR  = 0;
+    this.ampPresBandR = 0;
+    // Final cabinet lowpass one-pole state.
     this.ampCabL = 0;
     this.ampCabR = 0;
   }
@@ -653,8 +771,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const detuneDepth = drift * 0.005;
-    // Cabinet cutoff ~2.8 kHz one-pole, muffles the harsh upper partials
-    const cabCoef = Math.exp(-twoPi * 2800 * invSr);
+    // Final cabinet rolloff lowpass — raised to 5 kHz (was 2.8 kHz)
+    // so the presence BPF peak at 3.5 kHz actually passes through.
+    const cabCoef = Math.exp(-twoPi * 5000 * invSr);
 
     for (let i = 0; i < n; i++) {
       this.ampLfoPhase += twoPi * this.ampLfoRate * invSr;
@@ -678,9 +797,29 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Hard saturation — the "amp distortion"
       l = Math.tanh(l * 3.8) * 0.72;
       r = Math.tanh(r * 3.8) * 0.72;
-      // Cabinet one-pole
-      this.ampCabL = this.ampCabL * cabCoef + l * (1 - cabCoef);
-      this.ampCabR = this.ampCabR * cabCoef + r * (1 - cabCoef);
+
+      // Cabinet shaper: body BPF (90 Hz), presence BPF (3.5 kHz),
+      // then a final one-pole lowpass at 5 kHz. The two BPFs are
+      // mixed *in parallel* with the dry saturated signal, giving
+      // the 3-band "cab" response that a single LP can't produce.
+      const bHL = l - this.ampBodyLowL - this.ampBodyDamp * this.ampBodyBandL;
+      this.ampBodyBandL += this.ampBodyF * bHL;
+      this.ampBodyLowL  += this.ampBodyF * this.ampBodyBandL;
+      const pHL = l - this.ampPresLowL - this.ampPresDamp * this.ampPresBandL;
+      this.ampPresBandL += this.ampPresF * pHL;
+      this.ampPresLowL  += this.ampPresF * this.ampPresBandL;
+      const shapedL = l + this.ampBodyBandL * 0.35 + this.ampPresBandL * 0.28;
+
+      const bHR = r - this.ampBodyLowR - this.ampBodyDamp * this.ampBodyBandR;
+      this.ampBodyBandR += this.ampBodyF * bHR;
+      this.ampBodyLowR  += this.ampBodyF * this.ampBodyBandR;
+      const pHR = r - this.ampPresLowR - this.ampPresDamp * this.ampPresBandR;
+      this.ampPresBandR += this.ampPresF * pHR;
+      this.ampPresLowR  += this.ampPresF * this.ampPresBandR;
+      const shapedR = r + this.ampBodyBandR * 0.35 + this.ampPresBandR * 0.28;
+
+      this.ampCabL = this.ampCabL * cabCoef + shapedL * (1 - cabCoef);
+      this.ampCabR = this.ampCabR * cabCoef + shapedR * (1 - cabCoef);
       L[i] = this.ampCabL * amp;
       R[i] = this.ampCabR * amp;
     }
