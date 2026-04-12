@@ -108,6 +108,7 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
       freeze: false,
       cistern: false,
       granular: false,
+      graincloud: false,
       ringmod: false,
       formant: false,
     },

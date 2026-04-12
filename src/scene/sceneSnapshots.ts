@@ -49,6 +49,7 @@ export function captureFxSnapshot(engine: AudioEngine): FxSessionSnapshot {
       freeze: fx.getEffectLevel("freeze"),
       cistern: fx.getEffectLevel("cistern"),
       granular: fx.getEffectLevel("granular"),
+      graincloud: fx.getEffectLevel("graincloud"),
       ringmod: fx.getEffectLevel("ringmod"),
       formant: fx.getEffectLevel("formant"),
     },

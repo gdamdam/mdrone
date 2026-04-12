@@ -146,7 +146,8 @@ const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {
   shimmer: 0.95,
   freeze: 1,
   cistern: 1,
-  granular: 0.9,
+  granular: 0.3,
+  graincloud: 0.3,
   ringmod: 0.7,
   formant: 0.85,
 };
@@ -188,6 +189,7 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
     freeze: false,
     cistern: false,
     granular: false,
+    graincloud: false,
     ringmod: false,
     formant: false,
   },
@@ -286,6 +288,7 @@ function normalizeEffectStates(value: unknown): Record<EffectId, boolean> {
     freeze: readBoolean(record.freeze, false),
     cistern: readBoolean(record.cistern, false),
     granular: readBoolean(record.granular, false),
+    graincloud: readBoolean(record.graincloud, false),
     ringmod: readBoolean(record.ringmod, false),
     formant: readBoolean(record.formant, false),
   };
@@ -305,6 +308,7 @@ function normalizeEffectLevels(value: unknown): Record<EffectId, number> {
     freeze: readNumber(record.freeze, DEFAULT_EFFECT_LEVELS.freeze, 0, 1),
     cistern: readNumber(record.cistern, DEFAULT_EFFECT_LEVELS.cistern, 0, 1),
     granular: readNumber(record.granular, DEFAULT_EFFECT_LEVELS.granular, 0, 1),
+    graincloud: readNumber(record.graincloud, DEFAULT_EFFECT_LEVELS.graincloud, 0, 1),
     ringmod: readNumber(record.ringmod, DEFAULT_EFFECT_LEVELS.ringmod, 0, 1),
     formant: readNumber(record.formant, DEFAULT_EFFECT_LEVELS.formant, 0, 1),
   };

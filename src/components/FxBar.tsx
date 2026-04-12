@@ -104,8 +104,13 @@ const FX_DEFS: Record<EffectId, FxDef> = {
   },
   granular: {
     label: "GRAIN",
-    hint: "Granular tail processor — grain-cloud texture on the incoming signal. Used by Köner, Hecker, Fennesz, Basinski",
+    hint: "Granular tail — long overlapping grains (drone-smooth cloud). Used by Köner, Hecker, Fennesz, Basinski",
     icon: <IconGranular />,
+  },
+  graincloud: {
+    label: "CLOUD",
+    hint: "Classic granular — short grains, dense cloud, wider pitch scatter. Audible stutter, Fennesz/Oval/noisier Hecker",
+    icon: <IconGrainCloud />,
   },
 };
 
@@ -375,6 +380,30 @@ function IconGranular() {
       <circle cx="3" cy="13" r="1" />
       <circle cx="8" cy="14" r="1" />
       <circle cx="12" cy="15" r="1" />
+    </svg>
+  );
+}
+
+function IconGrainCloud() {
+  // Denser / smaller dots — classic granular stutter cloud.
+  return (
+    <svg {...iconProps}>
+      <circle cx="3" cy="4" r="0.6" />
+      <circle cx="6" cy="3" r="0.6" />
+      <circle cx="9" cy="5" r="0.6" />
+      <circle cx="12" cy="3" r="0.6" />
+      <circle cx="15" cy="4" r="0.6" />
+      <circle cx="4" cy="7" r="0.6" />
+      <circle cx="8" cy="8" r="0.6" />
+      <circle cx="11" cy="7" r="0.6" />
+      <circle cx="14" cy="9" r="0.6" />
+      <circle cx="3" cy="11" r="0.6" />
+      <circle cx="6" cy="12" r="0.6" />
+      <circle cx="10" cy="11" r="0.6" />
+      <circle cx="13" cy="13" r="0.6" />
+      <circle cx="5" cy="14" r="0.6" />
+      <circle cx="9" cy="15" r="0.6" />
+      <circle cx="15" cy="14" r="0.6" />
     </svg>
   );
 }

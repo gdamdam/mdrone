@@ -41,6 +41,7 @@ export type EffectId =
   | "freeze"
   | "cistern"
   | "granular"
+  | "graincloud"
   | "ringmod"
   | "formant";
 
@@ -54,7 +55,7 @@ export type EffectId =
  */
 export const EFFECT_ORDER: readonly EffectId[] = [
   "tape", "wow", "sub", "comb", "ringmod", "formant", "delay",
-  "plate", "hall", "shimmer", "freeze", "cistern", "granular",
+  "plate", "hall", "shimmer", "freeze", "cistern", "granular", "graincloud",
 ] as const;
 
 /**
@@ -120,7 +121,8 @@ const ON_LEVELS: Record<EffectId, number> = {
   shimmer: 0.95,
   freeze: 1.0,
   cistern: 1.0,
-  granular: 0.9,
+  granular: 0.3,
+  graincloud: 0.3,
   ringmod: 0.7,
   formant: 1.0,
 };
@@ -145,8 +147,12 @@ export class FxChain {
   private delayFbGain!: GainNode;
   private combDelay!: DelayNode;
   private combFbGain!: GainNode;
-  private subBand!: BiquadFilterNode;
-  private subLow!: BiquadFilterNode;
+  // SUB is now a true octave-down generator: a triangle oscillator at
+  // half the drone root, amplitude-modulated by an envelope follower
+  // of the input, summed in parallel with the dry. The old bandpass+
+  // saturator "sub" was really a bass boost rather than a subharmonic.
+  private subOsc!: OscillatorNode;
+  private subEnvGain!: GainNode;
   private hallVerb!: ConvolverNode;
   private cisternVerb!: ConvolverNode;
   private hallImpulse: AudioBuffer | null = null;
@@ -156,11 +162,16 @@ export class FxChain {
   private shimmerWorklet: AudioWorkletNode | null = null;
   private freezeWorklet: AudioWorkletNode | null = null;
   private granularWorklet: AudioWorkletNode | null = null;
+  // Second fx-granular instance, initialised with classic-granular
+  // defaults (short grains, high density, deeper pitch spread) so the
+  // recognisable "chopped cloud" texture is reachable without
+  // changing the drone-friendly defaults of the first granular slot.
+  private grainCloudWorklet: AudioWorkletNode | null = null;
 
   private enabled: Record<EffectId, boolean> = {
     tape: false, wow: false, sub: false, comb: false, delay: false,
     plate: false, hall: false, shimmer: false, freeze: false,
-    cistern: false, granular: false, ringmod: false, formant: false,
+    cistern: false, granular: false, graincloud: false, ringmod: false, formant: false,
   };
 
   /** Parallel reverb send levels — 0..1 per reverb family effect. When
@@ -222,6 +233,7 @@ export class FxChain {
       freeze: makeInsert(),
       cistern: makeInsert(),
       granular: makeInsert(),
+      graincloud: makeInsert(),
       ringmod: makeInsert(),
       formant: makeInsert(),
     };
@@ -287,8 +299,8 @@ export class FxChain {
 
     const formants = [
       { freq: 700,  Q: 4.5 },
-      { freq: 1220, Q: 5   },
-      { freq: 2600, Q: 6   },
+      { freq: 1220, Q: 4.5 },
+      { freq: 2600, Q: 4   },
     ];
     for (const f of formants) {
       const bp = ctx.createBiquadFilter();
@@ -389,32 +401,92 @@ export class FxChain {
       .connect(ins.insertOut);
   }
 
+  /** SUB — true octave-down subharmonic. A triangle oscillator sits at
+   *  half the drone root, amplitude-modulated by an envelope follower
+   *  of the input signal. Dry passes through in parallel so the insert
+   *  *adds* sub to the chain instead of replacing the full-band signal
+   *  with bass-only content. Topology:
+   *
+   *    insertIn ─┬─ dryTap ───────────────────────────────┐
+   *              │                                        │
+   *              └─ absShaper ─ envLp ─┐                   │
+   *                                    ▼                   ▼
+   *                        subOsc ─ envGain ─ outLp ─ trim ─sum → wetGain
+   *
+   *  The sub oscillator tracks the drone root via setRootFreq(), or
+   *  can be manually set via setSubCenter() (the modal's CENTER knob).
+   */
   private wireSub(): void {
     const ctx = this.ctx;
     const ins = this.inserts.sub;
-    this.subBand = ctx.createBiquadFilter();
-    this.subBand.type = "bandpass";
-    this.subBand.frequency.value = 110;
-    this.subBand.Q.value = 1.2;
-    const shaper = ctx.createWaveShaper();
-    shaper.curve = FxChain.makeTapeCurve(2.4);
-    shaper.oversample = "2x";
-    this.subLow = ctx.createBiquadFilter();
-    this.subLow.type = "lowpass";
-    this.subLow.frequency.value = 170;
-    this.subLow.Q.value = 0.707;
-    ins.insertIn
-      .connect(this.subBand)
-      .connect(shaper)
-      .connect(this.subLow)
-      .connect(ins.wetGain)
-      .connect(ins.insertOut);
+
+    // Dry pass — so the insert adds sub to the signal instead of
+    // stripping the chain down to bass-only.
+    const dryTap = ctx.createGain();
+    dryTap.gain.value = 1.0;
+    ins.insertIn.connect(dryTap).connect(ins.wetGain);
+
+    // Sub oscillator — triangle at root/2. Default 55 Hz (for a
+    // 110 Hz default root). Retuned on every setRootFreq() call.
+    this.subOsc = ctx.createOscillator();
+    this.subOsc.type = "triangle";
+    this.subOsc.frequency.value = 55;
+    this.subOsc.start();
+
+    // Envelope follower: full-wave rectify the input (waveshaper
+    // maps y = |x|) then smooth with a ~10 Hz lowpass.
+    const absShaper = ctx.createWaveShaper();
+    absShaper.curve = FxChain.makeAbsCurve();
+    absShaper.oversample = "2x";
+    const envLp = ctx.createBiquadFilter();
+    envLp.type = "lowpass";
+    envLp.frequency.value = 10;
+    envLp.Q.value = 0.707;
+
+    // Sub gain — base 0; the envelope follower drives it via the
+    // a-rate gain param modulation so the sub oscillator's level
+    // tracks the drone's amplitude envelope in real time.
+    this.subEnvGain = ctx.createGain();
+    this.subEnvGain.gain.value = 0;
+    this.subOsc.connect(this.subEnvGain);
+    ins.insertIn.connect(absShaper).connect(envLp).connect(this.subEnvGain.gain);
+
+    // Output lowpass — removes triangle harmonics above ~180 Hz so
+    // only the fundamental subharmonic reaches the chain.
+    const outLp = ctx.createBiquadFilter();
+    outLp.type = "lowpass";
+    outLp.frequency.value = 180;
+    outLp.Q.value = 0.707;
+
+    // Trim — calibrate sub level relative to dry. 0.6 was chosen so
+    // a full-amplitude drone produces roughly 40-50 % of its own
+    // peak level as added sub energy.
+    const subTrim = ctx.createGain();
+    subTrim.gain.value = 0.6;
+
+    this.subEnvGain.connect(outLp).connect(subTrim).connect(ins.wetGain);
+    ins.wetGain.connect(ins.insertOut);
+  }
+
+  /** Waveshaper curve that maps y = |x| × 2. Used by the sub
+   *  effect's envelope follower to full-wave rectify the input. */
+  private static makeAbsCurve(): Float32Array<ArrayBuffer> {
+    const n = 1024;
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      curve[i] = Math.abs(x) * 2;
+    }
+    return curve;
   }
 
   private wireComb(): void {
     const ctx = this.ctx;
     const ins = this.inserts.comb;
-    this.combDelay = ctx.createDelay(0.05);
+    // 60 ms max delay line gives headroom down to ~16.7 Hz root.
+    // Previously 50 ms capped combTime at 0.049 — fine for typical
+    // drones but tight for very low bass roots.
+    this.combDelay = ctx.createDelay(0.06);
     this.combDelay.delayTime.value = 1 / 110;
     this.combFbGain = ctx.createGain();
     this.combFbGain.gain.value = 0; // live only while enabled
@@ -585,17 +657,58 @@ export class FxChain {
     // GRANULAR — tail processor that captures incoming audio into a ring
     // buffer and plays overlapping grains back with independent
     // pitch/position/pan. Used for Köner/Hecker/Fennesz/Basinski/Biosphere
-    // textures.
+    // textures. Uses the worklet's authored drone-smooth defaults
+    // (size 0.8 s, density 3.5, pitchSpread 0.08).
     this.granularWorklet = new AudioWorkletNode(ctx, "fx-granular", {
       numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
+    // Pin internal mix to 1.0 (pure grain, no dry pass-through)
+    // so the insert-level wet gain cleanly maps to "added grain
+    // amount" without double attenuation with the worklet's dry mix.
+    this.granularWorklet.parameters.get("mix")!.setValueAtTime(1, ctx.currentTime);
     const granularIns = this.inserts.granular;
     granularIns.insertIn
       .connect(this.granularWorklet)
       .connect(granularIns.wetGain)
       .connect(granularIns.insertOut);
+
+    // GRAIN CLOUD — second fx-granular instance with classic-granular
+    // defaults: short grains, high density, wider pitch scatter. This
+    // is the texture people recognise as "granular" — audible grain
+    // rattle, stuttered clouds, Fennesz / Hecker / Oval character.
+    // Kept separate from `granular` so existing drone-smooth presets
+    // don't flip sound.
+    this.grainCloudWorklet = new AudioWorkletNode(ctx, "fx-granular", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    // Classic-granular defaults — very short grains (40 ms) at high
+    // density (25 grains/s). Overlap = 1.0 — each grain lives just
+    // long enough for the next one to start, so grain transitions
+    // are audible as the "stutter rattle" that defines the classic
+    // granular sound. Pitch scatter kept moderate (±0.15 octave ≈
+    // ±180 cents) — wider spreads produce a "woobly-pitch" feel as
+    // successive grains lurch between unrelated pitches. Wide pan
+    // spread for the Fennesz / Oval / noisier-Hecker stereo image.
+    // Worklet `mix` is pinned to 1.0 (pure grain, no internal dry)
+    // — the insert's bypass/wet paths handle the dry/wet blend at
+    // the chain level, so the modal AMOUNT knob maps cleanly to the
+    // grain cloud's added level without double attenuation.
+    const t0 = ctx.currentTime;
+    this.grainCloudWorklet.parameters.get("size")!.setValueAtTime(0.04, t0);
+    this.grainCloudWorklet.parameters.get("density")!.setValueAtTime(25, t0);
+    this.grainCloudWorklet.parameters.get("pitchSpread")!.setValueAtTime(0.15, t0);
+    this.grainCloudWorklet.parameters.get("panSpread")!.setValueAtTime(0.85, t0);
+    this.grainCloudWorklet.parameters.get("position")!.setValueAtTime(0.25, t0);
+    this.grainCloudWorklet.parameters.get("mix")!.setValueAtTime(1, t0);
+    const grainCloudIns = this.inserts.graincloud;
+    grainCloudIns.insertIn
+      .connect(this.grainCloudWorklet)
+      .connect(grainCloudIns.wetGain)
+      .connect(grainCloudIns.insertOut);
 
     // PARALLEL PLATE — second plate worklet instance for the parallel
     // reverb bus. Shares the same DSP as the serial plate but fed by
@@ -608,7 +721,7 @@ export class FxChain {
     this.input.connect(this.parallelPlateWorklet).connect(this.parallelPlateWet);
 
     // Reapply pending enables for worklet-backed effects
-    for (const id of ["plate", "shimmer", "freeze", "granular"] as const) {
+    for (const id of ["plate", "shimmer", "freeze", "granular", "graincloud"] as const) {
       if (this.enabled[id]) this.setEffect(id, true);
     }
     // Reapply parallel send levels (in case a preset was applied before
@@ -659,7 +772,7 @@ export class FxChain {
     // Post clear messages to worklet-backed effects (plate, shimmer,
     // freeze, granular) so they reset their internal buffers too.
     const clearMsg = { type: "clear" };
-    for (const w of [this.plateWorklet, this.shimmerWorklet, this.freezeWorklet, this.granularWorklet, this.parallelPlateWorklet]) {
+    for (const w of [this.plateWorklet, this.shimmerWorklet, this.freezeWorklet, this.granularWorklet, this.grainCloudWorklet, this.parallelPlateWorklet]) {
       if (w) {
         try { w.port.postMessage(clearMsg); } catch { /* noop */ }
       }
@@ -693,8 +806,15 @@ export class FxChain {
 
     // Apply the bypass / wet crossfade. Wet target is per-effect
     // level × (air for reverbs only).
+    //
+    // Granular / graincloud are **additive** inserts: the grain
+    // cloud is meant to sit on top of the drone rather than replace
+    // it, so the dry (bypass) path stays open even when enabled and
+    // the wet path just adds the grain output. For every other
+    // effect the insert is a classic bypass↔wet crossfade.
     const wetTarget = on ? this.wetTargetFor(id) : 0;
-    const bypassTarget = on ? 0 : 1;
+    const isAdditive = id === "granular" || id === "graincloud";
+    const bypassTarget = isAdditive ? 1 : (on ? 0 : 1);
     ins.bypassGain.gain.setTargetAtTime(bypassTarget, now, this.xfadeTC);
     ins.wetGain.gain.setTargetAtTime(wetTarget, now, this.xfadeTC);
 
@@ -757,12 +877,13 @@ export class FxChain {
   getCombFeedback(): number { return this.combFeedback; }
 
   // SUB
+  /** Manual override of the sub oscillator frequency. Will be
+   *  reset to `root/2` on the next setRootFreq() call. */
   setSubCenter(hz: number): void {
-    const f = Math.max(40, Math.min(300, hz));
-    this.subBand.frequency.setTargetAtTime(f, this.ctx.currentTime, 0.1);
-    this.subLow.frequency.setTargetAtTime(f * 1.5, this.ctx.currentTime, 0.1);
+    const f = Math.max(20, Math.min(300, hz));
+    this.subOsc.frequency.setTargetAtTime(f, this.ctx.currentTime, 0.1);
   }
-  getSubCenter(): number { return this.subBand.frequency.value; }
+  getSubCenter(): number { return this.subOsc.frequency.value; }
 
   // FREEZE — mix stays at 1 in the worklet; wet is gated by insert
   setFreezeFeedback(v: number): void {
@@ -785,6 +906,11 @@ export class FxChain {
     const now = this.ctx.currentTime;
     const target = this.enabled[id] ? this.wetTargetFor(id) : 0;
     this.inserts[id].wetGain.gain.setTargetAtTime(target, now, this.xfadeTC);
+    // Granular / graincloud: the worklet's internal `mix` is pinned
+    // to 1.0 (pure grain). The dry/wet blend lives at the insert
+    // level (bypass always 1, wet = amount), so the modal AMOUNT
+    // knob cleanly controls the added grain level. No worklet-side
+    // param update needed here.
   }
 
   getEffectLevel(id: EffectId): number {
@@ -810,11 +936,13 @@ export class FxChain {
    *  root changes. Called from AudioEngine.setDroneFreq(). */
   setRootFreq(freq: number): void {
     const now = this.ctx.currentTime;
-    const combTime = Math.min(1 / Math.max(20, freq), 0.049);
+    const combTime = Math.min(1 / Math.max(20, freq), 0.059);
     this.combDelay.delayTime.setTargetAtTime(combTime, now, 0.1);
-    const subCenter = Math.max(40, Math.min(220, freq * 0.5));
-    this.subBand.frequency.setTargetAtTime(subCenter, now, 0.1);
-    this.subLow.frequency.setTargetAtTime(subCenter * 1.5, now, 0.1);
+    // Sub oscillator tracks half the drone root — a true octave-down.
+    const subFreq = Math.max(20, Math.min(220, freq * 0.5));
+    if (this.subOsc) {
+      this.subOsc.frequency.setTargetAtTime(subFreq, now, 0.1);
+    }
   }
 
   // ── Impulse + curve generators ────────────────────────────────────

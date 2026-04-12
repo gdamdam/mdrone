@@ -32,6 +32,7 @@ const EFFECT_TITLES: Record<EffectId, string> = {
   freeze: "FREEZE",
   cistern: "CISTERN REVERB",
   granular: "GRANULAR CLOUD",
+  graincloud: "GRAIN STUTTER",
   ringmod: "RING MODULATOR",
   formant: "VOCAL FORMANT",
 };
@@ -57,7 +58,9 @@ const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
   cistern:
     "Long-tail convolver with a ~28 second exponential decay. Models a Fort Worden cistern / cathedral scale — the reverb IS the instrument. Used by Deep Listening and other long-decay presets.",
   granular:
-    "Grain-cloud tail processor. Captures incoming audio into a ring buffer and plays overlapping grains back with independent pitch, pan, and position. Used by Köner, Hecker, Fennesz, Basinski, Biosphere.",
+    "Grain-cloud tail processor. Long overlapping grains (~0.8 s) at low density give a smooth drone-friendly cloud. Used by Köner, Hecker, Fennesz, Basinski, Biosphere when a smooth textural haze is wanted.",
+  graincloud:
+    "Classic granular synthesis. Short grains (~80 ms) at high density (~15 grains/s) with wider pitch scatter. The audible grain-rattle texture — Fennesz, Oval, noisier Tim Hecker, the recognisable 'granular' sound.",
   ringmod:
     "Ring modulator — input multiplied by a fixed ~80 Hz sine carrier. Produces inharmonic sum + difference frequencies, the hallmark metallic scrape of Coil, NWW, and tape-era industrial drones.",
   formant:
@@ -118,13 +121,18 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
     case "hall":
     case "shimmer":
       return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.5} />;
+    case "cistern":
+      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.6} />;
+    case "granular":
+    case "graincloud":
+      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.3} />;
+    case "ringmod":
+      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.5} />;
+    case "formant":
+      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.6} />;
     case "tape":
     case "wow":
-      return (
-        <div className="fx-modal-hint">
-          Serial insert — no parameters in the prototype. Use the button to toggle on/off.
-        </div>
-      );
+      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.7} />;
   }
 }
 

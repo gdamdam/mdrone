@@ -613,15 +613,18 @@ const GRANULAR_MAX_GRAINS = 24;
 class FxGranularProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      // Drone-friendly defaults: long grains (0.8 s), moderate density
-      // (~3.5 grains/sec = ~0.29 s interval). With 0.8 s grains, overlap
-      // is ~64% — enough that the flat-top trapezoid envelopes sum to
-      // near-constant amplitude with no wobble.
-      { name: "size",        defaultValue: 0.8,  minValue: 0.02, maxValue: 2.0, automationRate: "k-rate" },
-      { name: "density",     defaultValue: 3.5,  minValue: 0.3,  maxValue: 30,  automationRate: "k-rate" },
-      { name: "pitchSpread", defaultValue: 0.08, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
-      { name: "panSpread",   defaultValue: 0.55, minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
-      { name: "position",    defaultValue: 0.6,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      // "Granular" defaults — medium grains (200 ms) at moderate
+      // density (6/s) = overlap 1.2. Each grain registers as its
+      // own attack against its neighbours without fully stuttering
+      // like the tighter `graincloud` variant. Pitch scatter ±0.2
+      // octave (≈ 240 cents) is audible but not dissonant. This
+      // is the "smooth drone granular" facet — still recognisable
+      // as granular, not a pad-smoother.
+      { name: "size",        defaultValue: 0.2,  minValue: 0.02, maxValue: 2.0, automationRate: "k-rate" },
+      { name: "density",     defaultValue: 6,    minValue: 0.3,  maxValue: 40,  automationRate: "k-rate" },
+      { name: "pitchSpread", defaultValue: 0.2,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      { name: "panSpread",   defaultValue: 0.6,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      { name: "position",    defaultValue: 0.4,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
       { name: "mix",         defaultValue: 0.9,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
     ];
   }
@@ -727,21 +730,27 @@ class FxGranularProcessor extends AudioWorkletProcessor {
         this.spawnGrain(size, pitchSpread, panSpread, position);
       }
 
-      // Accumulate active grain output
-      let grainL = 0, grainR = 0;
+      // Accumulate active grain output + per-channel envelope sums.
+      // envSumL / envSumR are the instantaneous sums of active grain
+      // envelopes weighted by each grain's pan gain — so dividing
+      // grainL by envSumL gives the pan-correct average left-channel
+      // amplitude regardless of how grains are distributed in the
+      // stereo field. Using a single un-panned envSum would leave the
+      // left/right levels fluctuating as randomly-panned grains cycle
+      // in and out (audible as "woob woob" especially at low overlap).
+      let grainL = 0, grainR = 0, envSumL = 0, envSumR = 0;
       for (let gi = 0; gi < this.grains.length; gi++) {
         const g = this.grains[gi];
         if (!g.active) continue;
-        // Trapezoid envelope: 10% fade-in, 80% sustain at unity, 10%
-        // fade-out. Hann windows cause amplitude scalloping at low
-        // density (~2 Hz wobble) because overlapping Hann lobes don't
-        // sum to constant. A flat-top trapezoid eliminates this — the
-        // sustained plateau means overlapping grains hold a steady level.
         const phase = g.age / g.len;
         if (phase >= 1) {
           g.active = false;
           continue;
         }
+        // Trapezoid envelope: 10% fade-in, 80% plateau, 10% fade-out.
+        // Flat-top plateau gives a longer period of near-unity
+        // contribution per grain, which combined with per-sample
+        // envelope-sum normalisation produces a smooth cloud.
         const fadeIn = 0.1, fadeOut = 0.9;
         const env = phase < fadeIn ? phase / fadeIn
                   : phase > fadeOut ? (1 - phase) / (1 - fadeOut)
@@ -758,17 +767,24 @@ class FxGranularProcessor extends AudioWorkletProcessor {
 
         grainL += sampleL * env * g.gL;
         grainR += sampleR * env * g.gR;
+        envSumL += env * g.gL;
+        envSumR += env * g.gR;
 
         g.pos += g.ratio;
         if (g.pos >= this.bufLen) g.pos -= this.bufLen;
         g.age++;
       }
 
-      // Mix dry + grain cloud
+      // Per-channel envelope-sum normalisation. When at least one
+      // grain is active on a given side, divide by its summed
+      // pan-weighted envelope so both channels see constant grain
+      // amplitude independent of the random pan distribution. Empty
+      // sides (envSum ≈ 0) output the dry path cleanly.
+      const scaleL = envSumL > 0.001 ? 1 / envSumL : 0;
+      const scaleR = envSumR > 0.001 ? 1 / envSumR : 0;
       const dryMix = 1 - mix;
-      const wetMix = mix * 0.9; // trim wet so density-stacked grains don't clip
-      L[i] = sL * dryMix + grainL * wetMix;
-      R[i] = sR * dryMix + grainR * wetMix;
+      L[i] = sL * dryMix + grainL * scaleL * mix;
+      R[i] = sR * dryMix + grainR * scaleR * mix;
     }
 
     return true;

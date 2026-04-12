@@ -24,10 +24,11 @@ describe("EFFECT_ORDER (serial chain topology)", () => {
     "freeze",
     "cistern",
     "granular",
+    "graincloud",
   ];
 
-  it("contains exactly 13 effects", () => {
-    expect(EFFECT_ORDER.length).toBe(13);
+  it("contains exactly 14 effects", () => {
+    expect(EFFECT_ORDER.length).toBe(14);
   });
 
   it("has no duplicate effects (each insert appears once)", () => {
@@ -42,7 +43,7 @@ describe("EFFECT_ORDER (serial chain topology)", () => {
     // Guards against e.g. putting reverb before tape saturation, which
     // would produce topologically wrong chains even if every node exists.
     const foundation = ["tape", "wow", "sub", "comb", "ringmod", "formant", "delay"] as const;
-    const spatial = ["plate", "hall", "shimmer", "freeze", "cistern", "granular"] as const;
+    const spatial = ["plate", "hall", "shimmer", "freeze", "cistern", "granular", "graincloud"] as const;
     const maxFoundation = Math.max(...foundation.map((id) => EFFECT_ORDER.indexOf(id)));
     const minSpatial = Math.min(...spatial.map((id) => EFFECT_ORDER.indexOf(id)));
     expect(maxFoundation).toBeLessThan(minSpatial);
