@@ -296,14 +296,17 @@ export class FxChain {
     dryTap.gain.value = 1.0;
     ins.insertIn.connect(dryTap).connect(ins.wetGain);
 
-    // Formant accent bank — lower Q and gain so it's an additive colour
+    // Formant accent bank — sharper Q and higher gain so vowel changes
+    // are clearly audible. Dry signal is attenuated to let the formants
+    // dominate the timbre instead of being buried underneath.
+    dryTap.gain.value = 0.5;
     const formantGain = ctx.createGain();
-    formantGain.gain.value = 0.55;
+    formantGain.gain.value = 1.2;
 
     const formants = [
-      { freq: 700,  Q: 4.5 },
-      { freq: 1220, Q: 4.5 },
-      { freq: 2600, Q: 4   },
+      { freq: 700,  Q: 8 },
+      { freq: 1220, Q: 8 },
+      { freq: 2600, Q: 6 },
     ];
     this.formantFilters = [];
     for (const f of formants) {
