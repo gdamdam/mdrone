@@ -247,9 +247,9 @@ export function WeatherPad({
 
   const gradientStyle = {
     background: `radial-gradient(
-      ellipse at ${climateX * 100}% ${(1 - climateY) * 100}%,
-      color-mix(in srgb, var(--preview) ${Math.round(5 + climateX * 12)}%, var(--bg-cell)) 0%,
-      var(--bg-cell) 70%
+      circle at ${climateX * 100}% ${(1 - climateY) * 100}%,
+      color-mix(in srgb, var(--preview) ${Math.round(3 + climateX * 5)}%, var(--bg-cell)) 0%,
+      var(--bg-cell) 20%
     )`,
   };
 
