@@ -1379,50 +1379,101 @@ export function drawFreqRing(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+  // Motion blur fade
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = "black";
   ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
 
   const cx = w / 2;
   const cy = h / 2;
-  const r0 = Math.min(w, h) * 0.22;
-  const rMax = Math.min(w, h) * 0.45;
-  const breath = 1 + a.rms * 0.08 + p.slow * 0.04;
+  const r0 = Math.min(w, h) * 0.15;
+  const rMax = Math.min(w, h) * 0.44;
+  const breath = 1 + a.rms * 0.06 + p.slow * 0.03;
   const bins = a.spectrum.length;
 
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(p.t * 0.03);
-
+  ctx.rotate(p.t * 0.02);
   ctx.lineCap = "round";
+
+  // Concentric resonance rings — 3 rings that pulse with low/mid/high bands
+  for (let ring = 0; ring < 3; ring++) {
+    const bandStart = Math.floor(ring * bins / 3);
+    const bandEnd = Math.floor((ring + 1) * bins / 3);
+    let bandEnergy = 0;
+    for (let i = bandStart; i < bandEnd; i++) bandEnergy += a.spectrum[i];
+    bandEnergy /= (bandEnd - bandStart);
+    const ringR = r0 + (rMax - r0) * ((ring + 1) / 4) * breath;
+    const alpha = 0.1 + bandEnergy * 0.5;
+    ctx.strokeStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+    ctx.lineWidth = 0.5 + bandEnergy * 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Radial spokes — each bin as a line from inner to outer
+  const activeNodes: { angle: number; r: number; energy: number }[] = [];
   for (let i = 0; i < bins; i++) {
     const energy = a.spectrum[i];
     const angle = (i / bins) * Math.PI * 2;
     const inner = r0 * breath;
-    const outer = inner + (rMax - r0) * (0.08 + energy);
-    const light = Math.round(35 + energy * 55); // 35..90 grey
-    ctx.strokeStyle = `hsla(0, 0%, ${light}%, ${0.35 + energy * 0.55})`;
-    ctx.lineWidth = 2 + energy * 4 + p.growth * 1.5;
+    const outer = inner + (rMax - r0) * (0.05 + energy * 0.95);
+    const lum = Math.round(50 + energy * 205);
+    ctx.strokeStyle = `rgba(${lum},${lum},${lum},${(0.2 + energy * 0.6).toFixed(3)})`;
+    ctx.lineWidth = 1 + energy * 3;
     ctx.beginPath();
     ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
     ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
     ctx.stroke();
+
+    // Collect nodes with significant energy for the harmonic web
+    if (energy > 0.15) {
+      activeNodes.push({ angle, r: outer, energy });
+      // Pulsing dot at the tip
+      const dotR = 1.5 + energy * 3;
+      ctx.globalAlpha = 0.4 + energy * 0.6;
+      ctx.beginPath();
+      ctx.arc(Math.cos(angle) * outer, Math.sin(angle) * outer, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = "white";
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
   }
 
-  // Inner ring — steady anchor, glows with RMS
-  ctx.strokeStyle = `hsla(0, 0%, 80%, ${0.4 + a.rms * 0.4})`;
-  ctx.lineWidth = 1.5 + a.rms * 2;
+  // Harmonic web — connect active nodes with faint lines
+  if (activeNodes.length > 1) {
+    ctx.strokeStyle = `rgba(255,255,255,0.06)`;
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < activeNodes.length; i++) {
+      for (let j = i + 1; j < activeNodes.length && j < i + 4; j++) {
+        const a1 = activeNodes[i];
+        const a2 = activeNodes[j];
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a1.angle) * a1.r, Math.sin(a1.angle) * a1.r);
+        ctx.lineTo(Math.cos(a2.angle) * a2.r, Math.sin(a2.angle) * a2.r);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Inner core — breathes with RMS
+  ctx.strokeStyle = `rgba(255,255,255,${(0.3 + a.rms * 0.5).toFixed(3)})`;
+  ctx.lineWidth = 1 + a.rms * 1.5;
   ctx.beginPath();
   ctx.arc(0, 0, r0 * breath, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Outer ghost ring at peak extent — only visible on loud passages
-  if (a.peak > 0.1) {
-    ctx.strokeStyle = `hsla(0, 0%, 90%, ${a.peak * 0.3})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(0, 0, rMax * breath, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  // Centre dot
+  ctx.globalAlpha = 0.3 + a.rms * 0.4;
+  ctx.beginPath();
+  ctx.arc(0, 0, 2 + a.rms * 2, 0, Math.PI * 2);
+  ctx.fillStyle = "white";
+  ctx.fill();
+  ctx.globalAlpha = 1;
 
   ctx.restore();
 }
@@ -1760,12 +1811,11 @@ export function drawFlowField(
 
     const t = fp.life / fp.maxLife;
     const alpha = (t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1);
-    const bright = 160 + rms * 60;
-
     ctx.globalAlpha = alpha * (0.2 + rms * 0.4);
     ctx.beginPath();
     ctx.arc(fp.x, fp.y, fp.size, 0, Math.PI * 2);
-    ctx.fillStyle = `rgb(${Math.round(bright)},${Math.round(bright * 0.7)},${Math.round(bright * 0.3)})`;
+    const lum = Math.round(180 + rms * 75);
+    ctx.fillStyle = `rgb(${lum},${lum},${lum})`;
     ctx.fill();
   }
   ctx.globalAlpha = 1;
