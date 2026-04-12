@@ -541,12 +541,12 @@ export const PRESETS: Preset[] = [
     attribution: "Requiem strings · glacial minor swells · cathedral",
     hint: "Stars of the Lid's Requiem for Dying Mothers — layered bowed strings in minor, barely moving, cathedral-deep. PolyBLEP sawtooth reed (even shape) for dense string harmonics, thick air bed, no distortion. Tape wow for the looped-strings drift, plate + hall for the endless reverberant space. Funereal, slow, heavy with beauty.",
     tuningId: "just5", relationId: "minor-triad",
-    voiceLayers: ["reed", "air"],
-    voiceLevels: { reed: 1, air: 0.45 },
+    voiceLayers: ["reed", "tanpura", "air"],
+    voiceLevels: { reed: 1, tanpura: 0.5, air: 0.25 },
     reedShape: "even",
     octaveRange: [2, 3],
-    drift: 0.06,      // near-static — the strings barely waver
-    air: 0.78,        // cathedral-saturated, the reverb IS the sound
+    drift: 0.06,
+    air: 0.6,
     time: 0.03,       // glacial filter movement
     sub: 0.2,         // gentle low weight, not boomy
     bloom: 0.98,      // ~10 s fade in — the strings emerge from nothing
