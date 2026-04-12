@@ -9,6 +9,7 @@ import { Footer } from "./Footer";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 import { MeditateView } from "./MeditateView";
+import { VISUALIZER_ORDER } from "./visualizers";
 import { ShareModal } from "./ShareModal";
 import { useSceneManager } from "../scene/useSceneManager";
 
@@ -386,11 +387,19 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             active={viewMode === "meditate"}
             visualizer={sceneManager.meditateVisualizer}
             onChangeVisualizer={sceneManager.setMeditateVisualizer}
-            onFullscreenClick={sceneManager.handleCyclePresetInGroup}
+            onFullscreenClick={(x01, y01) => {
+              // Single click → set WEATHER XY from click position
+              droneViewRef.current?.applyLivePatch?.({ climateX: x01, climateY: y01 });
+            }}
+            onFullscreenDoubleClick={() => {
+              // Double click → cycle to next visualizer
+              const order = VISUALIZER_ORDER;
+              const cur = order.indexOf(sceneManager.meditateVisualizer);
+              const next = order[(cur + 1) % order.length];
+              sceneManager.setMeditateVisualizer(next);
+            }}
             onFullscreenDrag={(x01, y01) => {
-              // Map normalized (x01, y01) to tonic + octave on a
-              // 12 × 6 grid. X goes 0..11 (C..B), Y is inverted so
-              // the top of the canvas = octave 6, bottom = octave 1.
+              // Drag → tonic + octave on a 12×6 grid
               const PCS: PitchClass[] = [
                 "C", "C#", "D", "D#", "E", "F",
                 "F#", "G", "G#", "A", "A#", "B",

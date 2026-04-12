@@ -28,15 +28,14 @@ interface MeditateViewProps {
   active: boolean; // true when meditate tab is visible
   visualizer: Visualizer;
   onChangeVisualizer: (visualizer: Visualizer) => void;
-  /** Called when the user short-clicks the canvas while in
-   *  fullscreen. A click is a pointerdown+pointerup that moved
-   *  less than a few px. Drone-paced cycling — the wiring in
-   *  Layout applies this as "cycle preset within current group". */
-  onFullscreenClick?: () => void;
+  /** Called on single click or drag in fullscreen — the whole screen
+   *  acts as a WEATHER XY pad. (x01, y01) is normalized 0..1.
+   *  Layout maps it to climateX/climateY. */
+  onFullscreenClick?: (x01: number, y01: number) => void;
+  /** Called on double click in fullscreen — cycle to next visualizer. */
+  onFullscreenDoubleClick?: () => void;
   /** Called on every pointermove while pointerdown in fullscreen
-   *  (after the drag threshold has been exceeded). (x01, y01) is
-   *  the normalized canvas position 0..1. Layout maps it to
-   *  tonic pitch class + octave. */
+   *  (drag). Same XY mapping as click. */
   onFullscreenDrag?: (x01: number, y01: number) => void;
 }
 
@@ -46,6 +45,7 @@ export function MeditateView({
   visualizer,
   onChangeVisualizer,
   onFullscreenClick,
+  onFullscreenDoubleClick,
   onFullscreenDrag,
 }: MeditateViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,9 +55,11 @@ export function MeditateView({
   // The useEffect that mounts the rAF tick only runs once; if we
   // captured the props directly we'd stop seeing prop updates.
   const onFullscreenClickRef = useRef(onFullscreenClick);
+  const onFullscreenDblClickRef = useRef(onFullscreenDoubleClick);
   const onFullscreenDragRef = useRef(onFullscreenDrag);
   const isFullscreenRef = useRef(false);
   useEffect(() => { onFullscreenClickRef.current = onFullscreenClick; }, [onFullscreenClick]);
+  useEffect(() => { onFullscreenDblClickRef.current = onFullscreenDoubleClick; }, [onFullscreenDoubleClick]);
   useEffect(() => { onFullscreenDragRef.current = onFullscreenDrag; }, [onFullscreenDrag]);
 
   const cycleVisualizer = useCallback(() => {
@@ -208,10 +210,12 @@ export function MeditateView({
     const DRAG_THRESHOLD_PX = 10;
     let dragStart: { x: number; y: number } | null = null;
     let dragLatched = false;
-    const emitDrag = (localX: number, localY: number, rect: DOMRect) => {
+    let lastClickTime = 0;
+    const toXY = (localX: number, localY: number, rect: DOMRect) => {
+      // X: left=0 (dark) right=1 (bright). Y: bottom=0 (still) top=1 (moving)
       const x01 = Math.max(0, Math.min(1, localX / rect.width));
-      const y01 = Math.max(0, Math.min(1, localY / rect.height));
-      onFullscreenDragRef.current?.(x01, y01);
+      const y01 = Math.max(0, Math.min(1, 1 - localY / rect.height));
+      return { x01, y01 };
     };
     const onMove = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -226,7 +230,8 @@ export function MeditateView({
           dragLatched = true;
         }
         if (dragLatched && isFullscreenRef.current) {
-          emitDrag(localX, localY, rect);
+          const { x01, y01 } = toXY(localX, localY, rect);
+          onFullscreenDragRef.current?.(x01, y01);
         }
       }
     };
@@ -245,13 +250,24 @@ export function MeditateView({
       dragLatched = false;
       phase.pointer = { x: localX / rect.width, y: localY / rect.height };
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       const wasClick = dragStart !== null && !dragLatched;
       phase.pointerDown = false;
       dragStart = null;
       dragLatched = false;
-      if (wasClick && isFullscreenRef.current) {
-        onFullscreenClickRef.current?.();
+      if (!wasClick || !isFullscreenRef.current) return;
+
+      const now = Date.now();
+      if (now - lastClickTime < 350) {
+        // Double click → cycle visualizer
+        lastClickTime = 0;
+        onFullscreenDblClickRef.current?.();
+      } else {
+        // Single click → set weather XY from position
+        lastClickTime = now;
+        const rect = canvas.getBoundingClientRect();
+        const { x01, y01 } = toXY(e.clientX - rect.left, e.clientY - rect.top, rect);
+        onFullscreenClickRef.current?.(x01, y01);
       }
     };
     canvas.addEventListener("pointermove", onMove);
