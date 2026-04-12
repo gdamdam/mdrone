@@ -548,28 +548,20 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
 
             <div className="shape-morph-row">
-              <div className="preset-morph-row">
-                <span className="preset-morph-label">MORPH</span>
-                <input
-                  type="range" min={0} max={1} step={0.01}
-                  value={state.presetMorph}
-                  onChange={(e) => { const v = parseFloat(e.target.value); setPresetMorph(v); engine?.setPresetMorph(v); }}
-                  className="preset-morph-slider"
-                  title="How slowly the drone morphs between presets. 0 = snap, 1 = glacial."
-                />
-                <span className="preset-morph-value">{Math.round(state.presetMorph * 100)}%</span>
-              </div>
-              <div className="preset-morph-row">
-                <span className="preset-morph-label">EVOLVE</span>
-                <input
-                  type="range" min={0} max={1} step={0.01}
-                  value={state.evolve}
-                  onChange={(e) => { const v = parseFloat(e.target.value); setPresetEvolve(v); engine?.setEvolve(v); }}
-                  className="preset-morph-slider"
-                  title="How much the drone evolves itself during play."
-                />
-                <span className="preset-morph-value">{Math.round(state.evolve * 100)}%</span>
-              </div>
+              <Macro
+                label="MORPH"
+                value={state.presetMorph}
+                onChange={(v) => { setPresetMorph(v); engine?.setPresetMorph(v); }}
+                icon={<IconBloom />}
+                title="Morph — how slowly the drone morphs between presets. 0 = snap, 1 = glacial"
+              />
+              <Macro
+                label="EVOLVE"
+                value={state.evolve}
+                onChange={(v) => { setPresetEvolve(v); engine?.setEvolve(v); }}
+                icon={<IconDrift />}
+                title="Evolve — how much the drone evolves itself during play. 0 = static, 1 = active drift"
+              />
               <Macro
                 label="SUB"
                 value={state.sub}
