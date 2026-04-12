@@ -902,8 +902,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </div>
 
           <div className="lfo-col">
-            <div className="panel-label">LFO · BREATHING</div>
-            <div className="panel-hint">Slow volume swell — shape, speed, depth</div>
+            <div className="panel-label">LFO · VOLUME SWELL</div>
+            <div className="panel-hint">Modulates master gain — the drone breathes in and out</div>
             <div className="lfo-shape-row">
               {(["sine", "triangle", "square", "sawtooth"] as const).map((s) => (
                 <button

@@ -158,7 +158,7 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
   activeChain.forEach((id, i) => { activePositions[id] = i + 1; });
 
   return (
-    <div className="panel fx-bar-panel">
+    <div className="fx-bar-panel">
       <div className="panel-label">EFFECTS · click = toggle · hold = configure</div>
       {/* Active-chain preview — the only place where order is
           communicated visually. The grid below is just a toggle

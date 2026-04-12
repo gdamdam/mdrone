@@ -2507,7 +2507,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .fx-bar {
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
 
