@@ -334,7 +334,6 @@ export function drawCymatics(
   // over time, like a Chladni plate whose tone slowly climbs.
   const freq = 2.2 + a.rms * 2 + p.slow * 0.6 + p.growth * 3;
   const t = p.t;
-  const hueBase = p.hue;
 
   for (let y = 0; y < CYMAT_H; y++) {
     for (let x = 0; x < CYMAT_W; x++) {
@@ -349,26 +348,11 @@ export function drawCymatics(
         // Third harmonic interference unfolds with growth
         Math.cos(r * freq * 5.7 + ang * 4 - t * 0.09) * 0.35 * p.growth;
       const mag = Math.abs(v) * (0.4 + a.peak * 0.9);
-      const l = Math.min(100, mag * 60);
-      const hue = (hueBase + mag * 40) % 360;
-      // HSL → RGB cheap approximation (warm ember base)
-      const sat = 70;
-      const ll = l / 100;
-      const c = (1 - Math.abs(2 * ll - 1)) * (sat / 100);
-      const hp = hue / 60;
-      const xc = c * (1 - Math.abs((hp % 2) - 1));
-      let r1 = 0, g1 = 0, b1 = 0;
-      if (hp < 1) { r1 = c; g1 = xc; }
-      else if (hp < 2) { r1 = xc; g1 = c; }
-      else if (hp < 3) { g1 = c; b1 = xc; }
-      else if (hp < 4) { g1 = xc; b1 = c; }
-      else if (hp < 5) { r1 = xc; b1 = c; }
-      else { r1 = c; b1 = xc; }
-      const m = ll - c / 2;
+      const lum = Math.min(255, Math.round(mag * 150));
       const idx = (y * CYMAT_W + x) * 4;
-      pix[idx] = Math.round((r1 + m) * 255);
-      pix[idx + 1] = Math.round((g1 + m) * 255);
-      pix[idx + 2] = Math.round((b1 + m) * 255);
+      pix[idx] = lum;
+      pix[idx + 1] = lum;
+      pix[idx + 2] = lum;
       pix[idx + 3] = 255;
     }
   }
@@ -1846,10 +1830,11 @@ export function drawWaterfall(
   if (!off || !waterfallCanvas) return;
 
   // Fast scroll: ~80 rows/sec (a 500-px canvas fills in ~6 s).
-  if (p.t - waterfallLastScroll >= 0.012) {
+  const SCROLL_PX = 3;
+  if (p.t - waterfallLastScroll >= 0.016) {
     waterfallLastScroll = p.t;
-    // Scroll everything down 1 px by drawing the canvas onto itself.
-    off.drawImage(waterfallCanvas, 0, 0, w, h - 1, 0, 1, w, h - 1);
+    // Scroll everything down by SCROLL_PX.
+    off.drawImage(waterfallCanvas, 0, 0, w, h - SCROLL_PX, 0, SCROLL_PX, w, h - SCROLL_PX);
 
     // Draw the new top row from the current spectrum. Frequencies
     // increase left→right; higher energy = brighter + warmer hue.
@@ -1861,7 +1846,7 @@ export function drawWaterfall(
       const hue = (p.hue + i * 4) % 360;
       const lightness = 10 + energy * 60;
       off.fillStyle = `hsla(${hue}, 85%, ${lightness}%, ${0.1 + energy})`;
-      off.fillRect(x, 0, xEnd - x + 1, 1);
+      off.fillRect(x, 0, xEnd - x + 1, SCROLL_PX);
     }
 
     // Slow global fade so ancient rows don't persist forever
