@@ -903,6 +903,22 @@ export class FxChain {
   }
   getCombFeedback(): number { return this.combFeedback; }
 
+  // SHIMMER — worklet AudioParams
+  setShimmerFeedback(v: number): void {
+    this.shimmerWorklet?.parameters.get("feedback")
+      ?.setTargetAtTime(Math.max(0, Math.min(0.85, v)), this.ctx.currentTime, 0.1);
+  }
+  getShimmerFeedback(): number {
+    return this.shimmerWorklet?.parameters.get("feedback")?.value ?? 0.55;
+  }
+  setShimmerDecay(v: number): void {
+    this.shimmerWorklet?.parameters.get("decay")
+      ?.setTargetAtTime(Math.max(0, Math.min(0.95, v)), this.ctx.currentTime, 0.1);
+  }
+  getShimmerDecay(): number {
+    return this.shimmerWorklet?.parameters.get("decay")?.value ?? 0.7;
+  }
+
   // SUB
   /** Manual override of the sub oscillator frequency. Will be
    *  reset to `root/2` on the next setRootFreq() call. */

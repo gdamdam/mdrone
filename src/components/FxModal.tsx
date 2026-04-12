@@ -120,7 +120,7 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
     case "plate":
     case "hall":
     case "shimmer":
-      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.5} />;
+      return <ShimmerParams engine={engine} fx={fx} />;
     case "cistern":
       return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.6} />;
     case "granular":
@@ -224,6 +224,34 @@ function DelayParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLi
         onChange={(v) => { setFb(v); fx?.setDelayFeedback(v); }}
       />
       <AmountOnly engine={engine} effectId="delay" fx={fx} defaultValue={0.42} />
+    </>
+  );
+}
+
+function ShimmerParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+  const [fb, setFb] = useState(() => fx?.getShimmerFeedback() ?? 0.55);
+  const [decay, setDecay] = useState(() => fx?.getShimmerDecay() ?? 0.7);
+  return (
+    <>
+      <ParamSlider
+        label="FEEDBACK"
+        value={fb}
+        min={0}
+        max={0.85}
+        step={0.01}
+        unit=""
+        onChange={(v) => { setFb(v); fx?.setShimmerFeedback(v); }}
+      />
+      <ParamSlider
+        label="DECAY"
+        value={decay}
+        min={0}
+        max={0.95}
+        step={0.01}
+        unit=""
+        onChange={(v) => { setDecay(v); fx?.setShimmerDecay(v); }}
+      />
+      <AmountOnly engine={engine} effectId="shimmer" fx={fx} defaultValue={0.5} />
     </>
   );
 }
