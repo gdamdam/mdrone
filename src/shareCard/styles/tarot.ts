@@ -1,5 +1,5 @@
 import type { ShareCardContext } from "../svgBuilder";
-import { rngPick, rngRange } from "../rng";
+import { rngRange } from "../rng";
 
 /**
  * Rider-Waite — inspired tarot card, night variant.
@@ -27,17 +27,7 @@ const PALETTE = {
   shadow: "#2a1c10",
 };
 
-const PICTOGRAMS = [
-  "vessel",
-  "tower",
-  "star",
-  "sun",
-  "moon",
-  "wheel",
-  "eye",
-  "key",
-] as const;
-type Pictogram = (typeof PICTOGRAMS)[number];
+type Pictogram = "vessel" | "tower" | "star" | "sun" | "moon" | "wheel" | "eye" | "key";
 
 /** Arabic → Roman numeral (1..22). */
 function toRoman(n: number): string {
@@ -295,9 +285,32 @@ export function buildTarotSvg(ctx: ShareCardContext): string {
   const cardH = height - inset * 2;
   const cx = width / 2;
 
-  // Deterministic pictogram + numeral from the hash.
-  const picto = rngPick(rng, PICTOGRAMS);
-  const numeral = toRoman(1 + (hash % 22));
+  // Map pictogram + arcana to scene mood derived from voice layers + climate.
+  // Dark/heavy scenes → Tower/Death. Bright/open → Star/Sun. Sacred → Vessel/Eye.
+  const drone = ctx.scene.drone;
+  const layers = drone.voiceLayers;
+  const hasTanpura = layers.tanpura;
+  const hasMetal = layers.metal;
+  const hasAmp = layers.amp;
+  const bright = drone.climateX > 0.5;
+  const moving = drone.climateY > 0.4;
+
+  const picto: Pictogram =
+    hasTanpura && !hasAmp ? (bright ? "vessel" : "wheel") :
+    hasAmp ? (moving ? "tower" : "key") :
+    hasMetal ? (bright ? "star" : "moon") :
+    bright && moving ? "sun" :
+    bright ? "star" :
+    moving ? "eye" :
+    "moon";
+
+  // Arcana numeral from mood: darker/heavier → higher arcana
+  const moodScore = Math.floor(
+    (drone.climateX * 5) + (drone.climateY * 4) +
+    (hasAmp ? 6 : 0) + (hasMetal ? 3 : 0) + (hasTanpura ? 2 : 0) +
+    (hash % 3)
+  );
+  const numeral = toRoman(1 + (moodScore % 22));
 
   const parts: string[] = [];
 

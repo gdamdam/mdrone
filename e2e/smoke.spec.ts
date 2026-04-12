@@ -79,11 +79,11 @@ test("3. selecting a preset updates the UI without errors", async ({ page }) => 
   await page.goto("/");
   await dismissStartGate(page);
 
-  // Click whichever preset is first in the active tab. The default tab
-  // isn't stable (random-scene flows may switch it), so we don't
-  // hardcode a specific preset name.
+  // Expand the preset strip (collapsed by default) to reveal preset buttons.
+  await page.locator(".preset-strip").first().click();
+  // Click whichever preset is first in the active tab.
   const preset = page.locator(".preset-btn").first();
-  await expect(preset).toBeVisible();
+  await expect(preset).toBeVisible({ timeout: 5000 });
   await preset.click();
 
   // After clicking, the preset button should gain the active class.
@@ -96,9 +96,8 @@ test("4. FX bar DOM order matches engine EFFECT_ORDER", async ({ page }) => {
   await page.goto("/");
   await dismissStartGate(page);
 
-  // FxBar lives inside a collapsible "EFFECTS · serial chain"
-  // disclosure — expand it so .fx-bar is mounted and visible.
-  await page.getByText(/EFFECTS.*serial chain/i).first().click();
+  // FxBar lives inside the collapsible "TIMBRE + EFFECTS" section.
+  await page.getByText(/TIMBRE.*EFFECTS/i).first().click();
 
   // Engine EFFECT_ORDER — kept in sync with src/engine/FxChain.ts. If
   // FxBar.tsx ever hand-rolls its own order, this assertion catches it.

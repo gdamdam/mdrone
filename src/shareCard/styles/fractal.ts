@@ -200,6 +200,47 @@ export function buildFractalSvg(ctx: ShareCardContext): string {
   // Fractal content.
   subdivide(parts, inner.x, inner.y, inner.w, inner.h, 0, rng, palette);
 
+  // Cymatics overlay — a Chladni-inspired polar pattern derived from
+  // the drone's voice layers and climate. The number of active voices
+  // determines the modal symmetry; climate position warps the pattern.
+  const cx = width / 2;
+  const cy = height / 2;
+  const cyR = Math.min(inner.w, inner.h) * 0.35;
+  const voices = Object.entries(scene.drone.voiceLayers).filter(([, on]) => on);
+  const modes = Math.max(3, voices.length + 1); // symmetry order
+  const warp = 0.6 + scene.drone.climateX * 0.8; // radial warp from brightness
+  const cyPts: string[] = [];
+  const steps = 180;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const angle = t * Math.PI * 2;
+    // Chladni-like function: r = R * |cos(m*θ) + warp*sin(n*θ)|
+    const m = modes;
+    const n = modes + 1;
+    const r = cyR * (0.3 + 0.7 * Math.abs(
+      Math.cos(m * angle) * warp + Math.sin(n * angle) * (1 - warp * 0.3)
+    ));
+    cyPts.push(`${(cx + Math.cos(angle) * r).toFixed(1)},${(cy + Math.sin(angle) * r).toFixed(1)}`);
+  }
+  parts.push(
+    `<polygon points="${cyPts.join(" ")}" fill="none" stroke="${palette.accent}" stroke-width="1.2" stroke-opacity="0.4"/>`,
+  );
+  // Second harmonic at half amplitude
+  const cyPts2: string[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const angle = t * Math.PI * 2;
+    const r = cyR * 0.6 * (0.3 + 0.7 * Math.abs(
+      Math.cos((modes + 2) * angle) * (1 - warp * 0.2) + Math.sin(modes * angle) * warp * 0.5
+    ));
+    cyPts2.push(`${(cx + Math.cos(angle) * r).toFixed(1)},${(cy + Math.sin(angle) * r).toFixed(1)}`);
+  }
+  parts.push(
+    `<polygon points="${cyPts2.join(" ")}" fill="none" stroke="${palette.ink}" stroke-width="0.8" stroke-opacity="0.3"/>`,
+  );
+  // Centre dot
+  parts.push(`<circle cx="${cx}" cy="${cy}" r="3" fill="${palette.accent}" fill-opacity="0.5"/>`);
+
   // Outer double frame.
   parts.push(
     `<rect x="${margin - 10}" y="${margin - 10}" width="${width - (margin - 10) * 2}" height="${height - (margin - 10) * 2}" fill="none" stroke="${palette.ink}" stroke-width="1.5"/>`,
