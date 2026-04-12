@@ -219,6 +219,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onLoadSession={sceneManager.handleLoadSession}
         onSaveSession={sceneManager.handleSaveSession}
         onRenameSession={sceneManager.handleRenameSession}
+        getDefaultSessionName={sceneManager.getDefaultSessionName}
         displayText={sceneManager.displayText}
         tonic={headerTonic}
         octave={headerOctave}

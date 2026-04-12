@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { APP_VERSION } from "../config";
 import { PALETTES, applyPalette } from "../themes";
 import { type AutosavedScene, resetAllLocalStorage } from "../session";
+import { DialogModal } from "./DialogModal";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 
@@ -140,21 +141,36 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
           Double-click the logo to reshuffle the palette.
         </div>
 
-        <button
-          className="start-gate-reset"
-          onClick={() => {
-            if (window.confirm("Reset everything? This wipes all saved sessions, the autosaved scene, palette choice, and every mdrone-* key in localStorage. Cannot be undone.")) {
-              resetAllLocalStorage();
-              window.location.reload();
-            }
-          }}
-          title="Factory reset — clears saved sessions, autosave, palette, and all local settings"
-        >
-          Reset everything
-        </button>
+        <ResetButton />
 
         <span className="start-gate-version">v{APP_VERSION}</span>
       </div>
     </div>
+  );
+}
+
+function ResetButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        className="start-gate-reset"
+        onClick={() => setOpen(true)}
+        title="Factory reset — clears saved sessions, autosave, palette, and all local settings"
+      >
+        Reset everything
+      </button>
+      {open && (
+        <DialogModal
+          title="Reset Everything"
+          description="This wipes all saved sessions, the autosaved scene, palette choice, and every mdrone setting from localStorage. Cannot be undone."
+          mode="confirm"
+          confirmLabel="RESET"
+          danger
+          onConfirm={() => { resetAllLocalStorage(); window.location.reload(); }}
+          onCancel={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }

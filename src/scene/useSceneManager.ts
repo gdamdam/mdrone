@@ -368,32 +368,28 @@ export function useSceneManager({
     saveCurrentSessionId(id);
   }, [captureSession, persistSessions, savedSessions]);
 
-  const handleSaveSession = useCallback(() => {
+  const handleSaveSession = useCallback((name: string) => {
     if (currentSessionId) {
+      // Existing session — overwrite with current state.
       storeSession(currentSessionId, currentSessionName);
       return;
     }
+    storeSession(makeSessionId(), name);
+  }, [currentSessionId, currentSessionName, storeSession]);
 
-    // Fresh session — propose a generated drone name (matched to the
-    // current preset's group + attribution, seeded by the scene) as
-    // the default. The user can accept, edit, or blank it out.
+  /** Default name for a new save — generated from current preset/scene. */
+  const getDefaultSessionName = useCallback(() => {
     const snapshot = droneViewRef.current?.getSnapshot();
     const preset = snapshot?.activePresetId
       ? PRESETS.find((p) => p.id === snapshot.activePresetId)
       : null;
-    const defaultName = snapshot && preset
+    return snapshot && preset
       ? generateDroneName(preset.group, hashSceneSeed(snapshot), preset.attribution)
       : currentSessionName;
+  }, [currentSessionName, droneViewRef]);
 
-    const proposed = window.prompt("Save session as:", defaultName);
-    if (!proposed) return;
-    storeSession(makeSessionId(), proposed);
-  }, [currentSessionId, currentSessionName, droneViewRef, storeSession]);
-
-  const handleRenameSession = useCallback(() => {
-    const proposed = window.prompt("Rename session:", currentSessionName);
-    if (!proposed) return;
-    const cleanName = proposed.trim();
+  const handleRenameSession = useCallback((name: string) => {
+    const cleanName = name.trim();
     if (!cleanName) return;
 
     if (!currentSessionId) {
@@ -402,7 +398,7 @@ export function useSceneManager({
     }
 
     storeSession(currentSessionId, cleanName);
-  }, [currentSessionId, currentSessionName, storeSession]);
+  }, [currentSessionId, storeSession]);
 
   const handleLoadSession = useCallback((id: string) => {
     const session = savedSessions.find((item) => item.id === id);
@@ -608,6 +604,7 @@ export function useSceneManager({
     shareInitialName,
     handleSaveSession,
     handleRenameSession,
+    getDefaultSessionName,
     handleLoadSession,
     handleRandomScene,
     handleMutateScene,

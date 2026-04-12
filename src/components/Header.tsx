@@ -5,6 +5,8 @@ import { resetAllLocalStorage, type SavedSession } from "../session";
 import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
 import { HelpModal } from "./HelpModal";
+import { DialogModal } from "./DialogModal";
+import { DropdownSelect } from "./DropdownSelect";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 
@@ -16,8 +18,9 @@ interface HeaderProps {
   currentSessionId: string | null;
   currentSessionName: string;
   onLoadSession: (id: string) => void;
-  onSaveSession: () => void;
-  onRenameSession: () => void;
+  onSaveSession: (name: string) => void;
+  onRenameSession: (name: string) => void;
+  getDefaultSessionName: () => string;
   displayText: string;
   tonic: PitchClass;
   octave: number;
@@ -64,6 +67,7 @@ export function Header({
   onLoadSession,
   onSaveSession,
   onRenameSession,
+  getDefaultSessionName,
   displayText,
   tonic,
   octave,
@@ -150,6 +154,7 @@ export function Header({
   const volPct = Math.round((volume / 1.5) * 100);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"save" | "rename" | "reset" | null>(null);
   useEffect(() => {
     if (!sessionOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSessionOpen(false); };
@@ -347,38 +352,33 @@ export function Header({
               <div className="fx-modal-section-label">SESSION</div>
               <label className="fx-modal-param">
                 <span className="fx-modal-param-label">LOAD</span>
-                <select
+                <DropdownSelect
                   value={currentSessionId ?? ""}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      onLoadSession(e.target.value);
+                  options={[
+                    { value: "", label: sessions.length === 0 ? "No sessions" : "Select\u2026" },
+                    ...sessions.map((s) => ({ value: s.id, label: s.name })),
+                  ]}
+                  onChange={(v) => {
+                    if (v) {
+                      onLoadSession(v);
                       setSessionOpen(false);
                     }
                   }}
                   className="header-select"
                   disabled={sessions.length === 0}
-                >
-                  <option value="">
-                    {sessions.length === 0 ? "No sessions" : "Select…"}
-                  </option>
-                  {sessions.map((session) => (
-                    <option key={session.id} value={session.id}>
-                      {session.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
               <div className="fx-modal-actions">
                 <button
                   className="header-btn"
-                  onClick={() => { onSaveSession(); setSessionOpen(false); }}
+                  onClick={() => { setSessionOpen(false); setDialogMode("save"); }}
                   title="Save the current session"
                 >
                   SAVE
                 </button>
                 <button
                   className="header-btn"
-                  onClick={() => { onRenameSession(); setSessionOpen(false); }}
+                  onClick={() => { setSessionOpen(false); setDialogMode("rename"); }}
                   title="Rename the current session"
                 >
                   RENAME
@@ -471,12 +471,7 @@ export function Header({
               <div className="fx-modal-actions">
                 <button
                   className="header-btn header-btn-danger"
-                  onClick={() => {
-                    if (window.confirm("Reset everything? This wipes all saved sessions, autosave, palette, and every mdrone-* key in localStorage. Cannot be undone.")) {
-                      resetAllLocalStorage();
-                      window.location.reload();
-                    }
-                  }}
+                  onClick={() => { setSessionOpen(false); setDialogMode("reset"); }}
                 >
                   RESET EVERYTHING
                 </button>
@@ -487,6 +482,40 @@ export function Header({
       )}
 
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+
+      {dialogMode === "save" && (
+        <DialogModal
+          title="Save Session"
+          description="Name for the new session."
+          mode="prompt"
+          defaultValue={getDefaultSessionName()}
+          confirmLabel="SAVE"
+          onConfirm={(name) => { onSaveSession(name); setDialogMode(null); }}
+          onCancel={() => setDialogMode(null)}
+        />
+      )}
+      {dialogMode === "rename" && (
+        <DialogModal
+          title="Rename Session"
+          description={`Current: ${currentSessionName}`}
+          mode="prompt"
+          defaultValue={currentSessionName}
+          confirmLabel="RENAME"
+          onConfirm={(name) => { onRenameSession(name); setDialogMode(null); }}
+          onCancel={() => setDialogMode(null)}
+        />
+      )}
+      {dialogMode === "reset" && (
+        <DialogModal
+          title="Reset Everything"
+          description="This wipes all saved sessions, autosave, palette, and every mdrone setting from localStorage. Cannot be undone."
+          mode="confirm"
+          confirmLabel="RESET"
+          danger
+          onConfirm={() => { resetAllLocalStorage(); window.location.reload(); }}
+          onCancel={() => setDialogMode(null)}
+        />
+      )}
     </header>
   );
 }

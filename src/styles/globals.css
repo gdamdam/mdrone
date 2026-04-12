@@ -746,6 +746,34 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   flex-shrink: 0;
 }
 
+/* Dialog modal input */
+.dialog-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+}
+.dialog-input:focus {
+  border-color: var(--preview);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--preview) 25%, transparent);
+}
+
+.header-btn-primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--preview) 25%, var(--bg-cell)), var(--bg-cell));
+  border-color: var(--preview);
+  color: var(--preview);
+  font-weight: 800;
+  letter-spacing: 0.8px;
+}
+.header-btn-primary:hover {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--preview) 35%, var(--bg-cell)), var(--bg-cell));
+}
+
 .header-btn-danger {
   background: linear-gradient(180deg, #2a0f0f, #1a0808);
   border-color: #6a2020;

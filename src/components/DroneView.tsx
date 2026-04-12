@@ -12,6 +12,7 @@ import { PRESETS, type PresetGroup } from "../engine/presets";
 import { JOURNEYS, JOURNEY_IDS, type JourneyId } from "../journey";
 import { PARTNER_RELATIONS, type PartnerRelation } from "../partner";
 import { VuMeter } from "./VuMeter";
+import { DropdownSelect } from "./DropdownSelect";
 
 const PRESET_GROUPS: PresetGroup[] = [
   "Sacred / Ritual", "Minimal / Just", "Organ / Chamber",
@@ -572,40 +573,34 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <span className="preset-mut-value" aria-hidden="true">
                 {Math.round(mutateIntensity * 100)}%
               </span>
-              <select
-                className="preset-journey-select"
+              <DropdownSelect
                 value={state.partner.enabled ? state.partner.relation : ""}
-                onChange={(e) => {
-                  const v = e.target.value;
+                options={[
+                  { value: "", label: "PARTNER: off" },
+                  ...PARTNER_RELATIONS.map((r) => ({ value: r, label: `PARTNER: ${r}` })),
+                ]}
+                onChange={(v) => {
                   if (v === "") {
                     setPartner({ ...state.partner, enabled: false });
                   } else {
                     setPartner({ enabled: true, relation: v as PartnerRelation });
                   }
                 }}
-                title="PARTNER — sympathetic second drone layer at a fixed musical relation."
-                aria-label="Sympathetic partner"
-              >
-                <option value="">PARTNER: off</option>
-                {PARTNER_RELATIONS.map((r) => (
-                  <option key={r} value={r}>PARTNER: {r}</option>
-                ))}
-              </select>
-              <select
                 className="preset-journey-select"
+                title="PARTNER — sympathetic second drone layer at a fixed musical relation."
+                ariaLabel="Sympathetic partner"
+              />
+              <DropdownSelect
                 value={state.journey ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setJourney(v === "" ? null : (v as JourneyId));
-                }}
+                options={[
+                  { value: "", label: "JOURNEY: off" },
+                  ...JOURNEY_IDS.map((id) => ({ value: id, label: `JOURNEY: ${JOURNEYS[id].label}` })),
+                ]}
+                onChange={(v) => setJourney(v === "" ? null : (v as JourneyId))}
+                className="preset-journey-select"
                 title="JOURNEY — authored ritual phases (arrival → bloom → suspension → dissolve). Replaces evolve drift while active."
-                aria-label="Journey"
-              >
-                <option value="">JOURNEY: off</option>
-                {JOURNEY_IDS.map((id) => (
-                  <option key={id} value={id}>JOURNEY: {JOURNEYS[id].label}</option>
-                ))}
-              </select>
+                ariaLabel="Journey"
+              />
               {motionRecEnabled && (
                 <button
                   type="button"
@@ -798,26 +793,20 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <>
                 <div className="panel-hint">Tuning system + interval relation</div>
                 <div className="intonation-row">
-                  <select
+                  <DropdownSelect
                     value={state.tuningId ?? ""}
-                    onChange={(e) => setTuning(e.target.value === "" ? null : e.target.value as typeof state.tuningId)}
+                    options={TUNINGS.map((t) => ({ value: t.id, label: t.label }))}
+                    onChange={(v) => setTuning(v === "" ? null : v as typeof state.tuningId)}
                     className="intonation-select"
                     title="Tuning system — pitch degrees in cents above the root"
-                  >
-                    {TUNINGS.map((t) => (
-                      <option key={t.id} value={t.id}>{t.label}</option>
-                    ))}
-                  </select>
-                  <select
+                  />
+                  <DropdownSelect
                     value={state.relationId ?? ""}
-                    onChange={(e) => setRelation(e.target.value === "" ? null : e.target.value as typeof state.relationId)}
+                    options={RELATIONS.map((r) => ({ value: r.id, label: r.label }))}
+                    onChange={(v) => setRelation(v === "" ? null : v as typeof state.relationId)}
                     className="intonation-select"
                     title="Interval relation — which degrees from the tuning to sound"
-                  >
-                    {RELATIONS.map((r) => (
-                      <option key={r.id} value={r.id}>{r.label}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <PitchWheel
                   intervalsCents={intervalReadoutRows.map((r) => r.final)}
