@@ -1795,8 +1795,8 @@ export function drawWaterfall(
   const off = waterfallCtx;
   if (!off || !waterfallCanvas) return;
 
-  // Faster scroll: ~40 rows/sec (a 500-px canvas fills in ~12 s).
-  if (p.t - waterfallLastScroll >= 0.025) {
+  // Fast scroll: ~80 rows/sec (a 500-px canvas fills in ~6 s).
+  if (p.t - waterfallLastScroll >= 0.012) {
     waterfallLastScroll = p.t;
     // Scroll everything down 1 px by drawing the canvas onto itself.
     off.drawImage(waterfallCanvas, 0, 0, w, h - 1, 0, 1, w, h - 1);
