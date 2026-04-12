@@ -245,9 +245,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
   const DISCLOSURE_KEY = "mdrone-disclosure";
-  type Section = "presets" | "timbre" | "tuning" | "advanced" | "detune";
+  type Section = "presets" | "timbre" | "tuning" | "detune";
   const defaultDisclosure: Record<Section, boolean> = {
-    presets: false, timbre: false, tuning: false, advanced: false, detune: false,
+    presets: false, timbre: false, tuning: false, detune: false,
   };
   const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
     try {
@@ -547,6 +547,38 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               />
             </div>
 
+            <div className="shape-morph-row">
+              <div className="preset-morph-row">
+                <span className="preset-morph-label">MORPH</span>
+                <input
+                  type="range" min={0} max={1} step={0.01}
+                  value={state.presetMorph}
+                  onChange={(e) => { const v = parseFloat(e.target.value); setPresetMorph(v); engine?.setPresetMorph(v); }}
+                  className="preset-morph-slider"
+                  title="How slowly the drone morphs between presets. 0 = snap, 1 = glacial."
+                />
+                <span className="preset-morph-value">{Math.round(state.presetMorph * 100)}%</span>
+              </div>
+              <div className="preset-morph-row">
+                <span className="preset-morph-label">EVOLVE</span>
+                <input
+                  type="range" min={0} max={1} step={0.01}
+                  value={state.evolve}
+                  onChange={(e) => { const v = parseFloat(e.target.value); setPresetEvolve(v); engine?.setEvolve(v); }}
+                  className="preset-morph-slider"
+                  title="How much the drone evolves itself during play."
+                />
+                <span className="preset-morph-value">{Math.round(state.evolve * 100)}%</span>
+              </div>
+              <Macro
+                label="SUB"
+                value={state.sub}
+                onChange={setSub}
+                icon={<IconSub />}
+                title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
+              />
+            </div>
+
             <div className="scene-actions-row">
               <button
                 type="button"
@@ -733,10 +765,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         {/* ── Collapsible: TUNING — mode + tonic ───── */}
         <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("tuning")}>
           <span className="disclosure-arrow">{disclosed.tuning ? "▾" : "▸"}</span>
-          TUNING · mode · tonic
+          TUNING + LFO
         </button>
         {disclosed.tuning && (
-        <div className="preset-row-2">
+        <div className="tuning-lfo-row">
           <div className="preset-mode-col">
             <div className="panel-label">MODE</div>
             <div className="mode-tabs" role="tablist">
@@ -869,64 +901,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             )}
           </div>
 
-        </div>
-        )}
-
-        {/* ── Collapsible: ADVANCED — morph, evolve, sub, lfo ───── */}
-        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("advanced")}>
-          <span className="disclosure-arrow">{disclosed.advanced ? "▾" : "▸"}</span>
-          ADVANCED · morph · sub · lfo
-        </button>
-        {disclosed.advanced && (
-        <div className="preset-row-3">
-          <div className="preset-controls-col">
-            <div className="panel-hint">Transition speed + self-evolution</div>
-            <div className="preset-morph-row">
-              <span className="preset-morph-label">MORPH</span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={state.presetMorph}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  setPresetMorph(v);
-                  engine?.setPresetMorph(v);
-                }}
-                className="preset-morph-slider"
-                title="How slowly the drone morphs between presets. 0 = snap, 1 = glacial (~6 s macros, 4× bloom crossfade)."
-              />
-              <span className="preset-morph-value">{Math.round(state.presetMorph * 100)}%</span>
-            </div>
-            <div className="preset-morph-row">
-              <span className="preset-morph-label">EVOLVE</span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={state.evolve}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  setPresetEvolve(v);
-                  engine?.setEvolve(v);
-                }}
-                className="preset-morph-slider"
-                title="How much the drone evolves itself during play. 0 = static · 0.4 = gentle atmosphere drift · 0.7 = + occasional tonic walks (P4/P5) · 1 = active drift + note walks."
-              />
-              <span className="preset-morph-value">{Math.round(state.evolve * 100)}%</span>
-            </div>
-            <Macro
-              label="SUB"
-              value={state.sub}
-              onChange={setSub}
-              icon={<IconSub />}
-              title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
-            />
-          </div>
-
-          <div className="preset-breathe-col">
+          <div className="lfo-col">
             <div className="panel-label">LFO · BREATHING</div>
             <div className="panel-hint">Slow volume swell — shape, speed, depth</div>
             <div className="lfo-shape-row">

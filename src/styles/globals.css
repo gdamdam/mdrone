@@ -1648,9 +1648,24 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin: -2px 0 12px;
 }
 
-/* Row 2 — MODE (inside collapsible TUNING) */
-.preset-row-2 {
+/* TUNING + LFO two-column layout */
+.tuning-lfo-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.2fr) minmax(200px, 0.8fr);
+  gap: 16px;
   margin-top: 12px;
+  align-items: start;
+}
+@media (max-width: 720px) {
+  .tuning-lfo-row { grid-template-columns: 1fr; }
+}
+.lfo-col { min-width: 0; }
+
+/* MORPH/EVOLVE/SUB row in SHAPE column */
+.shape-morph-row {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
 }
 
 /* Row 3 — MORPH/EVOLVE/SUB · LFO (inside collapsible ADVANCED) */
