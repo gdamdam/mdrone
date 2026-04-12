@@ -444,6 +444,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <span className="preset-strip-name">No preset</span>
             );
           })()}
+          <span className="preset-strip-tonic">
+            {state.root}{state.octave} · {(() => {
+              const idx = PITCH_CLASSES.indexOf(state.root);
+              const semi = idx - 9 + (state.octave - 4) * 12;
+              return (440 * Math.pow(2, semi / 12)).toFixed(1);
+            })()} Hz
+          </span>
           <span className="preset-strip-chevron">{disclosed.presets ? "▾" : "▸"}</span>
         </button>
         {disclosed.presets && (

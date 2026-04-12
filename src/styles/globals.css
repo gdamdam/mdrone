@@ -316,6 +316,15 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   text-overflow: ellipsis;
 }
 
+.preset-strip-tonic {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--preview);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .preset-strip-chevron {
   font-size: 12px;
   color: var(--text-dim);
