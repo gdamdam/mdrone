@@ -82,7 +82,7 @@ export function WeatherPad({
     // Record trail point
     const trail = trailRef.current;
     trail.push({ x: x * rect.width, y: (1 - y) * rect.height, age: 0 });
-    if (trail.length > 20) trail.shift();
+    if (trail.length > 40) trail.shift();
   }, [onChange]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -258,25 +258,32 @@ export function WeatherPad({
 
       } // end flow field layer
 
-      // ── Layer 3: Cursor wake trail (all modes) ──────────────
+      // ── Layer 3: Dotted glowing trail (all modes) ───────────
+      // Each trail point renders as a dot that shrinks and fades
+      // with age — most recent is brightest/largest, oldest fades out.
       const trail = trailRef.current;
-      if (trail.length > 1) {
+      for (let i = 0; i < trail.length; i++) {
+        const tp = trail[i];
+        const fade = 1 - tp.age / 40; // 0→1 as it ages
+        if (fade <= 0) continue;
+        const dotR = 1.5 + fade * 3.5; // 5px newest → 1.5px oldest
+        const glow = fade * fade; // quadratic falloff for glow
+        ctx.globalAlpha = glow * rms * 0.8;
+        // Outer glow
         ctx.beginPath();
-        ctx.moveTo(trail[0].x, trail[0].y);
-        for (let i = 1; i < trail.length; i++) {
-          ctx.lineTo(trail[i].x, trail[i].y);
-        }
-        ctx.strokeStyle = `rgba(232,204,120,${(0.3 * rms).toFixed(2)})`;
-        ctx.lineWidth = 2;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.globalAlpha = 1;
-        ctx.stroke();
+        ctx.arc(tp.x, tp.y, dotR * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(232,204,120,${(glow * 0.2).toFixed(3)})`;
+        ctx.fill();
+        // Inner bright dot
+        ctx.beginPath();
+        ctx.arc(tp.x, tp.y, dotR, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(232,204,120,${(glow * 0.9).toFixed(3)})`;
+        ctx.fill();
       }
       // Age trail points
       for (let i = trail.length - 1; i >= 0; i--) {
         trail[i].age++;
-        if (trail[i].age > 30) trail.splice(i, 1);
+        if (trail[i].age > 40) trail.splice(i, 1);
       }
 
       ctx.globalAlpha = 1;
