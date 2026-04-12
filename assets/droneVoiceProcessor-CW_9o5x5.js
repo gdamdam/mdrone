@@ -120,6 +120,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // Auto-repluck cycle — tanpura players cycle through 4 strings.
     this.pluckCountdown = 0.2; // first pluck almost immediately
     this.pluckPhase = 0;       // 0..3, cycles through 4 "strings"
+    this.currentString = 0;    // which string is currently ringing
     // Simple one-pole lowpass state for feedback damping
     this.ksLast = 0;
     this.ksLastR = 0;
@@ -151,8 +152,12 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const delayLen = Math.min(this.ksMax - 2, Math.max(8, Math.floor(baseLen / ratio)));
     const delayLenR = Math.min(this.ksMax - 2, Math.max(8, Math.floor(baseLen / ratio * 1.003))); // 5 cents offset for stereo width
 
-    // Feedback decay — keep string alive for several seconds
-    const damping = 0.9985 - drift * 0.0015; // drift slightly shortens sustain
+    // Per-string damping — lower-pitched strings sustain longer on a
+    // real tanpura. Pa (1.5× ratio, highest) decays fastest; the low
+    // Sa (0.5× ratio) rings longest. Uniform damping made all 4
+    // strings decay identically which sounds synthetic.
+    const STRING_DAMP = [0.9982, 0.9985, 0.9985, 0.9990];
+    const damping = STRING_DAMP[this.currentString] - drift * 0.0012;
     // Jawari nonlinearity — a compound curve that emphasizes upper
     // harmonics in a way plain tanh doesn't. The sin term injects
     // additional odd-harmonic content at amplitude extremes.
@@ -162,6 +167,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // Pluck scheduling
     this.pluckCountdown -= n / sampleRate;
     if (this.pluckCountdown <= 0) {
+      this.currentString = this.pluckPhase;
       this.doPluck(delayLen, delayLenR);
       this.pluckPhase = (this.pluckPhase + 1) % 4;
       // 2.5..4.5 s between plucks — human tanpura cycle.
@@ -266,14 +272,19 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     //   even     — bowed string (SOTL, Górecki) — even partials emphasised
     //   balanced — pipe organ, choral "ahh" (Malone) — both odd and even
     //   sine     — pure fundamental (Dream House, Radigue ARP 2500)
-    this.reedN = 7;
+    // Partial count is shape-dependent. "even" (bowed string) and
+    // "balanced" (organ/choral) gain richer upper harmonics with 12
+    // partials; 7 was audibly thin for these timbres. "odd"
+    // (clarinet/shruti) and "sine" stay at 7 — clarinet spectra are
+    // dominated by the first few odd harmonics in reality.
     const REED_AMPS = {
       odd:      [0.55, 0.28, 0.38, 0.13, 0.24, 0.07, 0.16],
-      even:     [0.55, 0.48, 0.20, 0.36, 0.14, 0.24, 0.08],
-      balanced: [0.60, 0.40, 0.34, 0.26, 0.20, 0.14, 0.10],
+      even:     [0.55, 0.48, 0.20, 0.36, 0.14, 0.24, 0.08, 0.16, 0.04, 0.10, 0.03, 0.06],
+      balanced: [0.60, 0.40, 0.34, 0.26, 0.20, 0.14, 0.10, 0.07, 0.05, 0.035, 0.025, 0.018],
       sine:     [1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00],
     };
     const amps = REED_AMPS[this.reedShape] || REED_AMPS.odd;
+    this.reedN = amps.length;
     this.reedAmps     = new Float32Array(amps);
     this.reedPhasesL  = new Float32Array(this.reedN);
     this.reedPhasesR  = new Float32Array(this.reedN);
@@ -340,6 +351,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const twoPi = Math.PI * 2;
     // Drift → per-partial detune depth (max ±8 cents)
     const detuneDepth = drift * 0.0046; // in cent-ratio (8 cents ≈ 0.0046)
+    // Aliasing guard — skip partials whose frequency exceeds 90% of
+    // Nyquist. Matters now that even/balanced shapes have 12 partials:
+    // at high tonics partial 12 can reach above 20 kHz.
+    const nyquist = sampleRate * 0.45;
 
     for (let i = 0; i < n; i++) {
       // Advance bellows amplitude LFO
@@ -355,6 +370,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         const wobble = Math.sin(this.reedLfoPhases[p]) * detuneDepth;
 
         const partialFreq = freq * (p + 1) * (1 + wobble);
+        if (partialFreq > nyquist) continue; // anti-alias guard
         // Advance phase accumulators
         this.reedPhasesL[p] += twoPi * partialFreq * invSr;
         this.reedPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.5); // tiny stereo detune
@@ -674,6 +690,27 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.pianoStrikeAge = 0;
     this.pianoStrikeDuration = Math.floor(0.22 * sampleRate);
     // Pink noise state for the strike burst (reuses class pink state).
+
+    // Soundboard resonator — two SVF bandpasses simulating the wooden
+    // body resonance of a piano soundboard. Without this the voice is
+    // raw additive sines, reading as "pad with attack" rather than
+    // "sustained piano matter". 220 Hz (body warmth) + 900 Hz
+    // (mid presence / wood character). Mixed in parallel.
+    this.pianoBodyF    = 2 * Math.sin(Math.PI * 220 / sampleRate);
+    this.pianoBodyDamp = 1 / 2;      // Q = 2
+    this.pianoBodyLowL  = 0;
+    this.pianoBodyBandL = 0;
+    this.pianoBodyLowR  = 0;
+    this.pianoBodyBandR = 0;
+    this.pianoMidF    = 2 * Math.sin(Math.PI * 900 / sampleRate);
+    this.pianoMidDamp = 1 / 1.5;    // Q = 1.5
+    this.pianoMidLowL  = 0;
+    this.pianoMidBandL = 0;
+    this.pianoMidLowR  = 0;
+    this.pianoMidBandR = 0;
+    // Presence shelf state — compensate body energy
+    this.hsPianoL = 0;
+    this.hsPianoR = 0;
   }
 
   pianoProcess(L, R, n, freq, drift, amp) {
@@ -712,6 +749,30 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         r += strike * 0.96; // tiny stereo spread
         this.pianoStrikeAge++;
       }
+
+      // Soundboard resonator — parallel bandpass peaks at 220 Hz
+      // (body) and 900 Hz (mid/wood). Same SVF technique as tanpura
+      // body: band outputs mixed into the dry signal.
+      const pbHL = l - this.pianoBodyLowL - this.pianoBodyDamp * this.pianoBodyBandL;
+      this.pianoBodyBandL += this.pianoBodyF * pbHL;
+      this.pianoBodyLowL  += this.pianoBodyF * this.pianoBodyBandL;
+      const pmHL = l - this.pianoMidLowL - this.pianoMidDamp * this.pianoMidBandL;
+      this.pianoMidBandL += this.pianoMidF * pmHL;
+      this.pianoMidLowL  += this.pianoMidF * this.pianoMidBandL;
+      const pbHR = r - this.pianoBodyLowR - this.pianoBodyDamp * this.pianoBodyBandR;
+      this.pianoBodyBandR += this.pianoBodyF * pbHR;
+      this.pianoBodyLowR  += this.pianoBodyF * this.pianoBodyBandR;
+      const pmHR = r - this.pianoMidLowR - this.pianoMidDamp * this.pianoMidBandR;
+      this.pianoMidBandR += this.pianoMidF * pmHR;
+      this.pianoMidLowR  += this.pianoMidF * this.pianoMidBandR;
+      l += this.pianoBodyBandL * 0.15 + this.pianoMidBandL * 0.10;
+      r += this.pianoBodyBandR * 0.15 + this.pianoMidBandR * 0.10;
+
+      // Presence shelf — compensate body energy so highs aren't dulled
+      this.hsPianoL = this.hsPianoL * 0.6 + l * 0.4;
+      this.hsPianoR = this.hsPianoR * 0.6 + r * 0.4;
+      l += (l - this.hsPianoL) * 0.25;
+      r += (r - this.hsPianoR) * 0.25;
 
       L[i] = l * amp;
       R[i] = r * amp;
@@ -813,6 +874,12 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // Final cabinet lowpass one-pole state.
     this.ampCabL = 0;
     this.ampCabR = 0;
+    // DC blocker state — removes offset from asymmetric saturation.
+    // Standard form: y[n] = x[n] − x[n−1] + R·y[n−1], R ≈ 0.995
+    this.ampDcPrevInL  = 0;
+    this.ampDcPrevOutL = 0;
+    this.ampDcPrevInR  = 0;
+    this.ampDcPrevOutR = 0;
   }
 
   ampProcess(L, R, n, freq, drift, amp) {
@@ -842,9 +909,21 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       }
       l *= swell;
       r *= swell;
-      // Hard saturation — the "amp distortion"
-      l = Math.tanh(l * 3.8) * 0.72;
-      r = Math.tanh(r * 3.8) * 0.72;
+      // Asymmetric soft-clip — a small positive DC bias before tanh
+      // causes positive peaks to clip earlier than negative, generating
+      // even harmonics (2nd, 4th…) like a real tube amplifier. Without
+      // this the voice has only odd-harmonic distortion character.
+      const bias = 0.12;
+      l = Math.tanh((l + bias) * 3.8) * 0.72;
+      r = Math.tanh((r + bias) * 3.8) * 0.72;
+      // DC blocker — removes the offset introduced by asymmetric clip
+      const dcCoef = 0.995;
+      const dcOutL = l - this.ampDcPrevInL + dcCoef * this.ampDcPrevOutL;
+      this.ampDcPrevInL = l; this.ampDcPrevOutL = dcOutL;
+      l = dcOutL;
+      const dcOutR = r - this.ampDcPrevInR + dcCoef * this.ampDcPrevOutR;
+      this.ampDcPrevInR = r; this.ampDcPrevOutR = dcOutR;
+      r = dcOutR;
 
       // Cabinet shaper: body BPF (90 Hz), presence BPF (3.5 kHz),
       // then a final one-pole lowpass at 5 kHz. The two BPFs are
