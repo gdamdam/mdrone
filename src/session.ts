@@ -146,8 +146,8 @@ const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {
   shimmer: 0.95,
   freeze: 1,
   cistern: 1,
-  granular: 0.3,
-  graincloud: 0.3,
+  granular: 0.8,
+  graincloud: 0.8,
   ringmod: 0.7,
   formant: 0.85,
 };

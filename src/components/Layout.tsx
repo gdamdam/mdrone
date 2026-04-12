@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
-import { APP_VERSION } from "../config";
+import { APP_VERSION, STORAGE_KEYS } from "../config";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { DroneView, type DroneViewHandle } from "./DroneView";
@@ -111,6 +111,21 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // E=D#, D=E, F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B.
   // Z/X shift octave down/up.
   const [kbdActive, setKbdActive] = useState(false);
+  // Motion-recording feature flag — hidden by default, opt-in via
+  // the Settings modal. Persisted in localStorage.
+  const [motionRecEnabled, setMotionRecEnabledState] = useState<boolean>(
+    () => {
+      try { return localStorage.getItem(STORAGE_KEYS.motionRecEnabled) === "1"; }
+      catch { return false; }
+    },
+  );
+  const setMotionRecEnabled = useCallback((on: boolean) => {
+    setMotionRecEnabledState(on);
+    try { localStorage.setItem(STORAGE_KEYS.motionRecEnabled, on ? "1" : "0"); }
+    catch { /* noop */ }
+    // If the user disables it while a recording is in progress, stop it.
+    if (!on && sceneManager.isRecordingMotion) sceneManager.handleToggleMotionRecord();
+  }, [sceneManager]);
   useEffect(() => {
     if (!kbdActive) return;
     const QWERTY: Record<string, PitchClass> = {
@@ -233,6 +248,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         midiLastNote={midi.lastNote}
         midiError={midi.error}
         onToggleMidi={(on) => midi.setEnabled(on)}
+        motionRecEnabled={motionRecEnabled}
+        onToggleMotionRec={setMotionRecEnabled}
         analyser={engine.getAnalyser()}
       />
 
@@ -270,6 +287,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             onParamRecord={sceneManager.recordParam}
             isRecordingMotion={sceneManager.isRecordingMotion}
             onToggleMotionRecord={sceneManager.handleToggleMotionRecord}
+            motionRecEnabled={motionRecEnabled}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
           />

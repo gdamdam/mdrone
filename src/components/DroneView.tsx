@@ -171,6 +171,9 @@ interface DroneViewProps {
   isRecordingMotion?: boolean;
   /** Toggle the motion recorder on/off. */
   onToggleMotionRecord?: () => void;
+  /** Feature flag — hides the REC MOTION button unless the user
+   *  has explicitly opted in from the Settings modal. */
+  motionRecEnabled?: boolean;
   kbdActive: boolean;
   onToggleKbd: () => void;
 }
@@ -195,7 +198,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, kbdActive, onToggleKbd }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, kbdActive, onToggleKbd }: DroneViewProps,
   ref,
 ) {
   const {
@@ -471,16 +474,18 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 <option key={r} value={r}>PARTNER: {r}</option>
               ))}
             </select>
-            <button
-              type="button"
-              className={isRecordingMotion ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
-              onClick={() => onToggleMotionRecord?.()}
-              title={isRecordingMotion
-                ? "Stop motion recording — captured gestures travel with the next share URL"
-                : "Record meaningful gestures (60 s / 200 events max) into the next share URL"}
-            >
-              {isRecordingMotion ? "● REC MOTION" : "REC MOTION"}
-            </button>
+            {motionRecEnabled && (
+              <button
+                type="button"
+                className={isRecordingMotion ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
+                onClick={() => onToggleMotionRecord?.()}
+                title={isRecordingMotion
+                  ? "Stop motion recording — captured gestures travel with the next share URL"
+                  : "Record meaningful gestures (60 s / 200 events max) into the next share URL"}
+              >
+                {isRecordingMotion ? "● REC MOTION" : "REC MOTION"}
+              </button>
+            )}
             <button
               type="button"
               className="preset-mut-btn"

@@ -91,6 +91,12 @@ export class AudioEngine {
       });
   }
 
+  /** Push the current interval stack to the granular worklets so
+   *  their quantised-pitch mode stays aligned with the scene scale. */
+  private syncGranularScale(): void {
+    this.fxChain.setGranularScale(this.voiceEngine.getIntervalsCents());
+  }
+
   startDrone(freq: number, intervalsCents: number[] = [0]): void {
     if (!this.isWorkletReady) {
       this.pendingStart = { freq, intervalsCents: [...intervalsCents] };
@@ -98,6 +104,7 @@ export class AudioEngine {
     }
 
     this.voiceEngine.startDrone(freq, intervalsCents, this.motionEngine.getAir());
+    this.syncGranularScale();
   }
 
   stopDrone(): void {
@@ -139,6 +146,7 @@ export class AudioEngine {
 
   setIntervals(intervalsCents: number[]): void {
     this.voiceEngine.setIntervals(intervalsCents);
+    this.syncGranularScale();
   }
 
   /** Ground-truth reads used by the meditate-view pitch mandala to
@@ -194,6 +202,7 @@ export class AudioEngine {
     intervalsCents: number[],
   ): void {
     this.voiceEngine.applyDroneScene(layers, levels, intervalsCents);
+    this.syncGranularScale();
   }
 
   setVoiceType(type: VoiceType): void {

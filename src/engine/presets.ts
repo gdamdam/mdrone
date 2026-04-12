@@ -1031,7 +1031,7 @@ export const PRESETS: Preset[] = [
     id: "hecker-ravedeath", group: "Noise / Industrial",
     name: "Ravedeath",
     attribution: "Distorted pipe organ · church compression",
-    hint: "Reed (pipe-organ shape) pushed through amp distortion into hall. Tim Hecker's Ravedeath 1972 — a church organ recorded in Reykjavik, distorted and compressed until it breaks. No metal, no granular wobble.",
+    hint: "Reed (pipe-organ shape) pushed through amp distortion into hall, with a classic graincloud for the fragmented pipe-organ stutter on top. Tim Hecker's Ravedeath 1972 — a church organ recorded in Reykjavik, distorted and compressed until it breaks.",
     tuningId: "equal", relationId: "minor-triad",
     voiceLayers: ["reed", "amp"],
     voiceLevels: { reed: 1, amp: 0.35 },
@@ -1047,10 +1047,10 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.06,
     climateX: 0.3,
     climateY: 0.2,
-    // tape + hall only. No granular (wobble), no plate (redundant with
-    // hall — Hecker recorded in one church, one room). Parallel hall
-    // for dry organ attack + wet reverb tail.
-    effects: ["tape", "hall"],
+    // tape + hall, plus graincloud for the fragmented organ stutter.
+    // No plate (redundant with hall — Hecker recorded in one church,
+    // one room). Parallel hall for dry organ attack + wet reverb tail.
+    effects: ["tape", "hall", "graincloud"],
     parallelSends: { hall: 0.35 },
     scale: "minor",
     gain: 0.88,
@@ -1092,8 +1092,10 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.06,
     climateX: 0.3,
     climateY: 0.22,
-    // No granular (wobble). Tape + hall for the processed church room.
-    effects: ["tape", "hall"],
+    // Classic graincloud for Virgins-style stuttered orchestral
+    // bursts — the envelope-sum norm + pitch quantisation keeps the
+    // grains tonal with the organ/ensemble instead of wobbling.
+    effects: ["tape", "hall", "graincloud"],
     parallelSends: { hall: 0.3 },
     scale: "minor",
     gain: 0.88,
@@ -1161,7 +1163,7 @@ export const PRESETS: Preset[] = [
     id: "fennesz-endless", group: "Ambient / Cinematic",
     name: "Endless Summer",
     attribution: "Warm continuous guitar smear · golden haze",
-    hint: "Reed (even harmonics — closest to processed guitar) with long bloom and glide through plate + hall + tape. Fennesz's Endless Summer — continuous warm melodic smear, no grain wobble. The 'processed laptop guitar' feel comes from the even-harmonic reed held in thick reverb.",
+    hint: "Reed (even harmonics — closest to processed guitar) with long bloom and glide through plate + hall + tape, plus a classic graincloud for the glitchy grain-stutter that defines Fennesz's processed-laptop-guitar sound. Endless Summer — continuous warm melodic smear under a grain shimmer.",
     tuningId: "equal", relationId: "drone-triad",
     voiceLayers: ["reed"],
     voiceLevels: { reed: 1 },
@@ -1178,10 +1180,12 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.03,   // near-zero — no amplitude wobble
     climateX: 0.46,
     climateY: 0.18,
-    // No granular — its grain overlap creates an annoying rhythmic wobble.
-    // Fennesz's smear is CONTINUOUS (laptop feedback + reverb), not
-    // grain-based. Plate + hall + tape give the warmth.
-    effects: ["plate", "hall", "tape"],
+    // graincloud added now that the per-channel envelope-sum norm +
+    // pitch-quantisation eliminated the rhythmic wobble — Fennesz's
+    // actual sound IS grain-based laptop processing on top of the
+    // continuous reed smear, and quantised grains stay tonal with
+    // the drone chord.
+    effects: ["plate", "hall", "tape", "graincloud"],
     scale: "major",
     gain: 0.95,
     motionProfile: motionProfile({
@@ -1222,9 +1226,11 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.05,
     climateX: 0.34,
     climateY: 0.18,
-    // No granular (wobble), no cistern (too cavernous for Substrata's
-    // moderate reverb). Hall + tape give the warm ambient room.
-    effects: ["hall", "tape"],
+    // Smooth granular added for the subtle time-stretched field-
+    // recording character Biosphere layers under the pad. No cistern
+    // (too cavernous for Substrata's moderate reverb). Hall + tape
+    // give the warm ambient room.
+    effects: ["hall", "tape", "granular"],
     scale: "minor",
     gain: 0.95,
     motionProfile: motionProfile({
@@ -1248,7 +1254,7 @@ export const PRESETS: Preset[] = [
     id: "basinski-disintegration", group: "Ambient / Cinematic",
     name: "Disintegration",
     attribution: "Decaying tape loop · oxide crumble",
-    hint: "Solo reed (bowed-string shape) with tape degradation + wow flutter — Basinski's Disintegration Loops. A single melodic string fragment eroding under tape wear. Dry, close-miked, no granular, no piano.",
+    hint: "Solo reed (bowed-string shape) with tape degradation + wow flutter and an ordered graincloud for the fragmented tape-loop drop-outs — Basinski's Disintegration Loops. A single melodic string fragment eroding under tape wear. Dry, close-miked.",
     tuningId: "equal", relationId: "drone-triad",
     voiceLayers: ["reed"],
     voiceLevels: { reed: 1 },
@@ -1264,10 +1270,13 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.03,  // near-zero — tape speed IS the only modulation
     climateX: 0.38,   // slightly brighter start — DL darkens over time
     climateY: 0.14,
-    // tape + wow = the degradation IS the composition. No granular
-    // (grain wobble ≠ tape loop), no plate (too wet — DL is dry/close),
+    // tape + wow = the degradation IS the composition. graincloud
+    // added for the fragmented tape-loop drop-outs — ordered spawn
+    // mode makes grains read consecutive chunks of the drone, which
+    // is the correct model for Disintegration Loops' repeating loop
+    // replaying with holes. No plate (too wet — DL is dry/close),
     // no piano (DL is strings/synth). Hall at low air gives room tone.
-    effects: ["tape", "wow", "hall"],
+    effects: ["tape", "wow", "hall", "graincloud"],
     scale: "major",   // DL sits in ambiguous bright-melancholy, not minor
     gain: 0.95,
     motionProfile: motionProfile({
@@ -1390,9 +1399,11 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.08,
     climateX: 0.34,
     climateY: 0.24,
-    // tape + wow + air already give Grouper's lo-fi tape-veiled quality.
-    // formant was over-colouring the signal.
-    effects: ["tape", "plate", "hall", "wow"],
+    // tape + wow + air already give Grouper's lo-fi tape-veiled
+    // quality. Smooth granular adds the fragmentary tape-loop
+    // character of Dragging a Dead Deer — grains follow the drone
+    // scale so the haze stays tonal with the piano + air bed.
+    effects: ["tape", "plate", "hall", "wow", "granular"],
     scale: "minor",
     gain: 0.95,
     motionProfile: motionProfile({
@@ -1888,7 +1899,7 @@ export function getPresetMaterialProfile(presetOrId: Preset | string | null): Pr
  *  chain before applying a new preset. */
 const ALL_EFFECT_IDS: EffectId[] = [
   "tape", "wow", "plate", "hall", "shimmer", "delay", "sub", "comb", "freeze",
-  "cistern", "granular", "ringmod", "formant",
+  "cistern", "granular", "graincloud", "ringmod", "formant",
 ];
 
 function clamp(value: number, min: number, max: number): number {

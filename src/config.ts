@@ -11,4 +11,5 @@ export const STORAGE_KEYS = {
   sessions: "mdrone-sessions",
   currentSessionId: "mdrone-current-session-id",
   autosave: "mdrone-autosave",
+  motionRecEnabled: "mdrone-motion-rec",
 } as const;

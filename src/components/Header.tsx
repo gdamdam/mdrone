@@ -53,6 +53,8 @@ interface HeaderProps {
   midiLastNote: number | null;
   midiError: string | null;
   onToggleMidi: (on: boolean) => void;
+  motionRecEnabled: boolean;
+  onToggleMotionRec: (on: boolean) => void;
   analyser: AnalyserNode | null;
 }
 
@@ -95,6 +97,8 @@ export function Header({
   midiLastNote,
   midiError,
   onToggleMidi,
+  motionRecEnabled,
+  onToggleMotionRec,
   analyser,
 }: HeaderProps) {
   // Drone logo vibration — rAF loop reads the master analyser's RMS
@@ -472,6 +476,27 @@ export function Header({
                 </span>
               </div>
               {midiError && <div className="midi-error">{midiError}</div>}
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">ADVANCED</div>
+              <p className="fx-modal-desc">
+                Motion recording captures meaningful gesture events
+                (60 s / 200 max) into the next share URL so the
+                recipient hears the same sweep you made. Off by
+                default — toggle on to reveal the REC MOTION button
+                in the drone view.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className={motionRecEnabled ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => onToggleMotionRec(!motionRecEnabled)}
+                  title={motionRecEnabled
+                    ? "Hide the REC MOTION button"
+                    : "Show the REC MOTION button in the drone view"}
+                >
+                  {motionRecEnabled ? "● MOTION RECORDING" : "MOTION RECORDING"}
+                </button>
+              </div>
 
               <div className="fx-modal-divider" />
               <div className="fx-modal-section-label">RESET</div>

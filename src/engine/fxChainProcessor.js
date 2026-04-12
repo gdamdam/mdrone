@@ -626,6 +626,18 @@ class FxGranularProcessor extends AudioWorkletProcessor {
       { name: "panSpread",   defaultValue: 0.6,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
       { name: "position",    defaultValue: 0.4,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
       { name: "mix",         defaultValue: 0.9,  minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      // pitchMode: 0 = random continuous scatter ±pitchSpread octaves,
+      // 1 = snap-to-scale (grain picks a random interval from the drone's
+      // current pitch stack, yielding musically consonant grain clouds).
+      { name: "pitchMode",   defaultValue: 0,    minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      // envelope: 0 = trapezoid 10/80/10 (smooth drone cloud),
+      // 1 = falling-exponential (short fade-in then exp decay — gives
+      // the percussive grain attack that classic granular wants).
+      { name: "envelope",    defaultValue: 0,    minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
+      // spawnMode: 0 = random buffer position per grain,
+      // 1 = ordered time-stretch (grains read consecutive buffer chunks,
+      // producing delayed-replay / stretched playback of the source).
+      { name: "spawnMode",   defaultValue: 0,    minValue: 0,    maxValue: 1,   automationRate: "k-rate" },
     ];
   }
 
@@ -645,9 +657,28 @@ class FxGranularProcessor extends AudioWorkletProcessor {
 
     // Time accumulator for grain scheduling
     this.sinceLastGrain = 0;
+
+    // Pitch-quantisation scale — set via port message. Each entry is
+    // a cents offset; in quantised mode, every new grain picks a random
+    // entry and plays its source at that pitch ratio. Default [0] means
+    // "unison only" when quantised, which falls back to no pitch shift.
+    this.scaleCents = [0];
+
+    // Ordered-spawn read cursor — advances by grain length each spawn
+    // so successive grains read consecutive chunks of the ring buffer.
+    this.orderedReadIdx = 0;
+
+    // Port message handler — main thread pushes the current drone
+    // interval stack here so grain pitches stay in the scene's scale.
+    this.port.onmessage = (e) => {
+      const msg = e.data;
+      if (msg && msg.type === "setScale" && Array.isArray(msg.cents) && msg.cents.length > 0) {
+        this.scaleCents = msg.cents.slice();
+      }
+    };
   }
 
-  spawnGrain(size, pitchSpread, panSpread, position) {
+  spawnGrain(size, pitchSpread, panSpread, position, pitchMode, spawnMode) {
     // Find a free grain slot; if all are active, overwrite oldest
     let slot = -1;
     for (let i = 0; i < this.grains.length; i++) {
@@ -663,9 +694,18 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     const g = this.grains[slot];
     const lenSamples = Math.max(32, Math.floor(size * sampleRate));
 
-    // Random pitch ratio within ±pitchSpread octaves
-    const pitchOct = (Math.random() * 2 - 1) * pitchSpread;
-    const ratio = Math.pow(2, pitchOct);
+    // Pitch ratio: continuous random spread OR snap to a cents value
+    // from the drone's current scale (Arturia Efx Fragments-style
+    // musical quantisation — fixes the "woobly pitch" feel that random
+    // continuous scatter produces on tonal sources).
+    let ratio;
+    if (pitchMode > 0.5 && this.scaleCents.length > 0) {
+      const pick = this.scaleCents[Math.floor(Math.random() * this.scaleCents.length)] | 0;
+      ratio = Math.pow(2, pick / 1200);
+    } else {
+      const pitchOct = (Math.random() * 2 - 1) * pitchSpread;
+      ratio = Math.pow(2, pitchOct);
+    }
 
     // Random pan: -1..1 scaled by panSpread
     const pan = (Math.random() * 2 - 1) * panSpread;
@@ -674,13 +714,31 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     const gL = Math.cos(theta);
     const gR = Math.sin(theta);
 
-    // Read position: offset back from write head. Add small randomization
-    // (±20ms) so grains don't all start at exact same place.
-    const jitter = (Math.random() - 0.5) * 0.04 * sampleRate;
-    const back = position * (this.bufLen - lenSamples * 2) + jitter;
-    let startIdx = this.writeIdx - back - lenSamples;
-    while (startIdx < 0) startIdx += this.bufLen;
-    while (startIdx >= this.bufLen) startIdx -= this.bufLen;
+    // Read position:
+    //   ordered mode — successive grains read consecutive buffer
+    //     chunks, producing a stretched/delayed replay of the source.
+    //   random mode  — each grain jumps to a jittered offset behind
+    //     the write head for a cloud texture.
+    let startIdx;
+    if (spawnMode > 0.5) {
+      // Advance the ordered cursor by one grain length each spawn.
+      // When it reaches the (moving) write head, wrap it back behind
+      // by `position × bufLen` so we don't read past the write.
+      const back = position * (this.bufLen - lenSamples * 2);
+      const headGap = ((this.writeIdx - this.orderedReadIdx + this.bufLen) % this.bufLen);
+      if (headGap < lenSamples * 2) {
+        this.orderedReadIdx = this.writeIdx - back - lenSamples;
+        while (this.orderedReadIdx < 0) this.orderedReadIdx += this.bufLen;
+      }
+      startIdx = this.orderedReadIdx;
+      this.orderedReadIdx = (this.orderedReadIdx + lenSamples) % this.bufLen;
+    } else {
+      const jitter = (Math.random() - 0.5) * 0.04 * sampleRate;
+      const back = position * (this.bufLen - lenSamples * 2) + jitter;
+      startIdx = this.writeIdx - back - lenSamples;
+      while (startIdx < 0) startIdx += this.bufLen;
+      while (startIdx >= this.bufLen) startIdx -= this.bufLen;
+    }
 
     g.active = true;
     g.pos = startIdx;
@@ -706,6 +764,9 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     const panSpread   = parameters.panSpread[0];
     const position    = parameters.position[0];
     const mix         = parameters.mix[0];
+    const pitchMode   = parameters.pitchMode[0];
+    const envelope    = parameters.envelope[0];
+    const spawnMode   = parameters.spawnMode[0];
 
     const inL = input && input[0] ? input[0] : null;
     const inR = input && input[1] ? input[1] : inL;
@@ -727,7 +788,7 @@ class FxGranularProcessor extends AudioWorkletProcessor {
       this.sinceLastGrain += invSr;
       if (this.sinceLastGrain >= grainInterval) {
         this.sinceLastGrain -= grainInterval;
-        this.spawnGrain(size, pitchSpread, panSpread, position);
+        this.spawnGrain(size, pitchSpread, panSpread, position, pitchMode, spawnMode);
       }
 
       // Accumulate active grain output + per-channel envelope sums.
@@ -747,14 +808,22 @@ class FxGranularProcessor extends AudioWorkletProcessor {
           g.active = false;
           continue;
         }
-        // Trapezoid envelope: 10% fade-in, 80% plateau, 10% fade-out.
-        // Flat-top plateau gives a longer period of near-unity
-        // contribution per grain, which combined with per-sample
-        // envelope-sum normalisation produces a smooth cloud.
-        const fadeIn = 0.1, fadeOut = 0.9;
-        const env = phase < fadeIn ? phase / fadeIn
-                  : phase > fadeOut ? (1 - phase) / (1 - fadeOut)
-                  : 1;
+        // Envelope shape — switched by the `envelope` param:
+        //   0: trapezoid 10/80/10 (smooth cloud, good for drone)
+        //   1: falling-exponential (short 2 % fade-in then exp decay
+        //      — the percussive attack that makes classic granular
+        //      stutter-clouds sound like grains, not like a pad).
+        let env;
+        if (envelope > 0.5) {
+          env = phase < 0.02
+              ? phase / 0.02
+              : Math.exp(-(phase - 0.02) * 6);
+        } else {
+          const fadeIn = 0.1, fadeOut = 0.9;
+          env = phase < fadeIn ? phase / fadeIn
+              : phase > fadeOut ? (1 - phase) / (1 - fadeOut)
+              : 1;
+        }
 
         // Read sample at g.pos with linear interpolation
         const idx = g.pos;

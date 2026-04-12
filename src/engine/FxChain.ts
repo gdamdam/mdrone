@@ -121,8 +121,8 @@ const ON_LEVELS: Record<EffectId, number> = {
   shimmer: 0.95,
   freeze: 1.0,
   cistern: 1.0,
-  granular: 0.3,
-  graincloud: 0.3,
+  granular: 0.8,
+  graincloud: 0.8,
   ringmod: 0.7,
   formant: 1.0,
 };
@@ -704,6 +704,17 @@ export class FxChain {
     this.grainCloudWorklet.parameters.get("panSpread")!.setValueAtTime(0.85, t0);
     this.grainCloudWorklet.parameters.get("position")!.setValueAtTime(0.25, t0);
     this.grainCloudWorklet.parameters.get("mix")!.setValueAtTime(1, t0);
+    // Snap grain pitches to the drone scale so the cloud stays tonal
+    // instead of woobling between random continuous offsets.
+    this.grainCloudWorklet.parameters.get("pitchMode")!.setValueAtTime(1, t0);
+    // Falling-exponential grain envelope — percussive attack + exp
+    // decay — turns the smooth trapezoid grain edges into the
+    // audible "stutter" that defines classic granular.
+    this.grainCloudWorklet.parameters.get("envelope")!.setValueAtTime(1, t0);
+    // Ordered spawn: grains read consecutive buffer chunks so the
+    // cloud plays as a stretched replay of the drone rather than
+    // scattering random positions.
+    this.grainCloudWorklet.parameters.get("spawnMode")!.setValueAtTime(1, t0);
     const grainCloudIns = this.inserts.graincloud;
     grainCloudIns.insertIn
       .connect(this.grainCloudWorklet)
@@ -838,6 +849,22 @@ export class FxChain {
       return base * this.airAmount;
     }
     return base;
+  }
+
+  /** Push the drone's current interval stack (in cents) to both
+   *  granular worklets. Grains in quantised-pitch mode will snap to
+   *  values from this list instead of picking random continuous
+   *  offsets. Called by AudioEngine whenever the interval stack or
+   *  root changes so the grain cloud stays tonal with the scene. */
+  setGranularScale(cents: readonly number[]): void {
+    if (cents.length === 0) return;
+    const payload = { type: "setScale", cents: Array.from(cents) };
+    if (this.granularWorklet) {
+      try { this.granularWorklet.port.postMessage(payload); } catch { /* noop */ }
+    }
+    if (this.grainCloudWorklet) {
+      try { this.grainCloudWorklet.port.postMessage(payload); } catch { /* noop */ }
+    }
   }
 
   /** AIR macro — reverb-family wet multiplier (plate / hall / shimmer). */

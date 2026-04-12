@@ -125,7 +125,7 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
       return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.6} />;
     case "granular":
     case "graincloud":
-      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.3} />;
+      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.8} />;
     case "ringmod":
       return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.5} />;
     case "formant":
