@@ -133,6 +133,11 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.ksBodyBandL = 0;
     this.ksBodyLowR = 0;
     this.ksBodyBandR = 0;
+    // Presence shelf — one-pole lowpass, then (in - lp) mixed back.
+    // Gives ~+2 dB boost above ~3 kHz so the jawari sizzle stays
+    // audible after the body resonator adds mid-low weight.
+    this.hsKsL = 0;
+    this.hsKsR = 0;
   }
 
   tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
@@ -206,8 +211,18 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       this.ksBodyBandR += this.ksBodyF * bodyHighR;
       this.ksBodyLowR += this.ksBodyF * this.ksBodyBandR;
 
-      L[i] = (y + this.ksBodyBandL * 0.12) * amp;
-      R[i] = (yR + this.ksBodyBandR * 0.12) * amp;
+      // Presence shelf — compensate the body resonator's mid-low
+      // tilt so the jawari highs don't feel dulled by comparison.
+      // One-pole LP + (dry − LP) × 0.3 ≈ +2.3 dB shelf above ~3 kHz.
+      let postL = y + this.ksBodyBandL * 0.12;
+      let postR = yR + this.ksBodyBandR * 0.12;
+      this.hsKsL = this.hsKsL * 0.6 + postL * 0.4;
+      this.hsKsR = this.hsKsR * 0.6 + postR * 0.4;
+      postL += (postL - this.hsKsL) * 0.3;
+      postR += (postR - this.hsKsR) * 0.3;
+
+      L[i] = postL * amp;
+      R[i] = postR * amp;
     }
   }
 
@@ -275,7 +290,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.bellowsPhase = 0;
     this.bellowsRate = 0.22 + this.rng() * 0.08;
 
-    // Formant layer — static bandpass peaks that give the additive
+    // Formant layer — wide bandpass peaks that give the additive
     // harmonic stack a "body". Without this the reed reads as "7
     // sines + LFO"; with it, it reads as sines *through* a physical
     // resonator. Shape picks the formant set:
@@ -283,13 +298,15 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     //   even     — bowed string: classic cello/viola body
     //   balanced — pipe organ / vocal "ahh" formant
     //   sine     — none (pure fundamental bypasses formants)
-    // Each entry: [centerHz, Q, mixGain]. Gains are small because
-    // the SVF bandpass output at resonance is Q× the input, so
-    // 0.08 × 4 ≈ +10 dB at the formant frequency — natural body.
+    // Each entry: [centerHz, Q, mixGain]. Q is deliberately low
+    // (1.5) — narrow resonant Q would ring for ~13 ms and breathe
+    // audibly with the bellows LFO at ~0.25 Hz, producing a rhythmic
+    // "frrr frrr" artifact (we tested this at Q=3-4 and backed off).
+    // Wide Q reads as instrument body, not as a resonator.
     const FORMANTS = {
-      odd:      [[500, 4, 0.09], [1200, 3, 0.07], [2500, 3, 0.05]],
-      even:     [[300, 3, 0.09], [700, 4, 0.08], [1400, 4, 0.05]],
-      balanced: [[400, 3, 0.09], [900, 3, 0.08], [1800, 3, 0.05]],
+      odd:      [[500, 1.2, 0.06], [1200, 1.2, 0.04], [2500, 1.2, 0.025]],
+      even:     [[300, 1.2, 0.07], [700, 1.2, 0.055], [1400, 1.2, 0.035]],
+      balanced: [[400, 1.2, 0.065], [900, 1.2, 0.05], [1800, 1.2, 0.03]],
       sine:     [],
     };
     const formants = FORMANTS[this.reedShape] || FORMANTS.odd;
@@ -309,6 +326,13 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       this.reedFormDamp[i] = 1 / q;
       this.reedFormGain[i] = g;
     }
+    // Presence shelf state — one-pole LP that we subtract from the
+    // signal to synthesise a +2.3 dB high shelf above ~3 kHz. The
+    // formant bank adds 300-1800 Hz body energy, which without this
+    // compensation perceptually dulls the reed highs after master
+    // limiting. Matches the technique used in airProcess().
+    this.hsReedL = 0;
+    this.hsReedR = 0;
   }
 
   reedProcess(L, R, n, freq, drift, amp) {
@@ -344,15 +368,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         l += Math.sin(this.reedPhasesL[p]) * amp_p * pan;
         r += Math.sin(this.reedPhasesR[p]) * amp_p * panR;
       }
-      // Output scaling + subtle source-level tanh saturation for reed bite
+      // Scale the raw additive stack before the formant bank —
+      // the SVFs need a predictable input range, and feeding them
+      // the clean pre-tanh stack produces a calm body resonance
+      // rather than re-filtering the tanh-generated harmonics.
       l *= 0.22;
       r *= 0.22;
-      l = Math.tanh(l * 1.6) * 0.7;
-      r = Math.tanh(r * 1.6) * 0.7;
 
       // Formant bank — parallel bandpass peaks add body resonance.
-      // Each SVF advances one sample; its band output is mixed in
-      // with a static gain. See initReed() for shape→formant table.
+      // Each SVF advances one sample on the *clean* scaled stack;
+      // its band output is summed into the dry. See initReed() for
+      // the shape→formant table and the Q rationale.
       let formL = 0, formR = 0;
       for (let f = 0; f < this.reedFormN; f++) {
         const fc = this.reedFormF[f];
@@ -369,6 +395,24 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       }
       l += formL;
       r += formR;
+
+      // Source-level tanh saturation — now applied *after* the
+      // formant sum so it acts as the natural amplitude limiter
+      // on the combined (partial stack + body) signal. This is
+      // both physically more correct (the instrument body colours
+      // then the reed bites) and prevents formant state from
+      // bleeding unbounded peaks into downstream effects.
+      l = Math.tanh(l * 1.6) * 0.7;
+      r = Math.tanh(r * 1.6) * 0.7;
+
+      // Presence shelf — one-pole LP subtracted back at 0.3 gain
+      // gives ~+2.3 dB shelf above ~3 kHz. Compensates the body
+      // energy the formant bank added so the voice doesn't feel
+      // dulled after master-bus limiting.
+      this.hsReedL = this.hsReedL * 0.6 + l * 0.4;
+      this.hsReedR = this.hsReedR * 0.6 + r * 0.4;
+      l += (l - this.hsReedL) * 0.3;
+      r += (r - this.hsReedR) * 0.3;
 
       L[i] = l * amp;
       R[i] = r * amp;
@@ -467,13 +511,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // AIR — pink noise through 3 modulated state-variable resonators
   // ═══════════════════════════════════════════════════════════════════
   initAir() {
-    // 5 resonators (was 3) at semi-inharmonic ratios so the air
-    // voice reads as "rustling wind with pitched energy" instead of
-    // the strictly-harmonic whistle the old 1/2/3 ratios produced.
-    this.airN = 5;
-    this.airRatios = new Float32Array([1.0, 1.48, 2.07, 2.93, 4.16]);
-    this.airAmps   = new Float32Array([0.48, 0.32, 0.24, 0.18, 0.12]);
-    this.airPans   = new Float32Array([0.0, -0.3, 0.28, -0.15, 0.18]);
+    // 3 resonators at semi-inharmonic ratios — keeps the air voice
+    // light and airy rather than pitched. The earlier bump to 5
+    // bands reintroduced too much bass/mid energy (sum of bands ≈
+    // 1.34 vs the old 1.01) which, combined with the ×1.4 final
+    // multiplier, pushed the voice from "breath" into "pitched
+    // body". Semi-inharmonic ratios avoid the strictly-harmonic
+    // whistle the old 1/2/3 produced without adding energy.
+    this.airN = 3;
+    this.airRatios = new Float32Array([1.0, 2.07, 3.11]);
+    this.airAmps   = new Float32Array([0.55, 0.30, 0.16]);
+    this.airPans   = new Float32Array([0.0, -0.25, 0.25]);
     // Two-pole state-variable bandpass state per resonator (L + R independent)
     // state: [lowL, bandL, lowR, bandR]
     this.airStates = [];

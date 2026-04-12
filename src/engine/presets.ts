@@ -501,8 +501,8 @@ export const PRESETS: Preset[] = [
   {
     id: "sotl-tired-eyes", group: "Ambient / Cinematic",
     name: "Tired Eyes",
-    attribution: "Requiem for dying mothers · pedal + lifting fifth · tape body",
-    hint: "The heaviest SOTL texture: a low pedal tone with a bowed-string reed (even harmonics) over an amp bed and a whisper of air. Tape + wow + plate + hall for the looped-strings-through-a-tape-loop body of 'Requiem for Dying Mothers' and the slowest moments of The Tired Sounds Of…. Near-zero drift, long glide, long bloom — the record's exhale.",
+    attribution: "Requiem · pedal + lifting fifth · tape body",
+    hint: "The heaviest SOTL texture: a low pedal tone with a bowed-string reed (even harmonics) over an amp bed and a whisper of air. Tape + wow + plate + hall for the looped-strings-through-a-tape-loop body of 'Requiem' and the slowest moments of The Tired Sounds Of…. Near-zero drift, long glide, long bloom — the record's exhale.",
     tuningId: "just5", relationId: "tonic-fifth",
     voiceLayers: ["reed", "amp", "air"],
     voiceLevels: { reed: 1, amp: 0.5, air: 0.24 },
