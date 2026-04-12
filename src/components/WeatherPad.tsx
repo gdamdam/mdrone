@@ -170,7 +170,7 @@ export function WeatherPad({
             y: Math.random() * h,
             life: 0,
             maxLife: 60 + Math.random() * 80,
-            size: 1 + Math.random() * 1.5 + rms * 0.5,
+            size: 1.5 + Math.random() * 2 + rms,
           });
         }
 
@@ -197,7 +197,7 @@ export function WeatherPad({
           const g = Math.round(110 + warmth * 30);
           const b = Math.round(50 + (1 - warmth) * 50);
 
-          ctx.globalAlpha = alpha * rms * 0.35;
+          ctx.globalAlpha = alpha * (0.15 + rms * 0.45);
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fillStyle = `rgb(${r},${g},${b})`;
