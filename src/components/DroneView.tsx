@@ -267,6 +267,18 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // 0.25 is an audible but coherent default for typical drones.
   const [mutateIntensity, setMutateIntensity] = useState(0.25);
 
+  // WEATHER intro emphasis — true only on first fresh mount (no
+  // prior autosave). Dismisses on first WEATHER interaction or 5s
+  // timeout. One-shot: once false, stays false for the session.
+  const [weatherIntro, setWeatherIntro] = useState(() => {
+    try { return !localStorage.getItem("mdrone-autosave"); } catch { return true; }
+  });
+  useEffect(() => {
+    if (!weatherIntro) return;
+    const timer = window.setTimeout(() => setWeatherIntro(false), 5000);
+    return () => clearTimeout(timer);
+  }, [weatherIntro]);
+
   // Auto-open the DETUNE disclosure once when fine-tune offsets
   // become non-zero (e.g. when loading a preset or share URL with
   // authored detune). Only opens — never auto-closes — so a user
@@ -396,6 +408,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     draggingRef.current = true;
+    setWeatherIntro(false);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ok */ }
     updateXy(e.clientX, e.clientY);
   }, [updateXy]);
@@ -481,8 +494,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <div className="weather-macro-row">
           <div className="weather-section">
             <div className="weather-header">
-              <span className="weather-title weather-title-intro">WEATHER</span>
-              <span className="weather-hint weather-hint-intro">drag to change the room</span>
+              <span className={`weather-title${weatherIntro ? " weather-title-intro" : ""}`}>WEATHER</span>
+              <span className={`weather-hint${weatherIntro ? " weather-hint-intro" : ""}`}>drag to change the room</span>
             </div>
             <div
               ref={xyRef}

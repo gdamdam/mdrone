@@ -2147,21 +2147,20 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   letter-spacing: 0.5px;
 }
 
-/* One-time intro glow — draws attention to WEATHER on first mount */
+/* One-time intro glow — draws attention to WEATHER on fresh start.
+   Class is added conditionally and removed on interaction or timeout. */
 .weather-title-intro {
-  animation: weather-glow 3s ease-out 1s both;
+  color: var(--preview);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--preview) 50%, transparent);
+  animation: weather-glow-pulse 1.5s ease-in-out infinite alternate;
 }
 .weather-hint-intro {
-  animation: weather-hint-fade 3s ease-out 1s both;
+  color: var(--preview);
 }
 
-@keyframes weather-glow {
-  0%   { color: var(--preview); text-shadow: 0 0 12px color-mix(in srgb, var(--preview) 50%, transparent); }
-  100% { color: var(--text); text-shadow: none; }
-}
-@keyframes weather-hint-fade {
-  0%   { color: var(--preview); opacity: 1; }
-  100% { color: var(--text-dim); opacity: 1; }
+@keyframes weather-glow-pulse {
+  0%   { text-shadow: 0 0 10px color-mix(in srgb, var(--preview) 35%, transparent); }
+  100% { text-shadow: 0 0 18px color-mix(in srgb, var(--preview) 60%, transparent); }
 }
 
 /* Weather pad — square-ish to fill the left column */
