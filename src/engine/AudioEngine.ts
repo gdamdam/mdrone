@@ -47,6 +47,7 @@ export class AudioEngine {
     this.presetTrim.gain.value = 1;
 
     this.voiceEngine = new VoiceEngine(this.ctx, this.fxChain, this.wetSend);
+    this.fxChain.onShimmerMixChange = () => this.voiceEngine.updateShimmerGain();
     this.voiceEngine.getFilterOutput().connect(this.presetTrim);
     this.voiceEngine.getShimmerOutput().connect(this.presetTrim);
     this.presetTrim.connect(this.fxChain.input);

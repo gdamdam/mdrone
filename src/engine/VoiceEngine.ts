@@ -417,6 +417,12 @@ export class VoiceEngine {
     this.shimmerVoiceGain.gain.setTargetAtTime(on ? this.effectiveShimmerGain() : 0, this.ctx.currentTime, 0.15);
   }
 
+  /** Re-apply shimmer osc gain when the FxModal MIX slider moves. */
+  updateShimmerGain(): void {
+    if (!this.droneOn || !this.fxChain.isEffect("shimmer")) return;
+    this.shimmerVoiceGain.gain.setTargetAtTime(this.effectiveShimmerGain(), this.ctx.currentTime, 0.1);
+  }
+
   private get MACRO_TC(): number {
     return this.baseMacroTC * (0.3 + this.morphAmount * 5.7);
   }
@@ -632,7 +638,7 @@ export class VoiceEngine {
   }
 
   private effectiveShimmerGain(): number {
-    return 0.25 * this.materialShimmerFactor;
+    return 0.12 * this.materialShimmerFactor * this.fxChain.shimmerMixValue;
   }
 
   private applyLayerGainTargets(): void {
