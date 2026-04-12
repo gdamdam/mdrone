@@ -117,6 +117,10 @@ export function WeatherPad({
     let raf = 0;
     let spawnAccum = 0;
 
+    // Clear state on visual mode switch
+    particlesRef.current = [];
+    trailRef.current = [];
+
     const resize = () => {
       const rect = container.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
