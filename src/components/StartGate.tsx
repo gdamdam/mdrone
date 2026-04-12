@@ -132,7 +132,6 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
           <span className="start-gate-pill">Instant sound</span>
           <span className="start-gate-pill">Saved sessions</span>
           <span className="start-gate-pill">Free + open source</span>
-          <span className="start-gate-pill">Local only</span>
         </div>
 
         <div className="start-gate-meta">
