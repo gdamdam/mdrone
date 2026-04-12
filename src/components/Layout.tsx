@@ -203,6 +203,18 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     // If the user disables it while a recording is in progress, stop it.
     if (!on && sceneManager.isRecordingMotion) sceneManager.handleToggleMotionRecord();
   }, [sceneManager]);
+  // Global keyboard shortcuts (always active)
+  useEffect(() => {
+    const globalHandler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.key === "<") { e.preventDefault(); sceneManager.handleCyclePresetAll(-1); return; }
+      if (e.key === ">") { e.preventDefault(); sceneManager.handleCyclePresetAll(1); return; }
+    };
+    window.addEventListener("keydown", globalHandler);
+    return () => window.removeEventListener("keydown", globalHandler);
+  }, [sceneManager]);
+
+  // QWERTY tonic keyboard (only when ⌨ enabled)
   useEffect(() => {
     if (!kbdActive) return;
     const QWERTY: Record<string, PitchClass> = {
@@ -212,9 +224,6 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      // < = prev preset, > = next preset (Shift+, and Shift+.)
-      if (e.key === "<") { e.preventDefault(); sceneManager.handleCyclePresetInGroup(-1); return; }
-      if (e.key === ">") { e.preventDefault(); sceneManager.handleCyclePresetInGroup(1); return; }
       if (e.metaKey || e.ctrlKey) return;
       const pc = QWERTY[e.code];
       if (pc) {
@@ -232,7 +241,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [kbdActive, headerOctave, sceneManager]);
+  }, [kbdActive, headerOctave]);
 
   const handleToggleHold = () => {
     droneViewRef.current?.togglePlay();
