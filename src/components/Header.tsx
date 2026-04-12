@@ -475,7 +475,7 @@ export function Header({
               <div className="fx-modal-divider" />
               <div className="fx-modal-section-label">WEATHER VISUAL</div>
               <div className="share-style-row" role="radiogroup" aria-label="Weather visual style">
-                {(["flow", "minimal"] as const).map((v) => (
+                {(["flow", "waveform", "spectrum", "minimal"] as const).map((v) => (
                   <button
                     key={v}
                     type="button"
@@ -484,7 +484,7 @@ export function Header({
                     className={weatherVisual === v ? "share-style-btn share-style-btn-active" : "share-style-btn"}
                     onClick={() => onChangeWeatherVisual(v)}
                   >
-                    {v === "flow" ? "FLOW FIELD" : "MINIMAL"}
+                    {v === "flow" ? "FLOW FIELD" : v === "waveform" ? "WAVEFORM" : v === "spectrum" ? "SPECTRUM" : "MINIMAL"}
                   </button>
                 ))}
               </div>

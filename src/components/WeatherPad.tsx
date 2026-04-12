@@ -14,7 +14,7 @@ interface WeatherPadProps {
   intro: boolean;
   onDismissIntro: () => void;
   analyser: AnalyserNode | null;
-  visual?: "flow" | "minimal";
+  visual?: "flow" | "waveform" | "spectrum" | "minimal";
 }
 
 interface Particle {
@@ -92,6 +92,7 @@ export function WeatherPad({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const timeBuf = analyser ? new Uint8Array(analyser.fftSize) : null;
+    const freqBuf = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
     let raf = 0;
     let spawnAccum = 0;
 
@@ -186,6 +187,81 @@ export function WeatherPad({
           ctx.fillStyle = `rgb(${r},${g},${b})`;
           ctx.fill();
         }
+      }
+
+      // ── Waveform — circular oscilloscope around cursor ──────
+      if (vis === "waveform" && analyser && timeBuf) {
+        const cursorPx = cx * w;
+        const cursorPy = (1 - cy) * h;
+        const baseR = 30 + rms * 40 + cy * 30; // ring radius responds to Y + volume
+        const samples = timeBuf.length;
+        const step = Math.max(1, Math.floor(samples / 128)); // ~128 points around the ring
+
+        ctx.beginPath();
+        for (let i = 0; i < 128; i++) {
+          const si = i * step;
+          const v = (timeBuf[si] - 128) / 128; // -1..1
+          const angle = (i / 128) * Math.PI * 2 - Math.PI / 2;
+          const r = baseR + v * 25 * (1 + rms);
+          const px = cursorPx + Math.cos(angle) * r;
+          const py = cursorPy + Math.sin(angle) * r;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        const lum = Math.round(160 + cx * 80);
+        ctx.strokeStyle = `rgba(${lum},${lum},${lum},${(0.4 + rms * 0.4).toFixed(3)})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Inner steady ring
+        ctx.beginPath();
+        ctx.arc(cursorPx, cursorPy, baseR * 0.3, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,255,255,${(0.15 + rms * 0.2).toFixed(3)})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
+
+      // ── Spectrum — radial FFT spokes from cursor ────────────
+      if (vis === "spectrum" && analyser && freqBuf) {
+        analyser.getByteFrequencyData(freqBuf);
+        const cursorPx = cx * w;
+        const cursorPy = (1 - cy) * h;
+        const bins = Math.min(64, freqBuf.length);
+        const innerR = 15 + cy * 15;
+        const maxLen = 40 + rms * 60;
+
+        for (let i = 0; i < bins; i++) {
+          const energy = freqBuf[i] / 255;
+          if (energy < 0.03) continue;
+          const angle = (i / bins) * Math.PI * 2 - Math.PI / 2;
+          const outerR = innerR + energy * maxLen;
+          const x1 = cursorPx + Math.cos(angle) * innerR;
+          const y1 = cursorPy + Math.sin(angle) * innerR;
+          const x2 = cursorPx + Math.cos(angle) * outerR;
+          const y2 = cursorPy + Math.sin(angle) * outerR;
+          const lum = Math.round(120 + energy * 135);
+          ctx.strokeStyle = `rgba(${lum},${lum},${lum},${(0.2 + energy * 0.6).toFixed(3)})`;
+          ctx.lineWidth = 1 + energy * 2.5;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+
+          // Dot at tip of active spokes
+          if (energy > 0.3) {
+            ctx.beginPath();
+            ctx.arc(x2, y2, 1.5 + energy * 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,255,255,${(energy * 0.6).toFixed(3)})`;
+            ctx.fill();
+          }
+        }
+
+        // Inner ring
+        ctx.beginPath();
+        ctx.arc(cursorPx, cursorPy, innerR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,255,255,${(0.2 + rms * 0.3).toFixed(3)})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
       }
 
       // ── Cursor trail dots ───────────────────────────────────
