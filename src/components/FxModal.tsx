@@ -131,7 +131,7 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
     case "ringmod":
       return <RingmodParams engine={engine} fx={fx} />;
     case "formant":
-      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.6} />;
+      return <FormantParams engine={engine} fx={fx} />;
     case "tape":
     case "wow":
       return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.7} />;
@@ -312,6 +312,41 @@ function GranularParams({ engine, fx, kind }: { engine: AudioEngine | null; fx: 
       <ParamSlider label="PITCH" value={pitch} min={0} max={1} step={0.01} unit=""
         onChange={(v) => { setPitch(v); setP(v); }} />
       <AmountOnly engine={engine} effectId={kind} fx={fx} defaultValue={isCloud ? 0.8 : 0.8} />
+    </>
+  );
+}
+
+const VOWEL_LABELS = ["AH", "EE", "OH", "OO", "EH"];
+
+function FormantParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+  const [vowel, setVowel] = useState(() => fx?.getFormantVowel() ?? 0);
+  const [shift, setShift] = useState(() => fx?.getFormantShift() ?? 1);
+  return (
+    <>
+      <div className="fx-param-row">
+        <span className="fx-param-label">VOWEL</span>
+        <div className="fx-vowel-row">
+          {VOWEL_LABELS.map((label, i) => (
+            <button
+              key={label}
+              className={`fx-vowel-btn${vowel === i ? " fx-vowel-btn-active" : ""}`}
+              onClick={() => { setVowel(i); fx?.setFormantVowel(i); }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <ParamSlider
+        label="SHIFT"
+        value={shift}
+        min={0.5}
+        max={2}
+        step={0.01}
+        unit="x"
+        onChange={(v) => { setShift(v); fx?.setFormantShift(v); }}
+      />
+      <AmountOnly engine={engine} effectId="formant" fx={fx} defaultValue={0.6} />
     </>
   );
 }

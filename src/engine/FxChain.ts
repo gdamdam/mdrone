@@ -163,6 +163,7 @@ export class FxChain {
   private freezeWorklet: AudioWorkletNode | null = null;
   private granularWorklet: AudioWorkletNode | null = null;
   private ringmodOsc: OscillatorNode | null = null;
+  private formantFilters: BiquadFilterNode[] = [];
   // Second fx-granular instance, initialised with classic-granular
   // defaults (short grains, high density, deeper pitch spread) so the
   // recognisable "chopped cloud" texture is reachable without
@@ -304,12 +305,14 @@ export class FxChain {
       { freq: 1220, Q: 4.5 },
       { freq: 2600, Q: 4   },
     ];
+    this.formantFilters = [];
     for (const f of formants) {
       const bp = ctx.createBiquadFilter();
       bp.type = "bandpass";
       bp.frequency.value = f.freq;
       bp.Q.value = f.Q;
       ins.insertIn.connect(bp).connect(formantGain);
+      this.formantFilters.push(bp);
     }
     formantGain.connect(ins.wetGain);
     ins.wetGain.connect(ins.insertOut);
@@ -958,6 +961,39 @@ export class FxChain {
     }
   }
   getRingmodFreq(): number { return this.ringmodOsc?.frequency.value ?? 80; }
+
+  // FORMANT — vowel presets + shift
+  private static readonly VOWELS: [number, number, number][] = [
+    [700, 1220, 2600],   // ah (default)
+    [270, 2300, 3000],   // ee
+    [400, 800, 2600],    // oh
+    [300, 870, 2250],    // oo
+    [530, 1850, 2500],   // eh
+  ];
+  private formantVowelIdx = 0;
+  private formantShift = 1;
+
+  setFormantVowel(idx: number): void {
+    this.formantVowelIdx = Math.max(0, Math.min(FxChain.VOWELS.length - 1, Math.round(idx)));
+    this.applyFormantFreqs();
+  }
+  getFormantVowel(): number { return this.formantVowelIdx; }
+
+  setFormantShift(v: number): void {
+    this.formantShift = Math.max(0.5, Math.min(2, v));
+    this.applyFormantFreqs();
+  }
+  getFormantShift(): number { return this.formantShift; }
+
+  private applyFormantFreqs(): void {
+    const vowel = FxChain.VOWELS[this.formantVowelIdx];
+    const now = this.ctx.currentTime;
+    for (let i = 0; i < this.formantFilters.length && i < vowel.length; i++) {
+      this.formantFilters[i].frequency.setTargetAtTime(
+        vowel[i] * this.formantShift, now, 0.05,
+      );
+    }
+  }
 
   // GRANULAR — worklet AudioParams
   setGranularSize(v: number): void {
