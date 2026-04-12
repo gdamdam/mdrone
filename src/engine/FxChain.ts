@@ -922,18 +922,10 @@ export class FxChain {
     const clamped = Math.max(0, Math.min(1, v));
     this.shimmerWorklet?.parameters.get("mix")
       ?.setTargetAtTime(clamped, this.ctx.currentTime, 0.1);
-    // Also scale the shimmer voice oscillators (sawtooth pair at +1 oct)
-    // so MIX=0 silences both the worklet AND the oscillators.
-    this.shimmerMixValue = clamped;
-    this.onShimmerMixChange?.();
   }
   getShimmerMix(): number {
-    return this.shimmerMixValue ?? (this.shimmerWorklet?.parameters.get("mix")?.value ?? 0.5);
+    return this.shimmerWorklet?.parameters.get("mix")?.value ?? 0.5;
   }
-  /** Current shimmer mix — read by VoiceEngine to scale the osc pair. */
-  shimmerMixValue = 0.5;
-  /** Callback to notify VoiceEngine when shimmer mix changes. */
-  onShimmerMixChange: (() => void) | null = null;
 
   // SUB
   /** Manual override of the sub oscillator frequency. Will be

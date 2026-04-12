@@ -33,7 +33,6 @@ export class VoiceEngine {
   private droneIntervalsCents: number[] = [0];
   private droneRootFreq = 220;
   private subOscs: { a: OscillatorNode; b: OscillatorNode } | null = null;
-  private shimmerOscs: { a: OscillatorNode; b: OscillatorNode } | null = null;
   private droneOn = false;
   private drift = 0.3;
   private subAmount = 0;
@@ -67,7 +66,6 @@ export class VoiceEngine {
   };
   private materialPluckFactor = 1;
   private materialSubFactor = 1;
-  private materialShimmerFactor = 1;
 
   constructor(ctx: AudioContext, fxChain: FxChain, wetSend: GainNode) {
     this.ctx = ctx;
@@ -133,8 +131,6 @@ export class VoiceEngine {
     }
 
     this.subOscs = this.buildSubPair(freq * 0.5, now);
-    this.shimmerOscs = this.buildShimmerPair(freq * 2, now);
-
     const attack = this.bloomAttackTime();
     const stackTarget = this.voiceStackGain();
     this.droneVoiceGain.gain.cancelScheduledValues(now);
@@ -145,11 +141,6 @@ export class VoiceEngine {
     this.subVoiceGain.gain.setValueAtTime(0, now);
     this.subVoiceGain.gain.linearRampToValueAtTime(this.effectiveSubGain(), now + attack);
 
-    this.shimmerVoiceGain.gain.cancelScheduledValues(now);
-    this.shimmerVoiceGain.gain.setValueAtTime(0, now);
-    if (this.fxChain.isEffect("shimmer")) {
-      this.shimmerVoiceGain.gain.linearRampToValueAtTime(this.effectiveShimmerGain(), now + attack);
-    }
 
     this.droneOn = true;
     this.updateMaterialMotion();
@@ -160,7 +151,7 @@ export class VoiceEngine {
     const now = this.ctx.currentTime;
     const release = 0.6;
 
-    for (const gain of [this.droneVoiceGain, this.subVoiceGain, this.shimmerVoiceGain]) {
+    for (const gain of [this.droneVoiceGain, this.subVoiceGain]) {
       gain.gain.cancelScheduledValues(now);
       gain.gain.setValueAtTime(gain.gain.value, now);
       gain.gain.linearRampToValueAtTime(0, now + release);
@@ -182,9 +173,7 @@ export class VoiceEngine {
     this.droneVoicesByLayer.clear();
 
     const sub = this.subOscs;
-    const shimmer = this.shimmerOscs;
     this.subOscs = null;
-    this.shimmerOscs = null;
 
     if (this.stopDroneTimeout != null) {
       clearTimeout(this.stopDroneTimeout);
@@ -195,10 +184,6 @@ export class VoiceEngine {
       if (sub) {
         try { sub.a.stop(); sub.a.disconnect(); } catch { /* ok */ }
         try { sub.b.stop(); sub.b.disconnect(); } catch { /* ok */ }
-      }
-      if (shimmer) {
-        try { shimmer.a.stop(); shimmer.a.disconnect(); } catch { /* ok */ }
-        try { shimmer.b.stop(); shimmer.b.disconnect(); } catch { /* ok */ }
       }
     }, (release + 0.1) * 1000);
 
@@ -221,7 +206,6 @@ export class VoiceEngine {
     }
 
     if (this.subOscs) this.glideOscPair(this.subOscs, freq * 0.5, now, glide);
-    if (this.shimmerOscs) this.glideOscPair(this.shimmerOscs, freq * 2, now, glide);
   }
 
   setIntervals(intervalsCents: number[]): void {
@@ -412,15 +396,9 @@ export class VoiceEngine {
 
   getFmIndex(): number { return this.fmIndex; }
 
-  setShimmerEnabled(on: boolean): void {
-    if (!this.droneOn) return;
-    this.shimmerVoiceGain.gain.setTargetAtTime(on ? this.effectiveShimmerGain() : 0, this.ctx.currentTime, 0.15);
-  }
-
-  /** Re-apply shimmer osc gain when the FxModal MIX slider moves. */
-  updateShimmerGain(): void {
-    if (!this.droneOn || !this.fxChain.isEffect("shimmer")) return;
-    this.shimmerVoiceGain.gain.setTargetAtTime(this.effectiveShimmerGain(), this.ctx.currentTime, 0.1);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  setShimmerEnabled(_on: boolean): void {
+    // Shimmer is now purely an FX worklet — no oscillator pair.
   }
 
   private get MACRO_TC(): number {
@@ -604,22 +582,6 @@ export class VoiceEngine {
     return { a, b };
   }
 
-  private buildShimmerPair(freq: number, startAt: number) {
-    const spread = this.drift * 25;
-    const a = this.ctx.createOscillator();
-    a.type = "sawtooth";
-    a.frequency.value = freq;
-    a.detune.value = -spread;
-    const b = this.ctx.createOscillator();
-    b.type = "sawtooth";
-    b.frequency.value = freq;
-    b.detune.value = spread;
-    a.connect(this.shimmerVoiceGain);
-    b.connect(this.shimmerVoiceGain);
-    a.start(startAt);
-    b.start(startAt);
-    return { a, b };
-  }
 
   private effectiveLayerLevel(type: VoiceType): number {
     return Math.max(0, Math.min(1, this.layerLevels[type] + this.materialLevelOffsets[type]));
@@ -637,9 +599,6 @@ export class VoiceEngine {
     return this.subAmount * 0.3 * this.materialSubFactor;
   }
 
-  private effectiveShimmerGain(): number {
-    return 0.12 * this.materialShimmerFactor * this.fxChain.shimmerMixValue;
-  }
 
   private applyLayerGainTargets(): void {
     const now = this.ctx.currentTime;
@@ -663,7 +622,6 @@ export class VoiceEngine {
       pair.b.detune.setTargetAtTime(spread, now, 0.05);
     };
     if (this.subOscs) apply(this.subOscs);
-    if (this.shimmerOscs) apply(this.shimmerOscs);
   }
 
   private applyPluckTargets(): void {
@@ -677,9 +635,6 @@ export class VoiceEngine {
     const now = this.ctx.currentTime;
     if (!this.droneOn) return;
     this.subVoiceGain.gain.setTargetAtTime(this.effectiveSubGain(), now, 0.22);
-    if (this.fxChain.isEffect("shimmer")) {
-      this.shimmerVoiceGain.gain.setTargetAtTime(this.effectiveShimmerGain(), now, 0.22);
-    }
   }
 
   private averageDriftScale(): number {
@@ -740,8 +695,6 @@ export class VoiceEngine {
 
     this.materialSubFactor = 1 + Math.sin(this.materialStep * profile.wobbleRate * 0.52 + 1.1)
       * profile.subPulse * intensity;
-    this.materialShimmerFactor = 1 + Math.sin(this.materialStep * profile.wobbleRate * 0.94 + 2.1)
-      * profile.shimmerPulse * intensity;
   }
 
   private resetMaterialState(): void {
@@ -749,6 +702,5 @@ export class VoiceEngine {
     this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 };
     this.materialPluckFactor = 1;
     this.materialSubFactor = 1;
-    this.materialShimmerFactor = 1;
   }
 }
