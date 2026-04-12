@@ -533,46 +533,43 @@ export const PRESETS: Preset[] = [
   {
     id: "sotl-tired-eyes", group: "Ambient / Cinematic",
     name: "Tired Eyes",
-    attribution: "Requiem · pedal + lifting fifth · tape body",
-    hint: "The heaviest SOTL texture: a low pedal tone with a bowed-string reed (even harmonics) over an amp bed and a whisper of air. Tape + wow + plate + hall for the looped-strings-through-a-tape-loop body of 'Requiem' and the slowest moments of The Tired Sounds Of…. Near-zero drift, long glide, long bloom — the record's exhale.",
-    tuningId: "just5", relationId: "tonic-fifth",
-    voiceLayers: ["reed", "amp", "air"],
-    voiceLevels: { reed: 1, amp: 0.5, air: 0.24 },
+    attribution: "Requiem strings · glacial minor swells · cathedral",
+    hint: "Stars of the Lid's Requiem for Dying Mothers — layered bowed strings in minor, barely moving, cathedral-deep. PolyBLEP sawtooth reed (even shape) for dense string harmonics, thick air bed, no distortion. Tape wow for the looped-strings drift, plate + hall for the endless reverberant space. Funereal, slow, heavy with beauty.",
+    tuningId: "just5", relationId: "minor-triad",
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 1, air: 0.45 },
     reedShape: "even",
     octaveRange: [2, 3],
-    drift: 0.08,      // almost static — SOTL pedal tones don't waver
-    air: 0.72,        // reverb-saturated
-    time: 0.04,       // glacial
-    sub: 0.4,
-    bloom: 0.96,      // ~9 s rebuild fade
-    glide: 0.68,      // long pitch-shift time
+    drift: 0.06,      // near-static — the strings barely waver
+    air: 0.78,        // cathedral-saturated, the reverb IS the sound
+    time: 0.03,       // glacial filter movement
+    sub: 0.2,         // gentle low weight, not boomy
+    bloom: 0.98,      // ~10 s fade in — the strings emerge from nothing
+    glide: 0.75,      // very long pitch transitions
     lfoShape: "sine",
-    lfoRate: 0.025,   // ~40 s swell — slower exhale than Nitrous Oxide
-    lfoAmount: 0.12,  // subtle, the pedal stays present
-    climateX: 0.36,   // toward cold
-    climateY: 0.18,   // dim
-    // tape + wow give the looped-string tape-drift body; plate + hall
-    // carry the cathedral swell. No shimmer (wrong for SOTL).
+    lfoRate: 0.018,   // ~55 s swell — one breath per minute
+    lfoAmount: 0.14,  // the strings inhale and exhale slowly
+    climateX: 0.32,   // dark, cold
+    climateY: 0.12,   // very still
+    // tape + wow for looped-string drift body; plate + hall for the
+    // cathedral depth. No amp, no shimmer — SOTL is pure strings.
     effects: ["tape", "wow", "plate", "hall"],
-    // Heavier parallel hall than Nitrous Oxide — the pedal needs the
-    // wet tail to feel "tired" and endless without the dry being
-    // shoved back through every serial insert first.
-    parallelSends: { hall: 0.45 },
+    parallelSends: { hall: 0.5, plate: 0.25 },
     scale: "minor",
-    gain: 0.82,       // headroom for the pedal + swell peaks
+    gain: 0.8,
     motionProfile: motionProfile({
-      climateXRange: [0.3, 0.42],
-      climateYRange: [0.12, 0.24],
-      bloomRange: [0.88, 0.98],
-      timeRange: [0.02, 0.06],
-      driftRange: [0.05, 0.14],
-      subRange: [0.32, 0.48],
-      macroStep: 0.42,
+      climateXRange: [0.26, 0.38],
+      climateYRange: [0.08, 0.18],
+      bloomRange: [0.92, 0.99],
+      timeRange: [0.02, 0.05],
+      driftRange: [0.04, 0.1],
+      subRange: [0.15, 0.28],
+      macroStep: 0.35,
       tonicWalk: "none",
       tonicIntervals: [],
       tonicFloor: 1,
-      textureFloor: 0.78,
-      texturePeriod: 7,
+      textureFloor: 0.82,
+      texturePeriod: 8,
     }),
   },
   {
