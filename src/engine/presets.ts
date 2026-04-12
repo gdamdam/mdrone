@@ -1105,6 +1105,49 @@ export const PRESETS: Preset[] = [
     }),
   },
 
+  // ─── Andrew Liles — dark tape-warped drone (industrial facet) ───────
+  {
+    id: "liles-closed-doors", group: "Noise / Industrial",
+    name: "Closed Doors",
+    attribution: "Tape-warped reed + metal · deep chamber · unheimlich drift",
+    hint: "Andrew Liles's solo / Nurse With Wound-adjacent tape work — reed (odd, clarinet/shruti) + metal + air, heavily tape-warped with wow and granular cloud. Unlike nww-soliloquy (pure spectral), this stays tonal but deeply processed. Cistern + comb for the shruti-through-a-pipe resonance; chromatic tonic walk every so often for the Liles 'something is wrong' drift.",
+    tuningId: "just5", relationId: "tonic-fifth",
+    voiceLayers: ["reed", "metal", "air"],
+    voiceLevels: { reed: 1, metal: 0.32, air: 0.3 },
+    reedShape: "odd",
+    octaveRange: [2, 3],
+    drift: 0.38,       // tape warp + metal partial wander
+    air: 0.6,
+    time: 0.08,
+    sub: 0.36,
+    bloom: 0.86,
+    glide: 0.55,
+    lfoShape: "sine",
+    lfoRate: 0.05,     // ~20 s — unsettling rather than restful
+    lfoAmount: 0.14,
+    climateX: 0.32,    // cold
+    climateY: 0.24,    // dim
+    effects: ["tape", "wow", "comb", "cistern", "granular"],
+    parallelSends: { cistern: 0.35 },
+    scale: "minor",
+    gain: 0.86,
+    motionProfile: motionProfile({
+      climateXRange: [0.26, 0.4],
+      climateYRange: [0.18, 0.32],
+      bloomRange: [0.78, 0.92],
+      timeRange: [0.05, 0.14],
+      driftRange: [0.28, 0.48],
+      subRange: [0.26, 0.44],
+      macroStep: 0.62,
+      // chromatic sideways — the Liles half-step slide-to-wrong-place
+      tonicWalk: "rare",
+      tonicIntervals: [-1, 1],
+      tonicFloor: 0.52,
+      textureFloor: 0.6,
+      texturePeriod: 4,
+    }),
+  },
+
   // ─── Fennesz — processed granular harmonic stack ────────────────────
   {
     id: "fennesz-endless", group: "Ambient / Cinematic",
@@ -1357,6 +1400,99 @@ export const PRESETS: Preset[] = [
       tonicFloor: 0.58,
       textureFloor: 0.66,
       texturePeriod: 5,
+    }),
+  },
+
+  // ─── Marconi Union — clean modern ambient with slow descent ─────────
+  {
+    id: "marconi-weightless", group: "Ambient / Cinematic",
+    name: "Weightless",
+    attribution: "Clean pad + falling bass · piano pings · wide reverb",
+    hint: "Marconi Union's Weightless (2011) — designed with sound therapists around slow descending bass intervals and sustained high pads. Piano for the sparse high pings, balanced reed for the pad bed, air for breath. Plate + hall + light tape — clean and spacious, no wow, no grain. Gentle descending tonic walk recreates the track's falling bass motion under a long glide.",
+    tuningId: "just5", relationId: "drone-triad",
+    voiceLayers: ["piano", "reed", "air"],
+    voiceLevels: { piano: 0.72, reed: 1, air: 0.28 },
+    reedShape: "balanced",
+    octaveRange: [3, 4],
+    drift: 0.1,        // clean, not wobbly — MU production is pristine
+    air: 0.62,
+    time: 0.05,
+    sub: 0.3,
+    bloom: 0.88,
+    glide: 0.7,        // long — piano pings slide gracefully
+    lfoShape: "sine",
+    lfoRate: 0.02,     // ~50 s breath — Weightless is famously ~56 BPM slow
+    lfoAmount: 0.1,    // subtle, not a strong swell
+    climateX: 0.5,     // neutral
+    climateY: 0.32,    // slightly lifted — MU is brighter than SOTL
+    // No tape wow, no shimmer — MU recordings are clean. Light serial
+    // tape only for a touch of analog warmth, not grain.
+    effects: ["tape", "plate", "hall"],
+    // Heavier parallel hall so the piano attacks stay defined against
+    // a wide wet tail instead of being smeared through serial plate.
+    parallelSends: { hall: 0.42 },
+    scale: "minor",
+    gain: 0.9,
+    motionProfile: motionProfile({
+      climateXRange: [0.44, 0.56],
+      climateYRange: [0.26, 0.4],
+      bloomRange: [0.78, 0.94],
+      timeRange: [0.03, 0.08],
+      driftRange: [0.06, 0.16],
+      subRange: [0.22, 0.36],
+      macroStep: 0.48,
+      // Descending-favored fifths and fourths so the evolve loop
+      // recreates the track's gentle falling-bass motion.
+      tonicWalk: "gentle",
+      tonicIntervals: [-7, -5, -2],
+      tonicFloor: 0.5,
+      textureFloor: 0.66,
+      texturePeriod: 6,
+    }),
+  },
+
+  // ─── Andrew Liles — cinematic facet, quieter and more tonal ─────────
+  {
+    id: "liles-submariner", group: "Ambient / Cinematic",
+    name: "Dying Submariner",
+    attribution: "Tonal tape-treated drone · melancholic chamber",
+    hint: "The quieter Liles — tonal, slow, tape-treated but without the unheimlich chromatic drift. Even-harmonic reed (bowed strings) + air + a thread of piano, through tape + plate + hall + cistern. Parallel cistern carries the deep chamber. Think The Dying Submariner or the quieter moments of My Long Accumulating Discontent.",
+    tuningId: "just5", relationId: "drone-triad",
+    voiceLayers: ["reed", "air", "piano"],
+    voiceLevels: { reed: 1, air: 0.3, piano: 0.32 },
+    reedShape: "even",
+    octaveRange: [2, 3],
+    drift: 0.18,
+    air: 0.66,
+    time: 0.05,
+    sub: 0.36,
+    bloom: 0.92,
+    glide: 0.6,
+    lfoShape: "sine",
+    lfoRate: 0.028,    // ~35 s — melancholic, not restless
+    lfoAmount: 0.14,
+    climateX: 0.38,    // toward cold
+    climateY: 0.22,    // dim
+    // Tape for the treatment, plate + hall for the room, cistern for
+    // the deep-chamber distance Liles's cinematic records always have.
+    // No wow — this is the still, tonal facet, not the warped one.
+    effects: ["tape", "plate", "hall", "cistern"],
+    parallelSends: { cistern: 0.32, hall: 0.28 },
+    scale: "minor",
+    gain: 0.84,
+    motionProfile: motionProfile({
+      climateXRange: [0.32, 0.46],
+      climateYRange: [0.16, 0.3],
+      bloomRange: [0.82, 0.96],
+      timeRange: [0.03, 0.08],
+      driftRange: [0.12, 0.26],
+      subRange: [0.28, 0.44],
+      macroStep: 0.5,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5],
+      tonicFloor: 0.64,
+      textureFloor: 0.72,
+      texturePeriod: 6,
     }),
   },
 
