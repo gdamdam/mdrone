@@ -23,6 +23,7 @@ export class MotionEngine {
   private readonly ctx: AudioContext;
   private readonly fxChain: FxChain;
   private readonly droneFilter: BiquadFilterNode;
+  private readonly droneVoiceGain: GainNode;
   private readonly lfoDepth: GainNode;
   private readonly userLfoDepth: GainNode;
   private readonly setDroneFreqImpl: (freq: number) => void;
@@ -56,6 +57,7 @@ export class MotionEngine {
     this.ctx = options.ctx;
     this.fxChain = options.fxChain;
     this.droneFilter = options.droneFilter;
+    this.droneVoiceGain = options.droneVoiceGain;
     this.setDroneFreqImpl = options.setDroneFreq;
     this.getDroneFreqImpl = options.getDroneFreq;
     this.isPlayingImpl = options.isPlaying;
@@ -137,15 +139,25 @@ export class MotionEngine {
 
   setClimateX(v: number): void {
     this.climateX = Math.max(0, Math.min(1, v));
+    const now = this.ctx.currentTime;
+    const tc = this.MACRO_TC;
+    // Filter cutoff: 400 Hz (dark) → 6000 Hz (bright)
     const target = 400 * Math.pow(15, this.climateX);
-    this.droneFilter.frequency.setTargetAtTime(target, this.ctx.currentTime, this.MACRO_TC);
+    this.droneFilter.frequency.setTargetAtTime(target, now, tc);
+    // Voice gain boost: brighter side slightly louder for presence
+    this.droneVoiceGain.gain.setTargetAtTime(
+      0.22 + this.climateX * 0.06, now, tc,
+    );
   }
 
   getClimateX(): number { return this.climateX; }
 
   setClimateY(v: number): void {
     this.climateY = Math.max(0, Math.min(1, v));
-    this.lfoDepth.gain.setTargetAtTime(this.climateY * 1200, this.ctx.currentTime, this.MACRO_TC);
+    const now = this.ctx.currentTime;
+    const tc = this.MACRO_TC;
+    // LFO depth: still → motion
+    this.lfoDepth.gain.setTargetAtTime(this.climateY * 1200, now, tc);
   }
 
   getClimateY(): number { return this.climateY; }

@@ -702,7 +702,7 @@ export class FxChain {
     // the chain level, so the modal AMOUNT knob maps cleanly to the
     // grain cloud's added level without double attenuation.
     const t0 = ctx.currentTime;
-    this.grainCloudWorklet.parameters.get("size")!.setValueAtTime(0.04, t0);
+    this.grainCloudWorklet.parameters.get("size")!.setValueAtTime(0.11, t0);
     this.grainCloudWorklet.parameters.get("density")!.setValueAtTime(25, t0);
     this.grainCloudWorklet.parameters.get("pitchSpread")!.setValueAtTime(0.15, t0);
     this.grainCloudWorklet.parameters.get("panSpread")!.setValueAtTime(0.85, t0);
@@ -734,6 +734,21 @@ export class FxChain {
       outputChannelCount: [2],
     });
     this.input.connect(this.parallelPlateWorklet).connect(this.parallelPlateWet);
+
+    // Grain → plate excitation — granular/graincloud outputs feed
+    // into the parallel plate tank so grains excite the reverb body
+    // directly. This creates "matter evolving inside a space" instead
+    // of "effect pasted on top." The grain IS the excitation for the
+    // reverb, like Eno's ambient architecture.
+    const grainToPlate = ctx.createGain();
+    grainToPlate.gain.value = 0.3; // subtle — grains color the plate, don't overwhelm it
+    if (this.granularWorklet) {
+      this.granularWorklet.connect(grainToPlate);
+    }
+    if (this.grainCloudWorklet) {
+      this.grainCloudWorklet.connect(grainToPlate);
+    }
+    grainToPlate.connect(this.parallelPlateWorklet);
 
     // Reapply pending enables for worklet-backed effects
     for (const id of ["plate", "shimmer", "freeze", "granular", "graincloud"] as const) {
