@@ -12,4 +12,12 @@ export const STORAGE_KEYS = {
   currentSessionId: "mdrone-current-session-id",
   autosave: "mdrone-autosave",
   motionRecEnabled: "mdrone-motion-rec",
+  weatherVisual: "mdrone-weather-visual",
 } as const;
+
+export type WeatherVisual = "flow" | "aurora" | "minimal";
+export const WEATHER_VISUAL_LABELS: Record<WeatherVisual, string> = {
+  flow: "FLOW FIELD",
+  aurora: "AURORA",
+  minimal: "MINIMAL",
+};

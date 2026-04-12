@@ -53,6 +53,8 @@ interface HeaderProps {
   midiLearnTarget: import("../engine/midiMapping").MidiTarget | null;
   onMidiLearn: (target: import("../engine/midiMapping").MidiTarget | null) => void;
   onMidiResetMap: () => void;
+  weatherVisual: import("../config").WeatherVisual;
+  onChangeWeatherVisual: (v: import("../config").WeatherVisual) => void;
   motionRecEnabled: boolean;
   onToggleMotionRec: (on: boolean) => void;
   analyser: AnalyserNode | null;
@@ -99,6 +101,8 @@ export function Header({
   midiLearnTarget,
   onMidiLearn,
   onMidiResetMap,
+  weatherVisual,
+  onChangeWeatherVisual,
   motionRecEnabled,
   onToggleMotionRec,
   analyser,
@@ -466,6 +470,24 @@ export function Header({
                 </button>
               </div>
               </>)}
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">WEATHER VISUAL</div>
+              <div className="share-style-row" role="radiogroup" aria-label="Weather visual style">
+                {(["flow", "aurora", "minimal"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={weatherVisual === v}
+                    className={weatherVisual === v ? "share-style-btn share-style-btn-active" : "share-style-btn"}
+                    onClick={() => onChangeWeatherVisual(v)}
+                  >
+                    {v === "flow" ? "FLOW FIELD" : v === "aurora" ? "AURORA" : "MINIMAL"}
+                  </button>
+                ))}
+              </div>
 
               <div className="fx-modal-divider" />
               <div className="fx-modal-section-label">ADVANCED</div>

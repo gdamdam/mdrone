@@ -3,7 +3,7 @@ import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
 import { loadCcMap, saveCcMap, assignCc, resetCcMap, type CcMap, type MidiTarget } from "../engine/midiMapping";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
-import { APP_VERSION, STORAGE_KEYS } from "../config";
+import { APP_VERSION, STORAGE_KEYS, type WeatherVisual } from "../config";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { DroneView, type DroneViewHandle } from "./DroneView";
@@ -186,6 +186,15 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       catch { return false; }
     },
   );
+  const [weatherVisual, setWeatherVisualState] = useState<WeatherVisual>(() => {
+    try { return (localStorage.getItem(STORAGE_KEYS.weatherVisual) as WeatherVisual) || "flow"; }
+    catch { return "flow"; }
+  });
+  const setWeatherVisual = useCallback((v: WeatherVisual) => {
+    setWeatherVisualState(v);
+    try { localStorage.setItem(STORAGE_KEYS.weatherVisual, v); } catch { /* noop */ }
+  }, []);
+
   const setMotionRecEnabled = useCallback((on: boolean) => {
     setMotionRecEnabledState(on);
     try { localStorage.setItem(STORAGE_KEYS.motionRecEnabled, on ? "1" : "0"); }
@@ -321,6 +330,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         midiLearnTarget={midiLearnTarget}
         onMidiLearn={setMidiLearnTarget}
         onMidiResetMap={handleResetCcMap}
+        weatherVisual={weatherVisual}
+        onChangeWeatherVisual={setWeatherVisual}
         motionRecEnabled={motionRecEnabled}
         onToggleMotionRec={setMotionRecEnabled}
         analyser={engine.getAnalyser()}
@@ -361,6 +372,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             isRecordingMotion={sceneManager.isRecordingMotion}
             onToggleMotionRecord={sceneManager.handleToggleMotionRecord}
             motionRecEnabled={motionRecEnabled}
+            weatherVisual={weatherVisual}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
           />

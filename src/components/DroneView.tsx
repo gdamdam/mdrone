@@ -175,6 +175,7 @@ interface DroneViewProps {
   /** Feature flag — hides the REC MOTION button unless the user
    *  has explicitly opted in from the Settings modal. */
   motionRecEnabled?: boolean;
+  weatherVisual?: import("../config").WeatherVisual;
   kbdActive: boolean;
   onToggleKbd: () => void;
 }
@@ -199,7 +200,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, kbdActive, onToggleKbd }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd }: DroneViewProps,
   ref,
 ) {
   const {
@@ -500,6 +501,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             intro={weatherIntro}
             onDismissIntro={dismissWeatherIntro}
             analyser={engine?.getAnalyser() ?? null}
+            visual={weatherVisual ?? "flow"}
           />
 
           <div className="weather-controls">

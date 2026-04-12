@@ -19,6 +19,7 @@ interface WeatherPadProps {
   intro: boolean;
   onDismissIntro: () => void;
   analyser: AnalyserNode | null;
+  visual?: "flow" | "aurora" | "minimal";
 }
 
 interface Particle {
@@ -59,6 +60,7 @@ export function WeatherPad({
   intro,
   onDismissIntro,
   analyser,
+  visual = "flow",
 }: WeatherPadProps) {
   const xyRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -182,7 +184,8 @@ export function WeatherPad({
         return;
       }
 
-      // ── Layer 1: Spectral aurora bands ──────────────────────
+      // ── Layer 1: Spectral aurora bands (aurora + flow modes)
+      if (visual !== "minimal") {
       const bandH = h / bands.length;
       for (let b = 0; b < bands.length; b++) {
         const energy = bands[b] * rms;
@@ -203,7 +206,10 @@ export function WeatherPad({
         ctx.fillRect(0, bandY - bandH * 0.5 + drift, w, bandH);
       }
 
-      // ── Layer 2: Flow-field particles ───────────────────────
+      } // end aurora layer
+
+      // ── Layer 2: Flow-field particles (flow mode only) ──────
+      if (visual === "flow") {
       const particles = particlesRef.current;
       const spawnRate = rms * (0.3 + cy * 2);
       spawnAccum += spawnRate;
@@ -250,7 +256,9 @@ export function WeatherPad({
         ctx.fill();
       }
 
-      // ── Layer 3: Cursor wake trail ──────────────────────────
+      } // end flow field layer
+
+      // ── Layer 3: Cursor wake trail (all modes) ──────────────
       const trail = trailRef.current;
       if (trail.length > 1) {
         ctx.beginPath();
@@ -279,7 +287,7 @@ export function WeatherPad({
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [analyser, climateX, climateY]);
+  }, [analyser, climateX, climateY, visual]);
 
   // Gradient style driven by climate position
   const gradientStyle = {
