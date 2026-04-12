@@ -1,13 +1,11 @@
 /**
  * WeatherPad — the signature XY expressive control for mdrone.
  *
- * Visual layers (all canvas 2D, no WebGL):
- *   1. Spectral aurora — horizontal bands whose height/opacity respond
- *      to FFT frequency bands. Breathes with the drone's harmonics.
- *   2. Flow-field particles — follow a coherent noise field that
- *      rotates with Y (motion axis). Not random scatter.
- *   3. Cursor wake — luminous trail when dragging.
- *   4. Position-reactive gradient background (CSS).
+ * Two visual modes (selectable in Settings):
+ *   - "flow": flow-field particles + dotted cursor trail
+ *   - "minimal": dotted cursor trail only
+ *
+ * All canvas 2D, transparent background so CSS gradient shows through.
  */
 
 import { useCallback, useEffect, useRef } from "react";
@@ -19,7 +17,7 @@ interface WeatherPadProps {
   intro: boolean;
   onDismissIntro: () => void;
   analyser: AnalyserNode | null;
-  visual?: "flow" | "aurora" | "minimal";
+  visual?: "flow" | "minimal";
 }
 
 interface Particle {
@@ -30,36 +28,25 @@ interface Particle {
   size: number;
 }
 
-const MAX_PARTICLES = 50;
+const MAX_PARTICLES = 40;
 
-// Simple 2D value noise for flow field (no library needed)
 function noise2d(x: number, y: number): number {
   const ix = Math.floor(x);
   const iy = Math.floor(y);
   const fx = x - ix;
   const fy = y - iy;
-  // Hash corners
   const h = (a: number, b: number) => {
     const n = a * 127.1 + b * 311.7;
     return (Math.sin(n) * 43758.5453) % 1;
   };
-  const a = h(ix, iy);
-  const b = h(ix + 1, iy);
-  const c = h(ix, iy + 1);
-  const d = h(ix + 1, iy + 1);
-  // Smooth interpolation
+  const a = h(ix, iy), b = h(ix + 1, iy), c = h(ix, iy + 1), d = h(ix + 1, iy + 1);
   const sx = fx * fx * (3 - 2 * fx);
   const sy = fy * fy * (3 - 2 * fy);
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
 
 export function WeatherPad({
-  climateX,
-  climateY,
-  onChange,
-  intro,
-  onDismissIntro,
-  analyser,
+  climateX, climateY, onChange, intro, onDismissIntro, analyser,
   visual = "flow",
 }: WeatherPadProps) {
   const xyRef = useRef<HTMLDivElement>(null);
@@ -68,12 +55,16 @@ export function WeatherPad({
   const particlesRef = useRef<Particle[]>([]);
   const rmsRef = useRef(0);
   const timeRef = useRef(0);
-  // Cursor wake trail
   const trailRef = useRef<{ x: number; y: number; age: number }[]>([]);
   const visualRef = useRef(visual);
   useEffect(() => { visualRef.current = visual; }, [visual]);
 
-  // ── Pointer handling ────────────────────────────────────────────
+  // Store latest climateX/Y in refs so the rAF loop always reads current values
+  const cxRef = useRef(climateX);
+  const cyRef = useRef(climateY);
+  useEffect(() => { cxRef.current = climateX; }, [climateX]);
+  useEffect(() => { cyRef.current = climateY; }, [climateY]);
+
   const updateXy = useCallback((clientX: number, clientY: number) => {
     const el = xyRef.current;
     if (!el) return;
@@ -81,10 +72,6 @@ export function WeatherPad({
     const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const y = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
     onChange(x, y);
-    // Record trail point
-    const trail = trailRef.current;
-    trail.push({ x: x * rect.width, y: (1 - y) * rect.height, age: 0 });
-    if (trail.length > 40) trail.shift();
   }, [onChange]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -97,6 +84,15 @@ export function WeatherPad({
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!draggingRef.current) return;
     updateXy(e.clientX, e.clientY);
+    // Record trail in canvas pixel coords
+    const el = xyRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const trail = trailRef.current;
+    trail.push({ x: px, y: py, age: 0 });
+    if (trail.length > 50) trail.shift();
   }, [updateXy]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -104,7 +100,7 @@ export function WeatherPad({
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ok */ }
   }, []);
 
-  // ── Visual feedback ─────────────────────────────────────────────
+  // Single animation loop — never restarts on prop changes
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = xyRef.current;
@@ -134,8 +130,11 @@ export function WeatherPad({
       const h = canvas.height / dpr;
       timeRef.current += 0.016;
       const time = timeRef.current;
+      const vis = visualRef.current;
+      const cx = cxRef.current;
+      const cy = cyRef.current;
 
-      // Read RMS from analyser
+      // Read RMS
       let rms = 0;
       if (analyser && timeBuf) {
         analyser.getByteTimeDomainData(timeBuf);
@@ -148,121 +147,89 @@ export function WeatherPad({
         rmsRef.current += (rms - rmsRef.current) * 0.15;
       }
       rms = rmsRef.current;
-
-      const cx = climateX;
-      const cy = climateY;
       const active = rms > 0.01;
 
-      // Clear — use transparent clear so the CSS gradient shows through.
-      // Partial clear (compositing trick) for motion blur on active visuals.
-      const vis = visualRef.current;
-      if (active && vis !== "minimal") {
-        // Semi-transparent overlay fades previous frame for trail persistence
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.globalAlpha = 0.15;
-        ctx.fillStyle = "black";
-        ctx.fillRect(0, 0, w, h);
-        ctx.globalCompositeOperation = "source-over";
-        ctx.globalAlpha = 1;
-      } else {
-        ctx.clearRect(0, 0, w, h);
-      }
+      // Always clear to transparent
+      ctx.clearRect(0, 0, w, h);
 
       if (!active) {
-        ctx.clearRect(0, 0, w, h);
-        const particles = particlesRef.current;
-        for (let i = particles.length - 1; i >= 0; i--) {
-          particles[i].life += 4;
-          if (particles[i].life >= particles[i].maxLife) particles.splice(i, 1);
-        }
+        particlesRef.current = [];
         trailRef.current = [];
         return;
       }
 
-      // ── Flow-field particles (flow mode only) ──────────────
+      // ── Flow-field particles ────────────────────────────────
       if (vis === "flow") {
-      const particles = particlesRef.current;
-      const spawnRate = rms * (0.3 + cy * 2);
-      spawnAccum += spawnRate;
-      while (spawnAccum >= 1 && particles.length < MAX_PARTICLES) {
-        spawnAccum -= 1;
-        particles.push({
-          x: Math.random() * w,
-          y: Math.random() * h,
-          life: 0,
-          maxLife: 60 + Math.random() * 100,
-          size: 1 + Math.random() * 2 + rms,
-        });
-      }
-
-      // Flow field parameters — rotation based on Y (motion)
-      const fieldScale = 0.008;
-      const fieldSpeed = 0.3 + cy * 1.5;
-
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        // Flow field direction from noise
-        const n = noise2d(p.x * fieldScale + time * 0.1, p.y * fieldScale + time * 0.05);
-        const angle = n * Math.PI * 4 + cy * Math.PI; // Y rotates the field
-        p.x += Math.cos(angle) * fieldSpeed;
-        p.y += Math.sin(angle) * fieldSpeed;
-        p.life++;
-
-        if (p.life >= p.maxLife || p.x < -5 || p.x > w + 5 || p.y < -5 || p.y > h + 5) {
-          particles.splice(i, 1);
-          continue;
+        const particles = particlesRef.current;
+        const spawnRate = rms * (0.4 + cy * 1.5);
+        spawnAccum += spawnRate;
+        while (spawnAccum >= 1 && particles.length < MAX_PARTICLES) {
+          spawnAccum -= 1;
+          particles.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            life: 0,
+            maxLife: 60 + Math.random() * 80,
+            size: 1 + Math.random() * 1.5 + rms * 0.5,
+          });
         }
 
-        const t = p.life / p.maxLife;
-        const alpha = t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1;
-        const warmth = cx;
-        const r = Math.round(180 + warmth * 75);
-        const g = Math.round(130 + warmth * 30);
-        const b = Math.round(60 + (1 - warmth) * 60);
+        const fieldScale = 0.008;
+        const fieldSpeed = 0.3 + cy * 1.2;
 
-        ctx.globalAlpha = alpha * rms * 0.2;
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          const n = noise2d(p.x * fieldScale + time * 0.1, p.y * fieldScale + time * 0.05);
+          const angle = n * Math.PI * 4 + cy * Math.PI;
+          p.x += Math.cos(angle) * fieldSpeed;
+          p.y += Math.sin(angle) * fieldSpeed;
+          p.life++;
+
+          if (p.life >= p.maxLife || p.x < -5 || p.x > w + 5 || p.y < -5 || p.y > h + 5) {
+            particles.splice(i, 1);
+            continue;
+          }
+
+          const t = p.life / p.maxLife;
+          const alpha = t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1;
+          const warmth = cx;
+          const r = Math.round(160 + warmth * 60);
+          const g = Math.round(110 + warmth * 30);
+          const b = Math.round(50 + (1 - warmth) * 50);
+
+          ctx.globalAlpha = alpha * rms * 0.35;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
+          ctx.fill();
+        }
+      }
+
+      // ── Dotted cursor trail ─────────────────────────────────
+      const trail = trailRef.current;
+      for (let i = 0; i < trail.length; i++) {
+        const tp = trail[i];
+        const fade = 1 - tp.age / 50;
+        if (fade <= 0) continue;
+        const recency = trail.length > 1 ? i / (trail.length - 1) : 1;
+        const a = fade * fade * recency;
+        const dotR = 1.5 + a * 2; // max ~3.5px
+
+        // Subtle halo
+        ctx.globalAlpha = a * 0.25;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.arc(tp.x, tp.y, dotR + 2, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(220,190,100,1)";
+        ctx.fill();
+
+        // Dot
+        ctx.globalAlpha = a * 0.7;
+        ctx.beginPath();
+        ctx.arc(tp.x, tp.y, dotR, 0, Math.PI * 2);
+        ctx.fillStyle = "#dcc070";
         ctx.fill();
       }
-
-      } // end flow field layer
-
-      // ── Layer 3: Dotted glowing trail (all modes) ───────────
-      // Evenly-spaced dots along the trail path, each with a soft
-      // radial glow halo. Most recent = largest/brightest, fading
-      // to tiny dim embers at the tail. The trail breathes with RMS.
-      const trail = trailRef.current;
-      const trailLen = trail.length;
-      if (trailLen > 1) {
-        // Draw dots from oldest to newest so newest renders on top
-        for (let i = 0; i < trailLen; i++) {
-          const tp = trail[i];
-          const fade = 1 - tp.age / 50;
-          if (fade <= 0) continue;
-          // Position in trail: 0 = oldest, 1 = newest
-          const recency = i / (trailLen - 1);
-          const glow = fade * fade * recency;
-          const dotR = 1 + glow * 2.5; // max ~3.5px (cursor is 6px radius)
-          const brightness = Math.max(0.2, rms);
-
-          // Small glow halo — proportional to dot, not oversized
-          ctx.globalAlpha = glow * brightness * 0.3;
-          ctx.beginPath();
-          ctx.arc(tp.x, tp.y, dotR + 3, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(232,200,100,0.3)";
-          ctx.fill();
-
-          // Dot core
-          ctx.globalAlpha = glow * brightness * 0.8;
-          ctx.beginPath();
-          ctx.arc(tp.x, tp.y, dotR, 0, Math.PI * 2);
-          ctx.fillStyle = "#e8c870";
-          ctx.fill();
-        }
-      }
-      // Age trail points
+      // Age trail
       for (let i = trail.length - 1; i >= 0; i--) {
         trail[i].age++;
         if (trail[i].age > 50) trail.splice(i, 1);
@@ -276,10 +243,8 @@ export function WeatherPad({
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  // visual is read via visualRef inside tick — no need to restart the loop
-  }, [analyser, climateX, climateY]);
+  }, [analyser]);
 
-  // Gradient style driven by climate position
   const gradientStyle = {
     background: `radial-gradient(
       ellipse at ${climateX * 100}% ${(1 - climateY) * 100}%,
@@ -305,10 +270,7 @@ export function WeatherPad({
         onPointerLeave={handlePointerUp}
         title="Weather — X: DARK ↔ BRIGHT   Y: STILL ↔ MOVING"
       >
-        <canvas
-          ref={canvasRef}
-          className="weather-canvas"
-        />
+        <canvas ref={canvasRef} className="weather-canvas" />
         <div
           className="climate-cursor"
           style={{ left: `${climateX * 100}%`, bottom: `${climateY * 100}%` }}
