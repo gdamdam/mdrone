@@ -220,7 +220,18 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  flex-wrap: wrap;
 }
+
+/* Secondary header controls — visually quieter */
+.header-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+.header-secondary:hover { opacity: 1; }
 
 .header-row-brand {
   justify-content: space-between;
@@ -1437,24 +1448,16 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin: -2px 0 12px;
 }
 
-/* Row 2 — MODE · TONIC · TIMBRE */
+/* Row 2 — MODE (inside collapsible TUNING) */
 .preset-row-2 {
-  display: grid;
-  grid-template-columns:
-    minmax(200px, 0.82fr)
-    minmax(200px, 0.72fr)
-    minmax(240px, 1.15fr);
-  gap: 14px;
   margin-top: 12px;
-  align-items: start;
 }
 
-/* Row 3 — MORPH/EVOLVE/PLUCK · MACROS · LFO */
+/* Row 3 — MORPH/EVOLVE/SUB · LFO (inside collapsible ADVANCED) */
 .preset-row-3 {
   display: grid;
   grid-template-columns:
     minmax(0, 1.1fr)
-    minmax(260px, 1.1fr)
     minmax(220px, 0.95fr);
   gap: 14px;
   margin-top: 12px;
@@ -1471,18 +1474,9 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 @media (max-width: 960px) {
-  .preset-row-2,
   .preset-row-3 {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  /* On mobile pull the TONIC column to the top of preset-row-2 so it
-   * sits directly below the preset panel — tonic selection is the
-   * next action after picking a scene, and MODE/TIMBRE are secondary.
-   * Desktop layout is unchanged (3 explicit columns above). */
-  .preset-row-2 .preset-tonic-col { order: 1; }
-  .preset-row-2 .preset-mode-col   { order: 2; }
-  .preset-row-2 .preset-timbre-col { order: 3; }
 }
 
 .drone-right {
@@ -2085,6 +2079,140 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   border-color: var(--preview);
   box-shadow: 0 0 10px color-mix(in srgb, var(--preview) 35%, transparent);
 }
+
+/* ── WEATHER + MACROS — two-column primary row ────────────────── */
+.weather-macro-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(240px, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .weather-macro-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.weather-section {
+  min-width: 0;
+}
+
+.weather-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.weather-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--text);
+}
+
+.weather-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+/* Weather pad — square-ish to fill the left column */
+.weather-xy {
+  aspect-ratio: 1 / 1;
+  max-height: 340px;
+}
+
+.shape-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.shape-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--text);
+}
+
+.shape-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+/* Right column: macros stacked vertically + scene actions + tonic */
+.weather-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Piano keyboard + octave stepper in weather right column */
+.weather-tonic-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.tonic-keys-inline {
+  width: 50%;
+  height: 36px;
+  gap: 1px;
+}
+.tonic-keys-inline .tonic-key {
+  width: auto;
+  flex: 1 1 0;
+  height: 100%;
+  font-size: 8px;
+  font-weight: 700;
+  border-radius: 0 0 3px 3px;
+}
+.tonic-keys-inline .tonic-key-black {
+  width: auto;
+  flex: 0.7 1 0;
+  height: 56%;
+  margin: 0 -4px;
+  border-radius: 0 0 2px 2px;
+}
+.tonic-keys-inline .tonic-key-active {
+  font-size: 7px;
+  padding-bottom: 2px;
+}
+.tonic-keys-inline .tonic-key-black.tonic-key-active {
+  font-size: 6px;
+}
+
+.weather-octave {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.macro-primary-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Scene actions — secondary, below macros in right column ──── */
+.scene-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  opacity: 0.7;
+}
+.scene-actions-row:hover { opacity: 1; }
 
 /* Climate XY surface */
 .climate-panel { height: 100%; }

@@ -5,16 +5,9 @@ import { resetAllLocalStorage, type SavedSession } from "../session";
 import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
 import { HelpModal } from "./HelpModal";
-import { DropdownSelect } from "./DropdownSelect";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
-const PITCH_CLASSES: PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
-function pitchToFreq(pc: PitchClass, octave: number): number {
-  const idx = PITCH_CLASSES.indexOf(pc);
-  const semitonesFromA4 = idx - 9 + (octave - 4) * 12;
-  return 440 * Math.pow(2, semitonesFromA4 / 12);
-}
 
 interface HeaderProps {
   viewMode: ViewMode;
@@ -74,8 +67,6 @@ export function Header({
   displayText,
   tonic,
   octave,
-  onChangeTonic,
-  onChangeOctave,
   onToggleHold,
   holding,
   onToggleRec,
@@ -83,7 +74,6 @@ export function Header({
   onOpenShare,
   onRandomScene,
   onUndoScene,
-  tuneOffsetHint,
   isRec,
   recTimeMs,
   recordingSupported,
@@ -149,7 +139,6 @@ export function Header({
       }
     };
   }, [analyser]);
-  const freqHz = pitchToFreq(tonic, octave);
   const [volumeOpen, setVolumeOpen] = useState(false);
   useEffect(() => {
     if (!volumeOpen) return;
@@ -183,6 +172,7 @@ export function Header({
       </div>
 
       <div className="header-row header-row-main">
+        {/* Left — surface tabs */}
         <div className="view-toggle">
           {(["drone", "meditate", "mixer"] as const).map((m) => (
             <button
@@ -202,13 +192,60 @@ export function Header({
           ))}
         </div>
 
+        {/* Center — scene marquee */}
+        <div className="header-display" title={displayText}>
+          <div className="header-display-track">
+            {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span>
+          </div>
+        </div>
+
+        {/* Right — primary play controls */}
+        <div className="header-center">
+        <button
+          className="header-btn header-btn-random"
+          onClick={onRandomScene}
+          title="Load a gentle random scene variation"
+        >
+          <span className="header-btn-label-full">RND</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">RND</span>
+        </button>
+        <button
+          className="header-btn header-btn-share"
+          onClick={onOpenShare}
+          title="Share the current drone landscape as a link"
+        >
+          <span className="header-btn-label-full">SHARE</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">SHARE</span>
+        </button>
+        <button
+          className={holding ? "header-hold-btn header-hold-btn-active" : "header-hold-btn"}
+          onClick={onToggleHold}
+          title={holding ? "Release the drone" : "Hold the current tonic"}
+        >
+          <span className="header-hold-label">{holding ? "■ HOLDING" : "▶ HOLD"}</span>
+          <span className="header-hold-sub">{tonic}{octave}</span>
+          <span className="header-hold-glyph" aria-hidden="true">
+            {holding ? "■" : "▶"}
+          </span>
+        </button>
+        </div>
+
+        {/* Secondary — quieter controls */}
+        <div className="header-secondary">
+        <button
+          className="header-btn header-btn-undo"
+          onClick={onUndoScene}
+          title="Undo — restore the scene that was playing before the last RND or MUT"
+          aria-label="Undo random scene"
+        >
+          ↶
+        </button>
         <button
           className={`header-btn header-btn-record${isRec ? " header-btn-rec" : ""}`}
           onClick={onToggleRec}
           title={recordingTitle}
           disabled={!recordingSupported || recordingBusy}
         >
-          {/* Desktop label — hidden on mobile via CSS */}
           <span className="header-btn-label-full">
             {!recordingSupported
               ? "REC N/A"
@@ -220,90 +257,10 @@ export function Header({
                 ).padStart(2, "0")}`
               : "● REC"}
           </span>
-          {/* Mobile single-char glyph — hidden on desktop */}
           <span className="header-btn-label-glyph" aria-hidden="true">
             {!recordingSupported ? "●" : recordingBusy ? "…" : isRec ? "■" : "●"}
           </span>
         </button>
-        <button
-          className="header-btn header-btn-share"
-          onClick={onOpenShare}
-          title="Share the current drone landscape as a link"
-        >
-          <span className="header-btn-label-full">⤴ SHARE</span>
-          <span className="header-btn-label-glyph" aria-hidden="true">⤴</span>
-        </button>
-
-        <div className="header-center">
-        <div className="header-display" title={displayText}>
-          <div className="header-display-track">
-            {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span>
-          </div>
-        </div>
-        <button
-          className="header-btn header-btn-random"
-          onClick={onRandomScene}
-          title="Load a gentle random scene variation"
-        >
-          <span className="header-btn-label-full">RND</span>
-          <span className="header-btn-label-glyph" aria-hidden="true">🎲</span>
-        </button>
-        <button
-          className="header-btn header-btn-undo"
-          onClick={onUndoScene}
-          title="Undo — restore the scene that was playing before the last RND or MUT"
-          aria-label="Undo random scene"
-        >
-          ↶
-        </button>
-        <button
-          className={holding ? "header-hold-btn header-hold-btn-active" : "header-hold-btn"}
-          onClick={onToggleHold}
-          title={holding ? "Release the drone" : "Hold the current tonic"}
-        >
-          {/* Desktop label + sub — hidden on mobile via CSS */}
-          <span className="header-hold-label">{holding ? "■ HOLDING" : "▶ HOLD"}</span>
-          <span className="header-hold-sub">{tonic}{octave}</span>
-          {/* Mobile single-char glyph — hidden on desktop */}
-          <span className="header-hold-glyph" aria-hidden="true">
-            {holding ? "■" : "▶"}
-          </span>
-        </button>
-        <div className="header-freq">
-          <span className="header-freq-value">{freqHz.toFixed(1)} Hz</span>
-        </div>
-        <DropdownSelect<PitchClass>
-          value={tonic}
-          options={PITCH_CLASSES.map((pc) => ({ value: pc, label: pc }))}
-          onChange={onChangeTonic}
-          className="header-tonic-select"
-          title="Drone tonic — pitch class of the root"
-          ariaLabel="Tonic"
-        />
-        {tuneOffsetHint && (
-          <span className="header-tune-hint" title="Active fine-tune deviation">
-            {tuneOffsetHint}
-          </span>
-        )}
-        <div className="header-octave" title="Drone octave">
-          <button
-            className="header-octave-btn"
-            onClick={() => onChangeOctave(Math.max(1, octave - 1))}
-            disabled={octave <= 1}
-            aria-label="Octave down"
-          >
-            −
-          </button>
-          <span className="header-octave-value">{octave}</span>
-          <button
-            className="header-octave-btn"
-            onClick={() => onChangeOctave(Math.min(6, octave + 1))}
-            disabled={octave >= 6}
-            aria-label="Octave up"
-          >
-            +
-          </button>
-        </div>
         <button
           className="header-btn header-btn-volume"
           onClick={() => setVolumeOpen(true)}
@@ -313,16 +270,9 @@ export function Header({
           <span className="header-btn-label-glyph" aria-hidden="true">VOL</span>
         </button>
         <button
-          className="header-btn header-btn-panic"
-          onClick={onPanic}
-          title="Panic — stop the drone and kill any lingering reverb/delay tails. Standard MIDI-style emergency silence."
-        >
-          P
-        </button>
-        <button
           className="header-btn header-btn-menu"
           onClick={() => setSessionOpen(true)}
-          title={`Settings — sessions, MIDI, reset`}
+          title={`Settings — sessions, MIDI, panic, reset`}
           aria-label="Open settings"
         >
           ⚙
@@ -495,6 +445,21 @@ export function Header({
                     : "Show the REC MOTION button in the drone view"}
                 >
                   {motionRecEnabled ? "● MOTION RECORDING" : "MOTION RECORDING"}
+                </button>
+              </div>
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">PANIC</div>
+              <p className="fx-modal-desc">
+                Stop the drone and kill any lingering reverb/delay tails. Standard MIDI-style emergency silence.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className="header-btn"
+                  onClick={() => { onPanic(); setSessionOpen(false); }}
+                  title="Panic — silence everything immediately"
+                >
+                  PANIC
                 </button>
               </div>
 

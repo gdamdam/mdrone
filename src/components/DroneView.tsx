@@ -244,9 +244,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
   const DISCLOSURE_KEY = "mdrone-disclosure";
-  type Section = "timbre" | "controls" | "effects" | "climate" | "detune";
+  type Section = "timbre" | "effects" | "tuning" | "advanced" | "detune";
   const defaultDisclosure: Record<Section, boolean> = {
-    timbre: true, controls: false, effects: false, climate: false, detune: false,
+    timbre: false, effects: false, tuning: false, advanced: false, detune: false,
   };
   const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
     try {
@@ -439,76 +439,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       <div className="panel preset-panel preset-panel-wide">
         <div className="preset-panel-header">
           <div className="panel-label">PRESETS · tap to load</div>
-          <div className="preset-mut-row">
-            <select
-              className="preset-journey-select"
-              value={state.journey ?? ""}
-              onChange={(e) => {
-                const v = e.target.value;
-                setJourney(v === "" ? null : (v as JourneyId));
-              }}
-              title="JOURNEY — authored ritual phases (arrival → bloom → suspension → dissolve). Replaces evolve drift while active."
-              aria-label="Journey"
-            >
-              <option value="">JOURNEY: off</option>
-              {JOURNEY_IDS.map((id) => (
-                <option key={id} value={id}>JOURNEY: {JOURNEYS[id].label}</option>
-              ))}
-            </select>
-            <select
-              className="preset-journey-select"
-              value={state.partner.enabled ? state.partner.relation : ""}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "") {
-                  setPartner({ ...state.partner, enabled: false });
-                } else {
-                  setPartner({ enabled: true, relation: v as PartnerRelation });
-                }
-              }}
-              title="PARTNER — sympathetic second drone layer at a fixed musical relation."
-              aria-label="Sympathetic partner"
-            >
-              <option value="">PARTNER: off</option>
-              {PARTNER_RELATIONS.map((r) => (
-                <option key={r} value={r}>PARTNER: {r}</option>
-              ))}
-            </select>
-            {motionRecEnabled && (
-              <button
-                type="button"
-                className={isRecordingMotion ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
-                onClick={() => onToggleMotionRecord?.()}
-                title={isRecordingMotion
-                  ? "Stop motion recording — captured gestures travel with the next share URL"
-                  : "Record meaningful gestures (60 s / 200 events max) into the next share URL"}
-              >
-                {isRecordingMotion ? "● REC MOTION" : "REC MOTION"}
-              </button>
-            )}
-            <button
-              type="button"
-              className="preset-mut-btn"
-              onClick={() => onMutateScene?.(mutateIntensity)}
-              title={`MUTATE — perturb the current scene by ${Math.round(mutateIntensity * 100)}%`}
-            >
-              MUTATE
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={mutateIntensity}
-              onChange={(e) => setMutateIntensity(parseFloat(e.target.value))}
-              className="preset-mut-intensity"
-              title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
-              aria-label="Mutation intensity"
-            />
-            <span className="preset-mut-value" aria-hidden="true">
-              {Math.round(mutateIntensity * 100)}%
-            </span>
-          </div>
         </div>
         {/* Genre tabs — one row of small group buttons */}
         <div className="preset-tabs" role="tablist">
@@ -545,15 +475,279 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </button>
           ))}
         </div>
-        {/* Row 2 — MODE · TONIC · TIMBRE */}
+
+        {/* ── WEATHER + MACROS — two-column primary row ───── */}
+        <div className="weather-macro-row">
+          <div className="weather-section">
+            <div className="weather-header">
+              <span className="weather-title">WEATHER</span>
+              <span className="weather-hint">drag to change the room</span>
+            </div>
+            <div
+              ref={xyRef}
+              className="climate-xy weather-xy"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              onPointerLeave={handlePointerUp}
+              title="Weather — X: DARK ↔ BRIGHT   Y: STILL ↔ MOVING"
+            >
+              <div
+                className="climate-cursor"
+                style={{ left: `${state.climateX * 100}%`, bottom: `${state.climateY * 100}%` }}
+              />
+              <span className="climate-axis climate-axis-x-left">DARK</span>
+              <span className="climate-axis climate-axis-x-right">BRIGHT</span>
+              <span className="climate-axis climate-axis-y-top">MOVING</span>
+              <span className="climate-axis climate-axis-y-bot">STILL</span>
+            </div>
+          </div>
+
+          <div className="weather-controls">
+            <div className="shape-header">
+              <span className="shape-title">SHAPE</span>
+              <span className="shape-hint">sculpt the body of the drone</span>
+            </div>
+            <div className="macro-primary-col">
+              <Macro
+                label="DRIFT"
+                value={state.drift}
+                onChange={setDrift}
+                icon={<IconDrift />}
+                title="Drift — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
+              />
+              <Macro
+                label="AIR"
+                value={state.air}
+                onChange={setAir}
+                icon={<IconAir />}
+                title="Air — wet send into the atmosphere chain (reverb + space)"
+              />
+              <Macro
+                label="TIME"
+                value={state.time}
+                onChange={setTime}
+                icon={<IconTime />}
+                title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
+              />
+              <Macro
+                label="BLOOM"
+                value={state.bloom}
+                onChange={setBloom}
+                icon={<IconBloom />}
+                displayValue={`${(0.3 + state.bloom * 9.7).toFixed(1)}s`}
+                title="Bloom — attack time on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
+              />
+              <Macro
+                label="GLIDE"
+                value={state.glide}
+                onChange={setGlide}
+                icon={<IconGlide />}
+                displayValue={`${(0.05 * Math.pow(160, state.glide)).toFixed(2)}s`}
+                title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
+              />
+            </div>
+
+            <div className="scene-actions-row">
+              <button
+                type="button"
+                className="preset-mut-btn"
+                onClick={() => onMutateScene?.(mutateIntensity)}
+                title={`MUTATE — perturb the current scene by ${Math.round(mutateIntensity * 100)}%`}
+              >
+                MUTATE
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={mutateIntensity}
+                onChange={(e) => setMutateIntensity(parseFloat(e.target.value))}
+                className="preset-mut-intensity"
+                title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
+                aria-label="Mutation intensity"
+              />
+              <span className="preset-mut-value" aria-hidden="true">
+                {Math.round(mutateIntensity * 100)}%
+              </span>
+              <select
+                className="preset-journey-select"
+                value={state.partner.enabled ? state.partner.relation : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "") {
+                    setPartner({ ...state.partner, enabled: false });
+                  } else {
+                    setPartner({ enabled: true, relation: v as PartnerRelation });
+                  }
+                }}
+                title="PARTNER — sympathetic second drone layer at a fixed musical relation."
+                aria-label="Sympathetic partner"
+              >
+                <option value="">PARTNER: off</option>
+                {PARTNER_RELATIONS.map((r) => (
+                  <option key={r} value={r}>PARTNER: {r}</option>
+                ))}
+              </select>
+              <select
+                className="preset-journey-select"
+                value={state.journey ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setJourney(v === "" ? null : (v as JourneyId));
+                }}
+                title="JOURNEY — authored ritual phases (arrival → bloom → suspension → dissolve). Replaces evolve drift while active."
+                aria-label="Journey"
+              >
+                <option value="">JOURNEY: off</option>
+                {JOURNEY_IDS.map((id) => (
+                  <option key={id} value={id}>JOURNEY: {JOURNEYS[id].label}</option>
+                ))}
+              </select>
+              {motionRecEnabled && (
+                <button
+                  type="button"
+                  className={isRecordingMotion ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
+                  onClick={() => onToggleMotionRecord?.()}
+                  title={isRecordingMotion
+                    ? "Stop motion recording — captured gestures travel with the next share URL"
+                    : "Record meaningful gestures (60 s / 200 events max) into the next share URL"}
+                >
+                  {isRecordingMotion ? "● REC MOTION" : "REC MOTION"}
+                </button>
+              )}
+            </div>
+
+            {/* Piano keyboard + octave — below scene actions */}
+            <div className="weather-tonic-row">
+              <div className="tonic-keys tonic-keys-inline">
+                {PITCH_CLASSES.map((pc) => {
+                  const isSharp = pc.includes("#");
+                  const isActive = state.root === pc;
+                  return (
+                    <button
+                      key={pc}
+                      className={
+                        `tonic-key${isSharp ? " tonic-key-black" : ""}${isActive ? " tonic-key-active" : ""}`
+                      }
+                      onClick={() => setRoot(pc)}
+                      title={pc}
+                      aria-label={pc}
+                    >
+                      {isActive ? pc.replace("#", "♯") : ""}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="weather-octave">
+                <button
+                  className="header-octave-btn"
+                  onClick={() => setOctave(Math.max(1, state.octave - 1))}
+                  disabled={state.octave <= 1}
+                  aria-label="Octave down"
+                >
+                  −
+                </button>
+                <span className="header-octave-value">{state.octave}</span>
+                <button
+                  className="header-octave-btn"
+                  onClick={() => setOctave(Math.min(6, state.octave + 1))}
+                  disabled={state.octave >= 6}
+                  aria-label="Octave up"
+                >
+                  +
+                </button>
+                <button
+                  className={kbdActive ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
+                  onClick={onToggleKbd}
+                  title={kbdActive
+                    ? "QWERTY keyboard active — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up"
+                    : "Enable QWERTY keyboard as tonic controller"}
+                >
+                  ⌨
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Collapsible: TIMBRE ───── */}
+        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("timbre")}>
+          <span className="disclosure-arrow">{disclosed.timbre ? "▾" : "▸"}</span>
+          TIMBRE · voice layers
+        </button>
+        {disclosed.timbre && (<>
+        <div className="panel-hint">Voice models — combine for texture</div>
+        <div className="timbre-grid">
+          {VOICES.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => toggleVoiceLayer(v.id)}
+              className={state.voiceLayers[v.id] ? "timbre-btn timbre-btn-active" : "timbre-btn"}
+              title={v.hint}
+            >
+              <span className="timbre-btn-icon">{v.icon}</span>
+              <span className="timbre-btn-label">{v.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="layer-levels">
+          {VOICES.map((v) => state.voiceLayers[v.id] && (
+            <div key={v.id} className="layer-level-row">
+              <span className="layer-level-label">{v.label}</span>
+              <input
+                type="range" min={0} max={1} step={0.01}
+                value={state.voiceLevels[v.id]}
+                onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
+                className="macro-slider"
+                title={`${v.label} mix level`}
+              />
+              <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
+            </div>
+          ))}
+          {state.voiceLayers.tanpura && (
+            <div className="layer-level-row">
+              <span className="layer-level-label">PLUCK</span>
+              <input
+                type="range"
+                min={0.2}
+                max={4}
+                step={0.05}
+                value={state.pluckRate}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  setPluckRate(v);
+                  engine?.setTanpuraPluckRate(v);
+                }}
+                className="macro-slider"
+                title="Tanpura re-pluck rate."
+              />
+              <span className="layer-level-value">{state.pluckRate.toFixed(1)}×</span>
+            </div>
+          )}
+        </div>
+        </>)}
+
+        {/* ── Collapsible: EFFECTS ───── */}
+        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("effects")}>
+          <span className="disclosure-arrow">{disclosed.effects ? "▾" : "▸"}</span>
+          EFFECTS · serial chain
+        </button>
+        {disclosed.effects && (
+          <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
+        )}
+
+        {/* ── Collapsible: TUNING — mode + tonic ───── */}
+        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("tuning")}>
+          <span className="disclosure-arrow">{disclosed.tuning ? "▾" : "▸"}</span>
+          TUNING · mode · tonic
+        </button>
+        {disclosed.tuning && (
         <div className="preset-row-2">
           <div className="preset-mode-col">
             <div className="panel-label">MODE</div>
-            {/* Mutually exclusive tabs. The active tab is derived from
-             * state: if both tuningId and relationId are set, we're in
-             * microtonal mode; otherwise scale mode. Clicking a tab
-             * clears / seeds the opposing state to keep the two sets
-             * truly exclusive — a scene can never be both at once. */}
             <div className="mode-tabs" role="tablist">
               <button
                 role="tab"
@@ -575,9 +769,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 className={modeIsMicro ? "mode-tab mode-tab-active" : "mode-tab"}
                 onClick={() => {
                   if (modeIsMicro) return;
-                  // Seed with a reasonable default so the user
-                  // immediately hears a microtonal result instead of
-                  // an empty selector pair.
                   setTuning(TUNINGS[0].id);
                   setRelation(RELATIONS[1]?.id ?? RELATIONS[0].id);
                 }}
@@ -693,129 +884,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             )}
           </div>
 
-          <div className="preset-tonic-col">
-            <div className="panel-label">TONIC</div>
-            <div className="panel-hint">Root pitch of the drone</div>
-            <div className="tonic-wheel tonic-wheel-compact">
-              {PITCH_CLASSES.map((pc) => (
-                <button
-                  key={pc}
-                  onClick={() => setRoot(pc)}
-                  className={pc === state.root ? "tonic-cell tonic-cell-active" : "tonic-cell"}
-                  title={`Set root to ${pc}${state.octave}`}
-                >
-                  {pc}
-                </button>
-              ))}
-            </div>
-            {/* Mini piano keyboard + QWERTY toggle below the tonic grid */}
-            <div className="tonic-piano-row">
-              <div className="tonic-keys">
-                {PITCH_CLASSES.map((pc) => {
-                  const isSharp = pc.includes("#");
-                  const isActive = state.root === pc;
-                  return (
-                    <button
-                      key={pc}
-                      className={
-                        `tonic-key${isSharp ? " tonic-key-black" : ""}${isActive ? " tonic-key-active" : ""}`
-                      }
-                      onClick={() => setRoot(pc)}
-                      title={pc}
-                      aria-label={pc}
-                    >
-                      {isActive ? pc.replace("#", "♯") : ""}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                className={kbdActive ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
-                onClick={onToggleKbd}
-                title={kbdActive
-                  ? "QWERTY keyboard active — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up"
-                  : "Enable QWERTY keyboard as tonic controller"}
-              >
-                ⌨
-              </button>
-              <select
-                value={state.octave}
-                onChange={(e) => setOctave(parseInt(e.target.value, 10))}
-                className="header-select header-select-octave"
-                title={`Octave: ${state.octave}`}
-              >
-                {[1, 2, 3, 4, 5, 6].map((v) => (
-                  <option key={v} value={v}>{v}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="preset-timbre-col">
-            <button className="disclosure-toggle" onClick={() => toggle("timbre")}>
-              <span className="disclosure-arrow">{disclosed.timbre ? "▾" : "▸"}</span>
-              TIMBRE
-            </button>
-            {disclosed.timbre && (<>
-            <div className="panel-hint">Voice models — combine for texture</div>
-            <div className="timbre-grid">
-              {VOICES.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => toggleVoiceLayer(v.id)}
-                  className={state.voiceLayers[v.id] ? "timbre-btn timbre-btn-active" : "timbre-btn"}
-                  title={v.hint}
-                >
-                  <span className="timbre-btn-icon">{v.icon}</span>
-                  <span className="timbre-btn-label">{v.label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="layer-levels">
-              {VOICES.map((v) => state.voiceLayers[v.id] && (
-                <div key={v.id} className="layer-level-row">
-                  <span className="layer-level-label">{v.label}</span>
-                  <input
-                    type="range" min={0} max={1} step={0.01}
-                    value={state.voiceLevels[v.id]}
-                    onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
-                    className="macro-slider"
-                    title={`${v.label} mix level`}
-                  />
-                  <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
-                </div>
-              ))}
-              {state.voiceLayers.tanpura && (
-                <div className="layer-level-row">
-                  <span className="layer-level-label">PLUCK</span>
-                  <input
-                    type="range"
-                    min={0.2}
-                    max={4}
-                    step={0.05}
-                    value={state.pluckRate}
-                    onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      setPluckRate(v);
-                      engine?.setTanpuraPluckRate(v);
-                    }}
-                    className="macro-slider"
-                    title="Tanpura re-pluck rate."
-                  />
-                  <span className="layer-level-value">{state.pluckRate.toFixed(1)}×</span>
-                </div>
-              )}
-            </div>
-            </>)}
-          </div>
         </div>
+        )}
 
-        {/* Row 3 — MORPH/EVOLVE · MACROS · LFO — collapsible */}
-        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("controls")}>
-          <span className="disclosure-arrow">{disclosed.controls ? "▾" : "▸"}</span>
-          CONTROLS · morph · macros · lfo
+        {/* ── Collapsible: ADVANCED — morph, evolve, sub, lfo ───── */}
+        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("advanced")}>
+          <span className="disclosure-arrow">{disclosed.advanced ? "▾" : "▸"}</span>
+          ADVANCED · morph · sub · lfo
         </button>
-        {disclosed.controls && (
+        {disclosed.advanced && (
         <div className="preset-row-3">
           <div className="preset-controls-col">
             <div className="panel-hint">Transition speed + self-evolution</div>
@@ -855,54 +932,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               />
               <span className="preset-morph-value">{Math.round(state.evolve * 100)}%</span>
             </div>
-          </div>
-
-          <div className="preset-macros-col">
-            <div className="panel-label">MACROS</div>
-            <div className="panel-hint">Global tone shaping — drift, reverb, sub, attack, glide</div>
-            <Macro
-              label="DRIFT"
-              value={state.drift}
-              onChange={setDrift}
-              icon={<IconDrift />}
-              title="Drift — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
-            />
-            <Macro
-              label="AIR"
-              value={state.air}
-              onChange={setAir}
-              icon={<IconAir />}
-              title="Air — wet send into the atmosphere chain (reverb + space)"
-            />
-            <Macro
-              label="TIME"
-              value={state.time}
-              onChange={setTime}
-              icon={<IconTime />}
-              title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
-            />
             <Macro
               label="SUB"
               value={state.sub}
               onChange={setSub}
               icon={<IconSub />}
               title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
-            />
-            <Macro
-              label="BLOOM"
-              value={state.bloom}
-              onChange={setBloom}
-              icon={<IconBloom />}
-              displayValue={`${(0.3 + state.bloom * 9.7).toFixed(1)}s`}
-              title="Bloom — attack time on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
-            />
-            <Macro
-              label="GLIDE"
-              value={state.glide}
-              onChange={setGlide}
-              icon={<IconGlide />}
-              displayValue={`${(0.05 * Math.pow(160, state.glide)).toFixed(2)}s`}
-              title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
             />
           </div>
 
@@ -936,46 +971,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               icon={<IconDepth />}
               title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
             />
-          </div>
-        </div>
-        )}
-      </div>
-
-      {/* ── Effects + Climate — collapsible ───── */}
-      <div className="drone-right">
-        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("effects")}>
-          <span className="disclosure-arrow">{disclosed.effects ? "▾" : "▸"}</span>
-          EFFECTS · serial chain
-        </button>
-        {disclosed.effects && (
-          <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
-        )}
-
-        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("climate")}>
-          <span className="disclosure-arrow">{disclosed.climate ? "▾" : "▸"}</span>
-          CLIMATE · XY surface
-        </button>
-        {disclosed.climate && (
-        <div className="panel climate-panel">
-          <div className="panel-hint">X: dark ↔ bright · Y: still ↔ motion</div>
-          <div
-            ref={xyRef}
-            className="climate-xy"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-            onPointerLeave={handlePointerUp}
-            title="Climate surface — X: DARK ↔ BRIGHT   Y: STILL ↔ MOTION"
-          >
-            <div
-              className="climate-cursor"
-              style={{ left: `${state.climateX * 100}%`, bottom: `${state.climateY * 100}%` }}
-            />
-            <span className="climate-axis climate-axis-x-left">DARK</span>
-            <span className="climate-axis climate-axis-x-right">BRIGHT</span>
-            <span className="climate-axis climate-axis-y-top">MOTION</span>
-            <span className="climate-axis climate-axis-y-bot">STILL</span>
           </div>
         </div>
         )}
