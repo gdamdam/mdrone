@@ -271,31 +271,47 @@ export function WeatherPad({
       } // end flow field layer
 
       // ── Layer 3: Dotted glowing trail (all modes) ───────────
-      // Each trail point renders as a dot that shrinks and fades
-      // with age — most recent is brightest/largest, oldest fades out.
+      // Evenly-spaced dots along the trail path, each with a soft
+      // radial glow halo. Most recent = largest/brightest, fading
+      // to tiny dim embers at the tail. The trail breathes with RMS.
       const trail = trailRef.current;
-      for (let i = 0; i < trail.length; i++) {
-        const tp = trail[i];
-        const fade = 1 - tp.age / 40; // 0→1 as it ages
-        if (fade <= 0) continue;
-        const dotR = 1.5 + fade * 3.5; // 5px newest → 1.5px oldest
-        const glow = fade * fade; // quadratic falloff for glow
-        ctx.globalAlpha = glow * rms * 0.8;
-        // Outer glow
-        ctx.beginPath();
-        ctx.arc(tp.x, tp.y, dotR * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(232,204,120,${(glow * 0.2).toFixed(3)})`;
-        ctx.fill();
-        // Inner bright dot
-        ctx.beginPath();
-        ctx.arc(tp.x, tp.y, dotR, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(232,204,120,${(glow * 0.9).toFixed(3)})`;
-        ctx.fill();
+      const trailLen = trail.length;
+      if (trailLen > 1) {
+        // Draw dots from oldest to newest so newest renders on top
+        for (let i = 0; i < trailLen; i++) {
+          const tp = trail[i];
+          const fade = 1 - tp.age / 50;
+          if (fade <= 0) continue;
+          // Position in trail: 0 = oldest, 1 = newest
+          const recency = i / (trailLen - 1);
+          const glow = fade * fade * recency;
+          const dotR = 1 + glow * 5;
+          const glowR = dotR * 3;
+          const brightness = Math.max(0.3, rms);
+
+          // Soft radial glow halo
+          const grad = ctx.createRadialGradient(tp.x, tp.y, 0, tp.x, tp.y, glowR);
+          grad.addColorStop(0, `rgba(232,204,120,${(glow * brightness * 0.7).toFixed(3)})`);
+          grad.addColorStop(0.3, `rgba(232,180,80,${(glow * brightness * 0.3).toFixed(3)})`);
+          grad.addColorStop(1, `rgba(232,160,60,0)`);
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(tp.x, tp.y, glowR, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Sharp bright core
+          ctx.globalAlpha = glow * brightness;
+          ctx.beginPath();
+          ctx.arc(tp.x, tp.y, dotR, 0, Math.PI * 2);
+          ctx.fillStyle = "#f0d878";
+          ctx.fill();
+        }
       }
       // Age trail points
       for (let i = trail.length - 1; i >= 0; i--) {
         trail[i].age++;
-        if (trail[i].age > 40) trail.splice(i, 1);
+        if (trail[i].age > 50) trail.splice(i, 1);
       }
 
       ctx.globalAlpha = 1;
