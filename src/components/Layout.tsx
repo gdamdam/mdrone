@@ -212,12 +212,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      // Cmd/Ctrl + . = next preset, Cmd/Ctrl + , = prev preset
-      if (e.metaKey || e.ctrlKey) {
-        if (e.key === ".") { e.preventDefault(); sceneManager.handleCyclePresetInGroup(1); return; }
-        if (e.key === ",") { e.preventDefault(); sceneManager.handleCyclePresetInGroup(-1); return; }
-        return;
-      }
+      // < = prev preset, > = next preset (Shift+, and Shift+.)
+      if (e.key === "<") { e.preventDefault(); sceneManager.handleCyclePresetInGroup(-1); return; }
+      if (e.key === ">") { e.preventDefault(); sceneManager.handleCyclePresetInGroup(1); return; }
+      if (e.metaKey || e.ctrlKey) return;
       const pc = QWERTY[e.code];
       if (pc) {
         e.preventDefault();

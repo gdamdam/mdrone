@@ -31,7 +31,7 @@ The core idea is simple: mdrone owns sustain.
 Go deeper if you want:
 - 7 authored voice engines (tanpura, reed, metal, air, piano, fm, amp) with formant bodies, body resonators, and proper amp cabinet shaping
 - 14 effects including a true octave-down sub and two granular engines (pitch-quantised stutter + drone-smooth cloud)
-- 36 authored presets across 5 genre groups
+- 43 authored presets across 5 genre groups
 - 6 microtonal tunings + 6 relation presets + per-interval fine detune
 - 4 ritual journeys (morning, evening, dusk, void) each with 4 phases
 - URL-deterministic evolve loop seeded by a per-scene PRNG
@@ -55,15 +55,16 @@ Go deeper if you want:
 
 - **Start a drone in seconds** — choose a tonic, mode, octave, and press HOLD.
 - **Layer timbres** — combine tanpura, reed, metal, air, piano, FM, and amp voices with independent levels.
-- **Push the room around** — DRIFT, AIR, TIME, SUB, BLOOM, GLIDE, breathing LFO, MORPH, EVOLVE, PLUCK, and the XY climate surface.
-- **Build atmosphere fast** — tape, wow, sub (true octave-down), comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular (drone-smooth cloud), graincloud (classic grain stutter) — all one tap away with long-press settings on every effect.
+- **Shape the WEATHER** — the signature XY control changes the whole room. X = dark ↔ bright, Y = still ↔ moving. Three visual modes: waveform oscilloscope (default), flow field, minimal.
+- **Push the room around** — DRIFT, AIR, TIME, BLOOM, GLIDE, MORPH, EVOLVE, SUB, breathing LFO, and the WEATHER XY surface.
+- **Build atmosphere fast** — tape, wow, sub (true octave-down), comb, ringmod, formant (5 vowel presets + shift), delay, plate (Dattorro with decay/damping/diffusion), hall, shimmer, freeze, cistern, granular (drone-smooth cloud), graincloud (classic grain stutter) — all one tap away with per-effect settings.
 - **Tune microtonally** — pick a tuning (just 5-limit, meantone, harmonics, maqam-rast, slendro, equal) and a relation, then nudge each interval in cents with the DETUNE sliders. Voices retune live.
 - **Mutate** — click MUTATE to perturb the current scene by an intensity slider. Deterministic from the URL via a per-scene PRNG seed.
 - **Walk a ritual journey** — pick JOURNEY and the scene drifts through arrival → bloom → suspension → dissolve over a few minutes, deterministic from the share URL.
 - **Add a sympathetic partner** — toggle PARTNER to layer a second drone voice at a fifth, octave, or beat-detune relation.
 - **Record gestures into the share URL** (opt-in) — enable `MOTION RECORDING` in Settings → Advanced to reveal REC MOTION. Captures meaningful tonic / macro / climate moves; share that URL and the next visitor sees the same performance replay.
 - **Listen inside the drone** — switch to MEDITATE for analyser-driven visualizers that breathe with the sound.
-- **Play from hardware** — enable Web MIDI note input to retune the tonic from an external keyboard or controller.
+- **Play from hardware** — Web MIDI note-on → tonic + octave. CC mapping with learn mode: 10 assignable targets (WEATHER X/Y, DRIFT, AIR, TIME, BLOOM, GLIDE, SUB, VOL, HOLD). Sensible defaults out of the box.
 - **Save your scene** — keep named sessions in browser storage and come back to them later.
 - **Mix the output** — shape the final bus with HPF, 3-band EQ, glue, drive, limiter, and trim.
 
@@ -167,7 +168,7 @@ The serial chain is fixed in this order:
 - PLUCK control for tanpura re-pluck speed
 - Large XY climate pad for brightness and motion
 - Spacebar toggles HOLD
-- 36 authored presets across 5 genre groups (Sacred, Minimal, Organ, Ambient, Noise)
+- 43 authored presets across 5 genre groups (Sacred, Minimal, Organ, Ambient, Noise)
 - Authored regional presets for Javanese gamelan and Arabic maqam traditions
 - Random startup scene and random scene generator
 - Web MIDI note-in for tonic / octave performance from external devices
@@ -230,6 +231,32 @@ Sessions include:
 Recording captures the final master output and downloads a WAV. Some browsers, especially ones without WebM audio recording support, will show recording as unavailable rather than pretending it worked.
 
 Sharing builds a compressed URL that encodes the full scene. URLs are backward compatible — older URLs missing the newer fields (journey, partner, motion, seed) load with sensible defaults.
+
+---
+
+## Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| A W S E D F T G Y H U J | Tonic (C C# D D# E F F# G G# A A# B) |
+| Z / X | Octave down / up |
+| Spacebar | HOLD toggle |
+| < | Previous preset in group |
+| > | Next preset in group |
+
+QWERTY tonic requires the ⌨ button enabled in the SHAPE column.
+
+## MIDI CC mapping
+
+10 assignable targets with sensible defaults. Enable MIDI in Settings, then use the CC MAPPING section to learn new assignments (click a target, move a knob).
+
+| CC | Default target |
+|----|---------------|
+| CC1 (mod wheel) | WEATHER Y |
+| CC2 (breath) | WEATHER X |
+| CC7 (volume) | VOL |
+| CC64 (sustain) | HOLD |
+| CC71–76 | DRIFT, AIR, TIME, BLOOM, GLIDE, SUB |
 
 ---
 

@@ -92,11 +92,13 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </p>
 
           <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">CLIMATE</div>
+          <div className="fx-modal-section-label">WEATHER · XY control</div>
           <p className="fx-modal-desc">
-            The XY surface cross-fades macro blends so you can steer the
-            timbre in two dimensions at once. Horizontal and vertical axes
-            are preset-specific.
+            The signature expressive control. Drag to change the room:
+            X axis = <strong>DARK ↔ BRIGHT</strong> (filter + presence),
+            Y axis = <strong>STILL ↔ MOVING</strong> (LFO depth + drift).
+            Three visual modes (Settings): Waveform (circular oscilloscope),
+            Flow Field (particle streams), Minimal (cursor only).
           </p>
 
           <div className="fx-modal-divider" />
@@ -156,9 +158,18 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">KEYBOARD &amp; MIDI</div>
           <p className="fx-modal-desc">
-            QWERTY keys drive the tonic (A=C, W=C#, S=D, … J=B). Z/X shift
-            octave down/up. Enable Web MIDI in Settings to let an external
-            keyboard drive the tonic as well.
+            <strong>QWERTY tonic:</strong> A=C, W=C#, S=D, E=D#, D=E,
+            F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B. Z/X = octave down/up.
+            Spacebar = HOLD toggle.
+            <br /><br />
+            <strong>&lt; / &gt;</strong> = previous / next preset in the
+            current group.
+            <br /><br />
+            <strong>MIDI:</strong> Enable in Settings. Note-on → tonic +
+            octave. CC mapping with learn mode: click a target
+            (WEATHER X/Y, DRIFT, AIR, etc.), move a physical knob to
+            assign. Defaults: CC1 → WEATHER Y, CC2 → WEATHER X,
+            CC64 → HOLD, CC71-76 → macros.
           </p>
 
           <div className="fx-modal-divider" />
