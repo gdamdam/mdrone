@@ -918,6 +918,13 @@ export class FxChain {
   getShimmerDecay(): number {
     return this.shimmerWorklet?.parameters.get("decay")?.value ?? 0.7;
   }
+  setShimmerMix(v: number): void {
+    this.shimmerWorklet?.parameters.get("mix")
+      ?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
+  }
+  getShimmerMix(): number {
+    return this.shimmerWorklet?.parameters.get("mix")?.value ?? 0.5;
+  }
 
   // SUB
   /** Manual override of the sub oscillator frequency. Will be

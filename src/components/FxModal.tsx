@@ -228,9 +228,10 @@ function DelayParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLi
   );
 }
 
-function ShimmerParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+function ShimmerParams({ fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
   const [fb, setFb] = useState(() => fx?.getShimmerFeedback() ?? 0.55);
   const [decay, setDecay] = useState(() => fx?.getShimmerDecay() ?? 0.7);
+  const [mix, setMix] = useState(() => fx?.getShimmerMix() ?? 0.5);
   return (
     <>
       <ParamSlider
@@ -251,7 +252,15 @@ function ShimmerParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChain
         unit=""
         onChange={(v) => { setDecay(v); fx?.setShimmerDecay(v); }}
       />
-      <AmountOnly engine={engine} effectId="shimmer" fx={fx} defaultValue={0.5} />
+      <ParamSlider
+        label="MIX"
+        value={mix}
+        min={0}
+        max={1}
+        step={0.01}
+        unit=""
+        onChange={(v) => { setMix(v); fx?.setShimmerMix(v); }}
+      />
     </>
   );
 }
