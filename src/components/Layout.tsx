@@ -212,7 +212,12 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      if (e.metaKey || e.ctrlKey) return;
+      // Cmd/Ctrl + . = next preset, Cmd/Ctrl + , = prev preset
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key === ".") { e.preventDefault(); sceneManager.handleCyclePresetInGroup(1); return; }
+        if (e.key === ",") { e.preventDefault(); sceneManager.handleCyclePresetInGroup(-1); return; }
+        return;
+      }
       const pc = QWERTY[e.code];
       if (pc) {
         e.preventDefault();
@@ -229,7 +234,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [kbdActive, headerOctave]);
+  }, [kbdActive, headerOctave, sceneManager]);
 
   const handleToggleHold = () => {
     droneViewRef.current?.togglePlay();

@@ -484,7 +484,7 @@ export function useSceneManager({
    *  scene-mutation throttle so rapid clicks don't stack voice
    *  rebuilds on top of each other. Falls back to the first preset
    *  of the first group if nothing is currently active. */
-  const handleCyclePresetInGroup = useCallback(() => {
+  const handleCyclePresetInGroup = useCallback((direction: 1 | -1 = 1) => {
     const now = Date.now();
     if (now - lastSceneMutationTsRef.current < SCENE_MUTATION_MIN_GAP_MS) return;
     lastSceneMutationTsRef.current = now;
@@ -500,7 +500,8 @@ export function useSceneManager({
     const currentIdx = currentPreset
       ? groupPresets.findIndex((pr) => pr.id === currentPreset.id)
       : -1;
-    const nextPreset = groupPresets[(currentIdx + 1) % groupPresets.length];
+    const nextIdx = (currentIdx + direction + groupPresets.length) % groupPresets.length;
+    const nextPreset = groupPresets[nextIdx];
     droneViewRef.current?.applyPresetById(nextPreset.id);
   }, [droneViewRef]);
 
