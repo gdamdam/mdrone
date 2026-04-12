@@ -1,11 +1,8 @@
 /**
  * WeatherPad — the signature XY expressive control for mdrone.
  *
- * Two visual modes (selectable in Settings):
- *   - "flow": flow-field particles + dotted cursor trail
- *   - "minimal": dotted cursor trail only
- *
- * All canvas 2D, transparent background so CSS gradient shows through.
+ * Visual modes: "flow" (particles + trail) or "minimal" (trail only).
+ * Canvas uses destination-out compositing for motion blur persistence.
  */
 
 import { useCallback, useEffect, useRef } from "react";
@@ -21,27 +18,17 @@ interface WeatherPadProps {
 }
 
 interface Particle {
-  x: number;
-  y: number;
-  life: number;
-  maxLife: number;
-  size: number;
+  x: number; y: number; life: number; maxLife: number; size: number;
 }
 
-const MAX_PARTICLES = 40;
+const MAX_PARTICLES = 60;
 
 function noise2d(x: number, y: number): number {
-  const ix = Math.floor(x);
-  const iy = Math.floor(y);
-  const fx = x - ix;
-  const fy = y - iy;
-  const h = (a: number, b: number) => {
-    const n = a * 127.1 + b * 311.7;
-    return (Math.sin(n) * 43758.5453) % 1;
-  };
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const h = (a: number, b: number) => (Math.sin(a * 127.1 + b * 311.7) * 43758.5453) % 1;
   const a = h(ix, iy), b = h(ix + 1, iy), c = h(ix, iy + 1), d = h(ix + 1, iy + 1);
-  const sx = fx * fx * (3 - 2 * fx);
-  const sy = fy * fy * (3 - 2 * fy);
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
 
@@ -58,8 +45,6 @@ export function WeatherPad({
   const trailRef = useRef<{ x: number; y: number; age: number }[]>([]);
   const visualRef = useRef(visual);
   useEffect(() => { visualRef.current = visual; }, [visual]);
-
-  // Store latest climateX/Y in refs so the rAF loop always reads current values
   const cxRef = useRef(climateX);
   const cyRef = useRef(climateY);
   useEffect(() => { cxRef.current = climateX; }, [climateX]);
@@ -84,15 +69,15 @@ export function WeatherPad({
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!draggingRef.current) return;
     updateXy(e.clientX, e.clientY);
-    // Record trail in canvas pixel coords
     const el = xyRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-    const trail = trailRef.current;
-    trail.push({ x: px, y: py, age: 0 });
-    if (trail.length > 50) trail.shift();
+    trailRef.current.push({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      age: 0,
+    });
+    if (trailRef.current.length > 60) trailRef.current.shift();
   }, [updateXy]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -100,14 +85,12 @@ export function WeatherPad({
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ok */ }
   }, []);
 
-  // Single animation loop — never restarts on prop changes
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = xyRef.current;
     if (!canvas || !container) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     const timeBuf = analyser ? new Uint8Array(analyser.fftSize) : null;
     let raf = 0;
     let spawnAccum = 0;
@@ -134,70 +117,70 @@ export function WeatherPad({
       const cx = cxRef.current;
       const cy = cyRef.current;
 
-      // Read RMS
-      let rms = 0;
+      // RMS
       if (analyser && timeBuf) {
         analyser.getByteTimeDomainData(timeBuf);
         let sum = 0;
         for (let i = 0; i < timeBuf.length; i++) {
-          const v = (timeBuf[i] - 128) / 128;
-          sum += v * v;
+          const v = (timeBuf[i] - 128) / 128; sum += v * v;
         }
-        rms = Math.min(1, Math.sqrt(sum / timeBuf.length) * 3);
-        rmsRef.current += (rms - rmsRef.current) * 0.15;
+        rmsRef.current += (Math.min(1, Math.sqrt(sum / timeBuf.length) * 3) - rmsRef.current) * 0.15;
       }
-      rms = rmsRef.current;
+      const rms = rmsRef.current;
       const active = rms > 0.01;
 
-      // Always clear to transparent
-      ctx.clearRect(0, 0, w, h);
+      // Motion blur: fade previous frame instead of clearing.
+      // destination-out erases at the given alpha, leaving trails.
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.globalAlpha = active ? 0.08 : 0.3; // slower fade when active = longer trails
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, w, h);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1;
 
       if (!active) {
-        particlesRef.current = [];
-        trailRef.current = [];
+        // Let existing content fade out via the destination-out above
         return;
       }
 
       // ── Flow-field particles ────────────────────────────────
       if (vis === "flow") {
         const particles = particlesRef.current;
-        const spawnRate = rms * (0.4 + cy * 1.5);
-        spawnAccum += spawnRate;
+        spawnAccum += rms * (0.5 + cy * 2);
         while (spawnAccum >= 1 && particles.length < MAX_PARTICLES) {
           spawnAccum -= 1;
           particles.push({
-            x: Math.random() * w,
-            y: Math.random() * h,
-            life: 0,
-            maxLife: 60 + Math.random() * 80,
-            size: 1.5 + Math.random() * 2 + rms,
+            x: Math.random() * w, y: Math.random() * h,
+            life: 0, maxLife: 80 + Math.random() * 100,
+            size: 2 + Math.random() * 2,
           });
         }
 
-        const fieldScale = 0.008;
-        const fieldSpeed = 0.3 + cy * 1.2;
+        const fieldScale = 0.006;
+        const fieldSpeed = 0.4 + cy * 1.5;
+        const warmth = cx;
+        const r = Math.round(180 + warmth * 60);
+        const g = Math.round(120 + warmth * 30);
+        const b = Math.round(50 + (1 - warmth) * 50);
 
         for (let i = particles.length - 1; i >= 0; i--) {
           const p = particles[i];
-          const n = noise2d(p.x * fieldScale + time * 0.1, p.y * fieldScale + time * 0.05);
-          const angle = n * Math.PI * 4 + cy * Math.PI;
+          const n = noise2d(p.x * fieldScale + time * 0.08, p.y * fieldScale + time * 0.04);
+          const angle = n * Math.PI * 4 + cy * Math.PI * 0.5;
           p.x += Math.cos(angle) * fieldSpeed;
           p.y += Math.sin(angle) * fieldSpeed;
           p.life++;
 
-          if (p.life >= p.maxLife || p.x < -5 || p.x > w + 5 || p.y < -5 || p.y > h + 5) {
+          if (p.life >= p.maxLife || p.x < -10 || p.x > w + 10 || p.y < -10 || p.y > h + 10) {
             particles.splice(i, 1);
             continue;
           }
 
           const t = p.life / p.maxLife;
-          const alpha = t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1;
-          const warmth = cx;
-          const r = Math.round(160 + warmth * 60);
-          const g = Math.round(110 + warmth * 30);
-          const b = Math.round(50 + (1 - warmth) * 50);
+          const alpha = (t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1);
 
-          ctx.globalAlpha = alpha * (0.15 + rms * 0.45);
+          // Draw particle — the motion blur handles the trail effect
+          ctx.globalAlpha = alpha * (0.3 + rms * 0.5);
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fillStyle = `rgb(${r},${g},${b})`;
@@ -205,44 +188,31 @@ export function WeatherPad({
         }
       }
 
-      // ── Dotted cursor trail ─────────────────────────────────
+      // ── Cursor trail dots ───────────────────────────────────
       const trail = trailRef.current;
       for (let i = 0; i < trail.length; i++) {
         const tp = trail[i];
-        const fade = 1 - tp.age / 50;
+        const fade = Math.max(0, 1 - tp.age / 60);
         if (fade <= 0) continue;
         const recency = trail.length > 1 ? i / (trail.length - 1) : 1;
-        const a = fade * fade * recency;
-        const dotR = 1.5 + a * 2; // max ~3.5px
+        const a = fade * recency;
+        const dotR = 1.5 + a * 2;
 
-        // Subtle halo
-        ctx.globalAlpha = a * 0.25;
-        ctx.beginPath();
-        ctx.arc(tp.x, tp.y, dotR + 2, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(220,190,100,1)";
-        ctx.fill();
-
-        // Dot
-        ctx.globalAlpha = a * 0.7;
+        ctx.globalAlpha = a * 0.6;
         ctx.beginPath();
         ctx.arc(tp.x, tp.y, dotR, 0, Math.PI * 2);
         ctx.fillStyle = "#dcc070";
         ctx.fill();
       }
-      // Age trail
       for (let i = trail.length - 1; i >= 0; i--) {
         trail[i].age++;
-        if (trail[i].age > 50) trail.splice(i, 1);
+        if (trail[i].age > 60) trail.splice(i, 1);
       }
-
       ctx.globalAlpha = 1;
     };
 
     raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-    };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, [analyser]);
 
   const gradientStyle = {
