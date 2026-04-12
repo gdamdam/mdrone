@@ -322,6 +322,40 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   flex-shrink: 0;
 }
 
+/* TIMBRE + EFFECTS two-column layout */
+.timbre-fx-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(240px, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .timbre-fx-row { grid-template-columns: 1fr; }
+}
+
+.timbre-col, .fx-col { min-width: 0; }
+
+.timbre-grid-compact {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.timbre-btn-level {
+  font-size: 9px;
+  color: var(--preview);
+  font-weight: 700;
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+}
+
+.timbre-btn {
+  position: relative;
+}
+
 .preset-panel-header {
   display: flex;
   align-items: center;

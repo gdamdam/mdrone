@@ -245,9 +245,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
   const DISCLOSURE_KEY = "mdrone-disclosure";
-  type Section = "presets" | "timbre" | "effects" | "tuning" | "advanced" | "detune";
+  type Section = "presets" | "timbre" | "tuning" | "advanced" | "detune";
   const defaultDisclosure: Record<Section, boolean> = {
-    presets: false, timbre: false, effects: false, tuning: false, advanced: false, detune: false,
+    presets: false, timbre: false, tuning: false, advanced: false, detune: false,
   };
   const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
     try {
@@ -658,70 +658,69 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </div>
         </div>
 
-        {/* ── Collapsible: TIMBRE ───── */}
+        {/* ── Collapsible: TIMBRE + EFFECTS — two-column ───── */}
         <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("timbre")}>
           <span className="disclosure-arrow">{disclosed.timbre ? "▾" : "▸"}</span>
-          TIMBRE · voice layers
+          TIMBRE + EFFECTS
         </button>
-        {disclosed.timbre && (<>
-        <div className="panel-hint">Voice models — combine for texture</div>
-        <div className="timbre-grid">
-          {VOICES.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => toggleVoiceLayer(v.id)}
-              className={state.voiceLayers[v.id] ? "timbre-btn timbre-btn-active" : "timbre-btn"}
-              title={v.hint}
-            >
-              <span className="timbre-btn-icon">{v.icon}</span>
-              <span className="timbre-btn-label">{v.label}</span>
-            </button>
-          ))}
-        </div>
-        <div className="layer-levels">
-          {VOICES.map((v) => state.voiceLayers[v.id] && (
-            <div key={v.id} className="layer-level-row">
-              <span className="layer-level-label">{v.label}</span>
-              <input
-                type="range" min={0} max={1} step={0.01}
-                value={state.voiceLevels[v.id]}
-                onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
-                className="macro-slider"
-                title={`${v.label} mix level`}
-              />
-              <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
+        {disclosed.timbre && (
+        <div className="timbre-fx-row">
+          <div className="timbre-col">
+            <div className="panel-hint">Voice models — combine for texture</div>
+            <div className="timbre-grid timbre-grid-compact">
+              {VOICES.map((v) => {
+                const active = state.voiceLayers[v.id];
+                const level = active ? Math.round(state.voiceLevels[v.id] * 100) : 0;
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => toggleVoiceLayer(v.id)}
+                    className={active ? "timbre-btn timbre-btn-active" : "timbre-btn"}
+                    title={v.hint}
+                  >
+                    <span className="timbre-btn-icon">{v.icon}</span>
+                    <span className="timbre-btn-label">{v.label}</span>
+                    {active && <span className="timbre-btn-level">{level}</span>}
+                  </button>
+                );
+              })}
             </div>
-          ))}
-          {state.voiceLayers.tanpura && (
-            <div className="layer-level-row">
-              <span className="layer-level-label">PLUCK</span>
-              <input
-                type="range"
-                min={0.2}
-                max={4}
-                step={0.05}
-                value={state.pluckRate}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  setPluckRate(v);
-                  engine?.setTanpuraPluckRate(v);
-                }}
-                className="macro-slider"
-                title="Tanpura re-pluck rate."
-              />
-              <span className="layer-level-value">{state.pluckRate.toFixed(1)}×</span>
-            </div>
-          )}
+            {/* Inline level sliders for active voices */}
+            {VOICES.map((v) => state.voiceLayers[v.id] && (
+              <div key={v.id} className="layer-level-row">
+                <span className="layer-level-label">{v.label}</span>
+                <input
+                  type="range" min={0} max={1} step={0.01}
+                  value={state.voiceLevels[v.id]}
+                  onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
+                  className="macro-slider"
+                  title={`${v.label} mix level`}
+                />
+                <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
+              </div>
+            ))}
+            {state.voiceLayers.tanpura && (
+              <div className="layer-level-row">
+                <span className="layer-level-label">PLUCK</span>
+                <input
+                  type="range" min={0.2} max={4} step={0.05}
+                  value={state.pluckRate}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    setPluckRate(v);
+                    engine?.setTanpuraPluckRate(v);
+                  }}
+                  className="macro-slider"
+                  title="Tanpura re-pluck rate."
+                />
+                <span className="layer-level-value">{state.pluckRate.toFixed(1)}×</span>
+              </div>
+            )}
+          </div>
+          <div className="fx-col">
+            <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
+          </div>
         </div>
-        </>)}
-
-        {/* ── Collapsible: EFFECTS ───── */}
-        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("effects")}>
-          <span className="disclosure-arrow">{disclosed.effects ? "▾" : "▸"}</span>
-          EFFECTS · serial chain
-        </button>
-        {disclosed.effects && (
-          <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
         )}
 
         {/* ── Collapsible: TUNING — mode + tonic ───── */}
