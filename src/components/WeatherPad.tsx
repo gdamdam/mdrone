@@ -193,7 +193,7 @@ export function WeatherPad({
         const cursorPx = cx * w;
         const cursorPy = (1 - cy) * h;
         const maxR = Math.min(w, h) * 0.3;
-        const baseR = Math.min(maxR, 10 + rms * maxR * 0.9 + cy * 20); // radius proportional to volume, capped
+        const baseR = Math.min(maxR, 6 + rms * maxR * 0.9 + cy * 20); // 6px min ≈ cursor dot size
         const samples = timeBuf.length;
         const step = Math.max(1, Math.floor(samples / 128)); // ~128 points around the ring
 
