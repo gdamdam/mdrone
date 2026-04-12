@@ -88,7 +88,7 @@ export function FxModal({ engine, effectId, onClose }: FxModalProps) {
         </div>
 
         <div className="fx-modal-viz">
-          <FxViz effectId={effectId} />
+          <FxViz effectId={effectId} engine={engine} />
         </div>
 
         <p className="fx-modal-desc">{EFFECT_DESCRIPTIONS[effectId]}</p>
@@ -453,7 +453,7 @@ const vizProps = {
   strokeLinejoin: "round" as const,
 };
 
-function FxViz({ effectId }: { effectId: EffectId }) {
+function FxViz({ effectId, engine }: { effectId: EffectId; engine: AudioEngine | null }) {
   const phase = useFxViz();
 
   switch (effectId) {
@@ -483,7 +483,7 @@ function FxViz({ effectId }: { effectId: EffectId }) {
     case "ringmod":
       return <VizRingmod phase={phase} />;
     case "formant":
-      return <VizFormant />;
+      return <VizFormant engine={engine} />;
   }
 }
 
@@ -685,17 +685,33 @@ function VizRingmod({ phase }: { phase: number }) {
   );
 }
 
-/** FORMANT — three resonant peaks representing vowel formants. */
-function VizFormant() {
+/** FORMANT — three resonant peaks that move with the current vowel. */
+function VizFormant({ engine }: { engine: AudioEngine | null }) {
+  const fx = engine?.getFxChain();
+  const vowelIdx = fx?.getFormantVowel() ?? 0;
+  const shift = fx?.getFormantShift() ?? 1;
+  // Same vowel table as FxChain
+  const VOWELS: [number, number, number][] = [
+    [700, 1220, 2600], [270, 2300, 3000], [400, 800, 2600],
+    [300, 870, 2250], [530, 1850, 2500],
+  ];
+  const freqs = VOWELS[vowelIdx] ?? VOWELS[0];
+  // Map Hz to SVG x position (log scale, 100Hz→20, 4000Hz→380)
+  const hzToX = (hz: number) => 20 + (Math.log(hz * shift / 100) / Math.log(4000 / 100)) * 360;
+
   return (
     <svg {...vizProps} className="fx-viz">
-      {[[100, 50, 40], [200, 60, 35], [310, 40, 30]].map(([cx, h, w], i) => (
-        <path key={i} d={`M ${cx - w} 120 Q ${cx} ${120 - h} ${cx + w} 120`} strokeWidth={2} />
-      ))}
+      {freqs.map((hz, i) => {
+        const cx = hzToX(hz);
+        const h = 55 - i * 10;
+        const w = 28 - i * 4;
+        return <path key={i} d={`M ${cx - w} 120 Q ${cx} ${120 - h} ${cx + w} 120`} strokeWidth={2} />;
+      })}
       <line x1="20" y1="120" x2="380" y2="120" opacity="0.3" />
-      <text x="100" y="135" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">F1</text>
-      <text x="200" y="135" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">F2</text>
-      <text x="310" y="135" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">F3</text>
+      {freqs.map((hz, i) => {
+        const cx = hzToX(hz);
+        return <text key={i} x={cx} y="135" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">F{i + 1}</text>;
+      })}
     </svg>
   );
 }
