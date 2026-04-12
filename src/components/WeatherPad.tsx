@@ -167,14 +167,22 @@ export function WeatherPad({
       const cy = climateY;
       const active = rms > 0.01;
 
-      // Clear with slight trail persistence for motion blur
-      ctx.globalAlpha = active ? 0.3 : 1;
-      ctx.fillStyle = "rgba(0,0,0,1)";
-      ctx.fillRect(0, 0, w, h);
-      ctx.globalAlpha = 1;
+      // Clear — use transparent clear so the CSS gradient shows through.
+      // Partial clear (compositing trick) for motion blur on active visuals.
+      if (active && visual !== "minimal") {
+        // Semi-transparent overlay fades previous frame for trail persistence
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.clearRect(0, 0, w, h);
+      }
 
       if (!active) {
-        // Age out particles and trail
+        ctx.clearRect(0, 0, w, h);
         const particles = particlesRef.current;
         for (let i = particles.length - 1; i >= 0; i--) {
           particles[i].life += 4;
