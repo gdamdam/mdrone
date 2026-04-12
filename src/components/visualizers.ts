@@ -30,14 +30,11 @@ export type Visualizer =
   | "aurora"
   | "orb"
   | "dreamMachine"
-  | "freqRing"
   | "pitchMandala"
   | "flowField"
   | "waterfall"
-  | "strata"
   | "feedbackTunnel"
   | "waterfallAscii"
-  | "waterfallBlock"
   | "waterfallRain"
   | "waterfallHybrid";
 
@@ -56,7 +53,6 @@ export const VISUALIZER_GROUPS: readonly {
     items: [
       "mandala",
       "pitchMandala",
-      "freqRing",
       "flowField",
       "sigil",
       "cymatics",
@@ -66,9 +62,7 @@ export const VISUALIZER_GROUPS: readonly {
     label: "SPECTRAL",
     items: [
       "aurora",
-      "strata",
       "waterfall",
-      "waterfallBlock",
       "waterfallAscii",
       "waterfallHybrid",
       "waterfallRain",
@@ -103,7 +97,6 @@ export const VISUALIZER_ORDER: readonly Visualizer[] =
 export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   mandala: "BREATHING MANDALA",
   pitchMandala: "PITCH MANDALA · 12 sectors",
-  freqRing: "FREQUENCY RING · radial FFT",
   flowField: "FLOW FIELD · particle streams",
   haloGlow: "HALO & RAYS",
   fractal: "JULIA FRACTAL · heavy",
@@ -114,14 +107,12 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   starGate: "STAR GATE · Coil / 2001",
   cymatics: "CYMATICS PLATE",
   waterfall: "SPECTRAL WATERFALL",
-  waterfallBlock: "WATERFALL · unicode blocks",
   waterfallAscii: "WATERFALL · ASCII gradient",
   waterfallHybrid: "WATERFALL · hybrid strata",
   waterfallRain: "WATERFALL · matrix rain",
   feedbackTunnel: "FEEDBACK TUNNEL · Jarman",
   inkBloom: "INK BLOOM",
   horizon: "HORIZON SUNRISE",
-  strata: "DRONE STRATA",
   aurora: "SPECTRAL AURORA",
   orb: "RESONANT ORB",
   dreamMachine: "DREAM MACHINE",
@@ -1334,14 +1325,11 @@ export const VISUALIZER_FNS: Record<
   dreamHouse: drawDreamHouse,
   sigil: drawSigilBloom,
   starGate: drawStarGate,
-  freqRing: drawFreqRing,
   pitchMandala: drawPitchMandala,
   flowField: drawFlowField,
   waterfall: drawWaterfall,
-  strata: drawStrata,
   feedbackTunnel: drawFeedbackTunnel,
   waterfallAscii: drawWaterfallAscii,
-  waterfallBlock: drawWaterfallBlock,
   waterfallRain: drawWaterfallRain,
   waterfallHybrid: drawWaterfallHybrid,
 };
@@ -2143,7 +2131,7 @@ export function drawWaterfallRain(
     // barely move, hot columns fall meaningfully but not disco-fast.
     // At 60 fps: 0.03..0.21 cells/frame ≈ 1.8..12.6 cells/sec, so
     // a full column takes several seconds to scroll.
-    col.y += 0.03 + energy * 0.18;
+    col.y += 0.12 + energy * 0.5;
     if (col.y > rows + 4) {
       col.y = -Math.random() * 10;
     }
