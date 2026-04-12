@@ -69,83 +69,121 @@ interface Pt {
   letter: string;
 }
 
-/** Place each unique letter on a polar ring around the centre. */
-function layoutPoints(
-  unique: string,
+/** Place nodes on a jittered polar ring — same algorithm as the
+ *  canvas visualizer sigil (visualizers.ts:makeSigil). */
+function layoutNodes(
+  count: number,
   cx: number,
   cy: number,
-  r: number,
+  radius: number,
   rng: () => number,
 ): Pt[] {
-  // Spread angles evenly, offset by letter identity so the layout reflects
-  // the phrase rather than just the count.
-  const n = unique.length;
-  return unique.split("").map((letter, i) => {
-    const alphaIdx = letter.charCodeAt(0) - 65;
-    // Base angle from index in phrase, perturbed by alphabet position.
-    const angle =
-      (i / n) * Math.PI * 2 +
-      (alphaIdx / 26) * 0.8 +
-      rngRange(rng, -0.22, 0.22);
-    const radius = r * rngRange(rng, 0.72, 1.0);
-    return {
-      x: cx + Math.cos(angle) * radius,
-      y: cy + Math.sin(angle) * radius,
-      letter,
-    };
-  });
+  const nodes: Pt[] = [];
+  for (let i = 0; i < count; i++) {
+    const ang = (i / count) * Math.PI * 2 + rngRange(rng, -0.4, 0.4);
+    const r = radius * (0.35 + rng() * 0.55);
+    nodes.push({ x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r, letter: "" });
+  }
+  return nodes;
 }
 
-/** Build a Spare-style sigil path: mostly straight strokes with
- *  sharp angular junctions, occasional controlled curves, and
- *  small terminal flourishes. Not a smooth blobby loop. */
-function buildContinuousPath(points: Pt[], cx: number, cy: number, rng: () => number): string {
-  if (points.length === 0) return "";
-  const cmds: string[] = [];
-  const first = points[0];
-  cmds.push(`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`);
+/** Build Spare-style sigil: geometric, angular, architectural.
+ *  Straight lines, triangles, crossbars, arrows, small circles
+ *  at intersections. Random traversal with knot crossings. */
+function buildSigilPath(
+  nodes: Pt[],
+  cx: number,
+  cy: number,
+  radius: number,
+  rng: () => number,
+): string {
+  if (nodes.length === 0) return "";
+  const n = nodes.length;
 
-  for (let i = 1; i < points.length; i++) {
-    const p0 = points[i - 1];
-    const p1 = points[i];
+  // Random traversal order (Fisher-Yates)
+  const order: number[] = [];
+  const indices = nodes.map((_, i) => i);
+  while (indices.length) {
+    const k = Math.floor(rng() * indices.length);
+    order.push(indices.splice(k, 1)[0]);
+  }
+  order.push(order[0]);
+
+  // Inject 2-3 revisits for knot crossings
+  const knots = 2 + Math.floor(rng() * 2);
+  for (let i = 0; i < knots; i++) {
+    const pos = 2 + Math.floor(rng() * Math.max(1, order.length - 3));
+    const rev = Math.floor(rng() * n);
+    order.splice(pos, 0, rev);
+  }
+
+  const cmds: string[] = [];
+  const mainPath: string[] = [];
+  const decorations: string[] = [];
+  const first = nodes[order[0]];
+  mainPath.push(`M ${first.x.toFixed(2)} ${first.y.toFixed(2)}`);
+
+  for (let i = 0; i < order.length - 1; i++) {
+    const a = nodes[order[i]];
+    const b = nodes[order[i + 1]];
     const choice = rng();
 
-    if (choice < 0.55) {
-      // Straight stroke — the angular Spare signature
-      cmds.push(`L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    if (choice < 0.6) {
+      // Straight stroke — Spare's primary element
+      mainPath.push(`L ${b.x.toFixed(2)} ${b.y.toFixed(2)}`);
     } else if (choice < 0.8) {
-      // Gentle controlled curve — small perpendicular offset
-      const mx = (p0.x + p1.x) / 2;
-      const my = (p0.y + p1.y) / 2;
-      const dx = p1.x - p0.x;
-      const dy = p1.y - p0.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len;
-      const ny = dx / len;
-      const bulge = rngRange(rng, -18, 18);
-      cmds.push(`Q ${(mx + nx * bulge).toFixed(2)} ${(my + ny * bulge).toFixed(2)} ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+      // Angular detour through or near centre — creates knot crossings
+      const vx = cx + rngRange(rng, -radius * 0.25, radius * 0.25);
+      const vy = cy + rngRange(rng, -radius * 0.25, radius * 0.25);
+      mainPath.push(`L ${vx.toFixed(2)} ${vy.toFixed(2)}`);
+      mainPath.push(`L ${b.x.toFixed(2)} ${b.y.toFixed(2)}`);
     } else {
-      // Angled detour through centre — Spare often routed strokes
-      // through the glyph's interior for knot-like crossings
-      const via_x = cx + rngRange(rng, -20, 20);
-      const via_y = cy + rngRange(rng, -20, 20);
-      cmds.push(`L ${via_x.toFixed(2)} ${via_y.toFixed(2)}`);
-      cmds.push(`L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+      // Triangle spike — a sharp detour perpendicular to the stroke
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const spike = rngRange(rng, 15, 35) * (rng() < 0.5 ? 1 : -1);
+      const sx = mx + (-dy / len) * spike;
+      const sy = my + (dx / len) * spike;
+      mainPath.push(`L ${sx.toFixed(2)} ${sy.toFixed(2)}`);
+      mainPath.push(`L ${b.x.toFixed(2)} ${b.y.toFixed(2)}`);
     }
 
-    // Terminal tick/flourish at ~30% of nodes — small crossbar or dot
-    if (rng() < 0.3) {
-      const angle = rng() * Math.PI * 2;
-      const tickLen = rngRange(rng, 6, 14);
-      const tx = p1.x + Math.cos(angle) * tickLen;
-      const ty = p1.y + Math.sin(angle) * tickLen;
-      cmds.push(`M ${tx.toFixed(2)} ${ty.toFixed(2)}`);
-      cmds.push(`L ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    // Crossbar at ~25% of nodes — short perpendicular line through the node
+    if (rng() < 0.25) {
+      const ang = rng() * Math.PI;
+      const half = rngRange(rng, 8, 16);
+      const x1 = b.x + Math.cos(ang) * half;
+      const y1 = b.y + Math.sin(ang) * half;
+      const x2 = b.x - Math.cos(ang) * half;
+      const y2 = b.y - Math.sin(ang) * half;
+      decorations.push(`M ${x1.toFixed(2)} ${y1.toFixed(2)} L ${x2.toFixed(2)} ${y2.toFixed(2)}`);
+    }
+
+    // Arrow tip at ~15% of nodes
+    if (rng() < 0.15) {
+      const dx2 = b.x - a.x;
+      const dy2 = b.y - a.y;
+      const len2 = Math.hypot(dx2, dy2) || 1;
+      const ux = dx2 / len2;
+      const uy = dy2 / len2;
+      const al = 10;
+      const aw = 6;
+      decorations.push(
+        `M ${(b.x - ux * al + uy * aw).toFixed(2)} ${(b.y - uy * al - ux * aw).toFixed(2)} ` +
+        `L ${b.x.toFixed(2)} ${b.y.toFixed(2)} ` +
+        `L ${(b.x - ux * al - uy * aw).toFixed(2)} ${(b.y - uy * al + ux * aw).toFixed(2)}`
+      );
     }
   }
 
-  // Close with a straight stroke back to start (Spare sigils are closed)
-  cmds.push(`L ${first.x.toFixed(2)} ${first.y.toFixed(2)}`);
+  // Close back to start
+  mainPath.push(`L ${first.x.toFixed(2)} ${first.y.toFixed(2)}`);
+
+  cmds.push(mainPath.join(" "));
+  if (decorations.length) cmds.push(decorations.join(" "));
   return cmds.join(" ");
 }
 
@@ -165,8 +203,9 @@ export function buildSigilSvg(ctx: ShareCardContext): string {
       ? unique
       : (unique + "AEIOU").split("").filter((c, i, a) => a.indexOf(c) === i).slice(0, 6).join("");
 
-  const points = layoutPoints(ensured, cx, cy, ringR, rng);
-  const pathD = buildContinuousPath(points, cx, cy, rng);
+  const nodeCount = Math.max(8, ensured.length + 2);
+  const points = layoutNodes(nodeCount, cx, cy, ringR, rng);
+  const pathD = buildSigilPath(points, cx, cy, ringR, rng);
 
   const parts: string[] = [];
 
@@ -214,13 +253,10 @@ export function buildSigilSvg(ctx: ShareCardContext): string {
     `<path d="${pathD}" fill="none" stroke="${PALETTE.ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="miter"/>`,
   );
 
-  // Vertex beads at each letter point.
+  // Node dots — small ink dots at intersections, Spare-style "bindu"
   for (const p of points) {
     parts.push(
-      `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="4" fill="${PALETTE.ink}"/>`,
-    );
-    parts.push(
-      `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="8" fill="none" stroke="${PALETTE.ink}" stroke-width="0.6" stroke-opacity="0.5"/>`,
+      `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="3" fill="${PALETTE.ink}"/>`,
     );
   }
 
