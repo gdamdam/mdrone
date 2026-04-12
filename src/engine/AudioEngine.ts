@@ -290,7 +290,6 @@ export class AudioEngine {
 
   setEffect(id: EffectId, on: boolean): void {
     this.fxChain.setEffect(id, on);
-    if (id === "shimmer") this.voiceEngine.setShimmerEnabled(on);
   }
 
   isEffect(id: EffectId): boolean { return this.fxChain.isEffect(id); }

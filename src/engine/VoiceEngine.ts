@@ -396,10 +396,6 @@ export class VoiceEngine {
 
   getFmIndex(): number { return this.fmIndex; }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setShimmerEnabled(_on: boolean): void {
-    // Shimmer is now purely an FX worklet — no oscillator pair.
-  }
 
   private get MACRO_TC(): number {
     return this.baseMacroTC * (0.3 + this.morphAmount * 5.7);

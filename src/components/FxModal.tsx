@@ -118,16 +118,18 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
     case "freeze":
       return <FreezeParams fx={fx} />;
     case "plate":
+      return <PlateParams engine={engine} fx={fx} />;
     case "hall":
+    case "cistern":
+      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={effectId === "hall" ? 0.5 : 0.6} />;
     case "shimmer":
       return <ShimmerParams engine={engine} fx={fx} />;
-    case "cistern":
-      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.6} />;
     case "granular":
+      return <GranularParams engine={engine} fx={fx} kind="granular" />;
     case "graincloud":
-      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.8} />;
+      return <GranularParams engine={engine} fx={fx} kind="graincloud" />;
     case "ringmod":
-      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.5} />;
+      return <RingmodParams engine={engine} fx={fx} />;
     case "formant":
       return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.6} />;
     case "tape":
@@ -265,6 +267,55 @@ function ShimmerParams({ fx }: { engine: AudioEngine | null; fx: FxChainLike }) 
   );
 }
 
+function PlateParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+  const [decay, setDecay] = useState(() => fx?.getPlateDecay() ?? 0.5);
+  const [damping, setDamping] = useState(() => fx?.getPlateDamping() ?? 0.35);
+  const [diffusion, setDiffusion] = useState(() => fx?.getPlateDiffusion() ?? 0.75);
+  return (
+    <>
+      <ParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
+        onChange={(v) => { setDecay(v); fx?.setPlateDecay(v); }} />
+      <ParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
+        onChange={(v) => { setDamping(v); fx?.setPlateDamping(v); }} />
+      <ParamSlider label="DIFFUSION" value={diffusion} min={0} max={0.9} step={0.01} unit=""
+        onChange={(v) => { setDiffusion(v); fx?.setPlateDiffusion(v); }} />
+      <AmountOnly engine={engine} effectId="plate" fx={fx} defaultValue={0.5} />
+    </>
+  );
+}
+
+function RingmodParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+  const [freq, setFreq] = useState(() => fx?.getRingmodFreq() ?? 80);
+  return (
+    <>
+      <ParamSlider label="FREQUENCY" value={freq} min={10} max={2000} step={1} unit=" Hz"
+        onChange={(v) => { setFreq(v); fx?.setRingmodFreq(v); }} />
+      <AmountOnly engine={engine} effectId="ringmod" fx={fx} defaultValue={0.5} />
+    </>
+  );
+}
+
+function GranularParams({ engine, fx, kind }: { engine: AudioEngine | null; fx: FxChainLike; kind: "granular" | "graincloud" }) {
+  const isCloud = kind === "graincloud";
+  const [size, setSize] = useState(() => (isCloud ? fx?.getGrainCloudSize() : fx?.getGranularSize()) ?? (isCloud ? 0.06 : 0.2));
+  const [density, setDensity] = useState(() => (isCloud ? fx?.getGrainCloudDensity() : fx?.getGranularDensity()) ?? (isCloud ? 14 : 6));
+  const [pitch, setPitch] = useState(() => (isCloud ? fx?.getGrainCloudPitchSpread() : fx?.getGranularPitchSpread()) ?? (isCloud ? 0.05 : 0.2));
+  const setS = isCloud ? (v: number) => fx?.setGrainCloudSize(v) : (v: number) => fx?.setGranularSize(v);
+  const setD = isCloud ? (v: number) => fx?.setGrainCloudDensity(v) : (v: number) => fx?.setGranularDensity(v);
+  const setP = isCloud ? (v: number) => fx?.setGrainCloudPitchSpread(v) : (v: number) => fx?.setGranularPitchSpread(v);
+  return (
+    <>
+      <ParamSlider label="SIZE" value={size} min={0.02} max={2} step={0.01} unit=" s"
+        onChange={(v) => { setSize(v); setS(v); }} />
+      <ParamSlider label="DENSITY" value={density} min={0.3} max={40} step={0.1} unit="/s"
+        onChange={(v) => { setDensity(v); setD(v); }} />
+      <ParamSlider label="PITCH" value={pitch} min={0} max={1} step={0.01} unit=""
+        onChange={(v) => { setPitch(v); setP(v); }} />
+      <AmountOnly engine={engine} effectId={kind} fx={fx} defaultValue={isCloud ? 0.8 : 0.8} />
+    </>
+  );
+}
+
 function CombParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
   const [fb, setFb] = useState(() => fx?.getCombFeedback() ?? 0.85);
   return (
@@ -389,6 +440,15 @@ function FxViz({ effectId }: { effectId: EffectId }) {
       return <VizComb />;
     case "freeze":
       return <VizFreeze />;
+    case "cistern":
+      return <VizCistern />;
+    case "granular":
+    case "graincloud":
+      return <VizGranular phase={phase} />;
+    case "ringmod":
+      return <VizRingmod phase={phase} />;
+    case "formant":
+      return <VizFormant />;
   }
 }
 
@@ -538,6 +598,69 @@ function VizFreeze() {
           </g>
         ))}
       </g>
+    </svg>
+  );
+}
+
+/** CISTERN — concentric arches representing a deep cylindrical space. */
+function VizCistern() {
+  return (
+    <svg {...vizProps} className="fx-viz">
+      {[0, 1, 2, 3, 4].map((i) => {
+        const r = 30 + i * 18;
+        return <path key={i} d={`M ${200 - r} 120 A ${r} ${r} 0 0 1 ${200 + r} 120`} opacity={1 - i * 0.15} />;
+      })}
+      <circle cx="200" cy="120" r="4" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** GRANULAR / GRAINCLOUD — scattered dots with animated drift. */
+function VizGranular({ phase }: { phase: number }) {
+  const grains = [
+    [60, 50], [110, 80], [160, 40], [200, 90], [250, 55],
+    [290, 75], [340, 45], [80, 95], [180, 65], [320, 100],
+  ];
+  return (
+    <svg {...vizProps} className="fx-viz">
+      {grains.map(([x, y], i) => {
+        const dx = Math.sin(phase + i * 1.3) * 8;
+        const dy = Math.cos(phase * 0.7 + i * 0.9) * 6;
+        const r = 3 + Math.sin(phase + i * 2) * 1.5;
+        return <circle key={i} cx={x + dx} cy={y + dy} r={r} fill="currentColor" opacity={0.4 + Math.sin(phase + i) * 0.2} />;
+      })}
+    </svg>
+  );
+}
+
+/** RINGMOD — two interlocking sine curves representing AM. */
+function VizRingmod({ phase }: { phase: number }) {
+  const pts1: string[] = [];
+  const pts2: string[] = [];
+  for (let x = 0; x <= 400; x += 4) {
+    const t = x / 400;
+    pts1.push(`${x},${70 + Math.sin(t * Math.PI * 6 + phase) * 30}`);
+    pts2.push(`${x},${70 + Math.sin(t * Math.PI * 14 + phase * 2.3) * 20}`);
+  }
+  return (
+    <svg {...vizProps} className="fx-viz">
+      <polyline points={pts1.join(" ")} />
+      <polyline points={pts2.join(" ")} opacity="0.5" />
+    </svg>
+  );
+}
+
+/** FORMANT — three resonant peaks representing vowel formants. */
+function VizFormant() {
+  return (
+    <svg {...vizProps} className="fx-viz">
+      {[[100, 50, 40], [200, 60, 35], [310, 40, 30]].map(([cx, h, w], i) => (
+        <path key={i} d={`M ${cx - w} 120 Q ${cx} ${120 - h} ${cx + w} 120`} strokeWidth={2} />
+      ))}
+      <line x1="20" y1="120" x2="380" y2="120" opacity="0.3" />
+      <text x="100" y="135" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">F1</text>
+      <text x="200" y="135" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">F2</text>
+      <text x="310" y="135" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.5">F3</text>
     </svg>
   );
 }

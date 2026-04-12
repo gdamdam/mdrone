@@ -162,6 +162,7 @@ export class FxChain {
   private shimmerWorklet: AudioWorkletNode | null = null;
   private freezeWorklet: AudioWorkletNode | null = null;
   private granularWorklet: AudioWorkletNode | null = null;
+  private ringmodOsc: OscillatorNode | null = null;
   // Second fx-granular instance, initialised with classic-granular
   // defaults (short grains, high density, deeper pitch spread) so the
   // recognisable "chopped cloud" texture is reachable without
@@ -272,6 +273,7 @@ export class FxChain {
     const osc = ctx.createOscillator();
     osc.frequency.value = 80;
     osc.start();
+    this.ringmodOsc = osc;
     const ringGain = ctx.createGain();
     ringGain.gain.value = 0; // zero-offset = pure ring modulation
     osc.connect(ringGain.gain);
@@ -926,6 +928,64 @@ export class FxChain {
   getShimmerMix(): number {
     return this.shimmerWorklet?.parameters.get("mix")?.value ?? 0.5;
   }
+
+  // PLATE — worklet AudioParams
+  setPlateDecay(v: number): void {
+    this.plateWorklet?.parameters.get("decay")
+      ?.setTargetAtTime(Math.max(0, Math.min(0.99, v)), this.ctx.currentTime, 0.1);
+  }
+  getPlateDecay(): number { return this.plateWorklet?.parameters.get("decay")?.value ?? 0.5; }
+  setPlateDamping(v: number): void {
+    this.plateWorklet?.parameters.get("damping")
+      ?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
+  }
+  getPlateDamping(): number { return this.plateWorklet?.parameters.get("damping")?.value ?? 0.35; }
+  setPlateDiffusion(v: number): void {
+    this.plateWorklet?.parameters.get("diffusion")
+      ?.setTargetAtTime(Math.max(0, Math.min(0.9, v)), this.ctx.currentTime, 0.1);
+  }
+  getPlateDiffusion(): number { return this.plateWorklet?.parameters.get("diffusion")?.value ?? 0.75; }
+  setPlateMix(v: number): void {
+    this.plateWorklet?.parameters.get("mix")
+      ?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
+  }
+  getPlateMix(): number { return this.plateWorklet?.parameters.get("mix")?.value ?? 1; }
+
+  // RINGMOD
+  setRingmodFreq(hz: number): void {
+    if (this.ringmodOsc) {
+      this.ringmodOsc.frequency.setTargetAtTime(Math.max(10, Math.min(2000, hz)), this.ctx.currentTime, 0.05);
+    }
+  }
+  getRingmodFreq(): number { return this.ringmodOsc?.frequency.value ?? 80; }
+
+  // GRANULAR — worklet AudioParams
+  setGranularSize(v: number): void {
+    this.granularWorklet?.parameters.get("size")?.setTargetAtTime(Math.max(0.02, Math.min(2, v)), this.ctx.currentTime, 0.1);
+  }
+  getGranularSize(): number { return this.granularWorklet?.parameters.get("size")?.value ?? 0.2; }
+  setGranularDensity(v: number): void {
+    this.granularWorklet?.parameters.get("density")?.setTargetAtTime(Math.max(0.3, Math.min(40, v)), this.ctx.currentTime, 0.1);
+  }
+  getGranularDensity(): number { return this.granularWorklet?.parameters.get("density")?.value ?? 6; }
+  setGranularPitchSpread(v: number): void {
+    this.granularWorklet?.parameters.get("pitchSpread")?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
+  }
+  getGranularPitchSpread(): number { return this.granularWorklet?.parameters.get("pitchSpread")?.value ?? 0.2; }
+
+  // GRAINCLOUD — second granular worklet instance
+  setGrainCloudSize(v: number): void {
+    this.grainCloudWorklet?.parameters.get("size")?.setTargetAtTime(Math.max(0.02, Math.min(2, v)), this.ctx.currentTime, 0.1);
+  }
+  getGrainCloudSize(): number { return this.grainCloudWorklet?.parameters.get("size")?.value ?? 0.06; }
+  setGrainCloudDensity(v: number): void {
+    this.grainCloudWorklet?.parameters.get("density")?.setTargetAtTime(Math.max(0.3, Math.min(40, v)), this.ctx.currentTime, 0.1);
+  }
+  getGrainCloudDensity(): number { return this.grainCloudWorklet?.parameters.get("density")?.value ?? 14; }
+  setGrainCloudPitchSpread(v: number): void {
+    this.grainCloudWorklet?.parameters.get("pitchSpread")?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
+  }
+  getGrainCloudPitchSpread(): number { return this.grainCloudWorklet?.parameters.get("pitchSpread")?.value ?? 0.05; }
 
   // SUB
   /** Manual override of the sub oscillator frequency. Will be
