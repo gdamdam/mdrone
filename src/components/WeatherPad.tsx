@@ -196,8 +196,8 @@ export function WeatherPad({
         return;
       }
 
-      // ── Layer 1: Spectral aurora bands (aurora + flow modes)
-      if (visual !== "minimal") {
+      // ── Layer 1: Spectral bands (flow mode only, subtle)
+      if (visual === "flow") {
       const bandH = h / bands.length;
       for (let b = 0; b < bands.length; b++) {
         const energy = bands[b] * rms;
@@ -210,7 +210,7 @@ export function WeatherPad({
         // Horizontal gradient band
         const grad = ctx.createLinearGradient(0, bandY - bandH * 0.4, 0, bandY + bandH * 0.4);
         grad.addColorStop(0, `rgba(${r},${g},${bl},0)`);
-        grad.addColorStop(0.5, `rgba(${r},${g},${bl},${(energy * 0.25).toFixed(3)})`);
+        grad.addColorStop(0.5, `rgba(${r},${g},${bl},${(energy * 0.1).toFixed(3)})`);
         grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
         ctx.fillStyle = grad;
         // Shift band position with time and Y axis (motion)
@@ -261,7 +261,7 @@ export function WeatherPad({
         const g = Math.round(130 + warmth * 30);
         const b = Math.round(60 + (1 - warmth) * 60);
 
-        ctx.globalAlpha = alpha * rms * 0.4;
+        ctx.globalAlpha = alpha * rms * 0.2;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = `rgb(${r},${g},${b})`;
@@ -291,8 +291,8 @@ export function WeatherPad({
 
           // Soft radial glow halo
           const grad = ctx.createRadialGradient(tp.x, tp.y, 0, tp.x, tp.y, glowR);
-          grad.addColorStop(0, `rgba(232,204,120,${(glow * brightness * 0.7).toFixed(3)})`);
-          grad.addColorStop(0.3, `rgba(232,180,80,${(glow * brightness * 0.3).toFixed(3)})`);
+          grad.addColorStop(0, `rgba(232,204,120,${(glow * brightness * 0.4).toFixed(3)})`);
+          grad.addColorStop(0.3, `rgba(232,180,80,${(glow * brightness * 0.15).toFixed(3)})`);
           grad.addColorStop(1, `rgba(232,160,60,0)`);
           ctx.globalAlpha = 1;
           ctx.fillStyle = grad;
