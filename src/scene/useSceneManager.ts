@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
-import { PRESETS, createSafeRandomScene, mutateScene, mulberry32 } from "../engine/presets";
+import { PRESETS, createSafeRandomScene, createStartupScene, mutateScene, mulberry32 } from "../engine/presets";
 import { applyJourneyTick } from "../journey";
 import {
   SceneRecorder,
@@ -154,7 +154,7 @@ export function useSceneManager({
     // same applySnapshot path. Octave comes from the preset's authored
     // range; only fall back if the preset has no range.
     const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
-    const { preset, snapshot } = createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE);
+    const { preset, snapshot } = createStartupScene(randomTonic, FALLBACK_OCTAVE_RANGE);
     // See handleRandomScene — guard against handlePresetNameChange
     // stomping on the generated name when applySnapshot fires the
     // onPresetChange effect.

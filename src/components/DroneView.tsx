@@ -481,8 +481,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <div className="weather-macro-row">
           <div className="weather-section">
             <div className="weather-header">
-              <span className="weather-title">WEATHER</span>
-              <span className="weather-hint">drag to change the room</span>
+              <span className="weather-title weather-title-intro">WEATHER</span>
+              <span className="weather-hint weather-hint-intro">drag to change the room</span>
             </div>
             <div
               ref={xyRef}

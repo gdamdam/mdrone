@@ -80,9 +80,9 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         <p className="start-gate-sub">
           Browser drone instrument
           <br />
-          Start a gentle scene, shape the tone,
+          Hold a note. Move the weather.
           <br />
-          and let the room breathe.
+          Let the room breathe.
         </p>
 
         <div className="start-gate-actions">
@@ -125,8 +125,8 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
 
         <div className="start-gate-intro">
           {lastScene
-            ? "Reopen the last room exactly as you left it, or begin a fresh drone."
-            : "Opens straight into a gentle random drone."}
+            ? "Reopen the last room exactly as you left it, or enter a new one."
+            : "Opens into a curated drone scene."}
         </div>
 
         <div className="start-gate-pills" aria-hidden="true">

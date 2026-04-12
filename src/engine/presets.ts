@@ -176,6 +176,22 @@ const SCALE_INTERVALS: Record<ScaleId, number[]> = {
   slendro: [0, 240, 480, 720, 960],
 };
 
+/**
+ * Startup pool — a small curated set of presets that reliably create
+ * a beautiful, warm first impression. Used only by "Start New".
+ * Biased toward beauty, atmosphere, and clarity over edge variety.
+ */
+export const STARTUP_PRESET_IDS = [
+  "tanpura-drone",
+  "shruti-box",
+  "deep-listening",
+  "eno-airport",
+  "frahm-solo",
+  "malone-organ",
+  "stars-of-the-lid",
+  "budd-harold",
+] as const;
+
 export const SAFE_RANDOM_PRESET_IDS = [
   "tanpura-drone",
   "shruti-box",
@@ -2063,6 +2079,31 @@ export function createSafeRandomScene(
     preset,
     snapshot: createPresetVariation(preset, root, octave, random),
   };
+}
+
+/**
+ * Startup-curated scene — uses the smaller STARTUP_PRESET_IDS pool
+ * for "Start New" so the first impression is reliably beautiful.
+ * Falls back to the broader safe-random pool if the startup pool
+ * resolves empty (defensive).
+ */
+export function createStartupScene(
+  root: DroneSessionSnapshot["root"],
+  fallbackOctaveRange: readonly [number, number],
+  random = Math.random,
+): { preset: Preset; snapshot: DroneSessionSnapshot } {
+  const startupPresets = STARTUP_PRESET_IDS
+    .map((id) => PRESETS.find((preset) => preset.id === id) ?? null)
+    .filter((preset): preset is Preset => preset !== null);
+  if (startupPresets.length > 0) {
+    const preset = startupPresets[Math.floor(random() * startupPresets.length)];
+    const range = preset.octaveRange ?? fallbackOctaveRange;
+    const [lo, hi] = range;
+    const octave = lo + Math.floor(random() * (hi - lo + 1));
+    return { preset, snapshot: createPresetVariation(preset, root, octave, random) };
+  }
+  // Fallback to the broader pool
+  return createSafeRandomScene(root, fallbackOctaveRange, random);
 }
 
 /**
