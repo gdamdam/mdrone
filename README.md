@@ -17,7 +17,7 @@ It starts quickly, sounds physical, and stays focused on one job: sustained harm
 
 - **Hold a drone in the browser** — tonic, mode, timbre layers, climate, and master bus are ready right away.
 - **Shape the sound slowly** — drift, air, time, sub, bloom, glide, breathing LFO, and a large XY climate surface.
-- **Build real texture** — seven authored voice models and a 13-effect chain, including worklet-based plate, shimmer, freeze, cistern, and granular.
+- **Build real texture** — seven authored voice models and a 14-effect chain, including worklet-based plate, shimmer, freeze, cistern, and two granular engines (smooth cloud + classic stutter).
 - **Let the drone evolve** — preset morphing, URL-deterministic self-evolution, MUTATE perturbations, ritual JOURNEY phases, random scene generation, and a dedicated listening view keep long tones alive.
 - **Tune microtonally** — six tunings (equal, just 5-limit, meantone, harmonics, maqam-rast, slendro), six relation presets, and per-interval ±25 ¢ fine detune that updates voices live.
 - **Add a sympathetic partner** — optional second drone layer at a fifth, octave, or beat-detune relation with no extra editor.
@@ -29,13 +29,13 @@ It starts quickly, sounds physical, and stays focused on one job: sustained harm
 The core idea is simple: mdrone owns sustain.
 
 Go deeper if you want:
-- 7 authored voice engines (tanpura, reed, metal, air, piano, fm, amp)
-- 13 effects
-- 33+ authored presets across 5 genre groups
+- 7 authored voice engines (tanpura, reed, metal, air, piano, fm, amp) with formant bodies, body resonators, and proper amp cabinet shaping
+- 14 effects including a true octave-down sub and two granular engines (pitch-quantised stutter + drone-smooth cloud)
+- 36 authored presets across 5 genre groups
 - 6 microtonal tunings + 6 relation presets + per-interval fine detune
 - 4 ritual journeys (morning, evening, dusk, void) each with 4 phases
 - URL-deterministic evolve loop seeded by a per-scene PRNG
-- Motion recording in the share URL (60 s / 200 events cap)
+- Optional motion recording in the share URL (60 s / 200 events cap — hidden by default, enable in Settings → Advanced)
 - 14 Meditate visualizers
 - Web MIDI note input
 - saved browser sessions
@@ -56,12 +56,12 @@ Go deeper if you want:
 - **Start a drone in seconds** — choose a tonic, mode, octave, and press HOLD.
 - **Layer timbres** — combine tanpura, reed, metal, air, piano, FM, and amp voices with independent levels.
 - **Push the room around** — DRIFT, AIR, TIME, SUB, BLOOM, GLIDE, breathing LFO, MORPH, EVOLVE, PLUCK, and the XY climate surface.
-- **Build atmosphere fast** — tape, wow, sub, comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular — all one tap away with long-press effect settings.
+- **Build atmosphere fast** — tape, wow, sub (true octave-down), comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular (drone-smooth cloud), graincloud (classic grain stutter) — all one tap away with long-press settings on every effect.
 - **Tune microtonally** — pick a tuning (just 5-limit, meantone, harmonics, maqam-rast, slendro, equal) and a relation, then nudge each interval in cents with the DETUNE sliders. Voices retune live.
 - **Mutate** — click MUTATE to perturb the current scene by an intensity slider. Deterministic from the URL via a per-scene PRNG seed.
 - **Walk a ritual journey** — pick JOURNEY and the scene drifts through arrival → bloom → suspension → dissolve over a few minutes, deterministic from the share URL.
 - **Add a sympathetic partner** — toggle PARTNER to layer a second drone voice at a fifth, octave, or beat-detune relation.
-- **Record gestures into the share URL** — REC MOTION captures meaningful tonic / macro / climate moves; share that URL and the next visitor sees the same performance replay.
+- **Record gestures into the share URL** (opt-in) — enable `MOTION RECORDING` in Settings → Advanced to reveal REC MOTION. Captures meaningful tonic / macro / climate moves; share that URL and the next visitor sees the same performance replay.
 - **Listen inside the drone** — switch to MEDITATE for analyser-driven visualizers that breathe with the sound.
 - **Play from hardware** — enable Web MIDI note input to retune the tonic from an external keyboard or controller.
 - **Save your scene** — keep named sessions in browser storage and come back to them later.
@@ -139,8 +139,8 @@ The serial chain is fixed in this order:
 |---|---|
 | **TAPE** | Saturation, head bump, and top-end rolloff |
 | **WOW** | Slow wow plus faster flutter on a short delay line |
-| **SUB** | Psychoacoustic bass enhancer |
-| **COMB** | Root-tracking resonant comb filter |
+| **SUB** | True octave-down subharmonic — triangle oscillator at root/2 amplitude-tracked by an envelope follower, summed in parallel with the dry |
+| **COMB** | Root-tracking resonant comb filter with soft-clipped feedback |
 | **RINGMOD** | Ring modulator for inharmonic shimmer and bell-like sidebands |
 | **FORMANT** | Vowel-shape formant filter for vocal-throat coloration |
 | **DELAY** | Warm feedback delay with lowpass and saturation in the loop |
@@ -149,7 +149,8 @@ The serial chain is fixed in this order:
 | **SHIMMER** | Worklet shimmer reverb plus octave-up source voice |
 | **FREEZE** | Worklet freeze capture that latches a sustained layer in place |
 | **CISTERN** | Long, dark room reverb for deep cavern / underground spaces |
-| **GRANULAR** | Worklet granular cloud that shatters the input into a slow texture |
+| **GRANULAR** | Drone-smooth grain cloud — medium grains at moderate density, soft trapezoid envelope, per-channel envelope-sum normalised |
+| **GRAINCLOUD** | Classic granular stutter — 40 ms grains at 25/s, falling-exponential envelope, ordered time-stretch replay, pitches snapped to the drone scale |
 
 ---
 
@@ -166,7 +167,7 @@ The serial chain is fixed in this order:
 - PLUCK control for tanpura re-pluck speed
 - Large XY climate pad for brightness and motion
 - Spacebar toggles HOLD
-- 33+ authored presets across 5 genre groups (Sacred, Minimal, Organ, Ambient, Noise)
+- 36 authored presets across 5 genre groups (Sacred, Minimal, Organ, Ambient, Noise)
 - Authored regional presets for Javanese gamelan and Arabic maqam traditions
 - Random startup scene and random scene generator
 - Web MIDI note-in for tonic / octave performance from external devices
@@ -177,14 +178,14 @@ The serial chain is fixed in this order:
 - JOURNEY mode walks a scene through authored arrival → bloom → suspension → dissolve phases
 - 4 shipped journeys: morning, evening, dusk, void
 - PARTNER toggle adds a sympathetic second drone layer at a fifth / octave-up / octave-down / beat-detune relation
-- Motion recording: REC MOTION captures meaningful gestures (tonic, octave, macros, climate, lfo) into the share URL and replays them deterministically on load. Capped at 60 s / 200 events.
+- Motion recording (opt-in via Settings → Advanced): REC MOTION captures meaningful gestures (tonic, octave, macros, climate, lfo) into the share URL and replays them deterministically on load. Capped at 60 s / 200 events.
 
 **Sound Design**
 - Layer any combination of the 7 voice engines
 - Per-layer level control
 - Long-press effect settings for amount, resonance, delay time, sub center, and freeze mix
 - Shimmer octave voice tied directly to the shimmer effect state
-- 13-effect serial chain (tape, wow, sub, comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular)
+- 14-effect serial chain (tape, wow, sub, comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular, graincloud)
 - Preset-specific loudness trim so scenes stay in a usable range
 
 **Mixer**

@@ -70,20 +70,25 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <p className="fx-modal-desc">
             <strong>DRIFT</strong> — per-voice pitch wander.{" "}
             <strong>AIR</strong> — reverb wet amount (PLATE/HALL/SHIMMER).{" "}
-            <strong>TIME</strong> — delay feedback and time.{" "}
-            <strong>SUB</strong> — sub-octave bloom.{" "}
-            <strong>BLOOM</strong> — attack time for new voices.
+            <strong>TIME</strong> — climate LFO rate.{" "}
+            <strong>SUB</strong> — voice sub layer weight (separate from
+            the SUB effect, which is a true octave-down subharmonic).{" "}
+            <strong>BLOOM</strong> — attack time for new voices.{" "}
+            <strong>GLIDE</strong> — pitch slide when the tonic changes.
           </p>
 
           <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">EFFECTS CHAIN</div>
           <p className="fx-modal-desc">
-            A serial chain in a fixed DSP order. The active-chain preview
-            above the button grid shows the currently enabled effects in
-            their actual processing order, numbered 1..N. Each button is
-            a toggle — <strong>click</strong> to flip, <strong>long-press</strong>{" "}
-            to open parameters. The little number badge on a lit button is
-            its position in the live chain.
+            A 14-effect serial chain in fixed DSP order. The active-chain
+            preview above the button grid shows the currently enabled
+            effects in their actual processing order, numbered 1..N.
+            Each button is a toggle — <strong>click</strong> to flip,{" "}
+            <strong>long-press</strong> to open parameters (every
+            effect has at least an AMOUNT knob). Two granular slots:{" "}
+            <strong>GRAIN</strong> is the drone-smooth cloud and{" "}
+            <strong>CLOUD</strong> is the classic grain stutter with
+            pitches snapped to the drone scale.
           </p>
 
           <div className="fx-modal-divider" />
@@ -135,14 +140,16 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <div className="fx-modal-section-label">RECORD &amp; SHARE</div>
           <p className="fx-modal-desc">
             <strong>● REC</strong> (header) captures the full master
-            output to a WAV file. <strong>REC MOTION</strong> (preset
-            panel) records meaningful gestures — tonic / octave / macro /
-            climate / lfo changes — into the next share URL, capped at
-            60 s and 200 events. Loading a share URL with a recording
-            replays those gestures deterministically against the
-            starting scene. <strong>⤴ SHARE</strong> builds a link that
-            encodes the current scene plus any motion recording — open
-            it anywhere to reconstruct the exact sound. Sessions can be
+            output to a WAV file. <strong>REC MOTION</strong> is{" "}
+            <em>opt-in</em> — enable it in Settings → Advanced to
+            reveal the button in the preset panel. When on, it records
+            meaningful gestures — tonic / octave / macro / climate /
+            lfo changes — into the next share URL, capped at 60 s and
+            200 events. Loading a share URL with a recording replays
+            those gestures deterministically against the starting
+            scene. <strong>⤴ SHARE</strong> builds a link that encodes
+            the current scene plus any motion recording — open it
+            anywhere to reconstruct the exact sound. Sessions can be
             saved, renamed, and loaded from the Settings modal (⚙).
           </p>
 
