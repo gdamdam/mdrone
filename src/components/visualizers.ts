@@ -32,7 +32,7 @@ export type Visualizer =
   | "dreamMachine"
   | "freqRing"
   | "pitchMandala"
-  | "harmonograph"
+  | "flowField"
   | "waterfall"
   | "strata"
   | "feedbackTunnel"
@@ -57,7 +57,7 @@ export const VISUALIZER_GROUPS: readonly {
       "mandala",
       "pitchMandala",
       "freqRing",
-      "harmonograph",
+      "flowField",
       "sigil",
       "cymatics",
     ],
@@ -104,7 +104,7 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   mandala: "BREATHING MANDALA",
   pitchMandala: "PITCH MANDALA · 12 sectors",
   freqRing: "FREQUENCY RING · radial FFT",
-  harmonograph: "HARMONOGRAPH · Lissajous attractor",
+  flowField: "FLOW FIELD · particle streams",
   haloGlow: "HALO & RAYS",
   fractal: "JULIA FRACTAL · heavy",
   rothko: "ROTHKO FIELD · Radigue",
@@ -1352,7 +1352,7 @@ export const VISUALIZER_FNS: Record<
   starGate: drawStarGate,
   freqRing: drawFreqRing,
   pitchMandala: drawPitchMandala,
-  harmonograph: drawHarmonograph,
+  flowField: drawFlowField,
   waterfall: drawWaterfall,
   strata: drawStrata,
   feedbackTunnel: drawFeedbackTunnel,
@@ -1700,6 +1700,77 @@ export function drawHarmonograph(
 //     vertical lines; fine-detune sliders visibly curve them in
 //     real time. La Monte Young / Dream House aesthetic.
 // ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────
+// FLOW FIELD — audio-reactive particle streams through a noise field.
+// Same algorithm as the WeatherPad but fullscreen, with RMS-driven
+// spawn rate and motion-blur persistence trails.
+// ─────────────────────────────────────────────────────────────────────
+function flowNoise(x: number, y: number): number {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const h = (a: number, b: number) => (Math.sin(a * 127.1 + b * 311.7) * 43758.5453) % 1;
+  const a = h(ix, iy), b = h(ix + 1, iy), c = h(ix, iy + 1), d = h(ix + 1, iy + 1);
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+const flowParticles: { x: number; y: number; life: number; maxLife: number; size: number }[] = [];
+export function drawFlowField(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  const rms = a.rms;
+  const time = p.t;
+
+  // Motion blur
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.globalAlpha = 0.06;
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1;
+
+  // Spawn
+  const spawnRate = rms * 3;
+  for (let s = 0; s < spawnRate && flowParticles.length < 120; s++) {
+    flowParticles.push({
+      x: Math.random() * w, y: Math.random() * h,
+      life: 0, maxLife: 100 + Math.random() * 120,
+      size: 1.5 + Math.random() * 2,
+    });
+  }
+
+  const fieldScale = 0.004;
+  const fieldSpeed = 0.5 + rms * 2;
+
+  for (let i = flowParticles.length - 1; i >= 0; i--) {
+    const fp = flowParticles[i];
+    const n = flowNoise(fp.x * fieldScale + time * 0.06, fp.y * fieldScale + time * 0.03);
+    const angle = n * Math.PI * 4 + time * 0.1;
+    fp.x += Math.cos(angle) * fieldSpeed;
+    fp.y += Math.sin(angle) * fieldSpeed;
+    fp.life++;
+
+    if (fp.life >= fp.maxLife || fp.x < -10 || fp.x > w + 10 || fp.y < -10 || fp.y > h + 10) {
+      flowParticles.splice(i, 1);
+      continue;
+    }
+
+    const t = fp.life / fp.maxLife;
+    const alpha = (t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1);
+    const bright = 160 + rms * 60;
+
+    ctx.globalAlpha = alpha * (0.2 + rms * 0.4);
+    ctx.beginPath();
+    ctx.arc(fp.x, fp.y, fp.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgb(${Math.round(bright)},${Math.round(bright * 0.7)},${Math.round(bright * 0.3)})`;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
 let waterfallCanvas: HTMLCanvasElement | null = null;
 let waterfallCtx: CanvasRenderingContext2D | null = null;
 let waterfallLastScroll = 0;
@@ -1724,10 +1795,8 @@ export function drawWaterfall(
   const off = waterfallCtx;
   if (!off || !waterfallCanvas) return;
 
-  // Drone-appropriate scroll rate: advance ~20 rows/sec (a 500-px
-  // canvas takes ~25 s to fill end-to-end). Time-gated so the
-  // scroll rate stays consistent regardless of rAF cadence.
-  if (p.t - waterfallLastScroll >= 0.05) {
+  // Faster scroll: ~40 rows/sec (a 500-px canvas fills in ~12 s).
+  if (p.t - waterfallLastScroll >= 0.025) {
     waterfallLastScroll = p.t;
     // Scroll everything down 1 px by drawing the canvas onto itself.
     off.drawImage(waterfallCanvas, 0, 0, w, h - 1, 0, 1, w, h - 1);

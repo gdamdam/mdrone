@@ -180,7 +180,7 @@ export function WeatherPad({
           const alpha = (t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1);
 
           // Draw particle — the motion blur handles the trail effect
-          ctx.globalAlpha = alpha * (0.3 + rms * 0.5);
+          ctx.globalAlpha = alpha * (0.15 + rms * 0.35);
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fillStyle = `rgb(${r},${g},${b})`;
