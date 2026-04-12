@@ -344,7 +344,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .timbre-fx-row { grid-template-columns: 1fr; }
 }
 
-.timbre-col, .fx-col { min-width: 0; }
+.timbre-col, .fx-col { min-width: 0; overflow: hidden; }
 
 .timbre-grid-compact {
   grid-template-columns: repeat(4, 1fr);
@@ -1970,6 +1970,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;
+}
+.timbre-grid.timbre-grid-compact {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
 }
 
 .timbre-btn {
