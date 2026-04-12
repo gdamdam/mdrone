@@ -290,16 +290,16 @@ export class FxChain {
     const ctx = this.ctx;
     const ins = this.inserts.formant;
 
-    // Dry pass-through so the fundamental and its partials survive at
-    // full level — the effect is purely additive formant colour.
+    // Dry pass-through goes directly to insertOut so the AMOUNT
+    // slider only controls the formant colour, not the full signal.
     const dryTap = ctx.createGain();
     dryTap.gain.value = 1.0;
-    ins.insertIn.connect(dryTap).connect(ins.wetGain);
+    ins.insertIn.connect(dryTap).connect(ins.insertOut);
 
     // Formant accent bank — sharper Q and higher gain so vowel changes
     // are clearly audible. Dry signal is attenuated to let the formants
     // dominate the timbre instead of being buried underneath.
-    dryTap.gain.value = 0.5;
+    dryTap.gain.value = 0.7;
     const formantGain = ctx.createGain();
     formantGain.gain.value = 1.2;
 
