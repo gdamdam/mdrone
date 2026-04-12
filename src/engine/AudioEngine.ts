@@ -74,6 +74,16 @@ export class AudioEngine {
 
     this.masterRecorder = new MasterRecorder(this.ctx, this.masterBus.getAnalyser());
 
+    // Auto-resume after sleep/wake — browsers suspend the AudioContext
+    // when the device sleeps or the tab is backgrounded for too long.
+    // No event fires on the context itself, so we listen for the page
+    // becoming visible again and nudge the context back to "running".
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && this.ctx.state === "suspended") {
+        this.ctx.resume().catch(() => { /* user gesture may be needed */ });
+      }
+    });
+
     const voiceReady = this.ctx.audioWorklet.addModule(droneWorkletUrl);
     const fxReady = this.ctx.audioWorklet.addModule(fxWorkletUrl);
     Promise.all([voiceReady, fxReady])
