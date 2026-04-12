@@ -70,6 +70,8 @@ export function WeatherPad({
   const timeRef = useRef(0);
   // Cursor wake trail
   const trailRef = useRef<{ x: number; y: number; age: number }[]>([]);
+  const visualRef = useRef(visual);
+  visualRef.current = visual;
 
   // ── Pointer handling ────────────────────────────────────────────
   const updateXy = useCallback((clientX: number, clientY: number) => {
@@ -116,10 +118,6 @@ export function WeatherPad({
     const timeBuf = analyser ? new Uint8Array(analyser.fftSize) : null;
     let raf = 0;
     let spawnAccum = 0;
-
-    // Clear state on visual mode switch
-    particlesRef.current = [];
-    trailRef.current = [];
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
@@ -173,7 +171,8 @@ export function WeatherPad({
 
       // Clear — use transparent clear so the CSS gradient shows through.
       // Partial clear (compositing trick) for motion blur on active visuals.
-      if (active && visual !== "minimal") {
+      const vis = visualRef.current;
+      if (active && vis !== "minimal") {
         // Semi-transparent overlay fades previous frame for trail persistence
         ctx.globalCompositeOperation = "destination-out";
         ctx.globalAlpha = 0.15;
@@ -197,7 +196,7 @@ export function WeatherPad({
       }
 
       // ── Layer 1: Spectral bands (flow mode only, subtle)
-      if (visual === "flow") {
+      if (vis === "flow") {
       const bandH = h / bands.length;
       for (let b = 0; b < bands.length; b++) {
         const energy = bands[b] * rms;
@@ -221,7 +220,7 @@ export function WeatherPad({
       } // end aurora layer
 
       // ── Layer 2: Flow-field particles (flow mode only) ──────
-      if (visual === "flow") {
+      if (vis === "flow") {
       const particles = particlesRef.current;
       const spawnRate = rms * (0.3 + cy * 2);
       spawnAccum += spawnRate;
@@ -322,7 +321,8 @@ export function WeatherPad({
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [analyser, climateX, climateY, visual]);
+  // visual is read via visualRef inside tick — no need to restart the loop
+  }, [analyser, climateX, climateY]);
 
   // Gradient style driven by climate position
   const gradientStyle = {
