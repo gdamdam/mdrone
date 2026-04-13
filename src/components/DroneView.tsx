@@ -213,7 +213,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setFineTuneOffsets,
     setPresetMorph,
     setPresetEvolve,
-    setPluckRate,
     toggleVoiceLayer,
     setVoiceLevel,
     setDrift,
