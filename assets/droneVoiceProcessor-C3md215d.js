@@ -907,11 +907,13 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       l += this.pianoBodyBandL * 0.15 + this.pianoMidBandL * 0.10;
       r += this.pianoBodyBandR * 0.15 + this.pianoMidBandR * 0.10;
 
-      // Presence shelf — compensate body energy so highs aren't dulled
-      this.hsPianoL = this.hsPianoL * 0.6 + l * 0.4;
-      this.hsPianoR = this.hsPianoR * 0.6 + r * 0.4;
-      l += (l - this.hsPianoL) * 0.25;
-      r += (r - this.hsPianoR) * 0.25;
+      // Gentle high-frequency rolloff — the 14 partials produce enough
+      // brightness naturally. The one-pole LP tames content above ~4 kHz
+      // that reveals as "frrr" on bright headphones (DT990 etc).
+      this.hsPianoL = this.hsPianoL * 0.12 + l * 0.88;
+      this.hsPianoR = this.hsPianoR * 0.12 + r * 0.88;
+      l = this.hsPianoL;
+      r = this.hsPianoR;
 
       L[i] = l * amp;
       R[i] = r * amp;
