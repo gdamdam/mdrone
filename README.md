@@ -68,7 +68,7 @@ Go deeper if you want:
 - **Save your scene** — keep named sessions in browser storage and come back to them later.
 - **Mix the output** — shape the final bus with HPF, 3-band EQ, glue, drive, limiter, and trim.
 
-No install. No account. No personal tracking. Session data stays in your browser.
+No install. No account. No personal tracking. Anonymous page counts via [GoatCounter](https://goatcounter.com). Session data stays in your browser.
 
 ---
 
@@ -297,13 +297,17 @@ mdrone does not use accounts, cookies, ads, or personal tracking.
 
 It keeps the instrument self-contained so the drone stays yours.
 
+### Anonymous page counts
+
+mdrone uses [GoatCounter](https://goatcounter.com) for anonymous, cookieless page-view counting. GoatCounter does not collect personal data, does not use cookies, and does not track users across sites.
+
 ### What mdrone does not collect
 
 - **No accounts**: no sign-up, no email, no profile
-- **No cookies**: no login cookies, no ad cookies, no analytics cookies
+- **No cookies**: no login cookies, no ad cookies, no tracking cookies
 - **No user IDs**: no persistent personal identifier assigned to you
 - **No fingerprinting**: no hidden identity built from your browser or device
-- **No third-party trackers**: no ad networks or embedded analytics scripts
+- **No ad networks**: no third-party ad or surveillance trackers
 
 ### What stays local
 
