@@ -1432,71 +1432,53 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 @media (max-width: 620px) {
-  /* Mobile header layout — two explicit rows:
-   *   Row 1: [ DRONE · MEDITATE · MIXER ][ marquee ][ RND ][ ↶ ]
-   *   Row 2: [ ● REC ][ P ][ ⤴ SHARE ][ ■ HOLD ][ HZ ][ VOL ][ ⚙ ]
-   *
-   * We flatten .header-center via display: contents so all its children
-   * become flex items of .header-row-main, then use `order` to build
-   * the two logical rows. A ::before pseudo with flex-basis: 100% acts
-   * as a forced line-break between them. */
+  /* Mobile header — 2 rows in header-row-main:
+   *   Row 1: DRONE | MEDITATE | MIXER   ▶HOLD   VOL ⚙
+   *   Row 2: [marquee]  RND  ↶  ●  SHARE
+   * Brand row above stays as-is (logo + version). */
+
   .header-row-main {
     flex-wrap: wrap;
     gap: 6px;
-    row-gap: 8px;
+    row-gap: 6px;
     align-items: center;
   }
 
-  .header-center {
-    display: contents;
-  }
+  .header-center { display: contents; }
+  .header-secondary { display: contents; opacity: 1; }
 
+  /* Line break between row 1 and row 2 */
   .header-row-main::before {
     content: "";
-    order: 5;
+    order: 10;
     flex-basis: 100%;
-    width: 100%;
     height: 0;
-    margin: 0;
   }
 
-  /* Row 1 */
-  .view-toggle        { order: 1; }
-  .header-display     { order: 2; flex: 1 1 0; width: auto; min-width: 120px; }
-  .header-btn-random  { order: 3; }
-  .header-btn-undo    { order: 4; }
-
-  /* Row 2: [ VOL ][ ● REC ][ ■ HOLD ][ Tonic ][ Oct ][ ⤴ ][ P ][ ⚙ ]
-   * Hz readout is hidden on mobile — the HOLD button sub-label
-   * already shows the current tonic+octave, and the tonic/octave
-   * controls next to it make the Hz redundant on small screens. */
-  .header-btn-volume   { order: 6; min-width: auto; padding: 4px 6px; font-size: 10px; font-weight: 800; line-height: 1; letter-spacing: 0.3px; }
-  .header-btn-record   { order: 7; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; letter-spacing: 0; }
-  .header-hold-btn     { order: 8; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
+  /* Row 1: nav + hold + vol + settings */
+  .view-toggle       { order: 1; }
+  .header-hold-btn   { order: 2; margin-left: auto; min-width: 30px; padding: 4px 8px; font-size: 14px; line-height: 1; }
   .header-hold-label,
-  .header-hold-sub     { display: none; }
-  .header-hold-glyph   { display: inline; }
-  .header-freq         { display: none; }
-  .header-tonic-select { order: 10; }
-  .header-octave       { order: 11; }
-  .header-btn-share    { order: 12; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; letter-spacing: 0; }
-  .header-btn-panic    { order: 13; }
-  .header-btn-menu     { order: 14; min-width: auto; padding: 6px 10px; }
+  .header-hold-sub   { display: none; }
+  .header-hold-glyph { display: inline; }
+  .header-btn-volume { order: 3; min-width: auto; padding: 4px 6px; font-size: 10px; font-weight: 800; line-height: 1; }
+  .header-btn-menu   { order: 4; min-width: auto; padding: 6px 8px; }
 
-  /* Swap the desktop label for the single-char glyph on mobile for
-   * the REC and RND buttons. The component renders both spans and we
-   * show exactly one per breakpoint. */
+  /* Row 2: marquee + actions */
+  .header-display    { order: 11; flex: 1 1 0; min-width: 60px; max-width: 35%; }
+  .header-btn-random { order: 12; min-width: auto; padding: 4px 8px; font-size: 14px; line-height: 1; }
+  .header-btn-undo   { order: 13; }
+  .header-btn-record { order: 14; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
+  .header-btn-share  { order: 15; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
+
+  /* Hz readout hidden on mobile */
+  .header-freq { display: none; }
+
+  /* Glyph labels on mobile */
   .header-btn-label-full  { display: none; }
   .header-btn-label-glyph { display: inline; }
 
-  .header-btn-random {
-    min-width: auto;
-    padding: 4px 8px;
-    font-size: 14px;
-    line-height: 1;
-  }
-
-  /* Compact the view-toggle so it leaves room for the marquee on row 1 */
+  /* Compact the view-toggle so it leaves room for HOLD on row 1 */
   .view-toggle .view-btn {
     font-size: 9px;
     padding: 4px 7px;
