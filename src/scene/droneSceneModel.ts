@@ -127,6 +127,8 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
     evolve: engine?.getEvolve() ?? 0,
     pluckRate: engine?.getTanpuraPluckRate() ?? 1,
     presetTrim: engine?.getPresetTrim() ?? 1,
+    fmRatio: engine?.getFmRatio() ?? 2.0,
+    fmIndex: engine?.getFmIndex() ?? 2.4,
     seed: 0,
     journey: null,
     partner: { ...DEFAULT_PARTNER },

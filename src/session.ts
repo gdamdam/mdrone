@@ -44,6 +44,12 @@ export interface DroneSessionSnapshot {
    *  mutated. 0 = no explicit seed (initial default). Travels through
    *  the share URL so reloading a shared scene preserves reproducibility
    *  for follow-up mutations. */
+  /** FM synthesis parameters — ratio and index of the FM voice.
+   *  Defaults match VoiceBuilder (2.0 / 2.4). Persisted so FM
+   *  presets (glass-bell, gong) round-trip through sessions and
+   *  share URLs without falling back to defaults. */
+  fmRatio: number;
+  fmIndex: number;
   seed: number;
   /** Optional ritual journey id. When set, the evolve loop replaces
    *  its generic mutate-perturb step with a deterministic
@@ -208,6 +214,8 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   evolve: 0,
   pluckRate: 1,
   presetTrim: 1,
+  fmRatio: 2.0,
+  fmIndex: 2.4,
   seed: 0,
   journey: null,
   partner: DEFAULT_PARTNER,
@@ -350,6 +358,8 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     evolve: readNumber(value.evolve, DEFAULT_DRONE_SNAPSHOT.evolve, 0, 1),
     pluckRate: readNumber(value.pluckRate, DEFAULT_DRONE_SNAPSHOT.pluckRate, 0.2, 4),
     presetTrim: readNumber(value.presetTrim, DEFAULT_DRONE_SNAPSHOT.presetTrim, 0.1, 4),
+    fmRatio: readNumber(value.fmRatio, DEFAULT_DRONE_SNAPSHOT.fmRatio, 0.5, 12),
+    fmIndex: readNumber(value.fmIndex, DEFAULT_DRONE_SNAPSHOT.fmIndex, 0.1, 12),
     seed: readNumber(value.seed, DEFAULT_DRONE_SNAPSHOT.seed, 0, 0xFFFFFFFF),
     journey: isOneOf(value.journey, JOURNEY_IDS) ? value.journey : null,
     partner: normalizePartner(value.partner),

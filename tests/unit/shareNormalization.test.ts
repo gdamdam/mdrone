@@ -111,4 +111,26 @@ describe("shared share-link normaliser", () => {
     expect(scene!.mixer.hpfHz).toBe(25);
     expect(scene!.mixer.volume).toBeCloseTo(0.7);
   });
+
+  it("preserves FM params through normalisation", () => {
+    const scene = normalizeSharedScene({
+      drone: { fmRatio: 3.5, fmIndex: 4.5 },
+    });
+    expect(scene!.drone.fmRatio).toBe(3.5);
+    expect(scene!.drone.fmIndex).toBe(4.5);
+  });
+
+  it("falls back to FM defaults when absent (backward compat)", () => {
+    const scene = normalizeSharedScene({ drone: {} });
+    expect(scene!.drone.fmRatio).toBe(2.0);
+    expect(scene!.drone.fmIndex).toBe(2.4);
+  });
+
+  it("clamps FM params to engine-valid range", () => {
+    const scene = normalizeSharedScene({
+      drone: { fmRatio: 0, fmIndex: 999 },
+    });
+    expect(scene!.drone.fmRatio).toBe(0.5);
+    expect(scene!.drone.fmIndex).toBe(12);
+  });
 });

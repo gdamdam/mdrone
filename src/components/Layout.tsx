@@ -133,28 +133,28 @@ export function Layout({ engine, startupMode }: LayoutProps) {
 
     switch (target) {
       case "weatherX":
-        droneViewRef.current?.applyLivePatch?.({ climateX: norm });
+        droneViewRef.current?.applyLivePatch?.({ climateX: norm }, { record: true });
         break;
       case "weatherY":
-        droneViewRef.current?.applyLivePatch?.({ climateY: norm });
+        droneViewRef.current?.applyLivePatch?.({ climateY: norm }, { record: true });
         break;
       case "drift":
-        droneViewRef.current?.applyLivePatch?.({ drift: norm });
+        droneViewRef.current?.applyLivePatch?.({ drift: norm }, { record: true });
         break;
       case "air":
-        droneViewRef.current?.applyLivePatch?.({ air: norm });
+        droneViewRef.current?.applyLivePatch?.({ air: norm }, { record: true });
         break;
       case "time":
-        droneViewRef.current?.applyLivePatch?.({ time: norm });
+        droneViewRef.current?.applyLivePatch?.({ time: norm }, { record: true });
         break;
       case "bloom":
-        droneViewRef.current?.applyLivePatch?.({ bloom: norm });
+        droneViewRef.current?.applyLivePatch?.({ bloom: norm }, { record: true });
         break;
       case "glide":
-        droneViewRef.current?.applyLivePatch?.({ glide: norm });
+        droneViewRef.current?.applyLivePatch?.({ glide: norm }, { record: true });
         break;
       case "sub":
-        droneViewRef.current?.applyLivePatch?.({ sub: norm });
+        droneViewRef.current?.applyLivePatch?.({ sub: norm }, { record: true });
         break;
       case "volume":
         engine?.setMasterVolume?.(norm * 1.5); // 0..1.5 range
@@ -401,7 +401,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             onChangeVisualizer={sceneManager.setMeditateVisualizer}
             onFullscreenClick={(x01, y01) => {
               // Single click → set WEATHER XY from click position
-              droneViewRef.current?.applyLivePatch?.({ climateX: x01, climateY: y01 });
+              droneViewRef.current?.applyLivePatch?.({ climateX: x01, climateY: y01 }, { record: true });
             }}
             onFullscreenDoubleClick={() => {
               // Double click → cycle to next visualizer

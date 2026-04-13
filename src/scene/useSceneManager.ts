@@ -145,6 +145,12 @@ export function useSceneManager({
   const motionReplayCancelRef = useRef<(() => void) | null>(null);
   const [isRecordingMotion, setIsRecordingMotion] = useState(false);
   const recordParam = useCallback((id: MotionParamId, v: number) => {
+    // Any user-originated gesture that records motion also cancels an
+    // in-flight motion replay — the user has taken over.
+    if (motionReplayCancelRef.current) {
+      motionReplayCancelRef.current();
+      motionReplayCancelRef.current = null;
+    }
     recorderRef.current.record(id, v);
   }, []);
 

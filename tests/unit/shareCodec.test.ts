@@ -40,6 +40,20 @@ describe("shareCodec round-trip", () => {
     expect(decoded!.drone.octave).toBe(scene.drone.octave);
   });
 
+  it("preserves FM params through encode → decode round-trip", async () => {
+    const scene = freshScene();
+    scene.drone.fmRatio = 3.5;
+    scene.drone.fmIndex = 4.5;
+
+    const { key, value } = await encodeScenePayload(scene);
+    const extracted = extractScenePayloadFromUrl(
+      `https://example.test/?${key}=${encodeURIComponent(value)}`,
+    );
+    const decoded = await decodeScenePayload(extracted!.payload, extracted!.compressed);
+    expect(decoded!.drone.fmRatio).toBe(3.5);
+    expect(decoded!.drone.fmIndex).toBe(4.5);
+  });
+
   it("preserves a mutated root note through round-trip", async () => {
     const scene = freshScene();
     scene.drone.root = "D";

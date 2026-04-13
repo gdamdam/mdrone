@@ -183,7 +183,7 @@ interface DroneViewProps {
 export interface DroneViewHandle {
   getSnapshot(): DroneSessionSnapshot;
   applySnapshot(snapshot: DroneSessionSnapshot): void;
-  applyLivePatch(patch: DroneLivePatch): void;
+  applyLivePatch(patch: DroneLivePatch, options?: { record?: boolean }): void;
   togglePlay(): void;
   setRoot(root: PitchClass): void;
   setOctave(octave: number): void;

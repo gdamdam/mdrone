@@ -309,6 +309,8 @@ export function useDroneScene({
     engine.setEvolve(snap.evolve);
     engine.setTanpuraPluckRate(snap.pluckRate);
     engine.setPresetTrim(snap.presetTrim);
+    engine.setFmRatio(snap.fmRatio);
+    engine.setFmIndex(snap.fmIndex);
     for (const t of ALL_VOICE_TYPES) {
       engine.setVoiceLayer(t, snap.voiceLayers[t]);
       engine.setVoiceLevel(t, snap.voiceLevels[t]);
@@ -372,6 +374,12 @@ export function useDroneScene({
     if (!preset) return;
     setActivePresetId(presetId);
     setPresetTrim(preset.gain ?? 1);
+    // Persist FM params into snapshot state so they round-trip through
+    // sessions and share URLs independently of the preset id.
+    dispatch({ type: "merge", patch: {
+      fmRatio: preset.fmRatio ?? 2.0,
+      fmIndex: preset.fmIndex ?? 2.4,
+    }});
     applyPreset(engine, preset, {
       setVoiceLayers,
       setVoiceLevels,
@@ -462,7 +470,7 @@ export function useDroneScene({
     return { ...stateRef.current };
   }, []);
 
-  const applyLivePatch = useCallback((patch: DroneLivePatch) => {
+  const applyLivePatch = useCallback((patch: DroneLivePatch, options?: { record?: boolean }) => {
     const current = stateRef.current;
     const next = { ...current, ...patch };
     const nextRoot = patch.root ?? current.root;
@@ -493,7 +501,27 @@ export function useDroneScene({
     if (current.playing && (patch.root !== undefined || patch.octave !== undefined)) {
       engine.setDroneFreq(pitchToFreq(nextRoot, nextOctave));
     }
-  }, [engine]);
+    // When the caller marks this as a user-originated patch, forward
+    // each changed param to the motion recorder so MIDI CC, Meditate
+    // weather, and similar live paths round-trip into share URLs.
+    if (options?.record) {
+      if (patch.drift !== undefined)       recordParam(MOTION_PARAM_IDS.drift, patch.drift);
+      if (patch.air !== undefined)         recordParam(MOTION_PARAM_IDS.air, patch.air);
+      if (patch.time !== undefined)        recordParam(MOTION_PARAM_IDS.time, patch.time);
+      if (patch.sub !== undefined)         recordParam(MOTION_PARAM_IDS.sub, patch.sub);
+      if (patch.bloom !== undefined)       recordParam(MOTION_PARAM_IDS.bloom, patch.bloom);
+      if (patch.glide !== undefined)       recordParam(MOTION_PARAM_IDS.glide, patch.glide);
+      if (patch.climateX !== undefined)    recordParam(MOTION_PARAM_IDS.climateX, patch.climateX);
+      if (patch.climateY !== undefined)    recordParam(MOTION_PARAM_IDS.climateY, patch.climateY);
+      if (patch.lfoRate !== undefined)     recordParam(MOTION_PARAM_IDS.lfoRate, patch.lfoRate);
+      if (patch.lfoAmount !== undefined)   recordParam(MOTION_PARAM_IDS.lfoAmount, patch.lfoAmount);
+      if (patch.presetMorph !== undefined) recordParam(MOTION_PARAM_IDS.presetMorph, patch.presetMorph);
+      if (patch.evolve !== undefined)      recordParam(MOTION_PARAM_IDS.evolve, patch.evolve);
+      if (patch.pluckRate !== undefined)   recordParam(MOTION_PARAM_IDS.pluckRate, patch.pluckRate);
+      if (patch.octave !== undefined)      recordParam(MOTION_PARAM_IDS.octave, patch.octave);
+      if (patch.root !== undefined)        recordParam(MOTION_PARAM_IDS.root, pitchClassToIndex(patch.root));
+    }
+  }, [engine, recordParam]);
 
   const applySnapshot = useCallback((snapshot: DroneSessionSnapshot) => {
     const current = stateRef.current;
@@ -532,8 +560,10 @@ export function useDroneScene({
     engine.setPresetMotionProfile(preset?.motionProfile ?? null);
     engine.setPresetMaterialProfile(getPresetMaterialProfile(preset));
     // Preset-derived engine state must be restored BEFORE applyDroneScene
-    // — the voice rebuild picks up the current reedShape.
+    // — the voice rebuild picks up the current reedShape and FM params.
     engine.setReedShape(preset?.reedShape ?? "odd");
+    engine.setFmRatio(snapshot.fmRatio);
+    engine.setFmIndex(snapshot.fmIndex);
     engine.setParallelSends(preset?.parallelSends ?? {});
     if (needsVoiceRebuild) {
       engine.applyDroneScene(snapshot.voiceLayers, snapshot.voiceLevels, nextIntervals);

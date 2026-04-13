@@ -2348,6 +2348,8 @@ export function createPresetVariation(
     evolve: 0,
     pluckRate: 1,
     presetTrim: preset.gain ?? 1,
+    fmRatio: preset.fmRatio ?? 2.0,
+    fmIndex: preset.fmIndex ?? 2.4,
     seed: 0,
     journey: null,
     partner: { ...DEFAULT_PARTNER },

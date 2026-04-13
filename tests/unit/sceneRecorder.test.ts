@@ -220,4 +220,43 @@ describe("scheduleMotionReplay", () => {
     expect(typeof cancel).toBe("function");
     cancel(); // should not throw
   });
+
+  it("user cancel mid-replay stops remaining events", () => {
+    const calls: Array<[number, number]> = [];
+    const dispatch = (id: number, v: number) => calls.push([id, v]);
+    const events = [
+      100, MOTION_PARAM_IDS.drift, 0.5,
+      500, MOTION_PARAM_IDS.air, 0.7,
+      900, MOTION_PARAM_IDS.bloom, 0.3,
+    ];
+    const cancel = scheduleMotionReplay(events, dispatch);
+    // Let first event fire, then cancel before the rest
+    vi.advanceTimersByTime(150);
+    expect(calls).toHaveLength(1);
+    cancel();
+    vi.advanceTimersByTime(2000);
+    // Only the first event should have fired
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual([MOTION_PARAM_IDS.drift, 0.5]);
+  });
+});
+
+describe("FM params in DroneSessionSnapshot", () => {
+  it("round-trips FM params through normalizePortableScene", () => {
+    const scene = normalizePortableScene({
+      drone: { fmRatio: 3.5, fmIndex: 4.5 },
+      mixer: {},
+    });
+    expect(scene!.drone.fmRatio).toBe(3.5);
+    expect(scene!.drone.fmIndex).toBe(4.5);
+  });
+
+  it("defaults FM params for legacy scenes without them", () => {
+    const scene = normalizePortableScene({
+      drone: {},
+      mixer: {},
+    });
+    expect(scene!.drone.fmRatio).toBe(2.0);
+    expect(scene!.drone.fmIndex).toBe(2.4);
+  });
 });

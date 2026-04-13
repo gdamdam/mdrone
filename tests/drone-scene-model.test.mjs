@@ -52,6 +52,8 @@ test("createInitialDroneScene reads engine-backed defaults", () => {
     getEvolve: () => 0.34,
     getTanpuraPluckRate: () => 1.5,
     getPresetTrim: () => 0.91,
+    getFmRatio: () => 3.5,
+    getFmIndex: () => 4.5,
   };
 
   const scene = createInitialDroneScene(fakeEngine);
