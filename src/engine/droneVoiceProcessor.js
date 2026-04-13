@@ -78,10 +78,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       { name: "drift", defaultValue: 0.3, minValue: 0,  maxValue: 1,    automationRate: "k-rate" },
       { name: "amp",   defaultValue: 0,   minValue: 0,  maxValue: 2,    automationRate: "k-rate" },
       // Tanpura re-pluck rate multiplier. 1 = default (2.5..4.5 s
-      // between plucks, the normal tanpura cycle). 0.2 slows to
-      // ~15 s per string; 4 speeds to ~0.7 s. Ignored by non-tanpura
-      // voices.
-      { name: "pluckRate", defaultValue: 1, minValue: 0.2, maxValue: 4, automationRate: "k-rate" },
+      // between plucks). 0 = hold (infinite sustain, no repluck).
+      // 0.2 = ~15 s per string; 4 = ~0.7 s. Ignored by non-tanpura.
+      { name: "pluckRate", defaultValue: 1, minValue: 0, maxValue: 4, automationRate: "k-rate" },
     ];
   }
 
@@ -178,13 +177,18 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   }
 
   tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
+    // Hold mode: pluckRate ≤ 0.05 means "sustain forever" — near-
+    // lossless feedback loop, no replucks, locked to root pitch.
+    const hold = pluckRate < 0.05;
+
     // Physical delay length in samples, clamped to available buffer
     const baseLen = sampleRate / Math.max(20, freq);
-    // Tanpura strings are typically: Pa (5th), Sa, Sa, Sa (up an octave,
-    // same octave, same octave) — we approximate with a 4-step cycle
-    // where the offset modifies the fundamental ratio per pluck.
+    // Tanpura strings: Pa (5th), Sa, Sa, Sa (low octave).
+    // Use currentString (set at pluck time) not pluckPhase (which
+    // advances ahead) so the delay length stays stable between plucks.
+    // In hold mode, lock to Sa (1.0) so pitch stays on the root.
     const stringRatios = [1.5, 1.0, 1.0, 0.5];
-    const ratio = stringRatios[this.pluckPhase];
+    const ratio = hold ? 1.0 : stringRatios[this.currentString];
     // Fractional delay — allpass interpolation eliminates the ±1 sample
     // pitch quantization of integer-length delay lines.
     const exactLen = Math.min(this.ksMax - 2, Math.max(8, baseLen / ratio));
@@ -198,25 +202,33 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // real tanpura. Pa (1.5× ratio, highest) decays fastest; the low
     // Sa (0.5× ratio) rings longest. Uniform damping made all 4
     // strings decay identically which sounds synthetic.
-    const STRING_DAMP = [0.9982, 0.9985, 0.9985, 0.9990];
-    const damping = STRING_DAMP[this.currentString] - drift * 0.0012;
+    // Per-string damping — tuned for 5-8 s sustain at 110 Hz (octave 2).
+    // The feedback LP (0.07/0.93) adds ~0.0007 loss/sample, so the
+    // effective total loss is damp + LP. Values here target -25 dB at:
+    //   Pa (1.5×, 165 Hz): ~4 s   — shortest, highest pitch
+    //   Sa (1.0×, 110 Hz): ~6 s   — standard
+    //   Low Sa (0.5×, 55 Hz): ~8 s — longest, lowest pitch
+    const STRING_DAMP = [0.99965, 0.99975, 0.99975, 0.99985];
+    const damping = hold
+      ? 1.0   // truly lossless — infinite sustain
+      : STRING_DAMP[this.currentString] - drift * 0.00008;
     // Jawari nonlinearity — a compound curve that emphasizes upper
     // harmonics in a way plain tanh doesn't. The sin term injects
     // additional odd-harmonic content at amplitude extremes.
     const jawK = 1.1;
     const jawMix = 0.22;
 
-    // Pluck scheduling
-    this.pluckCountdown -= n / sampleRate;
-    if (this.pluckCountdown <= 0) {
-      this.currentString = this.pluckPhase;
-      this.doPluck(delayLen, delayLenR);
-      this.pluckPhase = (this.pluckPhase + 1) % 4;
-      // 2.5..4.5 s between plucks — human tanpura cycle.
-      // Divided by the pluckRate AudioParam so the rate can be
-      // sped up or slowed down live.
-      const pr = Math.max(0.05, pluckRate || 1);
-      this.pluckCountdown = (2.5 + this.rng() * 2) / pr;
+    // Pluck scheduling — disabled in hold mode
+    if (!hold) {
+      this.pluckCountdown -= n / sampleRate;
+      if (this.pluckCountdown <= 0) {
+        this.currentString = this.pluckPhase;
+        this.doPluck(delayLen, delayLenR);
+        this.pluckPhase = (this.pluckPhase + 1) % 4;
+        const pr = Math.max(0.05, pluckRate || 1);
+        // Cap interval at 8 s so low pluck rates still feel alive
+        this.pluckCountdown = Math.min(8, (2.5 + this.rng() * 2) / pr);
+      }
     }
 
     // Denormal anti-burn offset — keeps the feedback loop above the
@@ -230,10 +242,13 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       const cur = this.ksBuf[this.ksIdx];
       const nxt = this.ksBuf[(this.ksIdx + 1) % delayLen];
       let y = cur * (1 - fracL) + nxt * fracL + ANTI_DENORMAL;
-      // Feedback lowpass — string body damping. 0.35/0.65 lets more
-      // upper harmonics sustain before the bridge contact damps them,
-      // keeping the jawari sizzle audible longer.
-      this.ksLast = this.ksLast * 0.35 + y * 0.65;
+      // Feedback lowpass — gentle string body smoothing. The coefficient
+      // pair controls both tone colour AND decay rate: too aggressive
+      // (0.2/0.8 or 0.35/0.65) kills the string in <1 s because the
+      // LP loss compounds 110× per second at 110 Hz. 0.07/0.93 gives
+      // a subtle high-frequency rolloff per cycle while preserving
+      // 4-6 s of natural sustain before the next pluck.
+      this.ksLast = this.ksLast * 0.07 + y * 0.93;
       y = this.ksLast * damping;
       // Jawari: nonlinear shaping that emphasizes overtones
       const jy = Math.tanh(jawK * y) + jawMix * Math.sin(jawK * 2.1 * y);
@@ -242,7 +257,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       const curR = this.ksBufR[this.ksIdxR];
       const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
       let yR = curR * (1 - fracR) + nxtR * fracR + ANTI_DENORMAL;
-      this.ksLastR = this.ksLastR * 0.35 + yR * 0.65;
+      this.ksLastR = this.ksLastR * 0.07 + yR * 0.93;
       yR = this.ksLastR * damping;
       const jyR = Math.tanh(jawK * yR) + jawMix * Math.sin(jawK * 2.1 * yR);
       yR = yR * 0.78 + jyR * 0.22;

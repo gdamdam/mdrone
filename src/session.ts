@@ -358,7 +358,7 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     lfoAmount: readNumber(value.lfoAmount, DEFAULT_DRONE_SNAPSHOT.lfoAmount, 0, 1),
     presetMorph: readNumber(value.presetMorph, DEFAULT_DRONE_SNAPSHOT.presetMorph, 0, 1),
     evolve: readNumber(value.evolve, DEFAULT_DRONE_SNAPSHOT.evolve, 0, 1),
-    pluckRate: readNumber(value.pluckRate, DEFAULT_DRONE_SNAPSHOT.pluckRate, 0.2, 4),
+    pluckRate: readNumber(value.pluckRate, DEFAULT_DRONE_SNAPSHOT.pluckRate, 0, 4),
     presetTrim: readNumber(value.presetTrim, DEFAULT_DRONE_SNAPSHOT.presetTrim, 0.1, 4),
     fmRatio: readNumber(value.fmRatio, DEFAULT_DRONE_SNAPSHOT.fmRatio, 0.5, 12),
     fmIndex: readNumber(value.fmIndex, DEFAULT_DRONE_SNAPSHOT.fmIndex, 0.1, 12),

@@ -736,7 +736,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <div className="layer-level-row">
                 <span className="layer-level-label">PLUCK</span>
                 <input
-                  type="range" min={0.2} max={4} step={0.05}
+                  type="range" min={0} max={4} step={0.05}
                   value={state.pluckRate}
                   onChange={(e) => {
                     const v = parseFloat(e.target.value);
@@ -744,9 +744,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                     engine?.setTanpuraPluckRate(v);
                   }}
                   className="macro-slider"
-                  title="Tanpura re-pluck rate."
+                  title="Tanpura re-pluck rate. 0 = hold (infinite sustain)."
                 />
-                <span className="layer-level-value">{state.pluckRate.toFixed(1)}×</span>
+                <span className="layer-level-value">{state.pluckRate < 0.05 ? "HOLD" : `${state.pluckRate.toFixed(1)}×`}</span>
               </div>
             )}
           </div>
