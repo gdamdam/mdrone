@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="public/mdrone_screenshot.png" alt="mloop screenshot" width="1200">
+  <img src="public/mdrone_screenshot.png" alt="mdrone screenshot" width="1200">
 </p>
 
 ---
@@ -43,7 +43,7 @@ Go deeper if you want:
 - mixer matched to the mpump / mloop family vocabulary
 
 <p align="center">
-  <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version"></a>
+  <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/badge/version-1.7.5-blue" alt="Version"></a>
   <a href="https://github.com/gdamdam/mdrone/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/Web%20Audio-API-FF6600" alt="Web Audio API">
   <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">
@@ -277,7 +277,10 @@ That command builds the app and publishes `dist/` to the `gh-pages` branch.
 ```text
 mdrone/
   public/
-    robots.txt          # search engines blocked from indexing deployments
+    about.html          # explainer / SEO page
+    landing.html        # legacy redirect to about.html
+    robots.txt          # allow search crawlers, block selected AI crawlers
+    sitemap.xml         # crawlable URLs for search engines
   src/
     components/         # React UI for drone, meditate, mixer, header, footer, sessions, effects
     engine/             # Audio engine, voice builder, FX chain, worklet processors, presets, MIDI input
@@ -320,7 +323,9 @@ mdrone uses [GoatCounter](https://goatcounter.com) for anonymous, cookieless pag
 
 mdrone is hosted on [GitHub Pages](https://pages.github.com).
 
-Search engines are blocked via `robots.txt` in deployments that serve the `public/` folder unchanged.
+Normal search crawlers are allowed via `robots.txt`; `GPTBot`,
+`Google-Extended`, and `ClaudeBot` are blocked. The sitemap advertises
+the public explainer page at `/about.html`.
 
 ---
 
