@@ -702,7 +702,7 @@ export class FxChain {
     // the chain level, so the modal AMOUNT knob maps cleanly to the
     // grain cloud's added level without double attenuation.
     const t0 = ctx.currentTime;
-    this.grainCloudWorklet.parameters.get("size")!.setValueAtTime(0.11, t0);
+    this.grainCloudWorklet.parameters.get("size")!.setValueAtTime(0.16, t0);
     this.grainCloudWorklet.parameters.get("density")!.setValueAtTime(25, t0);
     this.grainCloudWorklet.parameters.get("pitchSpread")!.setValueAtTime(0.15, t0);
     this.grainCloudWorklet.parameters.get("panSpread")!.setValueAtTime(0.85, t0);

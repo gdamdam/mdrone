@@ -1322,10 +1322,9 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.02,
     climateX: 0.16,   // very dark — oxide shedding kills highs first
     climateY: 0.28,   // heavy wow — the tape is physically degrading
-    // tape + wow = the degradation IS the composition. graincloud
-    // for fragmented drop-outs. Freeze captures a decaying moment.
-    // No plate, no hall — DL is intimate, not reverberant.
-    effects: ["tape", "wow", "graincloud", "freeze"],
+    // tape + wow = the degradation. Graincloud at low density adds
+    // fragmented tape-loop drop-outs. No reverb — DL is intimate.
+    effects: ["tape", "wow", "graincloud"],
     scale: "major",   // DL sits in ambiguous bright-melancholy, not minor
     gain: 0.95,
     motionProfile: motionProfile({
