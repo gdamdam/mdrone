@@ -43,6 +43,19 @@ function makeRng(seed) {
   };
 }
 
+// ─── Sine wavetable — replaces per-sample Math.sin in hot loops ──
+const SINE_TABLE_SIZE = 4096;
+const SINE_TABLE = new Float32Array(SINE_TABLE_SIZE + 1); // +1 for lerp guard
+for (let i = 0; i <= SINE_TABLE_SIZE; i++) {
+  SINE_TABLE[i] = Math.sin((i / SINE_TABLE_SIZE) * Math.PI * 2);
+}
+const SINE_INC = SINE_TABLE_SIZE / (Math.PI * 2);
+function fastSin(phase) {
+  const idx = ((phase % 6.283185307179586) + 6.283185307179586) * SINE_INC;
+  const i = idx | 0;
+  return SINE_TABLE[i % SINE_TABLE_SIZE] + (idx - i) * (SINE_TABLE[(i + 1) % SINE_TABLE_SIZE] - SINE_TABLE[i % SINE_TABLE_SIZE]);
+}
+
 // ─── PolyBLEP — bandlimited discontinuity correction ────────────
 // Used by the reed "even" (bowed-string) shape to produce a
 // sawtooth with natural harmonic content instead of summing sines.
@@ -65,10 +78,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       { name: "drift", defaultValue: 0.3, minValue: 0,  maxValue: 1,    automationRate: "k-rate" },
       { name: "amp",   defaultValue: 0,   minValue: 0,  maxValue: 2,    automationRate: "k-rate" },
       // Tanpura re-pluck rate multiplier. 1 = default (2.5..4.5 s
-      // between plucks, the normal tanpura cycle). 0.2 slows to
-      // ~15 s per string; 4 speeds to ~0.7 s. Ignored by non-tanpura
-      // voices.
-      { name: "pluckRate", defaultValue: 1, minValue: 0.2, maxValue: 4, automationRate: "k-rate" },
+      // between plucks). 0 = hold (infinite sustain, no repluck).
+      // 0.2 = ~15 s per string; 4 = ~0.7 s. Ignored by non-tanpura.
+      { name: "pluckRate", defaultValue: 1, minValue: 0, maxValue: 4, automationRate: "k-rate" },
     ];
   }
 
@@ -79,6 +91,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.reedShape = opts.reedShape || "odd";
     this.fmRatioOpt = opts.fmRatio || 2.0;
     this.fmIndexOpt = opts.fmIndex || 2.4;
+    this.fmFeedbackOpt = opts.fmFeedback || 0;
     this.seed = opts.seed || 1;
     this.rng = makeRng(this.seed);
 
@@ -109,7 +122,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // ── PINK NOISE (shared helper) ───────────────────────────────────
   pinkNoise() {
     const p = this.pink;
-    const white = Math.random() * 2 - 1;
+    const white = this.rng() * 2 - 1;
     p.b0 = 0.99886 * p.b0 + white * 0.0555179;
     p.b1 = 0.99332 * p.b1 + white * 0.0750759;
     p.b2 = 0.969  * p.b2 + white * 0.153852;
@@ -161,16 +174,22 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // like real tanpura strings on one gourd. Without this, the
     // two delay lines are fully independent.
     this.sympatheticAmount = 0.04; // subtle: 4% cross-bleed
+    this.holdActive = false;      // tracks hold-mode entry for one-shot pluck
   }
 
   tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
+    // Hold mode: pluckRate ≤ 0.05 means "sustain forever" — near-
+    // lossless feedback loop, no replucks, locked to root pitch.
+    const hold = pluckRate < 0.05;
+
     // Physical delay length in samples, clamped to available buffer
     const baseLen = sampleRate / Math.max(20, freq);
-    // Tanpura strings are typically: Pa (5th), Sa, Sa, Sa (up an octave,
-    // same octave, same octave) — we approximate with a 4-step cycle
-    // where the offset modifies the fundamental ratio per pluck.
+    // Tanpura strings: Pa (5th), Sa, Sa, Sa (low octave).
+    // Use currentString (set at pluck time) not pluckPhase (which
+    // advances ahead) so the delay length stays stable between plucks.
+    // In hold mode, lock to Sa (1.0) so pitch stays on the root.
     const stringRatios = [1.5, 1.0, 1.0, 0.5];
-    const ratio = stringRatios[this.pluckPhase];
+    const ratio = hold ? 1.0 : stringRatios[this.currentString];
     // Fractional delay — allpass interpolation eliminates the ±1 sample
     // pitch quantization of integer-length delay lines.
     const exactLen = Math.min(this.ksMax - 2, Math.max(8, baseLen / ratio));
@@ -184,40 +203,64 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // real tanpura. Pa (1.5× ratio, highest) decays fastest; the low
     // Sa (0.5× ratio) rings longest. Uniform damping made all 4
     // strings decay identically which sounds synthetic.
-    const STRING_DAMP = [0.9982, 0.9985, 0.9985, 0.9990];
-    const damping = STRING_DAMP[this.currentString] - drift * 0.0012;
+    // Per-string damping — tuned for 5-8 s sustain at 110 Hz (octave 2).
+    // The feedback LP (0.07/0.93) adds ~0.0007 loss/sample, so the
+    // effective total loss is damp + LP. Values here target -25 dB at:
+    //   Pa (1.5×, 165 Hz): ~4 s   — shortest, highest pitch
+    //   Sa (1.0×, 110 Hz): ~6 s   — standard
+    //   Low Sa (0.5×, 55 Hz): ~8 s — longest, lowest pitch
+    const STRING_DAMP = [0.99965, 0.99975, 0.99975, 0.99985];
+    const damping = hold
+      ? 1.0   // truly lossless — infinite sustain
+      : STRING_DAMP[this.currentString] - drift * 0.00008;
     // Jawari nonlinearity — a compound curve that emphasizes upper
     // harmonics in a way plain tanh doesn't. The sin term injects
     // additional odd-harmonic content at amplitude extremes.
     const jawK = 1.1;
     const jawMix = 0.22;
 
-    // Pluck scheduling
-    this.pluckCountdown -= n / sampleRate;
-    if (this.pluckCountdown <= 0) {
-      this.currentString = this.pluckPhase;
-      this.doPluck(delayLen, delayLenR);
-      this.pluckPhase = (this.pluckPhase + 1) % 4;
-      // 2.5..4.5 s between plucks — human tanpura cycle.
-      // Divided by the pluckRate AudioParam so the rate can be
-      // sped up or slowed down live.
-      const pr = Math.max(0.05, pluckRate || 1);
-      this.pluckCountdown = (2.5 + this.rng() * 2) / pr;
+    // Pluck scheduling — disabled in hold mode
+    if (hold) {
+      // On entering hold, fire one pluck if the buffer is near-silent
+      // so there's always energy to sustain.
+      if (!this.holdActive) {
+        this.holdActive = true;
+        this.doPluck(delayLen, delayLenR);
+      }
+    } else {
+      this.holdActive = false;
+      this.pluckCountdown -= n / sampleRate;
+      if (this.pluckCountdown <= 0) {
+        this.currentString = this.pluckPhase;
+        this.doPluck(delayLen, delayLenR);
+        this.pluckPhase = (this.pluckPhase + 1) % 4;
+        const pr = Math.max(0.05, pluckRate || 1);
+        // Base interval 1.5-2.5 s so plucks overlap with decay tail.
+        this.pluckCountdown = Math.min(5, (1.5 + this.rng() * 1.0) / pr);
+      }
     }
 
-    // Denormal anti-burn offset — keeps the feedback loop above the
-    // denormal threshold (~1e-38) which would otherwise cause 10-100x
-    // CPU slowdowns on x86 as samples decay toward zero.
-    const ANTI_DENORMAL = 1e-25;
+    // Continuous micro-excitation — injects a tiny amount of filtered
+    // noise into the delay line each sample. This simulates the bridge
+    // and gourd continuously feeding energy back into the strings (real
+    // tanpuras never go fully silent). Prevents the silence gap between
+    // plucks that a pure KS model produces. The level is low enough to
+    // be inaudible as noise but high enough to keep the string alive.
+    const sustainNoise = 0.003;
 
     for (let i = 0; i < n; i++) {
       // Read with linear fractional delay interpolation —
       // eliminates ±1 sample pitch quantization of integer delay.
       const cur = this.ksBuf[this.ksIdx];
       const nxt = this.ksBuf[(this.ksIdx + 1) % delayLen];
-      let y = cur * (1 - fracL) + nxt * fracL + ANTI_DENORMAL;
-      // Additional gentle lowpass smoothing (string body)
-      this.ksLast = this.ksLast * 0.2 + y * 0.8;
+      let y = cur * (1 - fracL) + nxt * fracL + (this.rng() - 0.5) * sustainNoise;
+      // Feedback lowpass — gentle string body smoothing. The coefficient
+      // pair controls both tone colour AND decay rate: too aggressive
+      // (0.2/0.8 or 0.35/0.65) kills the string in <1 s because the
+      // LP loss compounds 110× per second at 110 Hz. 0.07/0.93 gives
+      // a subtle high-frequency rolloff per cycle while preserving
+      // 4-6 s of natural sustain before the next pluck.
+      this.ksLast = this.ksLast * 0.07 + y * 0.93;
       y = this.ksLast * damping;
       // Jawari: nonlinear shaping that emphasizes overtones
       const jy = Math.tanh(jawK * y) + jawMix * Math.sin(jawK * 2.1 * y);
@@ -225,8 +268,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Right channel — independent delay line with fractional interp
       const curR = this.ksBufR[this.ksIdxR];
       const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
-      let yR = curR * (1 - fracR) + nxtR * fracR + ANTI_DENORMAL;
-      this.ksLastR = this.ksLastR * 0.2 + yR * 0.8;
+      let yR = curR * (1 - fracR) + nxtR * fracR + (this.rng() - 0.5) * sustainNoise;
+      this.ksLastR = this.ksLastR * 0.07 + yR * 0.93;
       yR = this.ksLastR * damping;
       const jyR = Math.tanh(jawK * yR) + jawMix * Math.sin(jawK * 2.1 * yR);
       yR = yR * 0.78 + jyR * 0.22;
@@ -448,8 +491,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
           const amp_p = this.reedAmps[p] * bellows;
           const pan = (p % 2 === 0) ? 1 : 0.85;
           const panR = (p % 2 === 0) ? 0.85 : 1;
-          l += Math.sin(this.reedPhasesL[p]) * amp_p * pan;
-          r += Math.sin(this.reedPhasesR[p]) * amp_p * panR;
+          l += fastSin(this.reedPhasesL[p]) * amp_p * pan;
+          r += fastSin(this.reedPhasesR[p]) * amp_p * panR;
         }
         // Scale the raw additive stack before the formant bank
         l *= 0.22;
@@ -459,7 +502,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Bellows breath noise — real harmoniums have audible air
       // leakage modulated by bellows pressure. Adds physical breath
       // character that pure additive/saw lacks.
-      const breathNoise = (Math.random() * 2 - 1) * 0.008 * bellows;
+      const breathNoise = (this.rng() * 2 - 1) * 0.008 * bellows;
       l += breathNoise;
       r += breathNoise * 0.92; // slight stereo decorrelation
 
@@ -596,8 +639,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         const pan = this.metalPans[p];
         const lGain = amp_p * (1 - Math.max(0, pan));
         const rGain = amp_p * (1 - Math.max(0, -pan));
-        l += Math.sin(this.metalPhasesL[p]) * lGain;
-        r += Math.sin(this.metalPhasesR[p]) * rGain;
+        l += fastSin(this.metalPhasesL[p]) * lGain;
+        r += fastSin(this.metalPhasesR[p]) * rGain;
       }
       l *= 0.34;
       r *= 0.34;
@@ -621,10 +664,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // multiplier, pushed the voice from "breath" into "pitched
     // body". Semi-inharmonic ratios avoid the strictly-harmonic
     // whistle the old 1/2/3 produced without adding energy.
-    this.airN = 3;
-    this.airRatios = new Float32Array([1.0, 2.07, 3.11]);
-    this.airAmps   = new Float32Array([0.55, 0.30, 0.16]);
-    this.airPans   = new Float32Array([0.0, -0.25, 0.25]);
+    this.airN = 5;
+    this.airRatios = new Float32Array([1.0, 2.07, 3.11, 4.71, 7.23]);
+    this.airAmps   = new Float32Array([0.55, 0.30, 0.16, 0.08, 0.04]);
+    this.airPans   = new Float32Array([0.0, -0.25, 0.25, 0.35, -0.35]);
     // Two-pole state-variable bandpass state per resonator (L + R independent)
     // state: [lowL, bandL, lowR, bandR]
     this.airStates = [];
@@ -649,7 +692,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // Second pink noise generator (uses pinkR state) for independent R channel
   pinkNoiseR() {
     const p = this.pinkR;
-    const white = Math.random() * 2 - 1;
+    const white = this.rng() * 2 - 1;
     p.b0 = 0.99886 * p.b0 + white * 0.0555179;
     p.b1 = 0.99332 * p.b1 + white * 0.0750759;
     p.b2 = 0.969  * p.b2 + white * 0.153852;
@@ -772,11 +815,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   //  - stereo via per-partial offset accumulators
   // ═══════════════════════════════════════════════════════════════════
   initPiano() {
-    this.pianoN = 8;
-    this.pianoAmps = new Float32Array([1.0, 0.58, 0.42, 0.28, 0.22, 0.14, 0.10, 0.06]);
+    this.pianoN = 14;
+    this.pianoAmps = new Float32Array([
+      1.0, 0.58, 0.42, 0.28, 0.22, 0.14, 0.10, 0.06,
+      0.042, 0.03, 0.022, 0.016, 0.012, 0.008,
+    ]);
     // Slight inharmonic stretch — real pianos have B ≈ 0.0003..0.0015
     // for the upper partials. We approximate with a near-integer multiplier.
-    this.pianoRatios = new Float32Array([1.0, 2.004, 3.012, 4.025, 5.04, 6.06, 7.085, 8.11]);
+    this.pianoRatios = new Float32Array([
+      1.0, 2.004, 3.012, 4.025, 5.04, 6.06, 7.085, 8.11,
+      9.14, 10.18, 11.22, 12.27, 13.33, 14.39,
+    ]);
     this.pianoPhasesL = new Float32Array(this.pianoN);
     this.pianoPhasesR = new Float32Array(this.pianoN);
     for (let i = 0; i < this.pianoN; i++) {
@@ -822,6 +871,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const detuneDepth = drift * 0.0028;
+    const nyquist = sampleRate * 0.45;
 
     for (let i = 0; i < n; i++) {
       this.pianoLfoPhase += twoPi * this.pianoLfoRate * invSr;
@@ -832,14 +882,15 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       for (let p = 0; p < this.pianoN; p++) {
         const wobble = Math.sin(this.pianoLfoPhase * (1 + p * 0.13)) * detuneDepth;
         const partialFreq = freq * this.pianoRatios[p] * (1 + wobble);
+        if (partialFreq > nyquist) continue;
         this.pianoPhasesL[p] += twoPi * partialFreq * invSr;
         this.pianoPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.45);
         if (this.pianoPhasesL[p] > twoPi) this.pianoPhasesL[p] -= twoPi;
         if (this.pianoPhasesR[p] > twoPi) this.pianoPhasesR[p] -= twoPi;
 
         const a = this.pianoAmps[p] * breath;
-        l += Math.sin(this.pianoPhasesL[p]) * a;
-        r += Math.sin(this.pianoPhasesR[p]) * a;
+        l += fastSin(this.pianoPhasesL[p]) * a;
+        r += fastSin(this.pianoPhasesR[p]) * a;
       }
       l *= 0.16;
       r *= 0.16;
@@ -901,7 +952,13 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.fmModPhase = this.rng() * Math.PI * 2;
     this.fmRatio = this.fmRatioOpt;  // modulator : carrier frequency ratio (from preset)
     this.fmIndex = this.fmIndexOpt; // modulation index (from preset)
-    // fmIndex is now set from processorOptions in the constructor
+    // Modulator self-feedback (0..1). Feeds the previous modulator
+    // output back into its own phase, producing richer/grittier
+    // timbres (metallic drones, harsh bells). 0 = classic 2-op,
+    // 0.3 = warm thickening, 0.7+ = aggressive/noisy. Default 0
+    // preserves existing presets.
+    this.fmFeedback = this.fmFeedbackOpt;
+    this.fmModFbSample = 0; // one-sample feedback delay
     this.fmLfoPhase = this.rng() * Math.PI * 2;
     this.fmLfoRate = 0.08 + this.rng() * 0.06;
     // Slow index-envelope LFO — modulates fmIndex across ~±55 % so
@@ -928,11 +985,14 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       if (this.fmIndexLfoPhase > twoPi) this.fmIndexLfoPhase -= twoPi;
       const dynIndex = this.fmIndex * (1 + Math.sin(this.fmIndexLfoPhase) * 0.55);
 
-      // Modulator oscillator
+      // Modulator oscillator — with optional self-feedback
       const modFreq = freq * this.fmRatio * (1 + depth);
+      const fbPhase = this.fmModPhase + this.fmFeedback * this.fmModFbSample;
       this.fmModPhase += twoPi * modFreq * invSr;
       if (this.fmModPhase > twoPi) this.fmModPhase -= twoPi;
-      const modOut = Math.sin(this.fmModPhase) * dynIndex * freq;
+      const modSin = fastSin(fbPhase);
+      this.fmModFbSample = modSin; // store for next sample's feedback
+      const modOut = modSin * dynIndex * freq;
 
       // Carrier oscillators — frequency-modulated by the modulator
       const cFreq = freq + modOut;
@@ -944,8 +1004,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       while (this.fmCarrierPhaseR < -twoPi) this.fmCarrierPhaseR += twoPi;
 
       const s = breath * 0.22;
-      L[i] = Math.sin(this.fmCarrierPhaseL) * s * amp;
-      R[i] = Math.sin(this.fmCarrierPhaseR) * s * amp;
+      L[i] = fastSin(this.fmCarrierPhaseL) * s * amp;
+      R[i] = fastSin(this.fmCarrierPhaseR) * s * amp;
     }
   }
 
@@ -1021,8 +1081,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         if (this.ampPhasesL[p] > twoPi) this.ampPhasesL[p] -= twoPi;
         if (this.ampPhasesR[p] > twoPi) this.ampPhasesR[p] -= twoPi;
 
-        l += Math.sin(this.ampPhasesL[p]) * this.ampAmps[p];
-        r += Math.sin(this.ampPhasesR[p]) * this.ampAmps[p];
+        l += fastSin(this.ampPhasesL[p]) * this.ampAmps[p];
+        r += fastSin(this.ampPhasesR[p]) * this.ampAmps[p];
       }
       l *= swell;
       r *= swell;
