@@ -141,8 +141,8 @@ export class MotionEngine {
     this.climateX = Math.max(0, Math.min(1, v));
     const now = this.ctx.currentTime;
     const tc = this.MACRO_TC;
-    // Filter cutoff: 400 Hz (dark) → 6000 Hz (bright)
-    const target = 400 * Math.pow(15, this.climateX);
+    // Filter cutoff: 800 Hz (dark) → 6000 Hz (bright)
+    const target = 800 * Math.pow(7.5, this.climateX);
     this.droneFilter.frequency.setTargetAtTime(target, now, tc);
     // Voice gain boost: brighter side slightly louder for presence
     this.droneVoiceGain.gain.setTargetAtTime(
