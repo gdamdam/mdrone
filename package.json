@@ -8,6 +8,7 @@
     "dev": "vite",
     "prebuild": "node scripts/write-version-json.mjs",
     "build": "tsc -b && vite build",
+    "postbuild": "node scripts/post-build.cjs",
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "tsc -p tsconfig.test.json && node scripts/fix-test-imports.mjs && node --test tests/*.test.mjs",

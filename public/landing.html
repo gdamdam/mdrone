@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mdrone — browser drone instrument</title>
+  <meta
+    name="description"
+    content="mdrone is a browser drone instrument for long tones, harmonic beds, and slow-moving space. No account. No install. Just sound."
+  />
+  <meta property="og:title" content="mdrone — browser drone instrument" />
+  <meta
+    property="og:description"
+    content="Hold a note. Shape the air. A browser instrument made by people who love long tones, tuning, resonance, and atmosphere."
+  />
+  <meta property="og:url" content="https://mdrone.mpump.live/landing.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="mdrone" />
+  <meta property="og:image" content="https://mdrone.mpump.live/mdrone_screenshot.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="mdrone — browser drone instrument" />
+  <meta
+    name="twitter:description"
+    content="A browser drone instrument made for long tones, harmonic beds, and slow-moving space."
+  />
+  <meta name="twitter:image" content="https://mdrone.mpump.live/mdrone_screenshot.png" />
+  <meta name="theme-color" content="#120d0a" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #120d0a;
+      --bg-deep: #0a0705;
+      --panel: rgba(23, 17, 13, 0.9);
+      --panel-soft: rgba(246, 226, 198, 0.045);
+      --line: rgba(232, 207, 174, 0.14);
+      --line-strong: rgba(232, 207, 174, 0.24);
+      --text: #f3e3cf;
+      --muted: #c7b096;
+      --faint: #9f8468;
+      --accent: #f0a45b;
+      --accent-soft: rgba(240, 164, 91, 0.14);
+      --title: "Baskerville", "Big Caslon", "Palatino Linotype", "Book Antiqua", serif;
+      --body: "Optima", "Avenir Next", "Segoe UI", sans-serif;
+      --mono: "Menlo", "SF Mono", "Monaco", monospace;
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+    }
+    html, body { min-height: 100%; }
+    body {
+      color: var(--text);
+      font-family: var(--body);
+      background:
+        radial-gradient(circle at 12% 18%, rgba(240, 164, 91, 0.14), transparent 24%),
+        radial-gradient(circle at 80% 12%, rgba(240, 164, 91, 0.08), transparent 20%),
+        radial-gradient(circle at 50% 120%, rgba(240, 164, 91, 0.08), transparent 30%),
+        linear-gradient(180deg, var(--bg-deep) 0%, var(--bg) 48%, #140e0a 100%);
+      letter-spacing: 0.01em;
+    }
+    img { max-width: 100%; display: block; }
+    a { color: inherit; }
+
+    .page {
+      width: min(1160px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 24px 0 64px;
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 0 20px;
+      color: var(--faint);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+    }
+    .topline span:last-child {
+      text-align: right;
+      max-width: 34ch;
+      line-height: 1.5;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.06fr) minmax(320px, 0.94fr);
+      gap: 20px;
+      align-items: stretch;
+    }
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(24,18,14,0.96), rgba(18,13,10,0.98)),
+        var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, transparent, rgba(240,164,91,0.03), transparent),
+        repeating-linear-gradient(180deg, transparent 0 31px, rgba(255,255,255,0.018) 31px 32px);
+      pointer-events: none;
+      opacity: 0.65;
+    }
+    .panel-body {
+      position: relative;
+      z-index: 1;
+      padding: 34px;
+    }
+    @media (max-width: 640px) {
+      .panel-body { padding: 22px 18px; }
+    }
+
+    .logo {
+      margin-bottom: 22px;
+      color: var(--accent);
+      display: inline-block;
+      font-family: "SF Mono", "Menlo", "Monaco", "Cascadia Mono", monospace;
+      font-size: clamp(9px, 1.45vw, 13px);
+      font-weight: 700;
+      line-height: 1.06;
+      letter-spacing: 0;
+      white-space: pre;
+      text-rendering: geometricPrecision;
+      font-variant-ligatures: none;
+      text-shadow: 0 0 14px rgba(240, 164, 91, 0.2);
+    }
+    .kicker {
+      margin-bottom: 14px;
+      color: var(--accent);
+      font-size: 12px;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      opacity: 0.8;
+    }
+    h1, h2 {
+      font-family: var(--title);
+      font-weight: 400;
+      letter-spacing: -0.03em;
+      color: #fff7ec;
+    }
+    h1 {
+      font-size: clamp(42px, 8vw, 86px);
+      line-height: 0.95;
+      max-width: 8.6ch;
+      margin-bottom: 18px;
+    }
+    .hero-copy {
+      max-width: 38rem;
+      font-size: clamp(17px, 2.1vw, 21px);
+      line-height: 1.76;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+    .hero-copy strong {
+      font-weight: 600;
+      color: #fff2e1;
+    }
+    .hero-copy + .hero-copy {
+      color: var(--muted);
+      font-size: 16px;
+      margin-top: -2px;
+    }
+
+    .proof {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 22px 0 24px;
+    }
+    .proof span {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(240, 164, 91, 0.22);
+      background: rgba(240, 164, 91, 0.06);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .cta,
+    .cta-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 50px;
+      padding: 12px 22px;
+      border-radius: 999px;
+      text-decoration: none;
+      transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+    }
+    .cta {
+      color: #fff2df;
+      border: 1px solid rgba(240, 164, 91, 0.5);
+      background: linear-gradient(180deg, rgba(240, 164, 91, 0.18), rgba(240, 164, 91, 0.1));
+      box-shadow: 0 0 0 1px rgba(240, 164, 91, 0.1) inset, 0 10px 28px rgba(240, 164, 91, 0.12);
+      font-weight: 600;
+    }
+    .cta-secondary {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .cta:hover,
+    .cta-secondary:hover {
+      transform: translateY(-1px);
+    }
+    .cta-secondary:hover {
+      color: var(--accent);
+      border-color: rgba(240, 164, 91, 0.35);
+    }
+
+    .aside-note {
+      margin-top: 18px;
+      max-width: 42ch;
+      color: var(--faint);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .shot {
+      overflow: hidden;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: #090705;
+      margin-bottom: 16px;
+    }
+    .shot img {
+      width: 100%;
+      object-fit: cover;
+    }
+
+    .mini-stack {
+      display: grid;
+      gap: 10px;
+    }
+    .mini {
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+    }
+    .mini strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .mini span {
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .sections {
+      display: grid;
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .section-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+    @media (max-width: 920px) {
+      .section-grid { grid-template-columns: 1fr; }
+    }
+
+    .section-head {
+      margin-bottom: 16px;
+    }
+    .section-tag {
+      margin-bottom: 10px;
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.17em;
+      opacity: 0.76;
+    }
+    .section-head h2 {
+      font-size: clamp(28px, 4vw, 48px);
+      line-height: 1.02;
+      margin-bottom: 10px;
+      max-width: 12ch;
+    }
+    .section-head p {
+      max-width: 44rem;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.78;
+    }
+
+    .feature {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(246,226,198,0.03), rgba(246,226,198,0.01));
+    }
+    .feature h3 {
+      font-family: var(--title);
+      font-weight: 400;
+      font-size: 30px;
+      line-height: 1.05;
+      color: #fff4e8;
+      margin-bottom: 10px;
+    }
+    .feature p {
+      color: var(--muted);
+      line-height: 1.72;
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+    .feature ul {
+      list-style: none;
+      display: grid;
+      gap: 7px;
+    }
+    .feature li {
+      color: var(--text);
+      line-height: 1.58;
+      padding-left: 15px;
+      position: relative;
+    }
+    .feature li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+    }
+
+    .inventory {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+    }
+    @media (max-width: 920px) {
+      .inventory { grid-template-columns: 1fr; }
+    }
+    .inventory-block {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.02);
+    }
+    .inventory-block h3 {
+      font-family: var(--title);
+      font-size: 34px;
+      font-weight: 400;
+      margin-bottom: 10px;
+      color: #fff3e6;
+    }
+    .inventory-block p {
+      color: var(--muted);
+      line-height: 1.72;
+      margin-bottom: 14px;
+      font-size: 16px;
+    }
+    .inventory-line {
+      color: var(--text);
+      line-height: 1.75;
+      font-size: 15px;
+      padding: 10px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .inventory-line:first-of-type { border-top: 0; padding-top: 0; }
+
+    .closing {
+      text-align: center;
+      padding: 30px 18px;
+    }
+    .closing h2 {
+      margin: 0 auto 12px;
+      max-width: 11ch;
+      font-size: clamp(30px, 5vw, 54px);
+      line-height: 0.98;
+    }
+    .closing p {
+      margin: 0 auto 22px;
+      max-width: 38rem;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.82;
+    }
+    .footer {
+      margin-top: 18px;
+      padding: 14px 4px 0;
+      color: var(--faint);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 10px 18px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .footer a {
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .footer a:hover {
+      color: var(--accent);
+      border-color: rgba(240, 164, 91, 0.35);
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topline">
+      <span>browser instrument / long tones / open source</span>
+      <span>made by people who love drone, tuning, resonance, and listening</span>
+    </div>
+
+    <section class="hero">
+      <article class="panel">
+        <div class="panel-body">
+          <pre class="logo" aria-label="mdrone logo">█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀
+█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄</pre>
+
+          <div class="kicker">Hold a note. Shape the air.</div>
+          <h1>Drone music for the browser.</h1>
+
+          <p class="hero-copy">
+            <strong>mdrone is a real instrument for long tones, harmonic beds, drift, resonance, and sympathetic vibration.</strong>
+            It was made for the strange calm that arrives when a sound is allowed to stay alive.
+          </p>
+          <p class="hero-copy">
+            Pick a tonic. Build a timbre stack. Push it through weather, effects, tuning, and
+            time. Save the scene. Share the whole thing as a link. No account wall. No install.
+          </p>
+
+          <div class="proof">
+            <span>works on iPhone, iPad, Android, desktop</span>
+            <span>Free &amp; Open Source</span>
+            <span>No Install</span>
+          </div>
+
+          <div class="cta-row">
+            <a class="cta" href="https://mdrone.mpump.live/">Open mdrone</a>
+            <a class="cta-secondary" href="https://github.com/gdamdam/mdrone">Source on GitHub</a>
+          </div>
+
+          <p class="aside-note">
+            Local-first. The music stays in your browser unless you decide to share it.
+          </p>
+        </div>
+      </article>
+
+      <aside class="panel">
+        <div class="panel-body">
+          <div class="shot">
+            <img src="./mdrone_screenshot.png" alt="mdrone interface" />
+          </div>
+          <div class="mini-stack">
+            <div class="mini">
+              <strong>Instant Drone</strong>
+              <span>Open it and start. Tonic, voices, weather, effects, and hold are all there right away.</span>
+            </div>
+            <div class="mini">
+              <strong>Share The Scene</strong>
+              <span>The tuning, timbre, effects, and motion can all travel in the URL. You send the atmosphere, not just a recording.</span>
+            </div>
+            <div class="mini">
+              <strong>Private By Default</strong>
+              <span>No account, no social layer, no profile building.</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="sections">
+      <article class="panel">
+        <div class="panel-body">
+          <div class="section-head">
+            <div class="section-tag">Why It Feels Different</div>
+            <h2>Built for sustain, not for content.</h2>
+            <p>
+              It is a browser instrument designed around one thing: sustained sound with enough depth
+              to stay interesting for a long time. That means fewer distractions, more listening, and
+              controls that make sense when a note is allowed to breathe.
+            </p>
+          </div>
+
+          <div class="section-grid">
+            <div class="feature">
+              <h3>Play</h3>
+              <p>
+                Start from a preset or from a bare tonic and shape the room slowly while the drone is already alive.
+              </p>
+              <ul>
+                <li>7 voice engines: tanpura, reed, metal, air, piano, FM, amp</li>
+                <li>Macros for drift, air, time, sub, bloom, and glide</li>
+                <li>Large weather surface for brightness and motion</li>
+              </ul>
+            </div>
+
+            <div class="feature">
+              <h3>Tune</h3>
+              <p>
+                The instrument is comfortable in just intonation, meantone, harmonics, maqam, slendro, and plain equal tuning.
+              </p>
+              <ul>
+                <li>6 tuning systems and 6 interval relations</li>
+                <li>Per-interval fine detune, live</li>
+                <li>Partner drone and ritual journey modes</li>
+              </ul>
+            </div>
+
+            <div class="feature">
+              <h3>Keep</h3>
+              <p>
+                Save a scene locally, record the master, or pass the exact state to another listener with a link.
+              </p>
+              <ul>
+                <li>Named local sessions and autosave</li>
+                <li>Shareable URLs with scene state intact</li>
+                <li>Optional motion recording inside the link</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-body">
+          <div class="section-head">
+            <div class="section-tag">Sound World</div>
+            <h2>From sacred drones to damaged clouds.</h2>
+            <p>
+              The preset library moves across devotional string drones, harmonium and pipe-organ stillness,
+              spectral long tones, ambient beds, and blown-out amplifier mass. It is not genre cosplay.
+              It is a set of playable atmospheres shaped by real listening habits.
+            </p>
+          </div>
+
+          <div class="inventory">
+            <div class="inventory-block">
+              <h3>Voices and effects</h3>
+              <p>
+                Layer physically distinct voices, then push them through a serial chain that can stay delicate,
+                cavernous, frozen, granular, or filthy depending on how far you lean.
+              </p>
+              <div class="inventory-line"><strong>Voices:</strong> tanpura, reed, metal, air, piano, FM, amp</div>
+              <div class="inventory-line"><strong>Effects:</strong> tape, wow, sub, comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular, graincloud</div>
+            </div>
+
+            <div class="inventory-block">
+              <h3>Presets and motion</h3>
+              <p>
+                43 presets across sacred, minimal, organ, ambient, and noise territories. Then mutate, evolve,
+                or send the scene through a ritual journey when you want the drone to keep moving on its own.
+              </p>
+              <div class="inventory-line"><strong>Presets:</strong> 43 authored scenes across 5 groups</div>
+              <div class="inventory-line"><strong>Motion:</strong> evolve, mutate, journey, breathing LFO, recorded gestures</div>
+              <div class="inventory-line"><strong>Views:</strong> drone, meditate, mixer</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-body closing">
+          <div class="section-tag">Open It</div>
+          <h2>Made for people who actually want to listen.</h2>
+          <p>
+            If you want a browser instrument that starts quickly, sounds physical, respects privacy,
+            and treats a long tone like something worth staying with, mdrone is ready.
+          </p>
+          <div class="cta-row" style="justify-content: center;">
+            <a class="cta" href="https://mdrone.mpump.live/">Open mdrone</a>
+            <a class="cta-secondary" href="https://github.com/gdamdam/mdrone">GitHub</a>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <span>mdrone v1.7.4</span>
+      <span>Built by gdamdam · <a href="https://github.com/gdamdam/mdrone">AGPL-3.0 source code</a></span>
+    </footer>
+  </main>
+</body>
+</html>

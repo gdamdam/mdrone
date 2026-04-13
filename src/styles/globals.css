@@ -3268,6 +3268,20 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   border-color: #a84040;
 }
 
+.start-gate-landing-link {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-decoration: none;
+  letter-spacing: 0.4px;
+  opacity: 0.7;
+  transition: opacity 0.12s, color 0.12s;
+  margin-top: 6px;
+}
+.start-gate-landing-link:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
 .start-gate-version {
   font-size: 10px;
   color: var(--text-dim);
