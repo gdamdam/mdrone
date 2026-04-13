@@ -50,6 +50,7 @@ export interface DroneSessionSnapshot {
    *  share URLs without falling back to defaults. */
   fmRatio: number;
   fmIndex: number;
+  fmFeedback: number;
   seed: number;
   /** Optional ritual journey id. When set, the evolve loop replaces
    *  its generic mutate-perturb step with a deterministic
@@ -216,6 +217,7 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   presetTrim: 1,
   fmRatio: 2.0,
   fmIndex: 2.4,
+  fmFeedback: 0,
   seed: 0,
   journey: null,
   partner: DEFAULT_PARTNER,
@@ -360,6 +362,7 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     presetTrim: readNumber(value.presetTrim, DEFAULT_DRONE_SNAPSHOT.presetTrim, 0.1, 4),
     fmRatio: readNumber(value.fmRatio, DEFAULT_DRONE_SNAPSHOT.fmRatio, 0.5, 12),
     fmIndex: readNumber(value.fmIndex, DEFAULT_DRONE_SNAPSHOT.fmIndex, 0.1, 12),
+    fmFeedback: readNumber(value.fmFeedback, DEFAULT_DRONE_SNAPSHOT.fmFeedback, 0, 1),
     seed: readNumber(value.seed, DEFAULT_DRONE_SNAPSHOT.seed, 0, 0xFFFFFFFF),
     journey: isOneOf(value.journey, JOURNEY_IDS) ? value.journey : null,
     partner: normalizePartner(value.partner),

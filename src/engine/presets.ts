@@ -77,6 +77,9 @@ export interface Preset {
   /** FM modulation index (sideband richness). Default 2.4.
    *  Higher = more metallic/complex. Lower = purer, bell-like. */
   fmIndex?: number;
+  /** FM modulator self-feedback (0..1). Default 0 (classic 2-op).
+   *  Higher values produce richer/grittier metallic timbres. */
+  fmFeedback?: number;
 
   /** Optional preferred octave range for random-scene selection.
    *  If set, createSafeRandomScene picks an octave in [lo, hi] inclusive.
@@ -665,7 +668,8 @@ export const PRESETS: Preset[] = [
     voiceLayers: ["reed"],
     voiceLevels: { reed: 1 },
     reedShape: "sine",
-    drift: 0.08,      // crystalline — drift is timbral, not pitch
+    drift: 0.14,      // raised — detune between harmonic-stack intervals
+                      // produces the subliminal beating that defines Radigue
     air: 0.35,        // drier than Deep Listening (0.7) — Radigue rooms are close
     time: 0.03,       // near-zero motion
     sub: 0.35,
@@ -673,7 +677,7 @@ export const PRESETS: Preset[] = [
     glide: 0.9,       // longest glide in the library
     lfoShape: "sine",
     lfoRate: 0.04,
-    lfoAmount: 0.03,
+    lfoAmount: 0.06,  // subtle — slow filter breathing adds microscopic life
     climateX: 0.3,
     climateY: 0.12,
     // hall only — freeze caused a periodic click from captured-frame
@@ -706,16 +710,16 @@ export const PRESETS: Preset[] = [
     voiceLevels: { piano: 1, reed: 0.15, air: 0.2 },
     octaveRange: [3, 4],
     drift: 0.12,      // low for smooth harmonics, no partial clash
-    air: 0.52,
-    time: 0.08,
-    sub: 0.18,
-    bloom: 0.82,      // Eno's defining long decays
+    air: 0.38,        // sparser — Airports is not lush
+    time: 0.04,       // minimal motion
+    sub: 0.1,
+    bloom: 0.65,      // shorter bloom — tones appear and fade, not sustain forever
     glide: 0.6,
     lfoShape: "sine",
-    lfoRate: 0.05,    // very slow, near-stationary
-    lfoAmount: 0.06,
-    climateX: 0.56,
-    climateY: 0.16,
+    lfoRate: 0.03,    // very slow, near-stationary
+    lfoAmount: 0.03,  // barely there
+    climateX: 0.48,   // slightly darker — warm tape-loop character
+    climateY: 0.1,
     // hall + plate + tape: no shimmer (its pitch-shifted copies were
     // reading as cold/dissonant — wrong for 1978 Eno).
     effects: ["hall", "plate", "tape"],
@@ -745,10 +749,10 @@ export const PRESETS: Preset[] = [
     attribution: "Throat-singing overtone halo · low fundamental",
     hint: "Deep reed fundamental with a prominent inharmonic metal halo above — the defining overtone shimmer of Gyuto-style throat singing. Comb resonance locks the harmonics to the root.",
     tuningId: "equal", relationId: "unison",
-    voiceLayers: ["reed", "metal", "air"],
-    voiceLevels: { reed: 1, metal: 0.5, air: 0.14 },
+    voiceLayers: ["reed", "metal", "air", "amp"],
+    voiceLevels: { reed: 1, metal: 0.5, air: 0.14, amp: 0.12 },
     octaveRange: [1, 2],
-    drift: 0.1,       // low drift keeps reed stable under comb
+    drift: 0.16,      // slightly rougher — throat singing is not clean
     air: 0.42,
     time: 0.05,
     sub: 0.42,        // trimmed from 0.58 — comb amplifies LF at peak
@@ -1413,8 +1417,8 @@ export const PRESETS: Preset[] = [
     lfoShape: "sine",
     lfoRate: 0.04,
     lfoAmount: 0.03,  // near-zero — tape speed IS the only modulation
-    climateX: 0.38,   // slightly brighter start — DL darkens over time
-    climateY: 0.14,
+    climateX: 0.22,   // dark — DL is degraded oxide, not bright tape
+    climateY: 0.2,    // more wow flutter for material decay feel
     // tape + wow = the degradation IS the composition. graincloud
     // added for the fragmented tape-loop drop-outs — ordered spawn
     // mode makes grains read consecutive chunks of the drone, which
@@ -2390,6 +2394,7 @@ export function createPresetVariation(
     presetTrim: preset.gain ?? 1,
     fmRatio: preset.fmRatio ?? 2.0,
     fmIndex: preset.fmIndex ?? 2.4,
+    fmFeedback: preset.fmFeedback ?? 0,
     seed: 0,
     journey: null,
     partner: { ...DEFAULT_PARTNER },
@@ -2546,6 +2551,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     engine.setReedShape(preset.reedShape ?? "odd");
     engine.setFmRatio?.(preset.fmRatio ?? 2.0);
     engine.setFmIndex?.(preset.fmIndex ?? 2.4);
+    engine.setFmFeedback?.(preset.fmFeedback ?? 0);
     // Parallel reverb send levels — reset every preset so stale sends
     // from a previous scene don't leak through.
     engine.setParallelSends(preset.parallelSends ?? {});

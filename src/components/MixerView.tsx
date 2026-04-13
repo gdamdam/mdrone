@@ -83,6 +83,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
     const buf = new Uint8Array(2048);
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      if (document.hidden) return;
       if (now - lastSample < FRAME_MS) return;
       lastSample = now;
       const el = clipLedRef.current;

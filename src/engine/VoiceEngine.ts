@@ -43,6 +43,7 @@ export class VoiceEngine {
   private reedShape: ReedShape = "odd";
   private fmRatio = 2.0;
   private fmIndex = 2.4;
+  private fmFeedback = 0;
   private readonly baseMacroTC = 0.4;
 
   private presetMaterialProfile: PresetMaterialProfile = DEFAULT_PRESET_MATERIAL_PROFILE;
@@ -122,7 +123,7 @@ export class VoiceEngine {
       const layerGain = this.ensureLayerGain(type);
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex);
+        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);
@@ -396,6 +397,12 @@ export class VoiceEngine {
 
   getFmIndex(): number { return this.fmIndex; }
 
+  setFmFeedback(fb: number): void {
+    this.fmFeedback = Math.max(0, Math.min(1, fb));
+  }
+
+  getFmFeedback(): number { return this.fmFeedback; }
+
 
   private get MACRO_TC(): number {
     return this.baseMacroTC * (0.3 + this.morphAmount * 5.7);
@@ -479,7 +486,7 @@ export class VoiceEngine {
 
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex);
+        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);

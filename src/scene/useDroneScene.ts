@@ -311,6 +311,7 @@ export function useDroneScene({
     engine.setPresetTrim(snap.presetTrim);
     engine.setFmRatio(snap.fmRatio);
     engine.setFmIndex(snap.fmIndex);
+    engine.setFmFeedback(snap.fmFeedback);
     for (const t of ALL_VOICE_TYPES) {
       engine.setVoiceLayer(t, snap.voiceLayers[t]);
       engine.setVoiceLevel(t, snap.voiceLevels[t]);
@@ -379,6 +380,7 @@ export function useDroneScene({
     dispatch({ type: "merge", patch: {
       fmRatio: preset.fmRatio ?? 2.0,
       fmIndex: preset.fmIndex ?? 2.4,
+      fmFeedback: preset.fmFeedback ?? 0,
     }});
     applyPreset(engine, preset, {
       setVoiceLayers,
@@ -564,6 +566,7 @@ export function useDroneScene({
     engine.setReedShape(preset?.reedShape ?? "odd");
     engine.setFmRatio(snapshot.fmRatio);
     engine.setFmIndex(snapshot.fmIndex);
+    engine.setFmFeedback(snapshot.fmFeedback);
     engine.setParallelSends(preset?.parallelSends ?? {});
     if (needsVoiceRebuild) {
       engine.applyDroneScene(snapshot.voiceLayers, snapshot.voiceLevels, nextIntervals);

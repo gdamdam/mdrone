@@ -43,6 +43,19 @@ function makeRng(seed) {
   };
 }
 
+// ─── Sine wavetable — replaces per-sample Math.sin in hot loops ──
+const SINE_TABLE_SIZE = 4096;
+const SINE_TABLE = new Float32Array(SINE_TABLE_SIZE + 1); // +1 for lerp guard
+for (let i = 0; i <= SINE_TABLE_SIZE; i++) {
+  SINE_TABLE[i] = Math.sin((i / SINE_TABLE_SIZE) * Math.PI * 2);
+}
+const SINE_INC = SINE_TABLE_SIZE / (Math.PI * 2);
+function fastSin(phase) {
+  const idx = ((phase % 6.283185307179586) + 6.283185307179586) * SINE_INC;
+  const i = idx | 0;
+  return SINE_TABLE[i % SINE_TABLE_SIZE] + (idx - i) * (SINE_TABLE[(i + 1) % SINE_TABLE_SIZE] - SINE_TABLE[i % SINE_TABLE_SIZE]);
+}
+
 // ─── PolyBLEP — bandlimited discontinuity correction ────────────
 // Used by the reed "even" (bowed-string) shape to produce a
 // sawtooth with natural harmonic content instead of summing sines.
@@ -79,6 +92,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.reedShape = opts.reedShape || "odd";
     this.fmRatioOpt = opts.fmRatio || 2.0;
     this.fmIndexOpt = opts.fmIndex || 2.4;
+    this.fmFeedbackOpt = opts.fmFeedback || 0;
     this.seed = opts.seed || 1;
     this.rng = makeRng(this.seed);
 
@@ -109,7 +123,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // ── PINK NOISE (shared helper) ───────────────────────────────────
   pinkNoise() {
     const p = this.pink;
-    const white = Math.random() * 2 - 1;
+    const white = this.rng() * 2 - 1;
     p.b0 = 0.99886 * p.b0 + white * 0.0555179;
     p.b1 = 0.99332 * p.b1 + white * 0.0750759;
     p.b2 = 0.969  * p.b2 + white * 0.153852;
@@ -216,8 +230,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       const cur = this.ksBuf[this.ksIdx];
       const nxt = this.ksBuf[(this.ksIdx + 1) % delayLen];
       let y = cur * (1 - fracL) + nxt * fracL + ANTI_DENORMAL;
-      // Additional gentle lowpass smoothing (string body)
-      this.ksLast = this.ksLast * 0.2 + y * 0.8;
+      // Feedback lowpass — string body damping. 0.35/0.65 lets more
+      // upper harmonics sustain before the bridge contact damps them,
+      // keeping the jawari sizzle audible longer.
+      this.ksLast = this.ksLast * 0.35 + y * 0.65;
       y = this.ksLast * damping;
       // Jawari: nonlinear shaping that emphasizes overtones
       const jy = Math.tanh(jawK * y) + jawMix * Math.sin(jawK * 2.1 * y);
@@ -226,7 +242,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       const curR = this.ksBufR[this.ksIdxR];
       const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
       let yR = curR * (1 - fracR) + nxtR * fracR + ANTI_DENORMAL;
-      this.ksLastR = this.ksLastR * 0.2 + yR * 0.8;
+      this.ksLastR = this.ksLastR * 0.35 + yR * 0.65;
       yR = this.ksLastR * damping;
       const jyR = Math.tanh(jawK * yR) + jawMix * Math.sin(jawK * 2.1 * yR);
       yR = yR * 0.78 + jyR * 0.22;
@@ -448,8 +464,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
           const amp_p = this.reedAmps[p] * bellows;
           const pan = (p % 2 === 0) ? 1 : 0.85;
           const panR = (p % 2 === 0) ? 0.85 : 1;
-          l += Math.sin(this.reedPhasesL[p]) * amp_p * pan;
-          r += Math.sin(this.reedPhasesR[p]) * amp_p * panR;
+          l += fastSin(this.reedPhasesL[p]) * amp_p * pan;
+          r += fastSin(this.reedPhasesR[p]) * amp_p * panR;
         }
         // Scale the raw additive stack before the formant bank
         l *= 0.22;
@@ -459,7 +475,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Bellows breath noise — real harmoniums have audible air
       // leakage modulated by bellows pressure. Adds physical breath
       // character that pure additive/saw lacks.
-      const breathNoise = (Math.random() * 2 - 1) * 0.008 * bellows;
+      const breathNoise = (this.rng() * 2 - 1) * 0.008 * bellows;
       l += breathNoise;
       r += breathNoise * 0.92; // slight stereo decorrelation
 
@@ -596,8 +612,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         const pan = this.metalPans[p];
         const lGain = amp_p * (1 - Math.max(0, pan));
         const rGain = amp_p * (1 - Math.max(0, -pan));
-        l += Math.sin(this.metalPhasesL[p]) * lGain;
-        r += Math.sin(this.metalPhasesR[p]) * rGain;
+        l += fastSin(this.metalPhasesL[p]) * lGain;
+        r += fastSin(this.metalPhasesR[p]) * rGain;
       }
       l *= 0.34;
       r *= 0.34;
@@ -621,10 +637,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // multiplier, pushed the voice from "breath" into "pitched
     // body". Semi-inharmonic ratios avoid the strictly-harmonic
     // whistle the old 1/2/3 produced without adding energy.
-    this.airN = 3;
-    this.airRatios = new Float32Array([1.0, 2.07, 3.11]);
-    this.airAmps   = new Float32Array([0.55, 0.30, 0.16]);
-    this.airPans   = new Float32Array([0.0, -0.25, 0.25]);
+    this.airN = 5;
+    this.airRatios = new Float32Array([1.0, 2.07, 3.11, 4.71, 7.23]);
+    this.airAmps   = new Float32Array([0.55, 0.30, 0.16, 0.08, 0.04]);
+    this.airPans   = new Float32Array([0.0, -0.25, 0.25, 0.35, -0.35]);
     // Two-pole state-variable bandpass state per resonator (L + R independent)
     // state: [lowL, bandL, lowR, bandR]
     this.airStates = [];
@@ -649,7 +665,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // Second pink noise generator (uses pinkR state) for independent R channel
   pinkNoiseR() {
     const p = this.pinkR;
-    const white = Math.random() * 2 - 1;
+    const white = this.rng() * 2 - 1;
     p.b0 = 0.99886 * p.b0 + white * 0.0555179;
     p.b1 = 0.99332 * p.b1 + white * 0.0750759;
     p.b2 = 0.969  * p.b2 + white * 0.153852;
@@ -772,11 +788,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   //  - stereo via per-partial offset accumulators
   // ═══════════════════════════════════════════════════════════════════
   initPiano() {
-    this.pianoN = 8;
-    this.pianoAmps = new Float32Array([1.0, 0.58, 0.42, 0.28, 0.22, 0.14, 0.10, 0.06]);
+    this.pianoN = 14;
+    this.pianoAmps = new Float32Array([
+      1.0, 0.58, 0.42, 0.28, 0.22, 0.14, 0.10, 0.06,
+      0.042, 0.03, 0.022, 0.016, 0.012, 0.008,
+    ]);
     // Slight inharmonic stretch — real pianos have B ≈ 0.0003..0.0015
     // for the upper partials. We approximate with a near-integer multiplier.
-    this.pianoRatios = new Float32Array([1.0, 2.004, 3.012, 4.025, 5.04, 6.06, 7.085, 8.11]);
+    this.pianoRatios = new Float32Array([
+      1.0, 2.004, 3.012, 4.025, 5.04, 6.06, 7.085, 8.11,
+      9.14, 10.18, 11.22, 12.27, 13.33, 14.39,
+    ]);
     this.pianoPhasesL = new Float32Array(this.pianoN);
     this.pianoPhasesR = new Float32Array(this.pianoN);
     for (let i = 0; i < this.pianoN; i++) {
@@ -822,6 +844,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const detuneDepth = drift * 0.0028;
+    const nyquist = sampleRate * 0.45;
 
     for (let i = 0; i < n; i++) {
       this.pianoLfoPhase += twoPi * this.pianoLfoRate * invSr;
@@ -832,14 +855,15 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       for (let p = 0; p < this.pianoN; p++) {
         const wobble = Math.sin(this.pianoLfoPhase * (1 + p * 0.13)) * detuneDepth;
         const partialFreq = freq * this.pianoRatios[p] * (1 + wobble);
+        if (partialFreq > nyquist) continue;
         this.pianoPhasesL[p] += twoPi * partialFreq * invSr;
         this.pianoPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.45);
         if (this.pianoPhasesL[p] > twoPi) this.pianoPhasesL[p] -= twoPi;
         if (this.pianoPhasesR[p] > twoPi) this.pianoPhasesR[p] -= twoPi;
 
         const a = this.pianoAmps[p] * breath;
-        l += Math.sin(this.pianoPhasesL[p]) * a;
-        r += Math.sin(this.pianoPhasesR[p]) * a;
+        l += fastSin(this.pianoPhasesL[p]) * a;
+        r += fastSin(this.pianoPhasesR[p]) * a;
       }
       l *= 0.16;
       r *= 0.16;
@@ -901,7 +925,13 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.fmModPhase = this.rng() * Math.PI * 2;
     this.fmRatio = this.fmRatioOpt;  // modulator : carrier frequency ratio (from preset)
     this.fmIndex = this.fmIndexOpt; // modulation index (from preset)
-    // fmIndex is now set from processorOptions in the constructor
+    // Modulator self-feedback (0..1). Feeds the previous modulator
+    // output back into its own phase, producing richer/grittier
+    // timbres (metallic drones, harsh bells). 0 = classic 2-op,
+    // 0.3 = warm thickening, 0.7+ = aggressive/noisy. Default 0
+    // preserves existing presets.
+    this.fmFeedback = this.fmFeedbackOpt;
+    this.fmModFbSample = 0; // one-sample feedback delay
     this.fmLfoPhase = this.rng() * Math.PI * 2;
     this.fmLfoRate = 0.08 + this.rng() * 0.06;
     // Slow index-envelope LFO — modulates fmIndex across ~±55 % so
@@ -928,11 +958,14 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       if (this.fmIndexLfoPhase > twoPi) this.fmIndexLfoPhase -= twoPi;
       const dynIndex = this.fmIndex * (1 + Math.sin(this.fmIndexLfoPhase) * 0.55);
 
-      // Modulator oscillator
+      // Modulator oscillator — with optional self-feedback
       const modFreq = freq * this.fmRatio * (1 + depth);
+      const fbPhase = this.fmModPhase + this.fmFeedback * this.fmModFbSample;
       this.fmModPhase += twoPi * modFreq * invSr;
       if (this.fmModPhase > twoPi) this.fmModPhase -= twoPi;
-      const modOut = Math.sin(this.fmModPhase) * dynIndex * freq;
+      const modSin = fastSin(fbPhase);
+      this.fmModFbSample = modSin; // store for next sample's feedback
+      const modOut = modSin * dynIndex * freq;
 
       // Carrier oscillators — frequency-modulated by the modulator
       const cFreq = freq + modOut;
@@ -944,8 +977,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       while (this.fmCarrierPhaseR < -twoPi) this.fmCarrierPhaseR += twoPi;
 
       const s = breath * 0.22;
-      L[i] = Math.sin(this.fmCarrierPhaseL) * s * amp;
-      R[i] = Math.sin(this.fmCarrierPhaseR) * s * amp;
+      L[i] = fastSin(this.fmCarrierPhaseL) * s * amp;
+      R[i] = fastSin(this.fmCarrierPhaseR) * s * amp;
     }
   }
 
@@ -1021,8 +1054,8 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         if (this.ampPhasesL[p] > twoPi) this.ampPhasesL[p] -= twoPi;
         if (this.ampPhasesR[p] > twoPi) this.ampPhasesR[p] -= twoPi;
 
-        l += Math.sin(this.ampPhasesL[p]) * this.ampAmps[p];
-        r += Math.sin(this.ampPhasesR[p]) * this.ampAmps[p];
+        l += fastSin(this.ampPhasesL[p]) * this.ampAmps[p];
+        r += fastSin(this.ampPhasesR[p]) * this.ampAmps[p];
       }
       l *= swell;
       r *= swell;

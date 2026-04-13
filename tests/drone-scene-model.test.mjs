@@ -54,6 +54,7 @@ test("createInitialDroneScene reads engine-backed defaults", () => {
     getPresetTrim: () => 0.91,
     getFmRatio: () => 3.5,
     getFmIndex: () => 4.5,
+    getFmFeedback: () => 0.3,
   };
 
   const scene = createInitialDroneScene(fakeEngine);
