@@ -848,7 +848,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
 
       this.pianoRestrikePhase += twoPi * 0.08 * invSr;
       if (this.pianoRestrikePhase > twoPi) this.pianoRestrikePhase -= twoPi;
-      const restrike = 0.5 + 0.5 * Math.sin(this.pianoRestrikePhase);
+      // Gentle re-excitation — lifts decayed partials back slightly,
+      // not fully. 0.3 max avoids broadband noise from resurrected highs.
+      const restrike = 0.15 + 0.15 * Math.sin(this.pianoRestrikePhase);
 
       let l = 0, r = 0;
       for (let p = 0; p < this.pianoN; p++) {
@@ -881,7 +883,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       if (this.pianoStrikeAge < this.pianoStrikeDuration) {
         const t = this.pianoStrikeAge / this.pianoStrikeDuration;
         const strikeEnv = Math.exp(-t * 7);
-        const strike = this.pinkNoise() * strikeEnv * 0.35;
+        const strike = this.pinkNoise() * strikeEnv * 0.2;
         l += strike;
         r += strike * 0.96; // tiny stereo spread
         this.pianoStrikeAge++;
