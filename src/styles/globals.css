@@ -1455,18 +1455,18 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     height: 0;
   }
 
-  /* Row 1: nav + hold + vol + settings */
+  /* Row 1: nav + marquee + vol + settings */
   .view-toggle       { order: 1; }
-  .header-hold-btn   { order: 2; margin-left: auto; min-width: 30px; padding: 4px 8px; font-size: 14px; line-height: 1; }
-  .header-hold-label,
-  .header-hold-sub   { display: none; }
-  .header-hold-glyph { display: inline; }
+  .header-display    { order: 2; flex: 1 1 0; min-width: 40px; max-width: 30%; }
   .header-btn-volume { order: 3; min-width: auto; padding: 4px 6px; font-size: 10px; font-weight: 800; line-height: 1; }
   .header-btn-menu   { order: 4; min-width: auto; padding: 6px 8px; }
 
-  /* Row 2: marquee + actions */
-  .header-display    { order: 11; flex: 1 1 0; min-width: 60px; max-width: 35%; }
-  .header-btn-random { order: 12; min-width: auto; padding: 4px 8px; font-size: 14px; line-height: 1; }
+  /* Row 2: hold + actions */
+  .header-hold-btn   { order: 11; min-width: 30px; padding: 4px 8px; font-size: 14px; line-height: 1; }
+  .header-hold-label,
+  .header-hold-sub   { display: none; }
+  .header-hold-glyph { display: inline; }
+  .header-btn-random { order: 12; min-width: auto; padding: 4px 8px; font-size: 14px; line-height: 1; margin-left: auto; }
   .header-btn-undo   { order: 13; }
   .header-btn-record { order: 14; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
   .header-btn-share  { order: 15; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
