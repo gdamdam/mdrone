@@ -143,7 +143,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
 
         <ResetButton />
 
-        <a href="./landing.html" className="start-gate-landing-link">What is mdrone?</a>
+        <a href="./about.html" className="start-gate-landing-link">What is mdrone?</a>
 
         <span className="start-gate-version">v{APP_VERSION}</span>
       </div>

@@ -1,2 +1,13 @@
-User-agent: *
+User-agent: GPTBot
 Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://mdrone.mpump.live/sitemap.xml
