@@ -174,6 +174,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // like real tanpura strings on one gourd. Without this, the
     // two delay lines are fully independent.
     this.sympatheticAmount = 0.04; // subtle: 4% cross-bleed
+    this.holdActive = false;      // tracks hold-mode entry for one-shot pluck
   }
 
   tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
@@ -219,31 +220,40 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const jawMix = 0.22;
 
     // Pluck scheduling — disabled in hold mode
-    if (!hold) {
+    if (hold) {
+      // On entering hold, fire one pluck if the buffer is near-silent
+      // so there's always energy to sustain.
+      if (!this.holdActive) {
+        this.holdActive = true;
+        this.doPluck(delayLen, delayLenR);
+      }
+    } else {
+      this.holdActive = false;
       this.pluckCountdown -= n / sampleRate;
       if (this.pluckCountdown <= 0) {
         this.currentString = this.pluckPhase;
         this.doPluck(delayLen, delayLenR);
         this.pluckPhase = (this.pluckPhase + 1) % 4;
         const pr = Math.max(0.05, pluckRate || 1);
-        // Base interval 1.5-2.5 s (was 2.5-4.5) so plucks always
-        // overlap with the decaying tail — no silence gaps.
-        // Cap at 5 s for very low rates.
+        // Base interval 1.5-2.5 s so plucks overlap with decay tail.
         this.pluckCountdown = Math.min(5, (1.5 + this.rng() * 1.0) / pr);
       }
     }
 
-    // Denormal anti-burn offset — keeps the feedback loop above the
-    // denormal threshold (~1e-38) which would otherwise cause 10-100x
-    // CPU slowdowns on x86 as samples decay toward zero.
-    const ANTI_DENORMAL = 1e-25;
+    // Continuous micro-excitation — injects a tiny amount of filtered
+    // noise into the delay line each sample. This simulates the bridge
+    // and gourd continuously feeding energy back into the strings (real
+    // tanpuras never go fully silent). Prevents the silence gap between
+    // plucks that a pure KS model produces. The level is low enough to
+    // be inaudible as noise but high enough to keep the string alive.
+    const sustainNoise = 0.003;
 
     for (let i = 0; i < n; i++) {
       // Read with linear fractional delay interpolation —
       // eliminates ±1 sample pitch quantization of integer delay.
       const cur = this.ksBuf[this.ksIdx];
       const nxt = this.ksBuf[(this.ksIdx + 1) % delayLen];
-      let y = cur * (1 - fracL) + nxt * fracL + ANTI_DENORMAL;
+      let y = cur * (1 - fracL) + nxt * fracL + (this.rng() - 0.5) * sustainNoise;
       // Feedback lowpass — gentle string body smoothing. The coefficient
       // pair controls both tone colour AND decay rate: too aggressive
       // (0.2/0.8 or 0.35/0.65) kills the string in <1 s because the
@@ -258,7 +268,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Right channel — independent delay line with fractional interp
       const curR = this.ksBufR[this.ksIdxR];
       const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
-      let yR = curR * (1 - fracR) + nxtR * fracR + ANTI_DENORMAL;
+      let yR = curR * (1 - fracR) + nxtR * fracR + (this.rng() - 0.5) * sustainNoise;
       this.ksLastR = this.ksLastR * 0.07 + yR * 0.93;
       yR = this.ksLastR * damping;
       const jyR = Math.tanh(jawK * yR) + jawMix * Math.sin(jawK * 2.1 * yR);
