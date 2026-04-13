@@ -654,6 +654,35 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   min-width: 0;
 }
 
+.title-sigil {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  color: var(--preview);
+  text-decoration: none;
+  opacity: 0.78;
+  transition: opacity 200ms ease, transform 200ms ease, filter 200ms ease;
+}
+.title-sigil svg { width: 100%; height: 100%; display: block; }
+.title-sigil:hover {
+  opacity: 1;
+  transform: rotate(-4deg) scale(1.06);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--preview) 55%, transparent));
+}
+.title-sigil:focus-visible {
+  outline: 1px dashed color-mix(in srgb, var(--preview) 60%, transparent);
+  outline-offset: 3px;
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .title-sigil { width: 32px; height: 32px; }
+}
+
 .title-art {
   margin: 0;
   font-family: inherit;
@@ -3074,27 +3103,96 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   justify-content: center;
   padding: 28px 18px;
   background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--preview) 12%, transparent), transparent 42%),
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--preview) 14%, transparent), transparent 24%),
+    radial-gradient(circle at 80% 12%, color-mix(in srgb, var(--preview) 8%, transparent), transparent 20%),
+    radial-gradient(circle at 50% 120%, color-mix(in srgb, var(--preview) 8%, transparent), transparent 30%),
     linear-gradient(180deg, color-mix(in srgb, var(--bg-panel) 60%, var(--bg)) 0%, var(--bg) 100%);
 }
 
 .start-gate-inner {
+  position: relative;
   width: min(100%, 720px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  padding: 30px 24px 28px;
+  gap: 14px;
+  padding: 36px 32px 32px;
   text-align: center;
-  border: 1px solid color-mix(in srgb, var(--preview) 18%, var(--border));
-  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--preview) 22%, var(--border));
+  border-radius: 4px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--bg-panel) 94%, transparent), color-mix(in srgb, var(--bg) 96%, transparent)),
     color-mix(in srgb, var(--bg) 88%, black);
   box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+    0 28px 80px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* corner ticks */
+.start-gate-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--preview) 55%, transparent);
+  pointer-events: none;
+}
+.start-gate-corner-tl { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+.start-gate-corner-tr { top: 10px; right: 10px; border-left: 0; border-bottom: 0; }
+.start-gate-corner-bl { bottom: 10px; left: 10px; border-right: 0; border-top: 0; }
+.start-gate-corner-br { bottom: 10px; right: 10px; border-left: 0; border-top: 0; }
+
+/* supra header */
+.start-gate-supra {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-dim) 80%, var(--preview));
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+.start-gate-supra::before,
+.start-gate-supra::after {
+  content: " ☙ ";
+  color: var(--preview);
+}
+
+/* sigil */
+.start-gate-sigil {
+  width: min(64vw, 170px);
+  aspect-ratio: 1;
+  padding: 0;
+  margin: 0 0 4px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--preview);
+  display: block;
+  transition: filter 240ms ease, transform 240ms ease;
+}
+.start-gate-sigil svg { width: 100%; height: 100%; }
+.start-gate-sigil:hover {
+  filter: drop-shadow(0 0 20px color-mix(in srgb, var(--preview) 42%, transparent));
+  transform: scale(1.02);
+}
+.start-gate-sigil:focus-visible {
+  outline: 1px dashed color-mix(in srgb, var(--preview) 60%, transparent);
+  outline-offset: 8px;
+}
+.start-gate-sigil-ring {
+  transform-origin: 200px 200px;
+  animation: start-sigil-spin 240s linear infinite;
+}
+.start-gate-sigil-mark {
+  stroke: color-mix(in srgb, var(--text) 92%, var(--preview));
+}
+.start-gate-sigil-dot {
+  fill: var(--preview);
+}
+
+@keyframes start-sigil-spin {
+  to { transform: rotate(360deg); }
 }
 
 .start-gate-brand {
@@ -3111,10 +3209,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   cursor: pointer;
   text-align: left;
   display: inline-block;
-  font-size: clamp(14px, 2vw, 18px);
+  font-size: clamp(11px, 1.4vw, 14px);
   line-height: 1.02;
   font-weight: 800;
-  color: var(--text);
+  color: var(--preview);
   text-shadow: 0 0 14px color-mix(in srgb, var(--preview) 22%, transparent);
   animation: start-logo-pulse 4.2s ease-out infinite, start-logo-vibrate 0.12s linear infinite;
 }
@@ -3124,21 +3222,31 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .start-gate-badge {
-  padding: 4px 8px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--preview) 30%, transparent);
-  background: color-mix(in srgb, var(--preview) 14%, transparent);
+  padding: 3px 8px;
+  border-radius: 0;
+  border: 1px solid color-mix(in srgb, var(--preview) 40%, transparent);
+  background: transparent;
   color: var(--preview);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
 }
 
 .start-gate-sub {
   max-width: 560px;
-  font-size: clamp(17px, 2.3vw, 22px);
-  line-height: 1.36;
-  color: var(--text);
+  font-family: "Baskerville", "Big Caslon", "Palatino Linotype", "Book Antiqua", serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-size: clamp(22px, 3.4vw, 34px);
+  line-height: 1.14;
+  color: color-mix(in srgb, var(--text) 96%, white);
+  margin: 6px 0 2px;
+}
+.start-gate-sub em {
+  font-style: italic;
+  color: color-mix(in srgb, var(--text) 100%, white);
 }
 
 .start-gate-actions {
@@ -3154,38 +3262,39 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .start-btn {
   min-width: min(100%, 300px);
-  padding: 14px 26px;
-  border-radius: 999px;
-  border: 2px solid color-mix(in srgb, var(--preview) 46%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--preview) 24%, var(--bg-cell)), color-mix(in srgb, var(--preview) 10%, var(--bg-cell)));
-  color: var(--text);
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: 1px;
+  padding: 16px 28px;
+  border-radius: 0;
+  border: 1px solid color-mix(in srgb, var(--preview) 55%, transparent);
+  background: color-mix(in srgb, var(--preview) 9%, transparent);
+  color: color-mix(in srgb, var(--text) 92%, white);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--preview) 18%, transparent),
-    0 16px 36px color-mix(in srgb, var(--preview) 18%, transparent);
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  box-shadow: none;
+  transition: border-color 200ms ease, color 200ms ease, letter-spacing 200ms ease, background 200ms ease;
+  cursor: pointer;
 }
 
 .start-btn:hover {
-  border-color: color-mix(in srgb, var(--preview) 70%, white);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--preview) 24%, transparent),
-    0 20px 42px color-mix(in srgb, var(--preview) 26%, transparent);
-  filter: brightness(1.05);
+  border-color: var(--preview);
+  color: var(--preview);
+  letter-spacing: 0.34em;
+  background: color-mix(in srgb, var(--preview) 14%, transparent);
+  filter: none;
 }
 
 .start-btn-secondary {
   min-width: min(100%, 220px);
-  border-color: color-mix(in srgb, var(--border) 70%, var(--preview));
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-cell) 92%, transparent), color-mix(in srgb, var(--bg-panel) 84%, transparent));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--border) 36%, transparent),
-    0 12px 28px color-mix(in srgb, black 26%, transparent);
+  border-color: color-mix(in srgb, var(--border) 80%, var(--preview));
+  background: transparent;
+  color: color-mix(in srgb, var(--text-dim) 80%, var(--text));
+}
+.start-btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--preview) 70%, var(--border));
+  color: var(--preview);
+  background: transparent;
 }
 
 .start-gate-restore {
@@ -3204,38 +3313,45 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .start-gate-intro {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--preview);
-  opacity: 0.82;
+  font-family: "Baskerville", "Big Caslon", "Palatino Linotype", serif;
+  font-style: italic;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: color-mix(in srgb, var(--text-dim) 70%, var(--preview));
+  opacity: 0.92;
 }
 
 .start-gate-pills {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 .start-gate-pill {
-  padding: 5px 11px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--preview) 28%, transparent);
-  background: color-mix(in srgb, var(--preview) 8%, transparent);
-  color: var(--preview);
+  padding: 6px 12px;
+  border-radius: 0;
+  border: 1px solid color-mix(in srgb, var(--preview) 30%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--text-dim) 60%, var(--preview));
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
 }
+.start-gate-pill + .start-gate-pill { border-left: 0; }
 
 .start-gate-meta {
-  font-size: 11px;
+  font-family: "Baskerville", "Big Caslon", "Palatino Linotype", serif;
+  font-style: italic;
+  font-size: 13px;
   line-height: 1.55;
   color: var(--text-dim);
+  opacity: 0.85;
 }
 
 .start-gate-error {
@@ -3269,24 +3385,32 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .start-gate-landing-link {
-  font-size: 11px;
-  color: var(--text-dim);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-dim) 80%, var(--preview));
   text-decoration: none;
-  letter-spacing: 0.4px;
-  opacity: 0.7;
-  transition: opacity 0.12s, color 0.12s;
+  opacity: 0.8;
+  transition: opacity 0.14s, color 0.14s, letter-spacing 0.14s;
   margin-top: 6px;
+  padding-bottom: 1px;
+  border-bottom: 1px dotted color-mix(in srgb, var(--text-dim) 50%, transparent);
 }
 .start-gate-landing-link:hover {
   opacity: 1;
-  color: var(--accent);
+  color: var(--preview);
+  letter-spacing: 0.32em;
+  border-bottom-color: var(--preview);
 }
 
 .start-gate-version {
-  font-size: 10px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9px;
   color: var(--text-dim);
-  letter-spacing: 1px;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
+  opacity: 0.7;
 }
 
 @keyframes start-logo-vibrate {
