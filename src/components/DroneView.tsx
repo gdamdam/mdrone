@@ -344,7 +344,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     tabOverride && tabOverride.presetId === state.activePresetId
       ? tabOverride.group
       : presetGroupForActive;
-  const visiblePresets = PRESETS.filter((p) => p.group === presetTab);
+  const visiblePresets = PRESETS
+    .filter((p) => p.group === presetTab)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
   const microtunedBaseIntervals =
     state.tuningId && state.relationId
       ? resolveTuning(state.tuningId, state.relationId)
