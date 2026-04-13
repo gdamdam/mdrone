@@ -226,8 +226,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         this.doPluck(delayLen, delayLenR);
         this.pluckPhase = (this.pluckPhase + 1) % 4;
         const pr = Math.max(0.05, pluckRate || 1);
-        // Cap interval at 8 s so low pluck rates still feel alive
-        this.pluckCountdown = Math.min(8, (2.5 + this.rng() * 2) / pr);
+        // Base interval 1.5-2.5 s (was 2.5-4.5) so plucks always
+        // overlap with the decaying tail — no silence gaps.
+        // Cap at 5 s for very low rates.
+        this.pluckCountdown = Math.min(5, (1.5 + this.rng() * 1.0) / pr);
       }
     }
 

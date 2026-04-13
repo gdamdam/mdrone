@@ -571,6 +571,20 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconSub />}
                 title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
               />
+              {state.voiceLayers.tanpura && (
+                <Macro
+                  label="PLUCK"
+                  value={state.pluckRate / 4}
+                  onChange={(v01) => {
+                    const v = v01 * 4;
+                    setPluckRate(v);
+                    engine?.setTanpuraPluckRate(v);
+                  }}
+                  icon={<IconTime />}
+                  displayValue={state.pluckRate < 0.05 ? "HOLD" : `${state.pluckRate.toFixed(1)}×`}
+                  title="Pluck — tanpura re-pluck rate. 0 = hold (infinite sustain), 1× = normal, 4× = fast"
+                />
+              )}
             </div>
 
             <div className="scene-actions-row">
@@ -732,23 +746,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
               </div>
             ))}
-            {state.voiceLayers.tanpura && (
-              <div className="layer-level-row">
-                <span className="layer-level-label">PLUCK</span>
-                <input
-                  type="range" min={0} max={4} step={0.05}
-                  value={state.pluckRate}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    setPluckRate(v);
-                    engine?.setTanpuraPluckRate(v);
-                  }}
-                  className="macro-slider"
-                  title="Tanpura re-pluck rate. 0 = hold (infinite sustain)."
-                />
-                <span className="layer-level-value">{state.pluckRate < 0.05 ? "HOLD" : `${state.pluckRate.toFixed(1)}×`}</span>
-              </div>
-            )}
           </div>
           <div className="fx-col">
             <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
