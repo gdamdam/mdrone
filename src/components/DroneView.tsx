@@ -571,20 +571,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconSub />}
                 title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
               />
-              {state.voiceLayers.tanpura && (
-                <Macro
-                  label="PLUCK"
-                  value={state.pluckRate / 4}
-                  onChange={(v01) => {
-                    const v = v01 * 4;
-                    setPluckRate(v);
-                    engine?.setTanpuraPluckRate(v);
-                  }}
-                  icon={<IconTime />}
-                  displayValue={state.pluckRate < 0.05 ? "HOLD" : `${state.pluckRate.toFixed(1)}×`}
-                  title="Pluck — tanpura re-pluck rate. 0 = hold (infinite sustain), 1× = normal, 4× = fast"
-                />
-              )}
             </div>
 
             <div className="scene-actions-row">

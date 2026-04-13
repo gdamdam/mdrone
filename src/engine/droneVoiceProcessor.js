@@ -137,148 +137,127 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // TANPURA — Karplus-Strong string with jawari-style nonlinearity
   // ═══════════════════════════════════════════════════════════════════
   initTanpura() {
-    // Max delay line sized for 25 Hz (40 ms) — comfortably below any
-    // musical note we'd play.
+    this.NUM_STRINGS = 4;
+    this.stringDetune = [1.0, 1.00116, 0.99884, 1.00058];
+    this.stringPanL = [0.85, 1.0, 0.7, 0.9];
+    this.stringPanR = [1.0, 0.7, 0.85, 0.9];
     this.ksMax = Math.ceil(sampleRate * 0.04) + 8;
-    this.ksBuf = new Float32Array(this.ksMax);
-    // Second delay line for the stereo tap with a different short offset,
-    // simulating two microphones on opposite sides of the string.
-    this.ksBufR = new Float32Array(this.ksMax);
-    this.ksIdx = 0;
-    this.ksIdxR = 0;
-    // Auto-repluck cycle — tanpura players cycle through 4 strings.
-    this.pluckCountdown = 0.2; // first pluck almost immediately
-    this.pluckPhase = 0;       // 0..3, cycles through 4 "strings"
-    this.currentString = 0;    // which string is currently ringing
-    // Simple one-pole lowpass state for feedback damping
-    this.ksLast = 0;
-    this.ksLastR = 0;
-    // Body resonator — a 2-pole bandpass at ~150 Hz simulates the
-    // gourd resonance of a real tanpura. Mixed in parallel with the
-    // KS string output; without it the voice reads slightly "synthy".
-    // SVF (Chamberlin) form; state is {low, band} per channel.
+    this.ksBufs = [];
+    this.ksBufsR = [];
+    this.ksIdxs = new Int32Array(this.NUM_STRINGS);
+    this.ksIdxsR = new Int32Array(this.NUM_STRINGS);
+    this.ksLasts = new Float32Array(this.NUM_STRINGS);
+    this.ksLastsR = new Float32Array(this.NUM_STRINGS);
+    for (let s = 0; s < this.NUM_STRINGS; s++) {
+      this.ksBufs.push(new Float32Array(this.ksMax));
+      this.ksBufsR.push(new Float32Array(this.ksMax));
+    }
+    this.pluckCountdowns = new Float32Array([0.1, 0.5, 0.9, 1.3]);
+    this.stringDamp = [0.9983, 0.9985, 0.9986, 0.9984];
     this.ksBodyF = 2 * Math.sin(Math.PI * 150 / sampleRate);
-    this.ksBodyDamp = 1 / 4; // Q = 4
+    this.ksBodyDamp = 1 / 4;
     this.ksBodyLowL = 0;
     this.ksBodyBandL = 0;
     this.ksBodyLowR = 0;
     this.ksBodyBandR = 0;
-    // Presence shelf — one-pole lowpass, then (in - lp) mixed back.
-    // Gives ~+2 dB boost above ~3 kHz so the jawari sizzle stays
-    // audible after the body resonator adds mid-low weight.
     this.hsKsL = 0;
     this.hsKsR = 0;
-    // Sympathetic string resonance — cross-couples the L/R delay
-    // lines so energy bleeds between strings via the shared body,
-    // like real tanpura strings on one gourd. Without this, the
-    // two delay lines are fully independent.
-    this.sympatheticAmount = 0.04; // subtle: 4% cross-bleed
     this.holdActive = false;
   }
 
   tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
     const hold = pluckRate < 0.05;
-    // Physical delay length in samples, clamped to available buffer
     const baseLen = sampleRate / Math.max(20, freq);
-    // Tanpura strings: Pa (5th), Sa, Sa, Sa (low octave). Use
-    // currentString (set at pluck time) for stable pitch between
-    // plucks. In hold mode, lock to Sa (1.0).
-    const stringRatios = [1.5, 1.0, 1.0, 0.5];
-    const ratio = hold ? 1.0 : stringRatios[this.currentString];
-    // Fractional delay — allpass interpolation eliminates the ±1 sample
-    // pitch quantization of integer-length delay lines.
-    const exactLen = Math.min(this.ksMax - 2, Math.max(8, baseLen / ratio));
-    const delayLen = Math.floor(exactLen);
-    const fracL = exactLen - delayLen;
-    const exactLenR = Math.min(this.ksMax - 2, Math.max(8, baseLen / ratio * 1.003));
-    const delayLenR = Math.floor(exactLenR);
-    const fracR = exactLenR - delayLenR;
-
-    // Per-string damping — lower-pitched strings sustain longer on a
-    // real tanpura. Pa (1.5× ratio, highest) decays fastest; the low
-    // Sa (0.5× ratio) rings longest. Uniform damping made all 4
-    // strings decay identically which sounds synthetic.
-    const STRING_DAMP = [0.9982, 0.9985, 0.9985, 0.9990];
-    const damping = hold
-      ? 1.0
-      : STRING_DAMP[this.currentString] - drift * 0.0012;
-    // Jawari nonlinearity — a compound curve that emphasizes upper
-    // harmonics in a way plain tanh doesn't. The sin term injects
-    // additional odd-harmonic content at amplitude extremes.
     const jawK = 1.1;
     const jawMix = 0.22;
 
-    // Pluck scheduling — disabled in hold mode
+    // Pluck scheduling — round-robin, each string on its own timer
+    const blockSec = n / sampleRate;
     if (hold) {
       if (!this.holdActive) {
         this.holdActive = true;
-        this.doPluck(delayLen, delayLenR);
+        for (let s = 0; s < this.NUM_STRINGS; s++) {
+          const exact = Math.min(this.ksMax - 2, Math.max(8, baseLen / this.stringDetune[s]));
+          this.doPluckString(s, Math.floor(exact));
+        }
       }
     } else {
       this.holdActive = false;
-      this.pluckCountdown -= n / sampleRate;
-      if (this.pluckCountdown <= 0) {
-        this.currentString = this.pluckPhase;
-        this.doPluck(delayLen, delayLenR);
-        this.pluckPhase = (this.pluckPhase + 1) % 4;
-        const pr = Math.max(0.05, pluckRate || 1);
-        this.pluckCountdown = (2.5 + this.rng() * 2) / pr;
+      for (let s = 0; s < this.NUM_STRINGS; s++) {
+        this.pluckCountdowns[s] -= blockSec;
+        if (this.pluckCountdowns[s] <= 0) {
+          const exact = Math.min(this.ksMax - 2, Math.max(8, baseLen / this.stringDetune[s]));
+          this.doPluckString(s, Math.floor(exact));
+          const pr = Math.max(0.05, pluckRate || 1);
+          this.pluckCountdowns[s] = (5.0 + this.rng() * 2.0) / pr;
+        }
       }
     }
 
-    // Denormal anti-burn offset — keeps the feedback loop above the
-    // denormal threshold (~1e-38) which would otherwise cause 10-100x
-    // CPU slowdowns on x86 as samples decay toward zero.
-    const ANTI_DENORMAL = 1e-25;
+    // Per-string delay lengths (stable — same root, micro-detune only)
+    const delayLens = new Int32Array(this.NUM_STRINGS);
+    const delayLensR = new Int32Array(this.NUM_STRINGS);
+    const fracsL = new Float32Array(this.NUM_STRINGS);
+    const fracsR = new Float32Array(this.NUM_STRINGS);
+    for (let s = 0; s < this.NUM_STRINGS; s++) {
+      const dt = this.stringDetune[s];
+      const exact = Math.min(this.ksMax - 2, Math.max(8, baseLen / dt));
+      delayLens[s] = Math.floor(exact);
+      fracsL[s] = exact - delayLens[s];
+      const exactR = Math.min(this.ksMax - 2, Math.max(8, baseLen / (dt * 1.003)));
+      delayLensR[s] = Math.floor(exactR);
+      fracsR[s] = exactR - delayLensR[s];
+    }
 
     for (let i = 0; i < n; i++) {
-      // Read with linear fractional delay interpolation —
-      // eliminates ±1 sample pitch quantization of integer delay.
-      const cur = this.ksBuf[this.ksIdx];
-      const nxt = this.ksBuf[(this.ksIdx + 1) % delayLen];
-      let y = cur * (1 - fracL) + nxt * fracL + ANTI_DENORMAL;
-      // Feedback lowpass — string body damping. 0.35/0.65 lets more
-      // upper harmonics sustain before the bridge contact damps them,
-      // keeping the jawari sizzle audible longer.
-      this.ksLast = this.ksLast * 0.35 + y * 0.65;
-      y = this.ksLast * damping;
-      // Jawari: nonlinear shaping that emphasizes overtones
-      const jy = Math.tanh(jawK * y) + jawMix * fastSin(jawK * 2.1 * y);
-      y = y * 0.78 + jy * 0.22;
-      // Right channel — independent delay line with fractional interp
-      const curR = this.ksBufR[this.ksIdxR];
-      const nxtR = this.ksBufR[(this.ksIdxR + 1) % delayLenR];
-      let yR = curR * (1 - fracR) + nxtR * fracR + ANTI_DENORMAL;
-      this.ksLastR = this.ksLastR * 0.35 + yR * 0.65;
-      yR = this.ksLastR * damping;
-      const jyR = Math.tanh(jawK * yR) + jawMix * fastSin(jawK * 2.1 * yR);
-      yR = yR * 0.78 + jyR * 0.22;
+      let sumL = 0, sumR = 0;
 
-      // Sympathetic resonance — cross-bleed between L/R strings
-      // via the shared gourd body. 4% energy transfer per sample.
-      const sym = this.sympatheticAmount;
-      const yBlend  = y  + yR * sym;
-      const yRBlend = yR + y  * sym;
-      this.ksBuf[this.ksIdx] = yBlend;
-      this.ksIdx = (this.ksIdx + 1) % delayLen;
-      this.ksBufR[this.ksIdxR] = yRBlend;
-      this.ksIdxR = (this.ksIdxR + 1) % delayLenR;
+      for (let s = 0; s < this.NUM_STRINGS; s++) {
+        const buf = this.ksBufs[s];
+        const bufR = this.ksBufsR[s];
+        const idx = this.ksIdxs[s];
+        const idxR = this.ksIdxsR[s];
+        const dLen = delayLens[s];
+        const dLenR = delayLensR[s];
+        const damp = hold ? 1.0 : this.stringDamp[s] - drift * 0.0012;
 
-      // Body resonator — parallel 150 Hz bandpass feeding the output.
-      // SVF at Q=4 gives a prominent gourd-like mid-low coloration
-      // that the raw KS string lacks. 0.12 mix keeps it subtle.
-      const bodyHighL = y - this.ksBodyLowL - this.ksBodyDamp * this.ksBodyBandL;
+        const cur = buf[idx];
+        const nxt = buf[(idx + 1) % dLen];
+        let y = cur * (1 - fracsL[s]) + nxt * fracsL[s] + 1e-25;
+        this.ksLasts[s] = this.ksLasts[s] * 0.35 + y * 0.65;
+        y = this.ksLasts[s] * damp;
+        const jy = Math.tanh(jawK * y) + jawMix * fastSin(jawK * 2.1 * y);
+        y = y * 0.78 + jy * 0.22;
+
+        const curR = bufR[idxR];
+        const nxtR = bufR[(idxR + 1) % dLenR];
+        let yR = curR * (1 - fracsR[s]) + nxtR * fracsR[s] + 1e-25;
+        this.ksLastsR[s] = this.ksLastsR[s] * 0.35 + yR * 0.65;
+        yR = this.ksLastsR[s] * damp;
+        const jyR = Math.tanh(jawK * yR) + jawMix * fastSin(jawK * 2.1 * yR);
+        yR = yR * 0.78 + jyR * 0.22;
+
+        buf[idx] = y;
+        this.ksIdxs[s] = (idx + 1) % dLen;
+        bufR[idxR] = yR;
+        this.ksIdxsR[s] = (idxR + 1) % dLenR;
+
+        sumL += y * this.stringPanL[s];
+        sumR += yR * this.stringPanR[s];
+      }
+
+      sumL *= 0.3;
+      sumR *= 0.3;
+
+      const bodyHighL = sumL - this.ksBodyLowL - this.ksBodyDamp * this.ksBodyBandL;
       this.ksBodyBandL += this.ksBodyF * bodyHighL;
       this.ksBodyLowL += this.ksBodyF * this.ksBodyBandL;
-      const bodyHighR = yR - this.ksBodyLowR - this.ksBodyDamp * this.ksBodyBandR;
+      const bodyHighR = sumR - this.ksBodyLowR - this.ksBodyDamp * this.ksBodyBandR;
       this.ksBodyBandR += this.ksBodyF * bodyHighR;
       this.ksBodyLowR += this.ksBodyF * this.ksBodyBandR;
 
-      // Presence shelf — compensate the body resonator's mid-low
-      // tilt so the jawari highs don't feel dulled by comparison.
-      // One-pole LP + (dry − LP) × 0.3 ≈ +2.3 dB shelf above ~3 kHz.
-      let postL = y + this.ksBodyBandL * 0.12;
-      let postR = yR + this.ksBodyBandR * 0.12;
+      let postL = sumL + this.ksBodyBandL * 0.12;
+      let postR = sumR + this.ksBodyBandR * 0.12;
       this.hsKsL = this.hsKsL * 0.6 + postL * 0.4;
       this.hsKsR = this.hsKsR * 0.6 + postR * 0.4;
       postL += (postL - this.hsKsL) * 0.3;
@@ -289,38 +268,30 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     }
   }
 
-  doPluck(delayLen, delayLenR) {
-    // Fill delay lines with a band-limited noise excitation. A one-
-    // pole IIR lowpass (corner ~2.5 kHz at 48 kHz) replaces the old
-    // 2-sample moving-average smoothing so the pluck transient doesn't
-    // slam downstream effects — notably PLATE's input diffuser — with
-    // full-spectrum white-noise content. That full-spectrum hit was
-    // audible as a brief "frrrrr" of dense allpass coloration every
-    // re-pluck (~every 3 s). The filter corner sits above the string
-    // fundamental and first few harmonics but below the 3–10 kHz range
-    // where the diffuser ringing lived, so the sustained string
-    // timbre is unchanged while the attack stops exciting the chain.
-    // Real tanpura plucks are mid-rich, not bright white bursts
-    // either — this is more physically plausible, not less.
-    const lpCoef = 0.32;
+  doPluckString(s, delayLen) {
+    const buf = this.ksBufs[s];
+    const bufR = this.ksBufsR[s];
+    const delayLenR = Math.min(this.ksMax - 2, delayLen + 2);
+    const lpCoef = 0.15;
     let lpL = 0;
     for (let i = 0; i < delayLen; i++) {
-      const n = (this.rng() * 2 - 1);
-      lpL += lpCoef * (n - lpL);
-      // Slightly higher scale than the old 0.7 compensates for the
-      // RMS loss from the stronger lowpass so perceived attack
-      // loudness is similar to before.
-      this.ksBuf[i] = lpL * 0.9;
+      const v = (this.rng() * 2 - 1);
+      lpL += lpCoef * (v - lpL);
+      buf[i] = lpL * 0.85;
     }
     let lpR = 0;
     for (let i = 0; i < delayLenR; i++) {
-      const n = (this.rng() * 2 - 1);
-      lpR += lpCoef * (n - lpR);
-      this.ksBufR[i] = lpR * 0.9;
+      const v = (this.rng() * 2 - 1);
+      lpR += lpCoef * (v - lpR);
+      bufR[i] = lpR * 0.85;
     }
+    this.ksIdxs[s] = 0;
+    this.ksIdxsR[s] = 0;
+    this.ksLasts[s] = 0;
+    this.ksLastsR[s] = 0;
   }
 
-  // ═══════════════════════════════════════════════════════════════════
+
   // REED — harmonium/shruti-box free-reed additive synthesis
   // ═══════════════════════════════════════════════════════════════════
   initReed() {
