@@ -76,7 +76,9 @@ export class MasterBus {
     this.outputTrim.gain.value = 1;
 
     this.analyser = this.ctx.createAnalyser();
-    this.analyser.fftSize = 2048;
+    // 1024 is enough for Header/VuMeter RMS; MeditateView upsizes
+    // to 2048 on mount when it needs spectrum resolution.
+    this.analyser.fftSize = 1024;
 
     this.masterGain.connect(this.hpf);
     this.hpf.connect(this.eqLow);

@@ -116,7 +116,12 @@ export function MeditateView({
     // itself is the cheapest one-pole LPF the browser can give us,
     // on top of our own exponential smoothing below. Values close
     // to 1 = smoother/slower; 0.82 is "felt but stable".
+    // Upsize to 2048 for spectrum resolution; Header/VuMeter are fine
+    // at the default 1024. Restored on cleanup so other consumers
+    // aren't paying for the larger FFT after Meditate unmounts.
+    const prevFftSize = analyser?.fftSize ?? 1024;
     if (analyser) {
+      try { analyser.fftSize = 2048; } catch { /* ok */ }
       try { analyser.smoothingTimeConstant = 0.82; } catch { /* ok */ }
     }
     const timeBuf = analyser ? new Uint8Array(analyser.fftSize) : null;
@@ -293,8 +298,16 @@ export function MeditateView({
     const ro = new ResizeObserver(resize);
     if (canvas.parentElement) ro.observe(canvas.parentElement);
 
+    let lastPaint = -Infinity;
+    const FRAME_MS = 1000 / 30; // cap at 30 fps — visually identical, halves CPU
+
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      // Skip work entirely when the tab is hidden — analyser reads,
+      // spectrum bucketing, and canvas draws are pure waste offscreen.
+      if (document.hidden) return;
+      if (now - lastPaint < FRAME_MS) return;
+      lastPaint = now;
       // Frame delta, clamped so huge stalls (tab switch) don't warp
       // the motion on resume.
       const dtMs = Math.min(80, now - lastNow);
@@ -470,6 +483,10 @@ export function MeditateView({
 
     return () => {
       cancelAnimationFrame(raf);
+      // Restore the smaller fftSize so Header/VuMeter don't pay for 2048.
+      if (analyser) {
+        try { analyser.fftSize = prevFftSize; } catch { /* ok */ }
+      }
       ro.disconnect();
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerleave", onLeave);

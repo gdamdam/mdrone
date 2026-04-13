@@ -122,6 +122,7 @@ export function Header({
     const FRAME_MS = 1000 / 30;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      if (document.hidden) return;
       if (now - lastPaint < FRAME_MS) return;
       lastPaint = now;
       analyser.getByteTimeDomainData(buf);
