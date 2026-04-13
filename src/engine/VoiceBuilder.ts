@@ -108,7 +108,7 @@ export function buildVoice(
     },
     setPluckRate(rate) {
       if (!pluckRateParam) return;
-      const clamped = Math.max(0.2, Math.min(4, rate));
+      const clamped = Math.max(0, Math.min(4, rate));
       pluckRateParam.setTargetAtTime(clamped, ctx.currentTime, 0.1);
     },
     stop() {
