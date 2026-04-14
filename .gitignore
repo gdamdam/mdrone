@@ -29,6 +29,9 @@ playwright/.cache/
 # Local project knowledge — gitignored by design
 misc/
 
+# Sticker / merch artwork
+stickers/
+
 # Wrangler local dev cache
 worker/.wrangler/
 

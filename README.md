@@ -278,7 +278,6 @@ That command builds the app and publishes `dist/` to the `gh-pages` branch.
 mdrone/
   public/
     about.html          # explainer / SEO page
-    landing.html        # legacy redirect to about.html
     robots.txt          # allow search crawlers, block selected AI crawlers
     sitemap.xml         # crawlable URLs for search engines
   src/
