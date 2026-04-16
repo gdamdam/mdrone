@@ -676,11 +676,13 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.06,  // subtle — slow filter breathing adds microscopic life
     climateX: 0.3,
     climateY: 0.12,
-    // hall only — freeze caused a periodic click from captured-frame
-    // looping, and Radigue's own rooms aren't cavernous anyway.
-    effects: ["hall"],
+    // Keep the core sine stack present and let a close room sit in
+    // parallel behind it. Serial hall pushed the whole preset too far
+    // back once HALL moved to the quieter FDN path.
+    effects: [],
+    parallelSends: { hall: 0.22 },
     scale: "drone",
-    gain: 1.1,
+    gain: 1.22,
     motionProfile: motionProfile({
       climateXRange: [0.24, 0.34],
       climateYRange: [0.08, 0.18],
@@ -716,12 +718,15 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.01,   // almost nothing
     climateX: 0.55,    // bright — sunlit departure lounge
     climateY: 0.04,
-    effects: ["hall"],  // hall only — the room, nothing else
+    // Airport needs the piano attacks to stay legible; use a parallel
+    // hall wash instead of replacing the source with wet-only hall.
+    effects: [],
+    parallelSends: { hall: 0.42 },
     // just5 instead of pentatonic: pentatonic's M2 (200¢) beats against
     // the root and 5th. just5 is root + 5-limit major 3rd + 5th — fully
     // consonant, beating-free, warm.
     scale: "just5",
-    gain: 1.0,
+    gain: 1.12,
     motionProfile: motionProfile({
       climateXRange: [0.48, 0.58],
       climateYRange: [0.04, 0.12],
@@ -1283,9 +1288,12 @@ export const PRESETS: Preset[] = [
     // actual sound IS grain-based laptop processing on top of the
     // continuous reed smear, and quantised grains stay tonal with
     // the drone chord.
-    effects: ["plate", "hall", "tape", "graincloud"],
+    // Keep the tape body + grain shimmer in the serial path, but move
+    // the big spaces parallel so the source doesn't disappear into wet.
+    effects: ["tape", "graincloud"],
+    parallelSends: { plate: 0.24, hall: 0.22 },
     scale: "major",
-    gain: 0.95,
+    gain: 1.08,
     motionProfile: motionProfile({
       climateXRange: [0.48, 0.64],
       climateYRange: [0.2, 0.36],
@@ -1620,9 +1628,12 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.03,
     climateX: 0.34,
     climateY: 0.1,
-    effects: ["plate", "hall"],
+    // Prisma wants dry spectral fundamentals with a chamber around
+    // them. Parallel plate/hall preserves the tone while adding space.
+    effects: [],
+    parallelSends: { plate: 0.18, hall: 0.16 },
     scale: "just5",
-    gain: 1.0,
+    gain: 1.12,
     motionProfile: motionProfile({
       climateXRange: [0.28, 0.4],
       climateYRange: [0.08, 0.16],

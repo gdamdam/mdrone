@@ -127,6 +127,15 @@ const ON_LEVELS: Record<EffectId, number> = {
   formant: 1.0,
 };
 
+/** The serial FDN hall/cistern replaced a louder convolver path; give
+ *  the worklet output a local make-up trim so sparse reverb-led presets
+ *  sit with the rest of the library without changing preset data or
+ *  parallel-send calibration. */
+const SERIAL_REVERB_TRIM = {
+  hall: 1.75,
+  cistern: 1.3,
+} as const;
+
 interface Insert {
   insertIn: GainNode;
   insertOut: GainNode;
@@ -168,6 +177,8 @@ export class FxChain {
   // seeded impulse.
   private hallWorklet: AudioWorkletNode | null = null;
   private cisternWorklet: AudioWorkletNode | null = null;
+  private hallSerialTrim!: GainNode;
+  private cisternSerialTrim!: GainNode;
   private hallImpulse: AudioBuffer | null = null;
   private cisternImpulse: AudioBuffer | null = null;
   /** Seed for the deterministic reverb-IR PRNG. Changed via
@@ -744,7 +755,12 @@ export class FxChain {
       this.hallWorklet.parameters.get("decay")?.setValueAtTime(0.84, hT);
       this.hallWorklet.parameters.get("mix")?.setValueAtTime(1, hT);
       ins.insertIn.connect(this.hallWorklet);
-      this.hallWorklet.connect(ins.wetGain);
+      if (!this.hallSerialTrim) {
+        this.hallSerialTrim = this.ctx.createGain();
+        this.hallSerialTrim.gain.value = SERIAL_REVERB_TRIM.hall;
+        this.hallSerialTrim.connect(ins.wetGain);
+      }
+      this.hallWorklet.connect(this.hallSerialTrim);
     }
     if (this.cisternWorklet) {
       try { this.cisternWorklet.disconnect(); } catch { /* noop */ }
@@ -760,7 +776,12 @@ export class FxChain {
       this.cisternWorklet.parameters.get("decay")?.setValueAtTime(0.94, cT);
       this.cisternWorklet.parameters.get("mix")?.setValueAtTime(1, cT);
       ins.insertIn.connect(this.cisternWorklet);
-      this.cisternWorklet.connect(ins.wetGain);
+      if (!this.cisternSerialTrim) {
+        this.cisternSerialTrim = this.ctx.createGain();
+        this.cisternSerialTrim.gain.value = SERIAL_REVERB_TRIM.cistern;
+        this.cisternSerialTrim.connect(ins.wetGain);
+      }
+      this.cisternWorklet.connect(this.cisternSerialTrim);
     }
   }
 
@@ -807,6 +828,8 @@ export class FxChain {
       outputChannelCount: [2],
       processorOptions: { seed: this.reverbSeed ^ 0xA11 },
     });
+    this.hallSerialTrim = ctx.createGain();
+    this.hallSerialTrim.gain.value = SERIAL_REVERB_TRIM.hall;
     const hallT = ctx.currentTime;
     this.hallWorklet.parameters.get("size")?.setValueAtTime(0.45, hallT);
     this.hallWorklet.parameters.get("damping")?.setValueAtTime(0.55, hallT);
@@ -815,7 +838,8 @@ export class FxChain {
     const hallIns = this.inserts.hall;
     try { hallIns.insertIn.disconnect(hallIns.wetGain); } catch { /* noop */ }
     hallIns.insertIn.connect(this.hallWorklet);
-    this.hallWorklet.connect(hallIns.wetGain);
+    this.hallSerialTrim.connect(hallIns.wetGain);
+    this.hallWorklet.connect(this.hallSerialTrim);
 
     // CISTERN — cathedral-scale FDN, large space (size ≈ 1.2) and
     // darker damping for the long, low tail the Deep-Listening
@@ -826,6 +850,8 @@ export class FxChain {
       outputChannelCount: [2],
       processorOptions: { seed: this.reverbSeed ^ 0xC157 },
     });
+    this.cisternSerialTrim = ctx.createGain();
+    this.cisternSerialTrim.gain.value = SERIAL_REVERB_TRIM.cistern;
     const cT = ctx.currentTime;
     this.cisternWorklet.parameters.get("size")?.setValueAtTime(1.2, cT);
     this.cisternWorklet.parameters.get("damping")?.setValueAtTime(0.7, cT);
@@ -834,7 +860,8 @@ export class FxChain {
     const cisternIns = this.inserts.cistern;
     try { cisternIns.insertIn.disconnect(cisternIns.wetGain); } catch { /* noop */ }
     cisternIns.insertIn.connect(this.cisternWorklet);
-    this.cisternWorklet.connect(cisternIns.wetGain);
+    this.cisternSerialTrim.connect(cisternIns.wetGain);
+    this.cisternWorklet.connect(this.cisternSerialTrim);
 
     // PLATE
     this.plateWorklet = new AudioWorkletNode(ctx, "fx-plate", {
