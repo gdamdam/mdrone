@@ -132,11 +132,16 @@ class Halfband2x {
 
 // ══ core.js ══════════════════════════════════════════════════
 
-// mdrone voice worklet — DroneVoiceProcessor class.
-// Depends on helpers in ./shared.js (makeRng, fastSin, polyblep,
-// Halfband2x). The two files are concatenated into a single
-// droneVoiceProcessor.js by scripts/build-worklet.mjs during
-// the prebuild step.
+// mdrone voice worklet — core class. Defines DroneVoiceProcessor with
+// its constructor, shared helpers (pinkNoise, sanitizeState), and the
+// per-block process() dispatcher. Per-voice init/process methods
+// (initTanpura/tanpuraProcess, initReed/reedProcess, ...) are
+// attached as prototype extensions by separate files under this
+// directory and concatenated after core.js by
+// scripts/build-worklet.mjs. The `registerProcessor` call lives in
+// register.js (concatenated last) so extensions always land before
+// the processor is registered with the worklet global scope.
+
 
 class DroneVoiceProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -282,10 +287,55 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     if (this.jawHbR) for (const hb of this.jawHbR) hb.sanitize();
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  // TANPURA — Karplus-Strong string with jawari-style nonlinearity
-  // ═══════════════════════════════════════════════════════════════════
-  initTanpura() {
+  process(_inputs, outputs, parameters) {
+    if (this.stopped) return false;
+    const output = outputs[0];
+    if (!output || output.length === 0) return true;
+    const L = output[0];
+    const R = output.length > 1 ? output[1] : output[0];
+    const n = L.length;
+
+    const freq  = parameters.freq[0];
+    const drift = parameters.drift[0];
+    const amp   = parameters.amp[0];
+    const pluckRate = parameters.pluckRate ? parameters.pluckRate[0] : 1;
+
+    // If amp is 0 and we're silent, skip processing to save CPU.
+    // (Voices ramp amp up/down externally, so brief silence is normal.)
+    if (amp < 0.0001) {
+      for (let i = 0; i < n; i++) { L[i] = 0; if (R !== L) R[i] = 0; }
+      return true;
+    }
+
+    // NaN/Infinity sanitation on every feedback-rich scalar the voice
+    // touches. One bad sample in an SVF / KS / DC-block state traps the
+    // voice at silence or subsonic DC forever; this is the single
+    // cheapest place to reset it per block.
+    this.sanitizeState();
+
+    switch (this.voiceType) {
+      case "tanpura": this.tanpuraProcess(L, R, n, freq, drift, amp, pluckRate); break;
+      case "reed":    this.reedProcess(L, R, n, freq, drift, amp); break;
+      case "metal":   this.metalProcess(L, R, n, freq, drift, amp); break;
+      case "air":     this.airProcess(L, R, n, freq, drift, amp); break;
+      case "piano":   this.pianoProcess(L, R, n, freq, drift, amp); break;
+      case "fm":      this.fmProcess(L, R, n, freq, drift, amp); break;
+      case "amp":     this.ampProcess(L, R, n, freq, drift, amp); break;
+    }
+    return true;
+  }
+
+}
+
+
+
+// ══ tanpura.js ══════════════════════════════════════════════════
+
+// mdrone voice worklet — TANPURA (Karplus-Strong + jawari, auto-pluck cycle) voice.
+// Prototype extensions on DroneVoiceProcessor; concatenated
+// after core.js by scripts/build-worklet.mjs.
+
+DroneVoiceProcessor.prototype.initTanpura = function() {
     this.NUM_STRINGS = 4;
     this.stringDetune = [1.0, 1.00116, 0.99884, 1.00058];
     this.stringPanL = [0.85, 1.0, 0.7, 0.9];
@@ -322,9 +372,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       this.jawHbL.push(new Halfband2x());
       this.jawHbR.push(new Halfband2x());
     }
-  }
+};
 
-  tanpuraProcess(L, R, n, freq, drift, amp, pluckRate) {
+DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, amp, pluckRate) {
     const hold = pluckRate < 0.05;
     const baseLen = sampleRate / Math.max(20, freq);
     const jawK = 1.1;
@@ -432,9 +482,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       L[i] = postL * amp;
       R[i] = postR * amp;
     }
-  }
+};
 
-  doPluckString(s, delayLen) {
+DroneVoiceProcessor.prototype.doPluckString = function(s, delayLen) {
     const buf = this.ksBufs[s];
     const bufR = this.ksBufsR[s];
     const delayLenR = Math.min(this.ksMax - 2, delayLen + 2);
@@ -455,12 +505,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.ksIdxsR[s] = 0;
     this.ksLasts[s] = 0;
     this.ksLastsR[s] = 0;
-  }
+};
 
 
-  // REED — harmonium/shruti-box free-reed additive synthesis
-  // ═══════════════════════════════════════════════════════════════════
-  initReed() {
+
+// ══ reed.js ══════════════════════════════════════════════════
+
+// mdrone voice worklet — REED (harmonium/shruti-box additive + PolyBLEP saw) voice.
+// Prototype extensions on DroneVoiceProcessor; concatenated
+// after core.js by scripts/build-worklet.mjs.
+
+DroneVoiceProcessor.prototype.initReed = function() {
     // 7 partials. The shape parameter picks an amplitude curve:
     //   odd      — clarinet/shruti/harmonium (default, original)
     //   even     — bowed string (SOTL, Górecki) — even partials emphasised
@@ -557,9 +612,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // limiting. Matches the technique used in airProcess().
     this.hsReedL = 0;
     this.hsReedR = 0;
-  }
+};
 
-  reedProcess(L, R, n, freq, drift, amp) {
+DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     // Drift → per-partial detune depth (max ±8 cents)
@@ -672,12 +727,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       L[i] = l * amp;
       R[i] = r * amp;
     }
-  }
+};
 
-  // ═══════════════════════════════════════════════════════════════════
-  // METAL — inharmonic partials with independent random walks
-  // ═══════════════════════════════════════════════════════════════════
-  initMetal() {
+
+
+// ══ metal.js ══════════════════════════════════════════════════
+
+// mdrone voice worklet — METAL (inharmonic singing-bowl modal stack) voice.
+// Prototype extensions on DroneVoiceProcessor; concatenated
+// after core.js by scripts/build-worklet.mjs.
+
+DroneVoiceProcessor.prototype.initMetal = function() {
     // Bowl-like modal layout. Tibetan singing bowls are dominated by a
     // low fundamental mode plus sparse higher deformation modes whose
     // frequencies rise much faster than the harmonic series; struck
@@ -725,9 +785,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // oversampling its tanh image folds below Nyquist as dissonant hiss.
     this.metalHbL = new Halfband2x();
     this.metalHbR = new Halfband2x();
-  }
+};
 
-  metalProcess(L, R, n, freq, drift, amp) {
+DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp) {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const driftDepth = drift * 0.0024; // keep the bowl centered; max ~4 cents walk
@@ -788,12 +848,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       L[i] = l * amp;
       R[i] = r * amp;
     }
-  }
+};
 
-  // ═══════════════════════════════════════════════════════════════════
-  // AIR — pink noise through 3 modulated state-variable resonators
-  // ═══════════════════════════════════════════════════════════════════
-  initAir() {
+
+
+// ══ air.js ══════════════════════════════════════════════════
+
+// mdrone voice worklet — AIR (pink noise through SVF resonators) voice.
+// Prototype extensions on DroneVoiceProcessor; concatenated
+// after core.js by scripts/build-worklet.mjs.
+
+DroneVoiceProcessor.prototype.initAir = function() {
     // 3 resonators at semi-inharmonic ratios — keeps the air voice
     // light and airy rather than pitched. The earlier bump to 5
     // bands reintroduced too much bass/mid energy (sum of bands ≈
@@ -824,10 +889,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // High-shelf state for air character (one-pole)
     this.hsL = 0;
     this.hsR = 0;
-  }
+};
 
   // Second pink noise generator (uses pinkR state) for independent R channel
-  pinkNoiseR() {
+DroneVoiceProcessor.prototype.pinkNoiseR = function() {
     const p = this.pinkR;
     const white = this.rng() * 2 - 1;
     p.b0 = 0.99886 * p.b0 + white * 0.0555179;
@@ -839,9 +904,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const out = p.b0 + p.b1 + p.b2 + p.b3 + p.b4 + p.b5 + p.b6 + white * 0.5362;
     p.b6 = white * 0.115926;
     return out * 0.11;
-  }
+};
 
-  airProcess(L, R, n, freq, drift, amp) {
+DroneVoiceProcessor.prototype.airProcess = function(L, R, n, freq, drift, amp) {
     // drift modulates the Q random-walk range
     const qMin = 8 - drift * 2;
     const qMax = 16 + drift * 4;
@@ -905,59 +970,17 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       L[i] = brightenedL * amp * 1.4;
       R[i] = brightenedR * amp * 1.4;
     }
-  }
+};
 
-  // ═══════════════════════════════════════════════════════════════════
-  // Main process dispatch
-  // ═══════════════════════════════════════════════════════════════════
-  process(_inputs, outputs, parameters) {
-    if (this.stopped) return false;
-    const output = outputs[0];
-    if (!output || output.length === 0) return true;
-    const L = output[0];
-    const R = output.length > 1 ? output[1] : output[0];
-    const n = L.length;
 
-    const freq  = parameters.freq[0];
-    const drift = parameters.drift[0];
-    const amp   = parameters.amp[0];
-    const pluckRate = parameters.pluckRate ? parameters.pluckRate[0] : 1;
 
-    // If amp is 0 and we're silent, skip processing to save CPU.
-    // (Voices ramp amp up/down externally, so brief silence is normal.)
-    if (amp < 0.0001) {
-      for (let i = 0; i < n; i++) { L[i] = 0; if (R !== L) R[i] = 0; }
-      return true;
-    }
+// ══ piano.js ══════════════════════════════════════════════════
 
-    // NaN/Infinity sanitation on every feedback-rich scalar the voice
-    // touches. One bad sample in an SVF / KS / DC-block state traps the
-    // voice at silence or subsonic DC forever; this is the single
-    // cheapest place to reset it per block.
-    this.sanitizeState();
+// mdrone voice worklet — PIANO (stretched-harmonic + soundboard + strike) voice.
+// Prototype extensions on DroneVoiceProcessor; concatenated
+// after core.js by scripts/build-worklet.mjs.
 
-    switch (this.voiceType) {
-      case "tanpura": this.tanpuraProcess(L, R, n, freq, drift, amp, pluckRate); break;
-      case "reed":    this.reedProcess(L, R, n, freq, drift, amp); break;
-      case "metal":   this.metalProcess(L, R, n, freq, drift, amp); break;
-      case "air":     this.airProcess(L, R, n, freq, drift, amp); break;
-      case "piano":   this.pianoProcess(L, R, n, freq, drift, amp); break;
-      case "fm":      this.fmProcess(L, R, n, freq, drift, amp); break;
-      case "amp":     this.ampProcess(L, R, n, freq, drift, amp); break;
-    }
-    return true;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // PIANO — decaying harmonic stack with slight inharmonic stretch.
-  // Used as a sustained "drone-ified" piano by looping the held state
-  // forever (no release). Signature features:
-  //  - 8 partials with strong fundamental, decreasing higher partials
-  //  - slight inharmonic stretch (real piano partials go marginally sharp)
-  //  - very subtle slow breath LFO for life, no bellows saturation
-  //  - stereo via per-partial offset accumulators
-  // ═══════════════════════════════════════════════════════════════════
-  initPiano() {
+DroneVoiceProcessor.prototype.initPiano = function() {
     this.pianoN = 14;
     this.pianoAmps = new Float32Array([
       1.0, 0.58, 0.42, 0.28, 0.22, 0.14, 0.10, 0.06,
@@ -1012,9 +1035,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // resonating sympathetically. Without this the two channels are
     // fully independent additive stacks.
     this.pianoSympathetic = 0.03;
-  }
+};
 
-  pianoProcess(L, R, n, freq, drift, amp) {
+DroneVoiceProcessor.prototype.pianoProcess = function(L, R, n, freq, drift, amp) {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const detuneDepth = drift * 0.0028;
@@ -1097,14 +1120,19 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       L[i] = l * amp;
       R[i] = r * amp;
     }
-  }
+};
 
-  // ═══════════════════════════════════════════════════════════════════
-  // FM — 2-op FM synthesis (carrier + modulator). Fixed ratio for a
   // dominant tonal with a characteristic inharmonic shimmer. Used for
-  // Coil Time Machines / DX7-era bell drones.
-  // ═══════════════════════════════════════════════════════════════════
-  initFm() {
+
+
+
+// ══ fm.js ══════════════════════════════════════════════════
+
+// mdrone voice worklet — FM (2-op with slow index envelope) voice.
+// Prototype extensions on DroneVoiceProcessor; concatenated
+// after core.js by scripts/build-worklet.mjs.
+
+DroneVoiceProcessor.prototype.initFm = function() {
     this.fmCarrierPhaseL = this.rng() * Math.PI * 2;
     this.fmCarrierPhaseR = this.rng() * Math.PI * 2;
     this.fmModPhase = this.rng() * Math.PI * 2;
@@ -1125,9 +1153,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // DX7-style bell into a living one.
     this.fmIndexLfoPhase = this.rng() * Math.PI * 2;
     this.fmIndexLfoRate = 0.015 + this.rng() * 0.012;
-  }
+};
 
-  fmProcess(L, R, n, freq, drift, amp) {
+DroneVoiceProcessor.prototype.fmProcess = function(L, R, n, freq, drift, amp) {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const depth = drift * 0.004;
@@ -1165,14 +1193,19 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       L[i] = fastSin(this.fmCarrierPhaseL) * s * amp;
       R[i] = fastSin(this.fmCarrierPhaseR) * s * amp;
     }
-  }
+};
 
-  // ═══════════════════════════════════════════════════════════════════
-  // AMP — distorted amplifier voice. An additive harmonic source pushed
   // hard through tanh saturation with a simulated cabinet low-pass.
-  // Used for drone-metal presets (Sunn O))), Earth, Pyroclasts).
-  // ═══════════════════════════════════════════════════════════════════
-  initAmp() {
+
+
+
+// ══ amp.js ══════════════════════════════════════════════════
+
+// mdrone voice worklet — AMP (tube-bias cabinet with speaker feedback) voice.
+// Prototype extensions on DroneVoiceProcessor; concatenated
+// after core.js by scripts/build-worklet.mjs.
+
+DroneVoiceProcessor.prototype.initAmp = function() {
     this.ampN = 6;
     this.ampAmps      = new Float32Array([1.0, 0.55, 0.38, 0.22, 0.14, 0.08]);
     this.ampPhasesL   = new Float32Array(this.ampN);
@@ -1219,9 +1252,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // biggest aliasing hotspot in the engine (k=3.8, 6 harmonics in).
     this.ampHbL = new Halfband2x();
     this.ampHbR = new Halfband2x();
-  }
+};
 
-  ampProcess(L, R, n, freq, drift, amp) {
+DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const detuneDepth = drift * 0.005;
@@ -1297,8 +1330,16 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       L[i] = this.ampCabL * amp;
       R[i] = this.ampCabR * amp;
     }
-  }
-}
+};
+
+
+
+// ══ register.js ══════════════════════════════════════════════════
+
+// mdrone voice worklet — processor registration. Must come last in
+// the concatenation order so every per-voice prototype extension is
+// already attached to DroneVoiceProcessor before it is handed to
+// AudioWorkletGlobalScope.
 
 registerProcessor("drone-voice", DroneVoiceProcessor);
 

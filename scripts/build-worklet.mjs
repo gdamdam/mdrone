@@ -42,9 +42,27 @@ function readSource(path) {
   return readFileSync(path, "utf8");
 }
 
-// Concatenation order matters — shared.js must come first because
-// core.js references Halfband2x / fastSin / polyblep / makeRng.
-const ORDER = ["shared.js", "core.js"];
+// Concatenation order matters:
+//   1. shared.js — helpers (makeRng, fastSin, polyblep, Halfband2x)
+//   2. core.js   — DroneVoiceProcessor class (constructor, pinkNoise,
+//                  sanitizeState, process() dispatcher)
+//   3. tanpura/reed/metal/air/piano/fm/amp — per-voice prototype
+//      extensions on DroneVoiceProcessor
+//   4. register.js — registerProcessor call, must come last so every
+//                    prototype extension is attached before the
+//                    processor is handed to AudioWorkletGlobalScope.
+const ORDER = [
+  "shared.js",
+  "core.js",
+  "tanpura.js",
+  "reed.js",
+  "metal.js",
+  "air.js",
+  "piano.js",
+  "fm.js",
+  "amp.js",
+  "register.js",
+];
 
 function build() {
   const parts = [HEADER];
