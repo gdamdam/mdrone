@@ -427,8 +427,6 @@ export function useSceneManager({
     applyPortableScene(session.scene, { sessionId: session.id });
   }, [applyPortableScene, savedSessions]);
 
-  const previousSceneRef = useRef<{ scene: PortableScene; name: string } | null>(null);
-
   const handleRandomScene = useCallback(() => {
     // Throttle — discard clicks that arrive inside the min-gap
     // window. Drone presets take hundreds of ms to ramp in and
@@ -438,12 +436,6 @@ export function useSceneManager({
     const now = Date.now();
     if (now - lastSceneMutationTsRef.current < SCENE_MUTATION_MIN_GAP_MS) return;
     lastSceneMutationTsRef.current = now;
-    // Capture the current scene before jumping so "undo" can restore it.
-    const beforeName = currentPresetName || currentSessionName || "Previous";
-    const beforeScene = captureCurrentSceneSnapshot(beforeName);
-    if (beforeScene) {
-      previousSceneRef.current = { scene: beforeScene, name: beforeName };
-    }
 
     const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
     // Mint a fresh PRNG seed and feed a seeded RNG into the scene
@@ -478,8 +470,9 @@ export function useSceneManager({
   }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionName, droneViewRef]);
 
   /** Perturb the current scene's numeric parameters by `intensity`
-   *  (0..1). Preserves undo by writing to the same previousSceneRef
-   *  that handleRandomScene uses, so the ↶ button reverts either. */
+   *  (0..1). The full scene-history stack in DroneView captures the
+   *  pre-mutate state on its debounced push, so Cmd/Ctrl+Z or the
+   *  SHAPE undo button restores it. */
   const handleMutateScene = useCallback((intensity: number) => {
     const now = Date.now();
     if (now - lastSceneMutationTsRef.current < SCENE_MUTATION_MIN_GAP_MS) return;
@@ -488,17 +481,11 @@ export function useSceneManager({
     const currentSnapshot = droneViewRef.current?.getSnapshot();
     if (!currentSnapshot) return;
 
-    const beforeName = currentPresetName || currentSessionName || "Previous";
-    const beforeScene = captureCurrentSceneSnapshot(beforeName);
-    if (beforeScene) {
-      previousSceneRef.current = { scene: beforeScene, name: beforeName };
-    }
-
     const seed = Math.floor(Math.random() * 0x100000000);
     const rng = mulberry32(seed);
     const mutated = mutateScene(currentSnapshot, intensity, rng);
     droneViewRef.current?.applySnapshot({ ...mutated, seed });
-  }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionName, droneViewRef]);
+  }, [droneViewRef]);
 
   /** Cycle to the next preset within the current preset's group.
    *  Used by the meditate fullscreen click handler. Shares the
@@ -548,15 +535,6 @@ export function useSceneManager({
       setIsRecordingMotion(true);
     }
   }, []);
-
-  /** Restore whatever was playing before the last RND click. No-op if
-   *  no previous scene is stored (fresh load, or already undone once). */
-  const handleUndoScene = useCallback(() => {
-    const prev = previousSceneRef.current;
-    if (!prev) return;
-    previousSceneRef.current = null;
-    applyPortableScene(prev.scene);
-  }, [applyPortableScene]);
 
   const buildShareSceneData = useCallback(async (name: string): Promise<ShareSceneBuildResult> => {
     const scene = captureCurrentScene(name.trim() || "Drone Landscape");
@@ -645,7 +623,6 @@ export function useSceneManager({
     recordParam,
     handleCyclePresetAll,
     handleCyclePresetInGroup,
-    handleUndoScene,
     buildShareSceneData,
     handlePresetNameChange,
   };

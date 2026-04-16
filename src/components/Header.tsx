@@ -35,7 +35,6 @@ interface HeaderProps {
   onPanic: () => void;
   onOpenShare: () => void;
   onRandomScene: () => void;
-  onUndoScene: () => void;
   /** Pre-formatted "fine-tune active" hint string (e.g. "±7 ¢"),
    *  or null when no offsets are non-zero or microtuning isn't on. */
   tuneOffsetHint?: string | null;
@@ -86,7 +85,6 @@ export function Header({
   onPanic,
   onOpenShare,
   onRandomScene,
-  onUndoScene,
   isRec,
   recTimeMs,
   recordingSupported,
@@ -291,14 +289,6 @@ export function Header({
 
         {/* Secondary — quieter controls */}
         <div className="header-secondary">
-        <button
-          className="header-btn header-btn-undo"
-          onClick={onUndoScene}
-          title="Undo — restore the scene that was playing before the last RND or MUT"
-          aria-label="Undo random scene"
-        >
-          ↶
-        </button>
         <button
           className={`header-btn header-btn-record${isRec ? " header-btn-rec" : ""}`}
           onClick={onToggleRec}

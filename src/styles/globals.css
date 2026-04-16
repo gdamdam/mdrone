@@ -1446,13 +1446,6 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   padding: 4px 8px;
 }
 
-.header-btn-undo {
-  min-width: 30px;
-  padding: 4px 8px;
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 0;
-}
 .header-btn-panic:hover {
   border-color: #a83030;
   color: #ff7878;
@@ -1567,7 +1560,6 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-hold-sub   { display: none; }
   .header-hold-glyph { display: inline; }
   .header-btn-random { order: 12; min-width: auto; padding: 4px 8px; font-size: 14px; line-height: 1; margin-left: auto; }
-  .header-btn-undo   { order: 13; }
   .header-btn-record { order: 14; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
   .header-btn-share  { order: 15; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
 

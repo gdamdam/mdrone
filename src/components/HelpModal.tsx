@@ -47,11 +47,15 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <div className="fx-modal-section-label">VIEWS</div>
           <p className="fx-modal-desc">
             <strong>DRONE</strong> — the instrument: presets, tonic, mode,
-            macros, effects, climate.<br />
-            <strong>MEDITATE</strong> — a full-screen visualizer that
-            breathes with the drone.<br />
+            macros, effects, climate, history slots, scale editor.<br />
+            <strong>MEDITATE</strong> — a full-screen pitch mandala.
+            Twelve radial arcs by pitch class, accrued over a 30 s
+            long integrator. Deliberately slow — the visual lags behind
+            the sound, matching what's present over time, not at the
+            instant.<br />
             <strong>MIXER</strong> — master bus: HPF, 3-band EQ, glue
-            compression, drive, limiter.
+            compression, drive, brickwall limiter with ceiling, SAFE
+            (headphone-safe) clamp, CLIP LED, LUFS-S + peak meter, trim.
           </p>
 
           <div className="fx-modal-divider" />
@@ -80,13 +84,14 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">EFFECTS CHAIN</div>
           <p className="fx-modal-desc">
-            A 14-effect serial chain in fixed DSP order. The active-chain
-            preview above the button grid shows the currently enabled
-            effects in their actual processing order, numbered 1..N.
-            Each button is a toggle — <strong>click</strong> to flip,{" "}
-            <strong>long-press</strong> to open parameters (every
-            effect has at least an AMOUNT knob). Two granular slots:{" "}
-            <strong>GRAIN</strong> is the drone-smooth cloud and{" "}
+            A 14-effect chain. The active-chain preview above the button
+            grid shows enabled effects in their actual processing order,
+            numbered 1..N. Each button is a toggle —{" "}
+            <strong>click</strong> to flip, <strong>long-press</strong>{" "}
+            to open parameters (every effect has at least an AMOUNT
+            knob). <strong>Drag</strong> a button onto another to
+            reorder the chain. Two granular slots:{" "}
+            <strong>GRAIN</strong> is the drone-smooth cloud,{" "}
             <strong>CLOUD</strong> is the classic grain stutter with
             pitches snapped to the drone scale.
           </p>
@@ -102,15 +107,72 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </p>
 
           <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">RANDOM, MUTATE &amp; UNDO</div>
+          <div className="fx-modal-section-label">RANDOM &amp; MUTATE</div>
           <p className="fx-modal-desc">
             <strong>🎲 RND</strong> loads a gentle variation of a random
-            scene. <strong>MUTATE</strong> perturbs the current scene's
-            macros by the intensity slider next to it — small intensity
-            for a nudge, large for a hard shake. <strong>↶</strong>{" "}
-            restores the scene that was playing before the last RND or
-            MUTATE. RND and MUTATE both reset the URL-deterministic
-            evolve seed so reloads play back the same drift.
+            scene. <strong>MUTATE</strong> (in the GESTURES panel)
+            perturbs the current scene's macros, voice mix and effect
+            levels by the intensity slider next to it — small intensity
+            for a nudge, large for a hard shake. Both reset the
+            URL-deterministic evolve seed so reloads play back the same
+            drift. Undo is global and recovers whatever state came
+            before (see UNDO / REDO + A/B below).
+          </p>
+
+          <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">UNDO / REDO + A/B</div>
+          <p className="fx-modal-desc">
+            The SHAPE panel carries a 50-entry history of scene state,
+            debounced at 400 ms so a slider drag doesn't push 60 frames
+            per second. <strong>↺</strong> /{" "}
+            <strong>↻</strong> (or <strong>Cmd/Ctrl+Z</strong> /{" "}
+            <strong>Cmd/Ctrl+Shift+Z</strong>) move through it.
+            Two comparison slots — <strong>SAVE A</strong> /{" "}
+            <strong>A</strong> and <strong>SAVE B</strong> /{" "}
+            <strong>B</strong> — snap the current scene into a named
+            slot and recall it later so you can tweak freely, swap to
+            compare, and return without loss.
+          </p>
+
+          <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">SCALE EDITOR</div>
+          <p className="fx-modal-desc">
+            The <strong>✎</strong> button next to the tuning dropdown
+            (visible when microtuning mode is active — a tuning and a
+            relation are both selected) opens the Scale Editor. Six
+            builtin tunings (equal, just 5-limit, meantone, harmonics,
+            maqam rast, slendro) and six relations ship by default; the
+            editor lets you author a 13-degree tuning table in cents
+            (P1 through P8), save it by name, and apply it as active.
+            Custom tunings travel with share URLs — recipients hear
+            your authored pitch grid, not a silent fallback to equal.
+          </p>
+
+          <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">TANPURA TUNINGS</div>
+          <p className="fx-modal-desc">
+            When the TANPURA voice is active, the SHAPE panel exposes a
+            <em> tuning</em> dropdown for the four plucked strings:
+            <strong> Unison</strong> (all strings on the tonic),
+            <strong> Sa Pa</strong> (tonic + fifth — the classical Hindustani default),
+            <strong> Sa Ma</strong> (tonic + fourth), or
+            <strong> Sa Ni</strong> (tonic + major seventh, for ragas that
+            want a rising sense of motion). Changing the tuning rebuilds
+            the tanpura voices smoothly over a short crossfade.
+          </p>
+
+          <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">MIXER &amp; LOUDNESS</div>
+          <p className="fx-modal-desc">
+            The master bus has a <strong>worklet brickwall limiter</strong>{" "}
+            with ceiling and release — it holds the ceiling without
+            pumping. <strong>SAFE</strong> clamps the output trim to
+            −6 dBFS for headphone listening. The <strong>CLIP LED</strong>{" "}
+            taps the <em>pre-limiter</em> signal, so it lights on input
+            overshoot (you're driving too hot), not on the brickwall
+            doing its job. <strong>LUFS-S</strong> is EBU R128
+            K-weighted short-term loudness (3 s window); <strong>PEAK</strong>{" "}
+            is sample peak. Both refresh at ~30 Hz.
           </p>
 
           <div className="fx-modal-divider" />
@@ -160,7 +222,8 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <p className="fx-modal-desc">
             <strong>QWERTY tonic:</strong> A=C, W=C#, S=D, E=D#, D=E,
             F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B. Z/X = octave down/up.
-            Spacebar = HOLD toggle.
+            Spacebar = HOLD toggle. <strong>Cmd/Ctrl+Z</strong> undoes,
+            <strong> Cmd/Ctrl+Shift+Z</strong> redoes.
             <br /><br />
             <strong>&lt; / &gt;</strong> = previous / next preset in the
             current group.
