@@ -37,7 +37,9 @@ export class AudioEngine {
     const AC =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    this.ctx = new AC({ sampleRate: 44100 });
+    // Let the device pick its native rate. Forcing 44.1 kHz wasted headroom
+    // on 48 k hardware and added unnecessary resampling aliasing.
+    this.ctx = new AC();
 
     this.fxChain = new FxChain(this.ctx);
     this.wetSend = this.ctx.createGain();
@@ -49,7 +51,9 @@ export class AudioEngine {
     this.voiceEngine = new VoiceEngine(this.ctx, this.fxChain, this.wetSend);
     this.voiceEngine.getFilterOutput().connect(this.presetTrim);
     this.presetTrim.connect(this.fxChain.input);
-    this.fxChain.wetOut.connect(this.wetSend);
+    // NOTE: fxChain.wetOut is intentionally unsourced (see FxChain.ts).
+    // The parallel reverb bus drives dryOut directly; wetSend carries only
+    // the air macro scaling path applied to reverb sends inside FxChain.
 
     this.motionEngine = new MotionEngine({
       ctx: this.ctx,
@@ -269,6 +273,14 @@ export class AudioEngine {
 
   setParallelSends(sends: Partial<{ plate: number; hall: number; cistern: number }>): void {
     this.fxChain.setParallelSends(sends);
+  }
+
+  /** Seed the deterministic reverb IR PRNG — so the same preset id
+   *  always produces the same hall / cistern impulse across reloads.
+   *  Callers should hash a stable identifier (preset id, scene id) to
+   *  a 32-bit integer before passing it in. */
+  setReverbSeed(seed: number): void {
+    this.fxChain.setReverbSeed(seed);
   }
 
   setDrift(v: number): void {

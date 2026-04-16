@@ -138,7 +138,13 @@ export class FxChain {
   private ctx: AudioContext;
   public input: GainNode;
   public dryOut: GainNode;     // final output of the serial chain
-  public wetOut: GainNode;     // retained for compat — silent, unused
+  /**
+   * @deprecated Silent, unsourced. Kept as an export for backward-compat
+   * with older `AudioEngine` wiring. Nothing feeds it and connecting it
+   * to the master bus is a no-op. Use `dryOut` (which sums the parallel
+   * reverb bus into the serial chain output) for all downstream routing.
+   */
+  public wetOut: GainNode;
 
   private inserts: Record<EffectId, Insert>;
 
@@ -157,6 +163,10 @@ export class FxChain {
   private cisternVerb!: ConvolverNode;
   private hallImpulse: AudioBuffer | null = null;
   private cisternImpulse: AudioBuffer | null = null;
+  /** Seed for the deterministic reverb-IR PRNG. Changed via
+   *  `setReverbSeed()` on preset apply so the same preset always
+   *  produces the same hall / cistern impulse. */
+  private reverbSeed = 0xC15ACE;
 
   private plateWorklet: AudioWorkletNode | null = null;
   private shimmerWorklet: AudioWorkletNode | null = null;
@@ -281,39 +291,56 @@ export class FxChain {
     ins.insertIn.connect(ringGain).connect(ins.wetGain).connect(ins.insertOut);
   }
 
-  /** VOCAL FORMANT — three parallel resonant bandpasses at vowel formant
-   *  centres, summed with the dry signal to add a vocal "ahh" accent
-   *  without replacing the source spectrum. (Pure bandpass would mute
-   *  low-fundamental drones because their energy falls outside the
-   *  formant bands.) Tuned to the neutral "ah" vowel. */
+  /** VOCAL FORMANT — parallel bandpass sum mixed against the dry signal.
+   *  Three BPFs at F1/F2/F3 run in parallel off the insert input; their
+   *  sum is mixed with the dry at a calibrated level so the vowel colour
+   *  is audible without the serial-peaking gain stack (+20 dB midrange)
+   *  the old topology produced. Dry passes at unity; the formant sum is
+   *  scaled per-band so the perceptual vowel lands near 0 dB net.
+   *
+   *  Topology:
+   *    insertIn ─┬─────────────────────────── dry tap ─┐
+   *              ├─ BPF(F1) ─ g1 ─┐                     │
+   *              ├─ BPF(F2) ─ g2 ─┼─ formantSum ─ trim ─┤
+   *              └─ BPF(F3) ─ g3 ─┘                     │
+   *                                                     ▼
+   *                                                   wetGain → insertOut
+   */
   private wireFormant(): void {
     const ctx = this.ctx;
     const ins = this.inserts.formant;
 
-    // Professional formant: 3 serial peaking EQ filters with high
-    // gain (+14-18 dB) at vowel centers. Unlike bandpass (which cuts
-    // everything outside the band), peaking filters BOOST the formant
-    // frequencies while letting the rest of the spectrum pass through.
-    // This produces the dramatic vowel-shaping that real vocoders and
-    // formant processors achieve.
     const formants = [
-      { freq: 700,  Q: 5, gain: 18 },  // F1
-      { freq: 1220, Q: 6, gain: 16 },  // F2
-      { freq: 2600, Q: 6, gain: 14 },  // F3
+      { freq: 700,  Q: 8, gain: 1.0 },  // F1
+      { freq: 1220, Q: 10, gain: 0.85 }, // F2
+      { freq: 2600, Q: 12, gain: 0.55 }, // F3 (rolled down — highs already ride tape highshelf)
     ];
     this.formantFilters = [];
-    let chain: AudioNode = ins.insertIn;
+    const formantSum = ctx.createGain();
+    formantSum.gain.value = 1;
+
     for (const f of formants) {
-      const peak = ctx.createBiquadFilter();
-      peak.type = "peaking";
-      peak.frequency.value = f.freq;
-      peak.Q.value = f.Q;
-      peak.gain.value = f.gain;
-      chain.connect(peak);
-      chain = peak;
-      this.formantFilters.push(peak);
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = f.freq;
+      bp.Q.value = f.Q;
+      const bandGain = ctx.createGain();
+      bandGain.gain.value = f.gain;
+      ins.insertIn.connect(bp).connect(bandGain).connect(formantSum);
+      this.formantFilters.push(bp);
     }
-    chain.connect(ins.wetGain);
+
+    // Dry pass preserves the source spectrum so low-fundamental drones
+    // don't get gutted when formant is on. Formant sum is mixed in at
+    // ~0.9× so vowel colour lands near 0 dB net against dry.
+    const dryTap = ctx.createGain();
+    dryTap.gain.value = 1;
+    ins.insertIn.connect(dryTap).connect(ins.wetGain);
+
+    const formantTrim = ctx.createGain();
+    formantTrim.gain.value = 0.9;
+    formantSum.connect(formantTrim).connect(ins.wetGain);
+
     ins.wetGain.connect(ins.insertOut);
   }
 
@@ -573,16 +600,47 @@ export class FxChain {
 
   private ensureHallImpulse(): AudioBuffer {
     if (!this.hallImpulse) {
-      this.hallImpulse = FxChain.makeHallImpulse(this.ctx, 4.8);
+      this.hallImpulse = FxChain.makeHallImpulse(
+        this.ctx, 4.8, FxChain.makeSeededRng(this.reverbSeed ^ 0xA11),
+      );
     }
     return this.hallImpulse;
   }
 
   private ensureCisternImpulse(): AudioBuffer {
     if (!this.cisternImpulse) {
-      this.cisternImpulse = FxChain.makeCisternImpulse(this.ctx, 28);
+      this.cisternImpulse = FxChain.makeCisternImpulse(
+        this.ctx, 28, FxChain.makeSeededRng(this.reverbSeed ^ 0xC157),
+      );
     }
     return this.cisternImpulse;
+  }
+
+  /** Deterministic Mulberry32 PRNG for reverb IR generation. Local to
+   *  FxChain to avoid an import cycle with `presets.ts` (which also
+   *  exports a copy for scene randomisation). */
+  private static makeSeededRng(seed: number): () => number {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /** Seed the reverb IR PRNG. Invalidates the cached hall + cistern
+   *  impulses so the next enable rebuilds them deterministically from
+   *  this seed. Called by `applyPreset` via `AudioEngine.setReverbSeed`
+   *  so every preset produces the same IR pair across reloads. */
+  setReverbSeed(seed: number): void {
+    const next = (seed >>> 0) || 1;
+    if (next === this.reverbSeed) return;
+    this.reverbSeed = next;
+    this.hallImpulse = null;
+    this.cisternImpulse = null;
+    this.syncNativeReverbBuffers();
   }
 
   private setConvolverBuffer(node: ConvolverNode, buffer: AudioBuffer | null): void {
@@ -1111,9 +1169,11 @@ export class FxChain {
   /**
    * Hand-authored hall impulse response: early reflections as a set
    * of discrete exponentially-weighted echoes in the first 90 ms,
-   * then a diffuse noise tail that decays exponentially.
+   * then a diffuse noise tail that decays exponentially. Uses a
+   * seeded PRNG so the IR is deterministic per preset/session — two
+   * loads of the same scene produce the same reverb.
    */
-  private static makeHallImpulse(ctx: AudioContext, seconds: number): AudioBuffer {
+  private static makeHallImpulse(ctx: AudioContext, seconds: number, rand: () => number = Math.random): AudioBuffer {
     const rate = ctx.sampleRate;
     const length = Math.floor(seconds * rate);
     const buffer = ctx.createBuffer(2, length, rate);
@@ -1139,7 +1199,7 @@ export class FxChain {
       for (let i = lateStart; i < length; i++) {
         const t = (i - lateStart) / (length - lateStart);
         const env = Math.exp(-3.2 * t);
-        data[i] = (Math.random() * 2 - 1) * env * 0.35;
+        data[i] = (rand() * 2 - 1) * env * 0.35;
       }
       const early = ch === 0 ? earlyL : earlyR;
       for (const ref of early) {
@@ -1160,8 +1220,9 @@ export class FxChain {
   /** Long-tail cistern IR — Fort Worden / cathedral scale, for
    *  Deep-Listening-style 20s+ reverb tails. Sparse early reflections
    *  (cavernous space = widely-spaced early arrivals) then dense
-   *  exponential noise decay over the full length. */
-  private static makeCisternImpulse(ctx: AudioContext, seconds: number): AudioBuffer {
+   *  exponential noise decay over the full length. Uses a seeded PRNG
+   *  so the same preset always produces the same cistern IR. */
+  private static makeCisternImpulse(ctx: AudioContext, seconds: number, rand: () => number = Math.random): AudioBuffer {
     const rate = ctx.sampleRate;
     const length = Math.floor(seconds * rate);
     const buffer = ctx.createBuffer(2, length, rate);
@@ -1193,7 +1254,7 @@ export class FxChain {
       for (let i = lateStart; i < length; i++) {
         const t = (i - lateStart) / (length - lateStart);
         const env = Math.exp(-decayCoef * t);
-        data[i] = (Math.random() * 2 - 1) * env * 0.28;
+        data[i] = (rand() * 2 - 1) * env * 0.28;
       }
       const early = ch === 0 ? earlyL : earlyR;
       for (const ref of early) {

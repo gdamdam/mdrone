@@ -142,6 +142,17 @@ class DattorroPlateProcessor extends AudioWorkletProcessor {
     const diffusion = parameters.diffusion[0];
     const mix = parameters.mix[0];
 
+    // NaN/denormal sanitation — a single NaN in the tank cross-feedback
+    // silences the verb forever, and denormals parked in the feedback
+    // lines burn CPU on x86. Clamp state per block entry + inject a
+    // sub-audible DC floor into the cross paths so denormals can't park.
+    if (!Number.isFinite(this.crossL)) this.crossL = 0;
+    if (!Number.isFinite(this.crossR)) this.crossR = 0;
+    if (!Number.isFinite(this.lpL)) this.lpL = 0;
+    if (!Number.isFinite(this.lpR)) this.lpR = 0;
+    if (!Number.isFinite(this.bwState)) this.bwState = 0;
+    const DENORM = 1e-25;
+
     // Lowpass coefficient (one-pole)
     const lpCoef = 1 - Math.exp(-6.28 * (1 - damping) * 8000 / sampleRate);
     const bwCoef = this.BW;
@@ -215,7 +226,7 @@ class DattorroPlateProcessor extends AudioWorkletProcessor {
       const mod2 = Math.sin(this.lfoPhase2) * modDepth;
 
       // Left tank side — input + cross feedback from right
-      let sig = x + this.crossR * decay;
+      let sig = x + this.crossR * decay + DENORM;
 
       // Modulated allpass 1
       {
@@ -255,7 +266,7 @@ class DattorroPlateProcessor extends AudioWorkletProcessor {
       }
 
       // Right tank side — input + cross feedback from left
-      sig = x + this.crossL;
+      sig = x + this.crossL + DENORM;
 
       // Modulated allpass 2
       {
@@ -399,6 +410,13 @@ class ShimmerReverbProcessor extends AudioWorkletProcessor {
     const lpCoef = 0.25; // fixed tail lowpass coefficient
     const apCoef = 0.6;  // allpass diffusion coefficient
     const ANTI_DENORMAL = 1e-25;
+
+    // Clamp feedback + LP state against NaN carryover. One NaN in the
+    // feedback loop would latch silence forever; this resets it cheaply.
+    if (!Number.isFinite(this.fbL)) this.fbL = 0;
+    if (!Number.isFinite(this.fbR)) this.fbR = 0;
+    if (!Number.isFinite(this.lpL)) this.lpL = 0;
+    if (!Number.isFinite(this.lpR)) this.lpR = 0;
 
     for (let i = 0; i < n; i++) {
       // Input gate — track whether signal is present. When input

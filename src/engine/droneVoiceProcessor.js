@@ -133,6 +133,80 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     return out * 0.11;
   }
 
+  // ── STATE SANITATION ─────────────────────────────────────────────
+  // Guards every feedback-rich scalar against NaN / Infinity that
+  // would otherwise latch the voice at silence or subsonic DC. Called
+  // once per block from process(); O(voiceState) but state is small.
+  sanitizeState() {
+    // Tanpura body SVF + KS last-sample lowpass
+    if (!Number.isFinite(this.ksBodyLowL))  this.ksBodyLowL  = 0;
+    if (!Number.isFinite(this.ksBodyBandL)) this.ksBodyBandL = 0;
+    if (!Number.isFinite(this.ksBodyLowR))  this.ksBodyLowR  = 0;
+    if (!Number.isFinite(this.ksBodyBandR)) this.ksBodyBandR = 0;
+    if (!Number.isFinite(this.hsKsL)) this.hsKsL = 0;
+    if (!Number.isFinite(this.hsKsR)) this.hsKsR = 0;
+    if (this.ksLasts)  for (let i = 0; i < this.ksLasts.length;  i++) if (!Number.isFinite(this.ksLasts[i]))  this.ksLasts[i]  = 0;
+    if (this.ksLastsR) for (let i = 0; i < this.ksLastsR.length; i++) if (!Number.isFinite(this.ksLastsR[i])) this.ksLastsR[i] = 0;
+
+    // Reed formant SVF state
+    if (this.reedFormN) {
+      for (let i = 0; i < this.reedFormN; i++) {
+        if (!Number.isFinite(this.reedFormLowL[i]))  this.reedFormLowL[i]  = 0;
+        if (!Number.isFinite(this.reedFormBandL[i])) this.reedFormBandL[i] = 0;
+        if (!Number.isFinite(this.reedFormLowR[i]))  this.reedFormLowR[i]  = 0;
+        if (!Number.isFinite(this.reedFormBandR[i])) this.reedFormBandR[i] = 0;
+      }
+    }
+    if (!Number.isFinite(this.hsReedL)) this.hsReedL = 0;
+    if (!Number.isFinite(this.hsReedR)) this.hsReedR = 0;
+
+    // Air SVF state (per-resonator)
+    if (this.airStates) {
+      for (let i = 0; i < this.airStates.length; i++) {
+        const s = this.airStates[i];
+        if (!Number.isFinite(s[0])) s[0] = 0;
+        if (!Number.isFinite(s[1])) s[1] = 0;
+        if (!Number.isFinite(s[2])) s[2] = 0;
+        if (!Number.isFinite(s[3])) s[3] = 0;
+      }
+    }
+    if (!Number.isFinite(this.hsL)) this.hsL = 0;
+    if (!Number.isFinite(this.hsR)) this.hsR = 0;
+
+    // Piano soundboard SVFs + brightness LP
+    if (!Number.isFinite(this.pianoBodyLowL))  this.pianoBodyLowL  = 0;
+    if (!Number.isFinite(this.pianoBodyBandL)) this.pianoBodyBandL = 0;
+    if (!Number.isFinite(this.pianoBodyLowR))  this.pianoBodyLowR  = 0;
+    if (!Number.isFinite(this.pianoBodyBandR)) this.pianoBodyBandR = 0;
+    if (!Number.isFinite(this.pianoMidLowL))   this.pianoMidLowL   = 0;
+    if (!Number.isFinite(this.pianoMidBandL))  this.pianoMidBandL  = 0;
+    if (!Number.isFinite(this.pianoMidLowR))   this.pianoMidLowR   = 0;
+    if (!Number.isFinite(this.pianoMidBandR))  this.pianoMidBandR  = 0;
+    if (!Number.isFinite(this.hsPianoL)) this.hsPianoL = 0;
+    if (!Number.isFinite(this.hsPianoR)) this.hsPianoR = 0;
+
+    // FM feedback sample
+    if (!Number.isFinite(this.fmModFbSample)) this.fmModFbSample = 0;
+
+    // Amp cabinet SVF + DC-block state + speaker feedback
+    if (!Number.isFinite(this.ampBodyLowL))  this.ampBodyLowL  = 0;
+    if (!Number.isFinite(this.ampBodyBandL)) this.ampBodyBandL = 0;
+    if (!Number.isFinite(this.ampBodyLowR))  this.ampBodyLowR  = 0;
+    if (!Number.isFinite(this.ampBodyBandR)) this.ampBodyBandR = 0;
+    if (!Number.isFinite(this.ampPresLowL))  this.ampPresLowL  = 0;
+    if (!Number.isFinite(this.ampPresBandL)) this.ampPresBandL = 0;
+    if (!Number.isFinite(this.ampPresLowR))  this.ampPresLowR  = 0;
+    if (!Number.isFinite(this.ampPresBandR)) this.ampPresBandR = 0;
+    if (!Number.isFinite(this.ampCabL))      this.ampCabL      = 0;
+    if (!Number.isFinite(this.ampCabR))      this.ampCabR      = 0;
+    if (!Number.isFinite(this.ampDcPrevInL))  this.ampDcPrevInL  = 0;
+    if (!Number.isFinite(this.ampDcPrevOutL)) this.ampDcPrevOutL = 0;
+    if (!Number.isFinite(this.ampDcPrevInR))  this.ampDcPrevInR  = 0;
+    if (!Number.isFinite(this.ampDcPrevOutR)) this.ampDcPrevOutR = 0;
+    if (!Number.isFinite(this.ampSpkFbL)) this.ampSpkFbL = 0;
+    if (!Number.isFinite(this.ampSpkFbR)) this.ampSpkFbR = 0;
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   // TANPURA — Karplus-Strong string with jawari-style nonlinearity
   // ═══════════════════════════════════════════════════════════════════
@@ -756,6 +830,12 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       for (let i = 0; i < n; i++) { L[i] = 0; if (R !== L) R[i] = 0; }
       return true;
     }
+
+    // NaN/Infinity sanitation on every feedback-rich scalar the voice
+    // touches. One bad sample in an SVF / KS / DC-block state traps the
+    // voice at silence or subsonic DC forever; this is the single
+    // cheapest place to reset it per block.
+    this.sanitizeState();
 
     switch (this.voiceType) {
       case "tanpura": this.tanpuraProcess(L, R, n, freq, drift, amp, pluckRate); break;

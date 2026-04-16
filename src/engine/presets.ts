@@ -2121,6 +2121,18 @@ function jitter(value: number, spread: number, min = 0, max = 1, random = Math.r
  * perturbation where we just need reproducibility from a seed, not
  * cryptographic quality. Same seed ⇒ same sequence.
  */
+/** FNV-1a hash of a preset id → 32-bit unsigned int. Used to derive a
+ *  stable seed for the reverb IR PRNG so every preset always produces
+ *  the same hall / cistern impulse across reloads. */
+export function hashPresetIdToSeed(id: string): number {
+  let h = 0x811C9DC5;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -2404,6 +2416,9 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     // Parallel reverb send levels — reset every preset so stale sends
     // from a previous scene don't leak through.
     engine.setParallelSends(preset.parallelSends ?? {});
+    // Seed the reverb IR PRNG from the preset id so hall / cistern
+    // impulses are deterministic across reloads of the same scene.
+    engine.setReverbSeed?.(hashPresetIdToSeed(preset.id));
     engine.applyDroneScene(layers, levels, engineIntervals);
   }
 
