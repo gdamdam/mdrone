@@ -21,6 +21,11 @@ export class MasterBus {
   private passthroughConnected = true;
   private readonly outputTrim: GainNode;
   private readonly analyser: AnalyserNode;
+  /** Pre-limiter peak tap for the mixer CLIP LED. Reading post-limiter
+   *  lights the LED whenever the limiter is holding the ceiling — which
+   *  is "hot", not "clipping". Pre-limiter peak correctly reports
+   *  input overshoot (the user is driving too hot). */
+  private readonly preLimiterAnalyser: AnalyserNode;
   private limiterEnabled = true;
   private limiterCeiling = -1;
   private limiterReleaseSec = 0.12;
@@ -97,6 +102,9 @@ export class MasterBus {
     // to 2048 on mount when it needs spectrum resolution.
     this.analyser.fftSize = 1024;
 
+    this.preLimiterAnalyser = this.ctx.createAnalyser();
+    this.preLimiterAnalyser.fftSize = 1024;
+
     this.masterGain.connect(this.hpf);
     this.hpf.connect(this.eqLow);
     this.eqLow.connect(this.eqMid);
@@ -107,6 +115,8 @@ export class MasterBus {
     this.drivePre.connect(this.drive);
     this.drive.connect(this.drivePost);
     this.drivePost.connect(this.limiterIn);
+    // Parallel tap — pre-limiter peak for the CLIP LED.
+    this.limiterIn.connect(this.preLimiterAnalyser);
     // Passthrough until worklet ready.
     this.limiterIn.connect(this.limiterOut);
     this.limiterOut.connect(this.outputTrim);
@@ -178,6 +188,7 @@ export class MasterBus {
 
   getMasterNode(): GainNode { return this.masterGain; }
   getAnalyser(): AnalyserNode { return this.analyser; }
+  getPreLimiterAnalyser(): AnalyserNode { return this.preLimiterAnalyser; }
   getEqLow(): BiquadFilterNode { return this.eqLow; }
   getEqMid(): BiquadFilterNode { return this.eqMid; }
   getEqHigh(): BiquadFilterNode { return this.eqHigh; }

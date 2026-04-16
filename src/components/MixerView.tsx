@@ -101,7 +101,11 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
       const el = clipLedRef.current;
       const eng = engineRef.current;
       if (!el || !eng) return;
-      eng.getAnalyser().getByteTimeDomainData(buf);
+      // Tap the pre-limiter analyser so the LED reports input
+      // overshoot (user is driving too hot), not the post-limiter
+      // signal — which sits at the ceiling whenever the brickwall
+      // is active and would leave the LED permanently lit.
+      eng.getPreLimiterAnalyser().getByteTimeDomainData(buf);
       let peak = 0;
       for (let i = 0; i < buf.length; i++) {
         const v = Math.abs(buf[i] - 128) / 127;

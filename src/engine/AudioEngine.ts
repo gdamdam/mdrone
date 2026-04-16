@@ -399,6 +399,7 @@ export class AudioEngine {
 
   getMasterNode(): GainNode { return this.masterBus.getMasterNode(); }
   getAnalyser(): AnalyserNode { return this.masterBus.getAnalyser(); }
+  getPreLimiterAnalyser(): AnalyserNode { return this.masterBus.getPreLimiterAnalyser(); }
   getEqLow(): BiquadFilterNode { return this.masterBus.getEqLow(); }
   getEqMid(): BiquadFilterNode { return this.masterBus.getEqMid(); }
   getEqHigh(): BiquadFilterNode { return this.masterBus.getEqHigh(); }
