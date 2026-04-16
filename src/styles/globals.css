@@ -1156,6 +1156,42 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   background: color-mix(in srgb, var(--preview) 18%, var(--bg-cell));
 }
 
+/* ── Settings tabs ───────────────────────────────────────────────── */
+.settings-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 14px;
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.settings-tabs::-webkit-scrollbar { display: none; }
+
+.settings-tab {
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -7px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 120ms, border-color 120ms;
+}
+.settings-tab:hover {
+  color: var(--text);
+}
+.settings-tab-active {
+  color: var(--text);
+  border-bottom-color: var(--preview);
+}
+
 /* ── Notification tray ───────────────────────────────────────────── */
 .notification-tray {
   position: fixed;

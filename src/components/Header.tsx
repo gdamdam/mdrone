@@ -172,6 +172,7 @@ export function Header({
   // Volume shares the mixer VOL strip range (0..1.5). % is of the 0..1.5 span.
   const volPct = Math.round((volume / 1.5) * 100);
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"session" | "midi" | "appearance" | "tempo" | "advanced">("session");
   const [helpOpen, setHelpOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"save" | "rename" | "reset" | null>(null);
   const [paletteId, setPaletteId] = useState<PaletteId>(() => loadPaletteId());
@@ -441,6 +442,28 @@ export function Header({
               Current: <strong>{currentSessionName}</strong>
             </p>
             <div className="fx-modal-params">
+              <div className="settings-tabs" role="tablist" aria-label="Settings sections">
+                {([
+                  ["session", "SESSION"],
+                  ["midi", "MIDI"],
+                  ["appearance", "APPEARANCE"],
+                  ["tempo", "TEMPO"],
+                  ["advanced", "ADVANCED"],
+                ] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={settingsTab === id}
+                    className={settingsTab === id ? "settings-tab settings-tab-active" : "settings-tab"}
+                    onClick={() => setSettingsTab(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {settingsTab === "session" && (<>
               <div className="fx-modal-section-label">SESSION</div>
               <label className="fx-modal-param">
                 <span className="fx-modal-param-label">LOAD</span>
@@ -476,8 +499,9 @@ export function Header({
                   RENAME
                 </button>
               </div>
+              </>)}
 
-              <div className="fx-modal-divider" />
+              {settingsTab === "midi" && (<>
               <div className="fx-modal-section-label">MIDI INPUT</div>
               <p className="fx-modal-desc">
                 External keyboard → tonic + octave. Any note-on maps to the drone root.
@@ -558,9 +582,9 @@ export function Header({
                 </button>
               </div>
               </>)}
+              </>)}
 
-              <div className="fx-modal-divider" />
-              <div className="fx-modal-divider" />
+              {settingsTab === "appearance" && (<>
               <div className="fx-modal-section-label">PALETTE</div>
               <div className="share-style-row" role="radiogroup" aria-label="Palette">
                 {PALETTES.map((p) => (
@@ -595,7 +619,9 @@ export function Header({
                 ))}
               </div>
 
-              <div className="fx-modal-divider" />
+              </>)}
+
+              {settingsTab === "tempo" && (<>
               <div className="fx-modal-section-label">ABLETON LINK</div>
               <p className="fx-modal-desc">
                 Sync the LFO rate (and future rate controls) to
@@ -631,8 +657,10 @@ export function Header({
                 </span>
               </div>
 
-              <div className="fx-modal-divider" />
-              <div className="fx-modal-section-label">ADVANCED</div>
+              </>)}
+
+              {settingsTab === "advanced" && (<>
+              <div className="fx-modal-section-label">MOTION RECORDING</div>
               <p className="fx-modal-desc">
                 Motion recording captures meaningful gesture events
                 (60 s / 200 max) into the next share URL so the
@@ -680,6 +708,7 @@ export function Header({
                   RESET EVERYTHING
                 </button>
               </div>
+              </>)}
             </div>
           </div>
         </div>
