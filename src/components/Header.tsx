@@ -10,6 +10,7 @@ import { MIDI_TARGETS, MIDI_TARGETS_BY_ID, MIDI_TARGET_GROUPS } from "../engine/
 import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } from "../themes";
 import { enableLinkBridge, onLinkState, getLinkState, type LinkState } from "../engine/linkBridge";
 import { STORAGE_KEYS } from "../config";
+import { showNotification } from "../notifications";
 
 const HelpModal = lazy(() =>
   import("./HelpModal").then((m) => ({ default: m.HelpModal })),
@@ -191,10 +192,26 @@ export function Header({
     catch { return false; }
   });
   const [linkState, setLinkState] = useState<LinkState>(() => getLinkState());
+  const prevLinkConnectedRef = useRef(linkState.connected);
   useEffect(() => {
     const unsub = onLinkState((s) => setLinkState(s));
     return unsub;
   }, []);
+  // Surface an explicit notification when the Link Bridge drops
+  // mid-set — the user has opted in and is probably watching the
+  // tempo-driven LFO, so silent disconnection would look like a
+  // glitch rather than a missing companion app.
+  useEffect(() => {
+    const wasConnected = prevLinkConnectedRef.current;
+    prevLinkConnectedRef.current = linkState.connected;
+    if (!linkEnabled) return;
+    if (wasConnected && !linkState.connected) {
+      showNotification(
+        "Link Bridge disconnected — tempo-synced controls fall back to free rate until it returns.",
+        "warning",
+      );
+    }
+  }, [linkState.connected, linkEnabled]);
   useEffect(() => {
     enableLinkBridge(linkEnabled);
     try { window.localStorage?.setItem(STORAGE_KEYS.linkEnabled, linkEnabled ? "1" : "0"); }

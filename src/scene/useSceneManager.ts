@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
+import { showNotification } from "../notifications";
 import { PRESETS, createSafeRandomScene, createStartupScene, mutateScene, mulberry32 } from "../engine/presets";
 import { applyJourneyTick } from "../journey";
 import {
@@ -354,7 +355,7 @@ export function useSceneManager({
   const captureCurrentScene = useCallback((name: string): PortableScene | null => {
     const scene = captureCurrentSceneSnapshot(name);
     if (!scene) {
-      window.alert("mdrone could not read the current drone state yet. Try again in a moment.");
+      showNotification("Couldn't read the drone state yet — try again in a moment.", "warning");
       return null;
     }
     return scene;

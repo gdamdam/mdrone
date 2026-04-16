@@ -6,6 +6,8 @@ import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION, STORAGE_KEYS, type WeatherVisual } from "../config";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
+import { NotificationTray } from "./NotificationTray";
+import { showNotification } from "../notifications";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 import { MeditateView } from "./MeditateView";
@@ -359,7 +361,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     } catch (error) {
       console.error("mdrone: recording failed", error);
       const message = error instanceof Error ? error.message : "Unknown recording error.";
-      window.alert(`Recording failed: ${message}`);
+      showNotification(`Recording failed — ${message}`, "error");
       setIsRec(false);
     } finally {
       setRecBusy(false);
@@ -529,6 +531,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         </Suspense>
       )}
 
+      <NotificationTray />
       <Footer />
     </div>
   );

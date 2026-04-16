@@ -17,6 +17,7 @@ import type { VoiceType } from "./VoiceBuilder";
 import type { PresetMaterialProfile, PresetMotionProfile } from "./presets";
 import droneWorkletUrl from "./droneVoiceProcessor.js?url";
 import fxWorkletUrl from "./fxChainProcessor.js?url";
+import { showNotification } from "../notifications";
 
 export type { EngineSceneMutation } from "./EngineSceneMutation";
 
@@ -102,6 +103,13 @@ export class AudioEngine {
       })
       .catch((err) => {
         console.error("mdrone: worklet module(s) failed to load", err);
+        // Audible failure — the instrument won't produce sound until
+        // this resolves, and silent console logging guarantees the
+        // user stares at a dead HOLD button wondering what's wrong.
+        showNotification(
+          "Audio engine failed to start. Some DSP features may be unavailable — try reloading the page.",
+          "error",
+        );
       });
   }
 
