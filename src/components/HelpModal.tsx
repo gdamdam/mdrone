@@ -204,7 +204,9 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <div className="fx-modal-section-label">RECORD &amp; SHARE</div>
           <p className="fx-modal-desc">
             <strong>● REC</strong> (header) captures the full master
-            output to a WAV file. <strong>REC MOTION</strong> is{" "}
+            output to a <strong>24-bit stereo WAV</strong> via a
+            dedicated AudioWorklet tap — samples are bit-identical to
+            what the engine produced, no intermediate codec. <strong>REC MOTION</strong> is{" "}
             <em>opt-in</em> — enable it in Settings → Advanced to
             reveal the button in the preset panel. When on, it records
             meaningful gestures — tonic / octave / macro / climate /
@@ -229,13 +231,42 @@ export function HelpModal({ onClose }: HelpModalProps) {
             current group.
             <br /><br />
             <strong>MIDI:</strong> Enable in Settings. Note-on → tonic +
-            octave. CC mapping covers ~46 targets grouped by{" "}
-            <em>Macros / Weather / Mixer / Voices / Effects / Triggers</em>.
-            Click a target, move a knob to learn. Triggers (PANIC,
-            RND, MUTATE) fire once when the CC crosses ≥ 64; HOLD
-            follows sustain-pedal state. Defaults: CC1 → WEATHER Y,
-            CC2 → WEATHER X, CC64 → HOLD, CC71-76 → macros — every
-            other target is unassigned until you bind it.
+            octave. CC mapping covers ~50 targets grouped by{" "}
+            <em>Macros / Weather / Mixer / Voices / Effects / Triggers
+            / Presets</em>. Click a target, move a knob to learn.
+            Triggers (PANIC, RND, MUTATE, PRESET ◀ / ▶, GROUP ◀ / ▶)
+            fire once when the CC crosses ≥ 64; HOLD follows sustain-
+            pedal state. Defaults: CC1 → WEATHER Y, CC2 → WEATHER X,
+            CC64 → HOLD, CC71-76 → macros — every other target is
+            unassigned until you bind it.
+          </p>
+
+          <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">PALETTE</div>
+          <p className="fx-modal-desc">
+            Four palettes under <em>Settings → PALETTE</em>: three
+            warm dark themes (<strong>Ember</strong>,{" "}
+            <strong>Copper</strong>, <strong>Dusk</strong>) and one
+            light (<strong>Parchment</strong>) for bright rooms and
+            stages where dark themes wash out.
+          </p>
+
+          <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">TEMPO SYNC · roadmap</div>
+          <p className="fx-modal-desc">
+            mdrone has no transport clock (drones aren't timed), but
+            the tanpura PLUCK cycle and breathing LFO RATE will gain
+            an <em>Ableton Link</em> sync option in an upcoming
+            release. mpump's companion Link Bridge app is reusable —
+            downloading it once covers both instruments. Binaries
+            for macOS / Windows / Linux:{" "}
+            <a
+              href="https://github.com/gdamdam/mpump/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              github.com/gdamdam/mpump/releases
+            </a>.
           </p>
 
           <div className="fx-modal-divider" />

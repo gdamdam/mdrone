@@ -99,6 +99,16 @@ export const MIDI_TARGETS: readonly MidiTarget[] = [
   { id: "panic",  label: "PANIC",  group: "Triggers", kind: "trigger" },
   { id: "rnd",    label: "RND",    group: "Triggers", kind: "trigger" },
   { id: "mutate", label: "MUTATE", group: "Triggers", kind: "trigger" },
+
+  // ── Preset recall (cycle) ────────────────────────────────────────
+  // Bank-less cycling by default — an artist with four pads can map
+  // prev / next / group-prev / group-next and walk the whole library.
+  // Slot-style direct recall (`preset.slot.1..N`) is intentionally
+  // deferred until there's a UI for slot→preset assignment.
+  { id: "preset.prev",       label: "PRESET ◀",   group: "Presets", kind: "trigger" },
+  { id: "preset.next",       label: "PRESET ▶",   group: "Presets", kind: "trigger" },
+  { id: "preset.group.prev", label: "GROUP ◀",    group: "Presets", kind: "trigger" },
+  { id: "preset.group.next", label: "GROUP ▶",    group: "Presets", kind: "trigger" },
 ];
 
 export const MIDI_TARGETS_BY_ID: Map<string, MidiTarget> = new Map(

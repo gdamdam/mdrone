@@ -135,7 +135,7 @@ const PITCH_CLASSES: readonly PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F
 const SCALE_IDS: readonly ScaleId[] = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
 const RELATION_IDS: readonly RelationId[] = ["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"] as const;
 const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sawtooth"] as const;
-const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk"] as const;
+const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk", "parchment"] as const;
 const VISUALIZERS: readonly Visualizer[] = ["pitchMandala"] as const;
 
 const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {

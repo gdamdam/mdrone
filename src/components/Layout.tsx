@@ -130,6 +130,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const panicRef = useRef<() => void>(() => {});
   const randomSceneRef = useRef<() => void>(() => {});
   const mutateSceneRef = useRef<(intensity: number) => void>(() => {});
+  const cyclePresetAllRef = useRef<(dir: 1 | -1) => void>(() => {});
+  const cyclePresetGroupRef = useRef<(dir: 1 | -1) => void>(() => {});
 
   // Track which trigger CCs are currently "on" so we fire once per
   // rising edge (value crosses from <64 to >=64) instead of repeating
@@ -170,6 +172,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         case "panic":  panicRef.current(); break;
         case "rnd":    randomSceneRef.current(); break;
         case "mutate": mutateSceneRef.current(0.25); break;
+        case "preset.prev":       cyclePresetAllRef.current(-1); break;
+        case "preset.next":       cyclePresetAllRef.current(1);  break;
+        case "preset.group.prev": cyclePresetGroupRef.current(-1); break;
+        case "preset.group.next": cyclePresetGroupRef.current(1);  break;
       }
       return;
     }
@@ -241,6 +247,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // Done after the handlers are declared (see below) to avoid TDZ.
   randomSceneRef.current = sceneManager.handleRandomScene;
   mutateSceneRef.current = sceneManager.handleMutateScene;
+  cyclePresetAllRef.current = sceneManager.handleCyclePresetAll;
+  cyclePresetGroupRef.current = sceneManager.handleCyclePresetInGroup;
 
   // Exposed for the Settings modal's MIDI section
   const handleResetCcMap = useCallback(() => { setCcMap(resetCcMap()); }, []);

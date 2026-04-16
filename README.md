@@ -179,7 +179,7 @@ A saved session includes the active preset, tonic / octave / mode, microtuning +
 
 **Share URLs** build a compressed scene encoding of everything above. URLs are backward compatible — older URLs missing newer fields load with sensible defaults. Custom tunings travel with the URL so the receiver hears the authored tuning, not equal.
 
-**Recording** captures the final master output to WAV via `MediaRecorder`. Shown as unavailable on browsers without WebM audio support rather than pretending it worked.
+**Recording** captures the final master output to a **24-bit stereo WAV** via a dedicated AudioWorklet tap. Samples are bit-identical to what the engine produced — no intermediate codec. Memory cost is ~44 MB per 10 minutes at 48 kHz, so render long sessions in shorter passes.
 
 ---
 
@@ -212,6 +212,7 @@ Web MIDI note-in retunes tonic + octave from external hardware. CC mapping with 
 | Voices | TANPURA, REED, METAL, AIR VX, PIANO, FM, AMP |
 | Effects | TAPE, WOW, SUB (fx), COMB, DELAY, PLATE, HALL, SHIMMER, FREEZE, CISTERN, GRANULAR, GRAINCLOUD, RINGMOD, FORMANT |
 | Triggers | HOLD, PANIC, RND, MUTATE (fire on rising edge ≥ 64; HOLD follows sustain-pedal state) |
+| Presets | PRESET ◀ / ▶ (prev/next across the whole library), GROUP ◀ / ▶ (prev/next within the current group) — map four pads and walk the preset library live |
 
 Defaults:
 
@@ -225,11 +226,19 @@ Defaults:
 
 Every other target is unassigned by default — learn to bind.
 
+### Tempo sync (Ableton Link) — roadmap
+
+mdrone doesn't have a transport clock (drones aren't timed), but two rate controls benefit from tempo lock: the tanpura PLUCK cycle and the breathing LFO RATE. Ableton Link sync for these is planned for an upcoming release and will be a per-control mode selector (FREE / 1/1 / 1/2 / 1/4 / …).
+
+The sibling project mpump already ships a Link Bridge — a tiny cross-platform companion app that bridges Ableton Link (UDP multicast) ↔ browser (WebSocket on localhost). mdrone will reuse that same bridge when the integration lands, so downloading the companion once will cover both instruments.
+
+Download: [github.com/gdamdam/mpump/releases](https://github.com/gdamdam/mpump/releases) — macOS / Windows / Linux binaries, ~5 MB, fully local, no internet connections.
+
 ---
 
 ## Interface
 
-- 3 warm palettes: Ember, Copper, Dusk
+- 4 palettes: 3 warm dark (Ember, Copper, Dusk) + 1 light (Parchment, for bright rooms / stages)
 - Responsive two-column layout that collapses for smaller screens
 - Sticky header with transport, tonic, RND, session, recording, and MIDI access
 - `docs/parameters.md` — auto-generated parameter reference (regenerate via `npm run docs:params`)

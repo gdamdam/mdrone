@@ -8,7 +8,7 @@
 
 import { STORAGE_KEYS } from "./config";
 
-export type PaletteId = "ember" | "copper" | "dusk";
+export type PaletteId = "ember" | "copper" | "dusk" | "parchment";
 
 export interface PaletteDef {
   id: PaletteId;
@@ -62,6 +62,22 @@ export const PALETTES: PaletteDef[] = [
     text: "#f0d4de",
     dim: "#9a7082",
     preview: "#ffa057",
+  },
+  // Parchment — the one light palette. Matte cream backgrounds, bone
+  // cells, aged-ink text, copper accent. Matches the project's
+  // iron/graphite/clay material ethos rather than a "white UI" feel,
+  // and stays readable on bright stages where dark themes wash out.
+  {
+    id: "parchment",
+    name: "Parchment",
+    dark: false,
+    bg: "#f1e6d1",
+    panel: "#e7d9be",
+    cell: "#ddcca8",
+    border: "#a89574",
+    text: "#2a1d0f",
+    dim: "#6a543c",
+    preview: "#b8501a",
   },
 ];
 

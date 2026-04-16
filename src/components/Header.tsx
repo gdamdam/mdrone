@@ -7,6 +7,7 @@ import { midiNoteToPitch } from "../engine/midiInput";
 import { DialogModal } from "./DialogModal";
 import { DropdownSelect } from "./DropdownSelect";
 import { MIDI_TARGETS, MIDI_TARGETS_BY_ID, MIDI_TARGET_GROUPS } from "../engine/midiMapping";
+import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } from "../themes";
 
 const HelpModal = lazy(() =>
   import("./HelpModal").then((m) => ({ default: m.HelpModal })),
@@ -170,6 +171,14 @@ export function Header({
   const [sessionOpen, setSessionOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"save" | "rename" | "reset" | null>(null);
+  const [paletteId, setPaletteId] = useState<PaletteId>(() => loadPaletteId());
+  const handlePickPalette = (id: PaletteId) => {
+    const palette = PALETTES.find((p) => p.id === id);
+    if (!palette) return;
+    applyPalette(palette);
+    savePaletteId(id);
+    setPaletteId(id);
+  };
   useEffect(() => {
     if (!sessionOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSessionOpen(false); };
@@ -513,6 +522,24 @@ export function Header({
               </>)}
 
               <div className="fx-modal-divider" />
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">PALETTE</div>
+              <div className="share-style-row" role="radiogroup" aria-label="Palette">
+                {PALETTES.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={paletteId === p.id}
+                    className={paletteId === p.id ? "share-style-btn share-style-btn-active" : "share-style-btn"}
+                    onClick={() => handlePickPalette(p.id)}
+                    title={p.dark ? "Dark palette" : "Light palette — for bright rooms / stages"}
+                  >
+                    {p.name.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+
               <div className="fx-modal-divider" />
               <div className="fx-modal-section-label">WEATHER VISUAL</div>
               <div className="share-style-row" role="radiogroup" aria-label="Weather visual style">
