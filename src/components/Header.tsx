@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION } from "../config";
 import { resetAllLocalStorage, type SavedSession } from "../session";
 import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
-import { HelpModal } from "./HelpModal";
 import { DialogModal } from "./DialogModal";
 import { DropdownSelect } from "./DropdownSelect";
+
+const HelpModal = lazy(() =>
+  import("./HelpModal").then((m) => ({ default: m.HelpModal })),
+);
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 
@@ -582,7 +585,11 @@ export function Header({
         </div>
       )}
 
-      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+      {helpOpen && (
+        <Suspense fallback={null}>
+          <HelpModal onClose={() => setHelpOpen(false)} />
+        </Suspense>
+      )}
 
       {dialogMode === "save" && (
         <DialogModal

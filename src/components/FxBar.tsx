@@ -14,10 +14,13 @@
  * plain on/off with sensible defaults.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useRef, useState } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import { EFFECT_ORDER, type EffectId } from "../engine/FxChain";
-import { FxModal } from "./FxModal";
+
+const FxModal = lazy(() =>
+  import("./FxModal").then((m) => ({ default: m.FxModal })),
+);
 
 /** Long-press duration (ms) before a button opens the settings modal. */
 const LONG_PRESS_MS = 420;
@@ -250,11 +253,13 @@ export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps
       </div>
 
       {modalFx !== null && (
-        <FxModal
-          engine={engine}
-          effectId={modalFx}
-          onClose={() => setModalFx(null)}
-        />
+        <Suspense fallback={null}>
+          <FxModal
+            engine={engine}
+            effectId={modalFx}
+            onClose={() => setModalFx(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
 import { loadCcMap, saveCcMap, assignCc, resetCcMap, type CcMap, type MidiTarget } from "../engine/midiMapping";
 import type { AudioEngine } from "../engine/AudioEngine";
@@ -10,7 +10,10 @@ import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 import { MeditateView } from "./MeditateView";
 import { VISUALIZER_ORDER } from "./visualizers";
-import { ShareModal } from "./ShareModal";
+
+const ShareModal = lazy(() =>
+  import("./ShareModal").then((m) => ({ default: m.ShareModal })),
+);
 import { useSceneManager } from "../scene/useSceneManager";
 
 interface LayoutProps {
@@ -440,11 +443,13 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       </main>
 
       {shareOpen && (
-        <ShareModal
-          initialName={sceneManager.shareInitialName}
-          onBuildShareData={sceneManager.buildShareSceneData}
-          onClose={() => setShareOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <ShareModal
+            initialName={sceneManager.shareInitialName}
+            onBuildShareData={sceneManager.buildShareSceneData}
+            onClose={() => setShareOpen(false)}
+          />
+        </Suspense>
       )}
 
       <Footer />
