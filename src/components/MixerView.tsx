@@ -92,7 +92,14 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
     let holdUntil = 0;
     let lastSample = -Infinity;
     const FRAME_MS = 1000 / 30;
-    const buf = new Uint8Array(2048);
+    // Buffer is sized to the analyser's fftSize lazily on first tick.
+    // Hard-coding Uint8Array(2048) against an analyser with
+    // fftSize=1024 left the unused half of the buffer at byte 0,
+    // which is -1.0 in time-domain space — the peak scan read it as
+    // full-scale every frame and the LED stayed lit. Float data also
+    // avoids the byte-domain ±1 clamp so the peak scan sees true
+    // overshoot if it happens.
+    let buf: Float32Array<ArrayBuffer> | null = null;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       if (document.hidden) return;
@@ -101,17 +108,24 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
       const el = clipLedRef.current;
       const eng = engineRef.current;
       if (!el || !eng) return;
-      // Tap the pre-limiter analyser so the LED reports input
-      // overshoot (user is driving too hot), not the post-limiter
-      // signal — which sits at the ceiling whenever the brickwall
-      // is active and would leave the LED permanently lit.
-      eng.getPreLimiterAnalyser().getByteTimeDomainData(buf);
+      // Pre-limiter tap — reports input overshoot (user is driving
+      // too hot), not the post-limiter signal which sits at the
+      // ceiling whenever the brickwall is active.
+      const analyser = eng.getPreLimiterAnalyser();
+      if (!buf || buf.length !== analyser.fftSize) {
+        buf = new Float32Array(new ArrayBuffer(analyser.fftSize * 4));
+      }
+      analyser.getFloatTimeDomainData(buf);
       let peak = 0;
       for (let i = 0; i < buf.length; i++) {
-        const v = Math.abs(buf[i] - 128) / 127;
+        const v = Math.abs(buf[i]);
         if (v > peak) peak = v;
       }
-      if (peak > 0.98) holdUntil = now + 120;
+      // Threshold is > 1.0 (true overshoot beyond 0 dBFS). In normal
+      // hot-but-clean playback the drive chain bounds the pre-limiter
+      // signal well below unity via its tanh curve; only real
+      // transients cross 1.0 and need the limiter to catch them.
+      if (peak > 1.0) holdUntil = now + 120;
       el.classList.toggle("clip-on", now < holdUntil);
     };
     raf = requestAnimationFrame(tick);
