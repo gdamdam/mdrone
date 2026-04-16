@@ -8,6 +8,8 @@ import { DialogModal } from "./DialogModal";
 import { DropdownSelect } from "./DropdownSelect";
 import { MIDI_TARGETS, MIDI_TARGETS_BY_ID, MIDI_TARGET_GROUPS } from "../engine/midiMapping";
 import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } from "../themes";
+import { enableLinkBridge, onLinkState, getLinkState, type LinkState } from "../engine/linkBridge";
+import { STORAGE_KEYS } from "../config";
 
 const HelpModal = lazy(() =>
   import("./HelpModal").then((m) => ({ default: m.HelpModal })),
@@ -179,6 +181,25 @@ export function Header({
     savePaletteId(id);
     setPaletteId(id);
   };
+
+  // Ableton Link (via the mpump Link Bridge companion app). Auto-
+  // detect runs once on page load; this toggle forces explicit
+  // enable with retries so the user can start the bridge at any
+  // point and have mdrone attach when it appears.
+  const [linkEnabled, setLinkEnabled] = useState<boolean>(() => {
+    try { return window.localStorage?.getItem(STORAGE_KEYS.linkEnabled) === "1"; }
+    catch { return false; }
+  });
+  const [linkState, setLinkState] = useState<LinkState>(() => getLinkState());
+  useEffect(() => {
+    const unsub = onLinkState((s) => setLinkState(s));
+    return unsub;
+  }, []);
+  useEffect(() => {
+    enableLinkBridge(linkEnabled);
+    try { window.localStorage?.setItem(STORAGE_KEYS.linkEnabled, linkEnabled ? "1" : "0"); }
+    catch { /* noop */ }
+  }, [linkEnabled]);
   useEffect(() => {
     if (!sessionOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSessionOpen(false); };
@@ -555,6 +576,42 @@ export function Header({
                     {v === "waveform" ? "WAVEFORM" : v === "flow" ? "FLOW FIELD" : "MINIMAL"}
                   </button>
                 ))}
+              </div>
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">ABLETON LINK</div>
+              <p className="fx-modal-desc">
+                Sync the LFO rate (and future rate controls) to
+                Ableton Link tempo from Live, Logic, Bitwig, or any
+                Link-enabled app. Requires the mpump Link Bridge
+                companion — a tiny local app that translates Link's
+                UDP multicast into a localhost WebSocket mdrone can
+                read. Download:{" "}
+                <a
+                  href="https://github.com/gdamdam/mpump/releases"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  github.com/gdamdam/mpump/releases
+                </a>.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className={linkEnabled ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => setLinkEnabled((v) => !v)}
+                  title={linkEnabled
+                    ? "Disable Ableton Link — stops retrying the bridge connection"
+                    : "Enable Ableton Link — retries every 5 s until the bridge is running"}
+                >
+                  {linkEnabled ? "● LINK ON" : "LINK OFF"}
+                </button>
+                <span className="fx-modal-param-value">
+                  {linkState.connected
+                    ? `${linkState.tempo.toFixed(1)} BPM · ${linkState.peers} peer${linkState.peers === 1 ? "" : "s"}`
+                    : linkEnabled
+                      ? "Searching for Link Bridge…"
+                      : "Bridge not connected"}
+                </span>
               </div>
 
               <div className="fx-modal-divider" />

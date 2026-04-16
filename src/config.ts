@@ -26,6 +26,12 @@ export const STORAGE_KEYS = {
   /** Persisted tanpura string-tuning preset (P3). One of the
    *  TANPURA_TUNING_IDS. */
   tanpuraTuning: "mdrone-tanpura-tuning",
+  /** Ableton Link explicit opt-in. When true, the Link Bridge
+   *  client keeps retrying until connected. Auto-detect still runs
+   *  at startup regardless. */
+  linkEnabled: "mdrone-link-enabled",
+  /** LFO rate sync mode. "free" | "1/1" | "1/2" | "1/4" | "1/8" | "1/16". */
+  lfoSyncMode: "mdrone-lfo-sync-mode",
 } as const;
 
 export type WeatherVisual = "waveform" | "flow" | "minimal";

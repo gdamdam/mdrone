@@ -252,14 +252,14 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </p>
 
           <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">TEMPO SYNC · roadmap</div>
+          <div className="fx-modal-section-label">TEMPO SYNC · Ableton Link</div>
           <p className="fx-modal-desc">
-            mdrone has no transport clock (drones aren't timed), but
-            the tanpura PLUCK cycle and breathing LFO RATE will gain
-            an <em>Ableton Link</em> sync option in an upcoming
-            release. mpump's companion Link Bridge app is reusable —
-            downloading it once covers both instruments. Binaries
-            for macOS / Windows / Linux:{" "}
+            The breathing LFO RATE can lock to Ableton Link tempo. A
+            chip next to RATE cycles <em>FREE / 1/1 / 1/2 / 1/4 / 1/8
+            / 1/16</em>; any non-FREE mode runs one LFO cycle per note
+            at the Link session tempo. Enable Link in{" "}
+            <em>Settings → ABLETON LINK</em> and run the bridge
+            companion (reused from mpump, one download covers both):{" "}
             <a
               href="https://github.com/gdamdam/mpump/releases"
               target="_blank"

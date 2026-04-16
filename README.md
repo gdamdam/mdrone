@@ -226,13 +226,20 @@ Defaults:
 
 Every other target is unassigned by default — learn to bind.
 
-### Tempo sync (Ableton Link) — roadmap
+### Tempo sync (Ableton Link)
 
-mdrone doesn't have a transport clock (drones aren't timed), but two rate controls benefit from tempo lock: the tanpura PLUCK cycle and the breathing LFO RATE. Ableton Link sync for these is planned for an upcoming release and will be a per-control mode selector (FREE / 1/1 / 1/2 / 1/4 / …).
+mdrone has no transport clock (drones aren't timed), but the breathing LFO RATE now syncs to Ableton Link tempo. A small chip next to RATE cycles through **FREE / 1/1 / 1/2 / 1/4 / 1/8 / 1/16**; any non-FREE mode locks one LFO cycle to that note value at the Link session tempo. The macro slider becomes read-only while locked and follows tempo changes in real time.
 
-The sibling project mpump already ships a Link Bridge — a tiny cross-platform companion app that bridges Ableton Link (UDP multicast) ↔ browser (WebSocket on localhost). mdrone will reuse that same bridge when the integration lands, so downloading the companion once will cover both instruments.
+mdrone reuses mpump's Link Bridge — a tiny cross-platform companion that bridges Ableton Link (UDP multicast) ↔ browser (WebSocket on localhost). Download once, works for both instruments.
 
-Download: [github.com/gdamdam/mpump/releases](https://github.com/gdamdam/mpump/releases) — macOS / Windows / Linux binaries, ~5 MB, fully local, no internet connections.
+1. **Download**: [github.com/gdamdam/mpump/releases](https://github.com/gdamdam/mpump/releases) — macOS / Windows / Linux binaries, ~5 MB
+2. **Run** the bridge app (Tauri, opens a small always-on-top window)
+3. **Enable** Ableton Link in mdrone → Settings → ABLETON LINK
+4. Open Ableton Live (or any Link-enabled app) — tempo syncs automatically
+
+Auto-detect also runs at page load — if the bridge is already running, mdrone attaches silently. Nothing leaves your machine: the bridge only makes local UDP (peer discovery on LAN) and localhost WebSocket connections.
+
+Tanpura PLUCK sync is deferred — the current scheduling is randomized "every 5–7 seconds per string / rate" which doesn't map cleanly to beats. A bar-locked variant is future work.
 
 ---
 

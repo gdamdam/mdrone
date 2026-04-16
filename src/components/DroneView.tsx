@@ -46,6 +46,32 @@ import {
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
 import { relationLabels, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
+import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from "../engine/linkBridge";
+
+/** LFO sync modes. "free" runs the user's manual rate; every other
+ *  option locks the LFO period to a note-value at the current Link
+ *  tempo, so the drone's breathing aligns with the host DAW's grid. */
+type LfoSyncMode = "free" | "1/1" | "1/2" | "1/4" | "1/8" | "1/16";
+const LFO_SYNC_MODES: readonly LfoSyncMode[] = ["free", "1/1", "1/2", "1/4", "1/8", "1/16"];
+
+function loadLfoSyncMode(): LfoSyncMode {
+  try {
+    const raw = typeof window !== "undefined"
+      ? window.localStorage?.getItem(STORAGE_KEYS.lfoSyncMode) ?? ""
+      : "";
+    if ((LFO_SYNC_MODES as readonly string[]).includes(raw)) return raw as LfoSyncMode;
+  } catch { /* noop */ }
+  return "free";
+}
+
+/** One LFO cycle per 1/n note at the given BPM.
+ *  duration(1/n) = 60/BPM × (4/n) seconds → freq = BPM × n / 240 Hz. */
+function lfoSyncedHz(mode: LfoSyncMode, bpm: number): number {
+  if (mode === "free") return 0;
+  const n = Number(mode.split("/")[1]);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return (bpm * n) / 240;
+}
 
 /** Voice timbre list — each entry has an id, label, hint, and inline SVG.
  * Icons are defined inline (not as separate components) to avoid React
@@ -353,6 +379,38 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // dropdown so users can author and save custom tuning tables
   // (degrees in cents above the root). See audit P2 — scale editor UI.
   const [scaleEditorOpen, setScaleEditorOpen] = useState(false);
+
+  // LFO ↔ Ableton Link tempo sync. When `lfoSyncMode` is non-free
+  // AND the Link bridge reports `connected`, the LFO rate is driven
+  // by tempo × division and the user's manual macro becomes a
+  // read-only display. Persisted to localStorage so the mode
+  // survives reloads.
+  const [lfoSyncMode, setLfoSyncMode] = useState<LfoSyncMode>(() => loadLfoSyncMode());
+  const [linkState, setLinkState] = useState<LinkState>(() => getLinkState());
+  useEffect(() => {
+    // Silent auto-detect on mount — if the bridge isn't running,
+    // nothing happens. Explicit enable (with retries) is driven
+    // from Settings via enableLinkBridge().
+    autoDetectLinkBridge();
+    const unsub = onLinkState((s) => setLinkState(s));
+    return unsub;
+  }, []);
+  useEffect(() => {
+    try { window.localStorage?.setItem(STORAGE_KEYS.lfoSyncMode, lfoSyncMode); } catch { /* noop */ }
+  }, [lfoSyncMode]);
+  // When sync is active, continuously push the computed rate to the
+  // engine so tempo changes track in real time. Clamped to the
+  // macro's 0.05..8 Hz range so fast divisions at high BPM don't
+  // overdrive the LFO.
+  useEffect(() => {
+    if (lfoSyncMode === "free" || !linkState.connected) return;
+    const hz = Math.max(0.05, Math.min(8, lfoSyncedHz(lfoSyncMode, linkState.tempo)));
+    setLfoRate(hz);
+  }, [lfoSyncMode, linkState.tempo, linkState.connected, setLfoRate]);
+  const lfoSyncActive = lfoSyncMode !== "free" && linkState.connected;
+  const cycleLfoSyncMode = useCallback(() => {
+    setLfoSyncMode((cur) => LFO_SYNC_MODES[(LFO_SYNC_MODES.indexOf(cur) + 1) % LFO_SYNC_MODES.length]);
+  }, []);
   // User-customised effect chain order, persisted in localStorage.
   // Hydrated from storage on mount; any invalid / missing value falls
   // back to the canonical EFFECT_ORDER. Every change is pushed to the
@@ -1186,14 +1244,45 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 </button>
               ))}
             </div>
-            <Macro
-              label="RATE"
-              value={(Math.log(state.lfoRate / 0.05) / Math.log(160))}
-              onChange={(v) => setLfoRate(0.05 * Math.pow(160, v))}
-              icon={<IconRate />}
-              displayValue={`${state.lfoRate.toFixed(2)} Hz`}
-              title="LFO rate — speed of the breathing/tremolo. 0.05 Hz (very slow) to 8 Hz (fluttering)"
-            />
+            <div className="macro-with-chip">
+              <Macro
+                label="RATE"
+                value={(Math.log(state.lfoRate / 0.05) / Math.log(160))}
+                onChange={(v) => {
+                  if (lfoSyncActive) return; // locked to Link tempo
+                  setLfoRate(0.05 * Math.pow(160, v));
+                }}
+                icon={<IconRate />}
+                displayValue={
+                  lfoSyncActive
+                    ? `${lfoSyncMode} · ${state.lfoRate.toFixed(2)} Hz`
+                    : `${state.lfoRate.toFixed(2)} Hz`
+                }
+                title={
+                  lfoSyncActive
+                    ? `Locked to Ableton Link: ${linkState.tempo.toFixed(1)} BPM × ${lfoSyncMode} note`
+                    : "LFO rate — 0.05 Hz (very slow) to 8 Hz (fluttering). Click SYNC to lock to Ableton Link tempo."
+                }
+              />
+              <button
+                type="button"
+                className={
+                  "lfo-sync-chip" +
+                  (lfoSyncMode !== "free" ? " lfo-sync-chip-armed" : "") +
+                  (lfoSyncActive ? " lfo-sync-chip-locked" : "")
+                }
+                onClick={cycleLfoSyncMode}
+                title={
+                  lfoSyncMode === "free"
+                    ? "FREE — manual rate. Click to cycle through Link-synced note values."
+                    : linkState.connected
+                      ? `Locked to Link tempo (${linkState.tempo.toFixed(1)} BPM). Click to cycle.`
+                      : "Armed for Link sync. Waiting for Link Bridge — enable Ableton Link in Settings or run the companion app."
+                }
+              >
+                {lfoSyncMode === "free" ? "FREE" : lfoSyncMode}
+              </button>
+            </div>
             <Macro
               label="DEPTH"
               value={state.lfoAmount}

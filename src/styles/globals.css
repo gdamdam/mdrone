@@ -1114,6 +1114,48 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   padding-left: 2px;
 }
 
+/* LFO RATE macro + Link sync chip. The chip sits tight against the
+ * right edge of the macro row so it reads as a modifier on that
+ * control rather than a separate thing. */
+.macro-with-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.macro-with-chip .macro-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.lfo-sync-chip {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--bg-cell);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 44px;
+  line-height: 1.1;
+  transition: color 120ms, border-color 120ms, background 120ms;
+}
+.lfo-sync-chip:hover {
+  color: var(--text);
+  border-color: var(--preview);
+}
+.lfo-sync-chip-armed {
+  color: color-mix(in srgb, var(--preview) 70%, var(--text));
+  border-color: color-mix(in srgb, var(--preview) 40%, var(--border));
+}
+.lfo-sync-chip-locked {
+  color: var(--text);
+  border-color: var(--preview);
+  background: color-mix(in srgb, var(--preview) 18%, var(--bg-cell));
+}
+
 /* Formant vowel selector buttons */
 .fx-vowel-row {
   display: flex;
