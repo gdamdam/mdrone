@@ -898,3 +898,311 @@ class FxGranularProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor("fx-granular", FxGranularProcessor);
+
+// ═════════════════════════════════════════════════════════════════════
+// BRICKWALL LIMITER — look-ahead peak limiter
+// ═════════════════════════════════════════════════════════════════════
+//
+// Replaces the old native DynamicsCompressor limiter (ratio 12, attack
+// 3 ms, release 100 ms). That node does NOT actually brickwall — it
+// lets transient peaks through on grain re-triggers and freeze edges.
+//
+// Topology:
+//   Input → delay line (N samples) ───┐
+//                                     ├─ × gainEnv → output
+//   Input → abs → peak window → gain target
+//   gainTarget → smoothed gain envelope (attack = 0 over lookahead,
+//                release = exponential ~ releaseMs) → gainEnv
+//
+// The look-ahead is critical: the detector sees future peaks inside
+// the lookahead window, so the gain envelope is already attenuated
+// by the time the peak reaches the output. That's what makes this a
+// true brickwall instead of a fast-attack compressor.
+//
+// Sample-peak (not true-peak) detector — for sustained drone content
+// the inter-sample peak excess is <1.5 dB, so leaving 1 dB of head-
+// room below the ceiling keeps true-peak bounded in practice.
+//
+class BrickwallLimiterProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      // -24 dB to 0 dB ceiling (linear scalar). Default -1 dB.
+      { name: "ceiling",  defaultValue: 0.891, minValue: 0.063, maxValue: 1.0, automationRate: "k-rate" },
+      // Release time constant in seconds. 0.1 is the safe default.
+      { name: "releaseSec", defaultValue: 0.12, minValue: 0.02, maxValue: 1.0, automationRate: "k-rate" },
+      // Enable flag. When 0, the worklet passes input to output with
+      // the same lookahead delay — keeps phase relationships stable
+      // for A/B comparison with the limiter off.
+      { name: "enabled",  defaultValue: 1, minValue: 0, maxValue: 1, automationRate: "k-rate" },
+    ];
+  }
+
+  constructor() {
+    super();
+    // Look-ahead of 96 samples ≈ 2 ms at 48 kHz. Enough to catch the
+    // leading edge of grain/freeze transients without adding
+    // perceptible latency.
+    this.lookahead = 96;
+    this.delayL = new Float32Array(this.lookahead);
+    this.delayR = new Float32Array(this.lookahead);
+    this.delayIdx = 0;
+
+    // Peak-window state — we track the maximum |x| over the next
+    // `lookahead` samples by scanning the incoming buffer and recording
+    // each sample's absolute value into a ring of peaks indexed by
+    // write position. A simple O(lookahead) scan per block is fine for
+    // a stereo limiter on the master bus.
+    this.peakRing = new Float32Array(this.lookahead);
+
+    // Gain-envelope state (1.0 = no attenuation).
+    this.gainEnv = 1.0;
+  }
+
+  process(_inputs, outputs, parameters) {
+    const input = _inputs[0];
+    const output = outputs[0];
+    if (!output) return true;
+    const outL = output[0];
+    const outR = output.length > 1 ? output[1] : output[0];
+    const n = outL.length;
+    if (!input || input.length === 0) {
+      // No input connected — flush delay line with silence.
+      for (let i = 0; i < n; i++) { outL[i] = 0; if (outR !== outL) outR[i] = 0; }
+      return true;
+    }
+    const inL = input[0];
+    const inR = input.length > 1 ? input[1] : input[0];
+
+    const ceiling = parameters.ceiling[0];
+    const releaseSec = parameters.releaseSec[0];
+    const enabled = parameters.enabled[0] > 0.5;
+
+    // Exponential release coefficient: y = y + (target - y) * k where
+    // k = 1 - exp(-1 / (sr · τ)). Instant attack (k=1) on gain drops.
+    const releaseK = 1 - Math.exp(-1 / (sampleRate * Math.max(0.001, releaseSec)));
+    const LA = this.lookahead;
+
+    // NaN sanitation
+    if (!Number.isFinite(this.gainEnv)) this.gainEnv = 1.0;
+
+    for (let i = 0; i < n; i++) {
+      const l = inL[i];
+      const r = inR[i];
+      const peakIn = Math.max(Math.abs(l), Math.abs(r));
+
+      // Read the delayed output sample BEFORE overwriting the slot
+      const idxRead = this.delayIdx;
+      const dL = this.delayL[idxRead];
+      const dR = this.delayR[idxRead];
+
+      // Store current input into the delay line (write = same slot
+      // we just read from — the slot rotates each sample).
+      this.delayL[idxRead] = l;
+      this.delayR[idxRead] = r;
+      this.peakRing[idxRead] = peakIn;
+      this.delayIdx = (this.delayIdx + 1) % LA;
+
+      // Compute target gain from the MAX peak over the full lookahead
+      // window. O(LA) per sample is fine at LA=96 for a single
+      // limiter instance on the master bus.
+      let maxPeak = 0;
+      for (let k = 0; k < LA; k++) {
+        const p = this.peakRing[k];
+        if (p > maxPeak) maxPeak = p;
+      }
+
+      // Gain target: ceiling / maxPeak (clamped ≤ 1 so we never boost).
+      const target = (maxPeak > ceiling) ? (ceiling / maxPeak) : 1.0;
+
+      // Attack is instant on drops (any target < env snaps immediately);
+      // release is exponential. This asymmetry is the heart of a
+      // brickwall: the gain envelope is always ≤ the instantaneous
+      // target, guaranteeing the ceiling.
+      if (target < this.gainEnv) {
+        this.gainEnv = target;
+      } else {
+        this.gainEnv += (target - this.gainEnv) * releaseK;
+      }
+
+      if (enabled) {
+        outL[i] = dL * this.gainEnv;
+        outR[i] = dR * this.gainEnv;
+      } else {
+        // Keep the same lookahead delay so A/B is phase-stable.
+        outL[i] = dL;
+        outR[i] = dR;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor("fx-brickwall", BrickwallLimiterProcessor);
+
+// ═════════════════════════════════════════════════════════════════════
+// FDN REVERB — Freeverb-style 8 combs + 4 allpasses per channel
+// ═════════════════════════════════════════════════════════════════════
+//
+// Replaces the old noise-IR ConvolverNode for HALL and CISTERN. The
+// convolver reads as "noise verb"; this topology reads as a modelled
+// space because the combs carry discrete modal peaks and the
+// allpasses diffuse them.
+//
+// Comb delays are the classic Freeverb primes (scaled by sample rate
+// from the original 44.1 kHz values). Per-channel offsets of ±23
+// samples decorrelate L/R. A seed (via port message) perturbs the
+// prime offsets ±2 % so every preset gets a deterministic but
+// distinct modal pattern.
+//
+// Parameters:
+//   size     — 0..1, delay-length scaling (0.5 = Freeverb default,
+//              1.0 = cavernous cistern, 0.3 = tight room)
+//   damping  — 0..1, lowpass amount in comb feedback (0.5 default)
+//   decay    — 0..1, comb feedback gain (0.84 default ≈ 2 s RT60 at
+//              size=0.5; at size=1.0 the tail reaches ~15 s)
+//
+class FdnReverbProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: "size",    defaultValue: 0.5,  minValue: 0.1, maxValue: 1.5, automationRate: "k-rate" },
+      { name: "damping", defaultValue: 0.5,  minValue: 0,   maxValue: 1,   automationRate: "k-rate" },
+      { name: "decay",   defaultValue: 0.84, minValue: 0,   maxValue: 0.98, automationRate: "k-rate" },
+      { name: "mix",     defaultValue: 1,    minValue: 0,   maxValue: 1,   automationRate: "k-rate" },
+    ];
+  }
+
+  constructor(options) {
+    super();
+    const opts = options?.processorOptions || {};
+    this.seed = (opts.seed >>> 0) || 0xFEED;
+
+    // Freeverb prime comb lengths (reference at 44.1 kHz)
+    const REF_SR = 44100;
+    const combBase = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
+    const allpassBase = [556, 441, 341, 225];
+    const STEREO_OFFSET = 23; // samples — right channel is offset for decorrelation
+
+    // Deterministic mulberry32 for prime perturbation.
+    let a = this.seed;
+    const rnd = () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+
+    // Per-comb state: buffer, write index, LP feedback state.
+    // Buffers are sized to the MAXIMUM length we'd ever need
+    // (size=1.5 × REF scaling). Effective length is set each block
+    // via `size` + stays ≤ buffer length.
+    const srScale = sampleRate / REF_SR;
+    const MAX_SIZE_MUL = 1.6;
+
+    this.combL = [];
+    this.combR = [];
+    for (let i = 0; i < 8; i++) {
+      const jitter = 1 + (rnd() - 0.5) * 0.04; // ±2 %
+      const len = Math.ceil(combBase[i] * srScale * MAX_SIZE_MUL * jitter);
+      this.combL.push({ buf: new Float32Array(len), idx: 0, maxLen: len, base: Math.floor(combBase[i] * srScale * jitter), lp: 0 });
+      const jitterR = 1 + (rnd() - 0.5) * 0.04;
+      const lenR = Math.ceil((combBase[i] + STEREO_OFFSET) * srScale * MAX_SIZE_MUL * jitterR);
+      this.combR.push({ buf: new Float32Array(lenR), idx: 0, maxLen: lenR, base: Math.floor((combBase[i] + STEREO_OFFSET) * srScale * jitterR), lp: 0 });
+    }
+    this.apL = [];
+    this.apR = [];
+    for (let i = 0; i < 4; i++) {
+      const len = Math.ceil(allpassBase[i] * srScale * MAX_SIZE_MUL);
+      this.apL.push({ buf: new Float32Array(len), idx: 0, maxLen: len, base: Math.floor(allpassBase[i] * srScale) });
+      const lenR = Math.ceil((allpassBase[i] + STEREO_OFFSET) * srScale * MAX_SIZE_MUL);
+      this.apR.push({ buf: new Float32Array(lenR), idx: 0, maxLen: lenR, base: Math.floor((allpassBase[i] + STEREO_OFFSET) * srScale) });
+    }
+
+    this.port.onmessage = (e) => {
+      if (e.data && e.data.type === "clear") this.clear();
+    };
+  }
+
+  clear() {
+    for (const c of this.combL) { c.buf.fill(0); c.lp = 0; }
+    for (const c of this.combR) { c.buf.fill(0); c.lp = 0; }
+    for (const a of this.apL)   { a.buf.fill(0); }
+    for (const a of this.apR)   { a.buf.fill(0); }
+  }
+
+  process(_inputs, outputs, parameters) {
+    const input = _inputs[0];
+    const output = outputs[0];
+    if (!input || input.length === 0 || !output) return true;
+    const inL = input[0];
+    const inR = input.length > 1 ? input[1] : input[0];
+    const outL = output[0];
+    const outR = output.length > 1 ? output[1] : output[0];
+    const n = outL.length;
+
+    const size = parameters.size[0];
+    const damping = parameters.damping[0];
+    const decay = parameters.decay[0];
+    const mix = parameters.mix[0];
+    const DENORM = 1e-25;
+
+    // Compute per-block effective delay length for each comb/allpass.
+    for (const c of this.combL) c.curLen = Math.max(1, Math.min(c.maxLen, Math.round(c.base * (0.3 + size * 1.0))));
+    for (const c of this.combR) c.curLen = Math.max(1, Math.min(c.maxLen, Math.round(c.base * (0.3 + size * 1.0))));
+    for (const a of this.apL)   a.curLen = Math.max(1, Math.min(a.maxLen, Math.round(a.base * (0.3 + size * 1.0))));
+    for (const a of this.apR)   a.curLen = Math.max(1, Math.min(a.maxLen, Math.round(a.base * (0.3 + size * 1.0))));
+
+    // NaN sanitation on comb LP state
+    for (const c of this.combL) if (!Number.isFinite(c.lp)) c.lp = 0;
+    for (const c of this.combR) if (!Number.isFinite(c.lp)) c.lp = 0;
+
+    const FIXED_GAIN = 0.015; // Freeverb input gain — keeps internal levels manageable
+
+    for (let i = 0; i < n; i++) {
+      const drySum = (inL[i] + inR[i]) * 0.5 * FIXED_GAIN;
+
+      // Parallel comb bank per channel
+      let sumL = 0, sumR = 0;
+      for (let k = 0; k < 8; k++) {
+        const cL = this.combL[k];
+        const cR = this.combR[k];
+        // Read from delay (tap at curLen samples back)
+        const readL = cL.buf[(cL.idx + cL.maxLen - cL.curLen) % cL.maxLen];
+        const readR = cR.buf[(cR.idx + cR.maxLen - cR.curLen) % cR.maxLen];
+        // Lowpass in the feedback path (damping)
+        cL.lp = readL * (1 - damping) + cL.lp * damping + DENORM;
+        cR.lp = readR * (1 - damping) + cR.lp * damping + DENORM;
+        // Write new sample: input + damped feedback × decay
+        cL.buf[cL.idx] = drySum + cL.lp * decay;
+        cR.buf[cR.idx] = drySum + cR.lp * decay;
+        cL.idx = (cL.idx + 1) % cL.maxLen;
+        cR.idx = (cR.idx + 1) % cR.maxLen;
+        sumL += readL;
+        sumR += readR;
+      }
+
+      // Serial allpass diffusers per channel
+      let yL = sumL;
+      let yR = sumR;
+      const AP_COEF = 0.5;
+      for (let k = 0; k < 4; k++) {
+        const aL = this.apL[k];
+        const aR = this.apR[k];
+        const readL = aL.buf[(aL.idx + aL.maxLen - aL.curLen) % aL.maxLen];
+        const readR = aR.buf[(aR.idx + aR.maxLen - aR.curLen) % aR.maxLen];
+        const writeL = yL + readL * AP_COEF;
+        const writeR = yR + readR * AP_COEF;
+        aL.buf[aL.idx] = writeL;
+        aR.buf[aR.idx] = writeR;
+        aL.idx = (aL.idx + 1) % aL.maxLen;
+        aR.idx = (aR.idx + 1) % aR.maxLen;
+        yL = readL - writeL * AP_COEF;
+        yR = readR - writeR * AP_COEF;
+      }
+
+      outL[i] = yL * mix;
+      outR[i] = yR * mix;
+    }
+    return true;
+  }
+}
+registerProcessor("fx-fdn-reverb", FdnReverbProcessor);

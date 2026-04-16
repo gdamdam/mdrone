@@ -167,6 +167,78 @@ test("fx worklets — plate / shimmer / freeze stay finite under silent + impuls
   }
 });
 
+// ─── Brickwall limiter smoke ─────────────────────────────────────────
+test("fx-brickwall — holds ceiling on hot input without NaN or DC", () => {
+  const SR = 48000;
+  const fxReg = loadWorklet("src/engine/fxChainProcessor.js", SR);
+  const Brick = fxReg.get("fx-brickwall");
+  assert.ok(Brick, "fx-brickwall must register");
+  const p = new Brick();
+  // Ceiling -1 dB ≈ 0.8913 linear; release 0.1 s.
+  const params = {
+    ceiling:    makeParamArr(0.8913),
+    releaseSec: makeParamArr(0.1),
+    enabled:    makeParamArr(1),
+  };
+  const BLK = 128, BLOCKS = 64;
+  const inL = new Float32Array(BLK * BLOCKS), inR = new Float32Array(BLK * BLOCKS);
+  // Hot sine well above ceiling (amplitude 2.0 = +6 dB).
+  for (let i = 0; i < inL.length; i++) {
+    inL[i] = Math.sin(2 * Math.PI * 220 * i / SR) * 2.0;
+    inR[i] = inL[i];
+  }
+  const out = runProcessor(p, params, { inputs: [inL, inR], blocks: BLOCKS, block: BLK });
+  // Skip the first 2 ms (lookahead buffer fill) before asserting ceiling.
+  const SKIP = 96;
+  for (let c = 0; c < 2; c++) {
+    let peak = 0;
+    for (let i = SKIP; i < out[c].length; i++) {
+      if (!Number.isFinite(out[c][i])) {
+        assert.fail(`brickwall[${c}] produced NaN at sample ${i}`);
+      }
+      const a = Math.abs(out[c][i]);
+      if (a > peak) peak = a;
+    }
+    // Allow a 1 dB safety margin for the attack-instant sample-peak
+    // envelope to settle. With a 96-sample lookahead the output peak
+    // on a steady sine never exceeds the ceiling.
+    assert.ok(peak <= 0.8913 * 1.05, `brickwall[${c}] peak ${peak.toFixed(4)} exceeds ceiling`);
+  }
+});
+
+// ─── FDN reverb smoke ────────────────────────────────────────────────
+test("fx-fdn-reverb — stable tail, finite, bounded peak", () => {
+  const SR = 48000;
+  const fxReg = loadWorklet("src/engine/fxChainProcessor.js", SR);
+  const Fdn = fxReg.get("fx-fdn-reverb");
+  assert.ok(Fdn, "fx-fdn-reverb must register");
+
+  // Simulate processor construction with a seed option (the class
+  // reads from options?.processorOptions — stub it via a direct field
+  // poke since our wrapper doesn't pass options in).
+  const p = new Fdn({ processorOptions: { seed: 0xCAFE } });
+  const params = {
+    size:    makeParamArr(0.6),
+    damping: makeParamArr(0.5),
+    decay:   makeParamArr(0.85),
+    mix:     makeParamArr(1),
+  };
+  const BLK = 128, BLOCKS = 96; // ~250 ms
+  const inL = new Float32Array(BLK * BLOCKS), inR = new Float32Array(BLK * BLOCKS);
+  // Brief impulse in first 256 samples, silence afterward — check tail decays cleanly.
+  for (let i = 0; i < 256; i++) {
+    inL[i] = Math.sin(2 * Math.PI * 220 * i / SR) * 0.3;
+    inR[i] = Math.sin(2 * Math.PI * 221 * i / SR) * 0.3;
+  }
+  const out = runProcessor(p, params, { inputs: [inL, inR], blocks: BLOCKS, block: BLK });
+  for (let c = 0; c < 2; c++) {
+    const s = stats(out[c]);
+    assert.ok(s.finite, `fdn[${c}] produced non-finite samples`);
+    assert.ok(s.peak < 2.0, `fdn[${c}] peak ${s.peak.toFixed(3)} exceeds safety ceiling`);
+    assert.ok(Math.abs(s.dc) < 0.05, `fdn[${c}] DC offset ${s.dc.toFixed(4)} too high`);
+  }
+});
+
 // ─── Plate tank NaN recovery ─────────────────────────────────────────
 test("plate tank — injected NaN is sanitized and output recovers", () => {
   const SR = 48000;

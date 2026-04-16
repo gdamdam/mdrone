@@ -10,11 +10,20 @@ export class MasterBus {
   private readonly drivePre: GainNode;
   private readonly drive: WaveShaperNode;
   private readonly drivePost: GainNode;
-  private readonly limiter: DynamicsCompressorNode;
+  /** Bridge node — brickwall worklet is inserted between `limiterIn`
+   *  and `limiterOut` once the fx worklet module has loaded. Before
+   *  that, `limiterIn → limiterOut` is a direct connection (no
+   *  limiting, but audio still flows so the UI isn't silent during
+   *  the ~50 ms worklet load). */
+  private readonly limiterIn: GainNode;
+  private readonly limiterOut: GainNode;
+  private limiterNode: AudioWorkletNode | null = null;
+  private passthroughConnected = true;
   private readonly outputTrim: GainNode;
   private readonly analyser: AnalyserNode;
   private limiterEnabled = true;
   private limiterCeiling = -1;
+  private limiterReleaseSec = 0.12;
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
@@ -65,12 +74,9 @@ export class MasterBus {
     this.drivePost = this.ctx.createGain();
     this.drivePost.gain.value = 1 / Math.sqrt(1.5);
 
-    this.limiter = this.ctx.createDynamicsCompressor();
-    this.limiter.threshold.value = this.limiterCeiling;
-    this.limiter.ratio.value = 12;
-    this.limiter.attack.value = 0.003;
-    this.limiter.release.value = 0.1;
-    this.limiter.knee.value = 6;
+    // Worklet-backed brickwall limiter is installed on `onWorkletReady`.
+    this.limiterIn = this.ctx.createGain();
+    this.limiterOut = this.ctx.createGain();
 
     this.outputTrim = this.ctx.createGain();
     this.outputTrim.gain.value = 1;
@@ -89,10 +95,48 @@ export class MasterBus {
     this.glueMakeup.connect(this.drivePre);
     this.drivePre.connect(this.drive);
     this.drive.connect(this.drivePost);
-    this.drivePost.connect(this.limiter);
-    this.limiter.connect(this.outputTrim);
+    this.drivePost.connect(this.limiterIn);
+    // Passthrough until worklet ready.
+    this.limiterIn.connect(this.limiterOut);
+    this.limiterOut.connect(this.outputTrim);
     this.outputTrim.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
+  }
+
+  /** Install the brickwall limiter worklet. Called by `AudioEngine`
+   *  after the fx worklet module has loaded. */
+  onWorkletReady(): void {
+    if (this.limiterNode) return;
+    try {
+      this.limiterNode = new AudioWorkletNode(this.ctx, "fx-brickwall", {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+      });
+    } catch {
+      // Registration not yet complete — leave passthrough in place.
+      return;
+    }
+    // Detach passthrough, insert worklet.
+    if (this.passthroughConnected) {
+      try { this.limiterIn.disconnect(this.limiterOut); } catch { /* noop */ }
+      this.passthroughConnected = false;
+    }
+    this.limiterIn.connect(this.limiterNode);
+    this.limiterNode.connect(this.limiterOut);
+    // Reapply current state.
+    this.applyLimiterParams();
+  }
+
+  private applyLimiterParams(): void {
+    const node = this.limiterNode;
+    if (!node) return;
+    const now = this.ctx.currentTime;
+    // Ceiling is linear in the worklet (dB → scalar).
+    const ceilingLin = this.limiterEnabled ? Math.pow(10, this.limiterCeiling / 20) : 1.0;
+    node.parameters.get("ceiling")?.setTargetAtTime(ceilingLin, now, 0.01);
+    node.parameters.get("releaseSec")?.setTargetAtTime(this.limiterReleaseSec, now, 0.01);
+    node.parameters.get("enabled")?.setTargetAtTime(this.limiterEnabled ? 1 : 0, now, 0.01);
   }
 
   connectInput(node: AudioNode): void {
@@ -104,7 +148,12 @@ export class MasterBus {
   getEqLow(): BiquadFilterNode { return this.eqLow; }
   getEqMid(): BiquadFilterNode { return this.eqMid; }
   getEqHigh(): BiquadFilterNode { return this.eqHigh; }
-  getLimiter(): DynamicsCompressorNode { return this.limiter; }
+  /** @deprecated Native `DynamicsCompressor` is no longer the limiter;
+   *  use `isLimiterEnabled()` / `setLimiterCeiling()` instead. Kept as
+   *  a null return to preserve the shape of AudioEngine's API surface
+   *  for callers that only inspect state (there are none at present).
+   */
+  getLimiter(): AudioWorkletNode | null { return this.limiterNode; }
   getOutputTrim(): GainNode { return this.outputTrim; }
 
   setMasterVolume(v: number): void {
@@ -130,23 +179,24 @@ export class MasterBus {
 
   setLimiterEnabled(on: boolean): void {
     this.limiterEnabled = on;
-    if (on) {
-      this.limiter.threshold.value = this.limiterCeiling;
-      this.limiter.ratio.value = 12;
-    } else {
-      this.limiter.threshold.value = 0;
-      this.limiter.ratio.value = 1;
-    }
+    this.applyLimiterParams();
   }
 
   isLimiterEnabled(): boolean { return this.limiterEnabled; }
 
   setLimiterCeiling(dB: number): void {
     this.limiterCeiling = Math.max(-24, Math.min(0, dB));
-    if (this.limiterEnabled) this.limiter.threshold.value = this.limiterCeiling;
+    this.applyLimiterParams();
   }
 
   getLimiterCeiling(): number { return this.limiterCeiling; }
+
+  setLimiterRelease(sec: number): void {
+    this.limiterReleaseSec = Math.max(0.02, Math.min(1, sec));
+    this.applyLimiterParams();
+  }
+
+  getLimiterRelease(): number { return this.limiterReleaseSec; }
 
   setDrive(amount: number): void {
     const a = Math.max(1, Math.min(10, amount));
@@ -158,7 +208,11 @@ export class MasterBus {
   getDrive(): number { return this.drivePre.gain.value; }
 
   private static makeDriveCurve(amount: number): Float32Array<ArrayBuffer> {
-    const n = 1024;
+    // LUT resolution bumped from 1024 → 4096. At drive = 10 the tanh
+    // knee collapses into ~10 % of the curve and 1024 points produced a
+    // visible staircase on hot material. 4096 × Float32 = 16 KB, built
+    // only on setDrive(); negligible cost vs audible quality gain.
+    const n = 4096;
     const curve = new Float32Array(new ArrayBuffer(n * 4));
     const k = amount;
     for (let i = 0; i < n; i++) {

@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/write-version-json.mjs",
+    "prebuild": "node scripts/build-worklet.mjs && node scripts/write-version-json.mjs",
+    "pretest": "node scripts/build-worklet.mjs",
     "build": "tsc -b && vite build",
     "postbuild": "node scripts/post-build.cjs",
     "lint": "eslint .",

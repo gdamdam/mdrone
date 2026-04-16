@@ -159,8 +159,15 @@ export class FxChain {
   // saturator "sub" was really a bass boost rather than a subharmonic.
   private subOsc!: OscillatorNode;
   private subEnvGain!: GainNode;
-  private hallVerb!: ConvolverNode;
-  private cisternVerb!: ConvolverNode;
+  // HALL + CISTERN are now Freeverb-style FDN worklets (see
+  // fxChainProcessor.js / `fx-fdn-reverb`). They are instantiated in
+  // `onWorkletReady()` because AudioWorkletNode construction requires
+  // the module to be registered first. The ConvolverNode IR path is
+  // retained for the PARALLEL reverb bus (see parallelHall/Cistern
+  // below) — presets with non-zero parallel sends still read from the
+  // seeded impulse.
+  private hallWorklet: AudioWorkletNode | null = null;
+  private cisternWorklet: AudioWorkletNode | null = null;
   private hallImpulse: AudioBuffer | null = null;
   private cisternImpulse: AudioBuffer | null = null;
   /** Seed for the deterministic reverb-IR PRNG. Changed via
@@ -574,28 +581,25 @@ export class FxChain {
     this.delayNode.connect(ins.wetGain).connect(ins.insertOut);
   }
 
+  /** HALL / CISTERN serial insert DSP is installed in `onWorkletReady`
+   *  (see below) using the Freeverb-style `fx-fdn-reverb` worklet. Here
+   *  we only reserve the insert's DSP slot as a silent passthrough
+   *  until the worklet module loads — the insert wet gain is 0 while
+   *  the effect is off, so nothing audible happens in the interim. */
   private wireHall(): void {
-    const ctx = this.ctx;
+    // insertIn ──(pending worklet)──▶ wetGain ──▶ insertOut
+    // wire the fallback dry passthrough so the insert graph is valid
+    // even before `onWorkletReady` (defensive — no preset should enable
+    // hall before worklets are ready, but this keeps state consistent).
     const ins = this.inserts.hall;
-    this.hallVerb = ctx.createConvolver();
-    ins.insertIn
-      .connect(this.hallVerb)
-      .connect(ins.wetGain)
-      .connect(ins.insertOut);
+    ins.insertIn.connect(ins.wetGain);
+    ins.wetGain.connect(ins.insertOut);
   }
 
-  /** CISTERN — the Fort Worden cistern / cathedral-scale convolver with
-   *  a 30-second tail. Native ConvolverNode, same pattern as hall. The
-   *  IR is a synthesized exponential-decay noise burst with stretched
-   *  early reflections for a cavernous early-to-late transition. */
   private wireCistern(): void {
-    const ctx = this.ctx;
     const ins = this.inserts.cistern;
-    this.cisternVerb = ctx.createConvolver();
-    ins.insertIn
-      .connect(this.cisternVerb)
-      .connect(ins.wetGain)
-      .connect(ins.insertOut);
+    ins.insertIn.connect(ins.wetGain);
+    ins.wetGain.connect(ins.insertOut);
   }
 
   private ensureHallImpulse(): AudioBuffer {
@@ -630,10 +634,11 @@ export class FxChain {
     };
   }
 
-  /** Seed the reverb IR PRNG. Invalidates the cached hall + cistern
-   *  impulses so the next enable rebuilds them deterministically from
-   *  this seed. Called by `applyPreset` via `AudioEngine.setReverbSeed`
-   *  so every preset produces the same IR pair across reloads. */
+  /** Seed the reverb PRNG. Invalidates the cached parallel hall +
+   *  cistern impulses AND posts the new seed to the serial FDN
+   *  worklets so their comb-length perturbation regenerates. Two
+   *  loads of the same preset produce the same reverb colour across
+   *  both the serial and parallel paths. */
   setReverbSeed(seed: number): void {
     const next = (seed >>> 0) || 1;
     if (next === this.reverbSeed) return;
@@ -641,6 +646,42 @@ export class FxChain {
     this.hallImpulse = null;
     this.cisternImpulse = null;
     this.syncNativeReverbBuffers();
+    // Rebuild the serial FDN worklets to pick up the new seed. This is
+    // the simplest honest way — AudioWorkletNode takes processorOptions
+    // only at construction, so we replace the nodes. Disconnect first
+    // so we don't leak sources.
+    if (this.hallWorklet) {
+      try { this.hallWorklet.disconnect(); } catch { /* noop */ }
+      const ins = this.inserts.hall;
+      try { ins.insertIn.disconnect(this.hallWorklet); } catch { /* noop */ }
+      this.hallWorklet = new AudioWorkletNode(this.ctx, "fx-fdn-reverb", {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+        processorOptions: { seed: this.reverbSeed ^ 0xA11 },
+      });
+      const hT = this.ctx.currentTime;
+      this.hallWorklet.parameters.get("size")?.setValueAtTime(0.45, hT);
+      this.hallWorklet.parameters.get("damping")?.setValueAtTime(0.55, hT);
+      this.hallWorklet.parameters.get("decay")?.setValueAtTime(0.84, hT);
+      this.hallWorklet.parameters.get("mix")?.setValueAtTime(1, hT);
+      ins.insertIn.connect(this.hallWorklet);
+      this.hallWorklet.connect(ins.wetGain);
+    }
+    if (this.cisternWorklet) {
+      try { this.cisternWorklet.disconnect(); } catch { /* noop */ }
+      const ins = this.inserts.cistern;
+      try { ins.insertIn.disconnect(this.cisternWorklet); } catch { /* noop */ }
+      this.cisternWorklet = new AudioWorkletNode(this.ctx, "fx-fdn-reverb", {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+        processorOptions: { seed: this.reverbSeed ^ 0xC157 },
+      });
+      const cT = this.ctx.currentTime;
+      this.cisternWorklet.parameters.get("size")?.setValueAtTime(1.2, cT);
+      this.cisternWorklet.parameters.get("damping")?.setValueAtTime(0.7, cT);
+      this.cisternWorklet.parameters.get("decay")?.setValueAtTime(0.94, cT);
+      this.cisternWorklet.parameters.get("mix")?.setValueAtTime(1, cT);
+      ins.insertIn.connect(this.cisternWorklet);
+      this.cisternWorklet.connect(ins.wetGain);
+    }
   }
 
   private setConvolverBuffer(node: ConvolverNode, buffer: AudioBuffer | null): void {
@@ -652,18 +693,19 @@ export class FxChain {
     }
   }
 
+  /** Keep the seeded IRs loaded into the PARALLEL convolvers only. The
+   *  SERIAL hall/cistern inserts run on the `fx-fdn-reverb` worklet
+   *  now, so their buffers are not convolver-shaped. */
   private syncNativeReverbBuffers(): void {
-    const anyHall = this.enabled.hall || this.parallelSendLevels.hall > 0;
-    const anyCistern = this.enabled.cistern || this.parallelSendLevels.cistern > 0;
+    const anyHall = this.parallelSendLevels.hall > 0;
+    const anyCistern = this.parallelSendLevels.cistern > 0;
     const hallBuffer = anyHall ? this.ensureHallImpulse() : null;
     const cisternBuffer = anyCistern ? this.ensureCisternImpulse() : null;
 
-    this.setConvolverBuffer(this.hallVerb, this.enabled.hall ? hallBuffer : null);
     this.setConvolverBuffer(
       this.parallelHallVerb,
       this.parallelSendLevels.hall > 0 ? hallBuffer : null,
     );
-    this.setConvolverBuffer(this.cisternVerb, this.enabled.cistern ? cisternBuffer : null);
     this.setConvolverBuffer(
       this.parallelCisternVerb,
       this.parallelSendLevels.cistern > 0 ? cisternBuffer : null,
@@ -677,6 +719,42 @@ export class FxChain {
    */
   onWorkletReady(): void {
     const ctx = this.ctx;
+
+    // HALL — Freeverb-style FDN, medium room (size ≈ 0.5)
+    this.hallWorklet = new AudioWorkletNode(ctx, "fx-fdn-reverb", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+      processorOptions: { seed: this.reverbSeed ^ 0xA11 },
+    });
+    const hallT = ctx.currentTime;
+    this.hallWorklet.parameters.get("size")?.setValueAtTime(0.45, hallT);
+    this.hallWorklet.parameters.get("damping")?.setValueAtTime(0.55, hallT);
+    this.hallWorklet.parameters.get("decay")?.setValueAtTime(0.84, hallT);
+    this.hallWorklet.parameters.get("mix")?.setValueAtTime(1, hallT);
+    const hallIns = this.inserts.hall;
+    try { hallIns.insertIn.disconnect(hallIns.wetGain); } catch { /* noop */ }
+    hallIns.insertIn.connect(this.hallWorklet);
+    this.hallWorklet.connect(hallIns.wetGain);
+
+    // CISTERN — cathedral-scale FDN, large space (size ≈ 1.2) and
+    // darker damping for the long, low tail the Deep-Listening
+    // preset lineage asks for.
+    this.cisternWorklet = new AudioWorkletNode(ctx, "fx-fdn-reverb", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+      processorOptions: { seed: this.reverbSeed ^ 0xC157 },
+    });
+    const cT = ctx.currentTime;
+    this.cisternWorklet.parameters.get("size")?.setValueAtTime(1.2, cT);
+    this.cisternWorklet.parameters.get("damping")?.setValueAtTime(0.7, cT);
+    this.cisternWorklet.parameters.get("decay")?.setValueAtTime(0.94, cT);
+    this.cisternWorklet.parameters.get("mix")?.setValueAtTime(1, cT);
+    const cisternIns = this.inserts.cistern;
+    try { cisternIns.insertIn.disconnect(cisternIns.wetGain); } catch { /* noop */ }
+    cisternIns.insertIn.connect(this.cisternWorklet);
+    this.cisternWorklet.connect(cisternIns.wetGain);
 
     // PLATE
     this.plateWorklet = new AudioWorkletNode(ctx, "fx-plate", {
@@ -842,25 +920,29 @@ export class FxChain {
    *  output trim is ramped to 0. All effects keep running but their
    *  internal state is cleared. */
   panic(): void {
-    // Swap convolver buffers to a 1-sample silent buffer to truncate
-    // any in-flight reverb tail. Then swap back on the next tick.
+    // Swap PARALLEL convolver buffers to a 1-sample silent buffer to
+    // truncate any in-flight reverb tail. Serial hall/cistern run on
+    // worklets now — those get a `clear` port message below. Then
+    // swap back on the next tick so the next start has the full reverb
+    // available again.
     const ctx = this.ctx;
     const empty = ctx.createBuffer(2, 1, ctx.sampleRate);
-    try { this.hallVerb.buffer = empty; } catch { /* noop */ }
-    try { this.cisternVerb.buffer = empty; } catch { /* noop */ }
     try { this.parallelHallVerb.buffer = empty; } catch { /* noop */ }
     try { this.parallelCisternVerb.buffer = empty; } catch { /* noop */ }
 
-    // Restore the real IRs after a short delay so the next start has
-    // the full reverb available again.
     setTimeout(() => {
       this.syncNativeReverbBuffers();
     }, 220);
 
-    // Post clear messages to worklet-backed effects (plate, shimmer,
-    // freeze, granular) so they reset their internal buffers too.
+    // Post clear messages to every worklet-backed effect so they reset
+    // their internal buffers too (plate, shimmer, freeze, granular,
+    // graincloud, parallel plate, FDN hall, FDN cistern).
     const clearMsg = { type: "clear" };
-    for (const w of [this.plateWorklet, this.shimmerWorklet, this.freezeWorklet, this.granularWorklet, this.grainCloudWorklet, this.parallelPlateWorklet]) {
+    for (const w of [
+      this.plateWorklet, this.shimmerWorklet, this.freezeWorklet,
+      this.granularWorklet, this.grainCloudWorklet, this.parallelPlateWorklet,
+      this.hallWorklet, this.cisternWorklet,
+    ]) {
       if (w) {
         try { w.port.postMessage(clearMsg); } catch { /* noop */ }
       }

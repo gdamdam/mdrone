@@ -93,6 +93,7 @@ export class AudioEngine {
       .then(() => {
         this.isWorkletReady = true;
         this.fxChain.onWorkletReady();
+        this.masterBus.onWorkletReady();
         if (this.pendingStart) {
           const pending = this.pendingStart;
           this.pendingStart = null;
@@ -369,7 +370,10 @@ export class AudioEngine {
   getEqLow(): BiquadFilterNode { return this.masterBus.getEqLow(); }
   getEqMid(): BiquadFilterNode { return this.masterBus.getEqMid(); }
   getEqHigh(): BiquadFilterNode { return this.masterBus.getEqHigh(); }
-  getLimiter(): DynamicsCompressorNode { return this.masterBus.getLimiter(); }
+  /** @deprecated Native compressor is no longer the limiter. Returns
+   *  the worklet node (or null while the worklet loads) for callers
+   *  that need to inspect state. */
+  getLimiter(): AudioWorkletNode | null { return this.masterBus.getLimiter(); }
   getOutputTrim(): GainNode { return this.masterBus.getOutputTrim(); }
 
   setMasterVolume(v: number): void {
