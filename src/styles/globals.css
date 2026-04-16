@@ -1949,9 +1949,29 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* Intonation (microtuning) row — two compact selects below mode grid */
 .intonation-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr auto 1fr;
   gap: 6px;
   margin-top: 6px;
+}
+
+.intonation-edit-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms;
+}
+.intonation-edit-btn:hover {
+  color: var(--text);
+  border-color: var(--preview);
+}
+.intonation-edit-btn:focus {
+  outline: none;
+  border-color: var(--preview);
 }
 
 .intonation-select {
@@ -3579,4 +3599,166 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   letter-spacing: 1px;
   text-align: center;
   color: var(--text);
+}
+
+/* ── Scale Editor modal ─────────────────────────────────────────── */
+.scale-editor-modal { max-width: 560px; }
+
+.scale-editor-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.scale-editor-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--text-dim);
+}
+
+.scale-editor-select,
+.scale-editor-input {
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: var(--bg-cell);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-family: inherit;
+}
+.scale-editor-select:focus,
+.scale-editor-input:focus {
+  outline: none;
+  border-color: var(--preview);
+}
+
+.scale-editor-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.scale-editor-degree {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+.scale-editor-degree-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  min-width: 22px;
+}
+
+.scale-editor-cents {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  color: var(--text);
+  border: none;
+  font-size: 12px;
+  font-family: inherit;
+  text-align: right;
+  padding: 2px 0;
+}
+.scale-editor-cents:focus { outline: none; }
+.scale-editor-cents::-webkit-outer-spin-button,
+.scale-editor-cents::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.scale-editor-cents-unit {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.scale-editor-saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.scale-editor-saved-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.scale-editor-saved-name {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.scale-editor-small-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.scale-editor-small-btn:hover { color: var(--text); border-color: var(--preview); }
+
+.scale-editor-danger-btn:hover {
+  color: color-mix(in srgb, tomato 70%, var(--text-dim));
+  border-color: color-mix(in srgb, tomato 45%, var(--border));
+}
+
+.scale-editor-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.scale-editor-primary-btn,
+.scale-editor-secondary-btn {
+  padding: 9px 16px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid var(--border);
+}
+
+.scale-editor-primary-btn {
+  background: color-mix(in srgb, var(--preview) 28%, var(--bg-cell));
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--preview) 45%, var(--border));
+}
+.scale-editor-primary-btn:hover {
+  background: color-mix(in srgb, var(--preview) 38%, var(--bg-cell));
+}
+.scale-editor-primary-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.scale-editor-secondary-btn {
+  background: var(--bg-cell);
+  color: var(--text-dim);
+}
+.scale-editor-secondary-btn:hover {
+  color: var(--text);
+  border-color: var(--preview);
 }

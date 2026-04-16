@@ -15,14 +15,16 @@ export type ScaleId =
   | "maqam-rast"
   | "slendro";
 
-/** Microtuning table id — selects the pitch grid (cents per degree). */
+/** Microtuning table id — selects the pitch grid (cents per degree).
+ *  Custom user-authored tunings carry a `custom:` prefix. */
 export type TuningId =
   | "equal"
   | "just5"
   | "meantone"
   | "harmonics"
   | "maqam-rast"
-  | "slendro";
+  | "slendro"
+  | `custom:${string}`;
 
 /** Interval-relation preset — selects which degrees from the tuning to sound. */
 export type RelationId =

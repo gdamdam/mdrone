@@ -14,13 +14,21 @@
 
 import type { ScaleId } from "./types";
 
-export type TuningId =
+export type BuiltinTuningId =
   | "equal"
   | "just5"
   | "meantone"
   | "harmonics"
   | "maqam-rast"
   | "slendro";
+
+/** User-authored tunings stored in localStorage carry a `custom:` ID
+ *  prefix so they never collide with builtins. They live alongside
+ *  builtins in every lookup (tuningById, getAllTunings, the TUNINGS
+ *  array) once loaded. */
+export type CustomTuningId = `custom:${string}`;
+
+export type TuningId = BuiltinTuningId | CustomTuningId;
 
 export type RelationId =
   | "unison"
@@ -51,7 +59,7 @@ export const DEGREE_LABELS: readonly string[] = [
 
 // ── Tuning tables ────────────────────────────────────────────────────
 
-export const TUNINGS: readonly TuningTable[] = [
+export const BUILTIN_TUNINGS: readonly TuningTable[] = [
   {
     id: "equal",
     label: "Equal (12-TET)",
@@ -133,13 +141,130 @@ export const RELATIONS: readonly Relation[] = [
   },
 ];
 
+// ── Custom tuning registry ───────────────────────────────────────────
+
+const CUSTOM_STORAGE_KEY = "mdrone.customTunings";
+
+function sanitizeTuningTable(raw: unknown): TuningTable | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as { id?: unknown; label?: unknown; degrees?: unknown };
+  if (typeof r.id !== "string" || !r.id.startsWith("custom:")) return null;
+  if (typeof r.label !== "string") return null;
+  if (!Array.isArray(r.degrees) || r.degrees.length !== 13) return null;
+  const degrees = r.degrees.map((d) =>
+    typeof d === "number" && Number.isFinite(d) ? d : 0,
+  );
+  return { id: r.id as CustomTuningId, label: r.label, degrees };
+}
+
+function loadCustomTuningsFromStorage(): TuningTable[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(sanitizeTuningTable)
+      .filter((t): t is TuningTable => t !== null);
+  } catch {
+    return [];
+  }
+}
+
+const customTunings: TuningTable[] = loadCustomTuningsFromStorage();
+const subscribers = new Set<() => void>();
+
+function persistCustomTunings(): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(customTunings));
+  } catch {
+    // ignore quota / private-mode failures
+  }
+}
+
+function notifySubscribers(): void {
+  subscribers.forEach((fn) => fn());
+}
+
+export function getCustomTunings(): readonly TuningTable[] {
+  return customTunings;
+}
+
+export function getAllTunings(): readonly TuningTable[] {
+  return [...BUILTIN_TUNINGS, ...customTunings];
+}
+
+/** Subscribe to custom-tuning registry changes. The callback fires
+ *  synchronously after every save/delete. Returns an unsubscribe fn.
+ *  React components use this via useSyncExternalStore so the tuning
+ *  dropdown re-renders when the Scale Editor writes a new entry. */
+export function subscribeToTunings(fn: () => void): () => void {
+  subscribers.add(fn);
+  return () => { subscribers.delete(fn); };
+}
+
+/** Save or replace a custom tuning. The supplied `name` becomes both
+ *  the display label and (after slugification) the ID suffix. Returns
+ *  the stored table. */
+export function saveCustomTuning(name: string, degrees: readonly number[]): TuningTable {
+  const label = name.trim() || "Untitled";
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "untitled";
+  const id = `custom:${slug}` as CustomTuningId;
+  const padded = degrees.slice(0, 13);
+  while (padded.length < 13) padded.push(0);
+  const table: TuningTable = { id, label, degrees: padded };
+  const existingIdx = customTunings.findIndex((t) => t.id === id);
+  if (existingIdx >= 0) customTunings[existingIdx] = table;
+  else customTunings.push(table);
+  rebuildTuningMap();
+  persistCustomTunings();
+  notifySubscribers();
+  return table;
+}
+
+export function deleteCustomTuning(id: string): void {
+  const idx = customTunings.findIndex((t) => t.id === id);
+  if (idx < 0) return;
+  customTunings.splice(idx, 1);
+  rebuildTuningMap();
+  persistCustomTunings();
+  notifySubscribers();
+}
+
+/** Back-compat alias so existing call sites that imported `TUNINGS`
+ *  keep working. Includes custom tunings, so the SHAPE tuning picker
+ *  auto-lists them. Treat as readonly — mutations must go through
+ *  saveCustomTuning / deleteCustomTuning. */
+export const TUNINGS: readonly TuningTable[] = new Proxy([] as TuningTable[], {
+  get(_target, prop, receiver) {
+    const combined = [...BUILTIN_TUNINGS, ...customTunings];
+    const value = Reflect.get(combined, prop, receiver);
+    if (typeof value === "function") return value.bind(combined);
+    return value;
+  },
+  has(_target, prop) {
+    const combined = [...BUILTIN_TUNINGS, ...customTunings];
+    return Reflect.has(combined, prop);
+  },
+});
+
 // ── Lookups ──────────────────────────────────────────────────────────
 
-const tuningMap = new Map(TUNINGS.map((t) => [t.id, t]));
+let tuningMap = new Map<string, TuningTable>(
+  [...BUILTIN_TUNINGS, ...customTunings].map((t) => [t.id, t]),
+);
 const relationMap = new Map(RELATIONS.map((r) => [r.id, r]));
 
+function rebuildTuningMap(): void {
+  tuningMap = new Map<string, TuningTable>(
+    [...BUILTIN_TUNINGS, ...customTunings].map((t) => [t.id, t]),
+  );
+}
+
 export function tuningById(id: TuningId): TuningTable {
-  return tuningMap.get(id) ?? TUNINGS[0];
+  return tuningMap.get(id) ?? BUILTIN_TUNINGS[0];
 }
 
 export function relationById(id: RelationId): Relation {
@@ -171,7 +296,23 @@ function applyFineTuneOffsets(intervals: readonly number[], offsets?: readonly n
 
 // ── Valid-ID sets (for normalization) ────────────────────────────────
 
-export const TUNING_IDS: readonly TuningId[] = TUNINGS.map((t) => t.id);
+export const BUILTIN_TUNING_IDS: readonly BuiltinTuningId[] =
+  BUILTIN_TUNINGS.map((t) => t.id as BuiltinTuningId);
+
+/** Valid-ID check for session normalization. Accepts both builtin
+ *  IDs and any `custom:*` ID (even if the referenced tuning hasn't
+ *  been loaded yet — the resolver will fall back to equal if the
+ *  table isn't found at resolve time). */
+export function isValidTuningId(id: unknown): id is TuningId {
+  if (typeof id !== "string") return false;
+  if ((BUILTIN_TUNING_IDS as readonly string[]).includes(id)) return true;
+  return id.startsWith("custom:");
+}
+
+/** @deprecated Use `isValidTuningId` for validation or
+ *  `BUILTIN_TUNING_IDS` when you specifically need builtins. This
+ *  constant captures only builtins and is kept for back-compat. */
+export const TUNING_IDS: readonly TuningId[] = BUILTIN_TUNING_IDS;
 export const RELATION_IDS: readonly RelationId[] = RELATIONS.map((r) => r.id);
 
 // ── Legacy ScaleId → intervalsCents fallback ─────────────────────────

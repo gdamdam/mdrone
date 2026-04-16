@@ -1,10 +1,16 @@
 import {
+  Suspense,
   forwardRef,
+  lazy,
   useCallback,
   useEffect,
   useImperativeHandle,
   useState,
 } from "react";
+
+const ScaleEditorModal = lazy(() =>
+  import("./ScaleEditorModal").then((m) => ({ default: m.ScaleEditorModal })),
+);
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { VoiceType } from "../engine/VoiceBuilder";
 import { PRESETS, type PresetGroup } from "../engine/presets";
@@ -277,6 +283,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // so the primary MORPH + EVOLVE controls stay dominant. See audit P2 —
   // motion-surface consolidation.
   const [gesturesOpen, setGesturesOpen] = useState(false);
+  // Scale-editor modal — opens from the ✎ button beside the tuning
+  // dropdown so users can author and save custom tuning tables
+  // (degrees in cents above the root). See audit P2 — scale editor UI.
+  const [scaleEditorOpen, setScaleEditorOpen] = useState(false);
   // User-customised effect chain order, persisted in localStorage.
   // Hydrated from storage on mount; any invalid / missing value falls
   // back to the canonical EFFECT_ORDER. Every change is pushed to the
@@ -476,6 +486,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   ]);
 
   return (
+    <>
     <div className="drone-layout">
       <div className="preset-vu-wide">
         <VuMeter analyser={engine?.getAnalyser() ?? null} width={600} height={16} />
@@ -931,6 +942,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                     className="intonation-select"
                     title="Tuning system — pitch degrees in cents above the root"
                   />
+                  <button
+                    type="button"
+                    className="intonation-edit-btn"
+                    onClick={() => setScaleEditorOpen(true)}
+                    title="Scale editor — author a custom tuning table"
+                    aria-label="Open scale editor"
+                  >
+                    ✎
+                  </button>
                   <DropdownSelect
                     value={state.relationId ?? ""}
                     options={RELATIONS.map((r) => ({ value: r.id, label: r.label }))}
@@ -1039,6 +1059,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         )}
       </div>
     </div>
+    {scaleEditorOpen && (
+      <Suspense fallback={null}>
+        <ScaleEditorModal
+          currentTuningId={state.tuningId ?? null}
+          onApply={(table) => setTuning(table.id)}
+          onClose={() => setScaleEditorOpen(false)}
+        />
+      </Suspense>
+    )}
+    </>
   );
 });
 

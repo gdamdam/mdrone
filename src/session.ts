@@ -7,6 +7,7 @@ import type { Visualizer } from "./components/visualizers";
 import { JOURNEY_IDS, type JourneyId } from "./journey";
 import { PARTNER_RELATIONS, DEFAULT_PARTNER, type PartnerRelation, type PartnerState } from "./partner";
 import { normalizeMotionEvents } from "./sceneRecorder";
+import { isValidTuningId } from "./microtuning";
 
 export interface DroneSessionSnapshot {
   activePresetId: string | null;
@@ -121,7 +122,6 @@ function hasLocalStorage(): boolean {
 
 const PITCH_CLASSES: readonly PitchClass[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
 const SCALE_IDS: readonly ScaleId[] = ["drone", "major", "minor", "dorian", "phrygian", "just5", "pentatonic", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
-const TUNING_IDS: readonly TuningId[] = ["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"] as const;
 const RELATION_IDS: readonly RelationId[] = ["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"] as const;
 const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sawtooth"] as const;
 const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk"] as const;
@@ -324,7 +324,7 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     root: isOneOf(value.root, PITCH_CLASSES) ? value.root : DEFAULT_DRONE_SNAPSHOT.root,
     octave: readNumber(value.octave, DEFAULT_DRONE_SNAPSHOT.octave, 1, 6),
     scale: isOneOf(value.scale, SCALE_IDS) ? value.scale : DEFAULT_DRONE_SNAPSHOT.scale,
-    tuningId: isOneOf(value.tuningId, TUNING_IDS) ? value.tuningId : null,
+    tuningId: isValidTuningId(value.tuningId) ? value.tuningId : null,
     relationId: isOneOf(value.relationId, RELATION_IDS) ? value.relationId : null,
     fineTuneOffsets: normalizeFineTuneOffsets(value.fineTuneOffsets),
     voiceLayers: normalizeVoiceLayers(value.voiceLayers),
