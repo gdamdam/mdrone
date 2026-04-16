@@ -7,6 +7,7 @@ import type {
 } from "../session";
 import { loadPaletteId } from "../themes";
 import type { Visualizer } from "../components/visualizers";
+import { getCustomTunings } from "../microtuning";
 
 export function captureMixerSnapshot(engine: AudioEngine): MixerSessionSnapshot {
   return {
@@ -79,7 +80,7 @@ export function capturePortableScene(
   visualizer: Visualizer,
   name: string,
 ): PortableScene {
-  return {
+  const scene: PortableScene = {
     name,
     version: 1,
     drone,
@@ -90,4 +91,17 @@ export function capturePortableScene(
       visualizer,
     },
   };
+  // Embed the referenced custom tuning table so recipients reproduce
+  // authored microtuning instead of silently falling back to equal.
+  if (typeof drone.tuningId === "string" && drone.tuningId.startsWith("custom:")) {
+    const match = getCustomTunings().find((t) => t.id === drone.tuningId);
+    if (match) {
+      scene.customTuning = {
+        id: match.id,
+        label: match.label,
+        degrees: [...match.degrees],
+      };
+    }
+  }
+  return scene;
 }

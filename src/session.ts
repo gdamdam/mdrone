@@ -101,6 +101,17 @@ export interface PortableScene {
    *  [t_ms, paramId, value, ...]. Absent on legacy URLs.
    *  See src/sceneRecorder.ts for the format and replay rules. */
   motion?: number[];
+  /** Optional custom tuning table travelling with the scene. Present
+   *  only when `drone.tuningId` starts with `custom:` and the author
+   *  had that tuning registered locally. On load, the receiver upserts
+   *  it into their registry before applying tuningId, so shared scenes
+   *  reproduce authored microtuning instead of silently falling back
+   *  to equal temperament. */
+  customTuning?: {
+    id: string;
+    label: string;
+    degrees: number[];
+  };
 }
 
 export interface SavedSession {
@@ -414,6 +425,22 @@ export function normalizePortableScene(value: unknown, fallbackName = "Shared Sc
     ui: normalizeUiSnapshot(value.ui),
   };
   if (motion) scene.motion = motion;
+  if (isRecord(value.customTuning)) {
+    const ct = value.customTuning;
+    if (
+      typeof ct.id === "string" && ct.id.startsWith("custom:") &&
+      typeof ct.label === "string" &&
+      Array.isArray(ct.degrees) && ct.degrees.length === 13
+    ) {
+      scene.customTuning = {
+        id: ct.id,
+        label: ct.label,
+        degrees: ct.degrees.map((d) =>
+          typeof d === "number" && Number.isFinite(d) ? d : 0,
+        ),
+      };
+    }
+  }
   return scene;
 }
 

@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useRef,
   useState,
 } from "react";
 
@@ -255,6 +256,71 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     onParamRecord,
   });
 
+  // ── History: undo/redo + A/B snapshot slots ──────────────────────
+  // History is debounced (400 ms idle after the last state change)
+  // so a slider drag doesn't push 60 snapshots per second. While
+  // undo/redo or an A/B recall is in flight, pushes are suppressed
+  // (otherwise the applySnapshot call would immediately push the
+  // just-applied state and drown the redo tail). Cap at 50 entries.
+  const HISTORY_LIMIT = 50;
+  const historyRef = useRef<DroneSessionSnapshot[]>([]);
+  const historyIndexRef = useRef(-1);
+  const slotARef = useRef<DroneSessionSnapshot | null>(null);
+  const slotBRef = useRef<DroneSessionSnapshot | null>(null);
+  const suppressPushRef = useRef(false);
+  const [historyRev, setHistoryRev] = useState(0);
+
+  const bumpRev = useCallback(() => setHistoryRev((r) => r + 1), []);
+
+  useEffect(() => {
+    if (suppressPushRef.current) return;
+    const handle = setTimeout(() => {
+      if (suppressPushRef.current) return;
+      const snap = getSnapshot();
+      const hist = historyRef.current;
+      hist.splice(historyIndexRef.current + 1);
+      hist.push(snap);
+      if (hist.length > HISTORY_LIMIT) hist.shift();
+      historyIndexRef.current = hist.length - 1;
+      bumpRev();
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [state, getSnapshot, bumpRev]);
+
+  const applyAndSuppress = useCallback((snap: DroneSessionSnapshot) => {
+    suppressPushRef.current = true;
+    applySnapshot(snap);
+    // Release after the push debounce window plus a margin so the
+    // next state change from the user re-engages history cleanly.
+    setTimeout(() => { suppressPushRef.current = false; }, 500);
+  }, [applySnapshot]);
+
+  const undo = useCallback(() => {
+    if (historyIndexRef.current <= 0) return;
+    historyIndexRef.current -= 1;
+    applyAndSuppress(historyRef.current[historyIndexRef.current]);
+    bumpRev();
+  }, [applyAndSuppress, bumpRev]);
+
+  const redo = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    historyIndexRef.current += 1;
+    applyAndSuppress(historyRef.current[historyIndexRef.current]);
+    bumpRev();
+  }, [applyAndSuppress, bumpRev]);
+
+  const saveSlotA = useCallback(() => { slotARef.current = getSnapshot(); bumpRev(); }, [getSnapshot, bumpRev]);
+  const saveSlotB = useCallback(() => { slotBRef.current = getSnapshot(); bumpRev(); }, [getSnapshot, bumpRev]);
+  const recallSlotA = useCallback(() => { if (slotARef.current) applyAndSuppress(slotARef.current); }, [applyAndSuppress]);
+  const recallSlotB = useCallback(() => { if (slotBRef.current) applyAndSuppress(slotBRef.current); }, [applyAndSuppress]);
+
+  const canUndo = historyIndexRef.current > 0;
+  const canRedo = historyIndexRef.current < historyRef.current.length - 1;
+  const hasSlotA = slotARef.current !== null;
+  const hasSlotB = slotBRef.current !== null;
+  // historyRev is read by React so re-renders pick up ref changes.
+  void historyRev;
+
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
   const DISCLOSURE_KEY = "mdrone-disclosure";
@@ -448,18 +514,26 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // rendering can't disagree.
   const modeIsMicro = Boolean(state.tuningId && state.relationId);
 
-  // Spacebar toggles HOLD — ignored while typing into an input/textarea
+  // Keyboard shortcuts — Space: HOLD, Cmd/Ctrl+Z: undo, Cmd/Ctrl+Shift+Z: redo.
+  // Ignored while typing into an input/textarea/contentEditable.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-      e.preventDefault();
-      togglePlay();
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay]);
+  }, [togglePlay, undo, redo]);
 
   const dismissWeatherIntro = useCallback(() => setWeatherIntro(false), []);
 
@@ -693,14 +767,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 value={state.presetMorph}
                 onChange={(v) => { setPresetMorph(v); engine?.setPresetMorph(v); }}
                 icon={<IconBloom />}
-                title="Morph — how slowly the drone morphs between presets. 0 = snap, 1 = glacial"
+                title="MORPH (seconds) — time the drone takes to cross-fade when you load another preset. 0 = snap, 1 = ~20 s glacial fade."
               />
               <Macro
                 label="EVOLVE"
                 value={state.evolve}
                 onChange={(v) => { setPresetEvolve(v); engine?.setEvolve(v); }}
                 icon={<IconDrift />}
-                title="Evolve — how much the drone evolves itself during play. 0 = static, 1 = active drift"
+                title="EVOLVE (minutes) — how much the drone drifts on its own while a preset is held. 0 = dead-still, 1 = continuous slow change."
               />
               <Macro
                 label="SUB"
@@ -732,6 +806,69 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 />
               </div>
             )}
+
+            {/* HISTORY — undo/redo + two A/B slots. Surface kept tiny
+                so it doesn't compete with the primary motion controls.
+                Keyboard: Cmd/Ctrl+Z undoes, Cmd/Ctrl+Shift+Z redoes.
+                Slot buttons short-click = save, alt-click = recall;
+                but UI also exposes explicit recall buttons for clarity. */}
+            <div className="scene-actions-row scene-history-row">
+              <button
+                type="button"
+                className="history-btn"
+                onClick={undo}
+                disabled={!canUndo}
+                title="Undo last change (Cmd/Ctrl+Z)"
+                aria-label="Undo"
+              >
+                ↺
+              </button>
+              <button
+                type="button"
+                className="history-btn"
+                onClick={redo}
+                disabled={!canRedo}
+                title="Redo (Cmd/Ctrl+Shift+Z)"
+                aria-label="Redo"
+              >
+                ↻
+              </button>
+              <span className="history-divider" aria-hidden="true" />
+              <button
+                type="button"
+                className="history-btn"
+                onClick={saveSlotA}
+                title="Save current scene to slot A (overwrites)"
+              >
+                SAVE A
+              </button>
+              <button
+                type="button"
+                className={hasSlotA ? "history-btn history-btn-armed" : "history-btn"}
+                onClick={recallSlotA}
+                disabled={!hasSlotA}
+                title={hasSlotA ? "Recall slot A — swap sound back to saved state" : "Slot A empty — SAVE A first"}
+              >
+                A
+              </button>
+              <button
+                type="button"
+                className="history-btn"
+                onClick={saveSlotB}
+                title="Save current scene to slot B (overwrites)"
+              >
+                SAVE B
+              </button>
+              <button
+                type="button"
+                className={hasSlotB ? "history-btn history-btn-armed" : "history-btn"}
+                onClick={recallSlotB}
+                disabled={!hasSlotB}
+                title={hasSlotB ? "Recall slot B — swap sound back to saved state" : "Slot B empty — SAVE B first"}
+              >
+                B
+              </button>
+            </div>
 
             <div className="scene-actions-row">
               {/* PARTNER stays inline — it's a live voicing control,
@@ -768,12 +905,18 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
 
             {gesturesOpen && (
+            <>
+            <div className="scene-gestures-help">
+              MORPH/EVOLVE above shape the scene continuously. Gestures
+              below fire on demand or over long arcs.
+            </div>
             <div className="scene-actions-row scene-gestures-row">
+              <span className="scene-gestures-group-label">INSTANT</span>
               <button
                 type="button"
                 className="preset-mut-btn"
                 onClick={() => onMutateScene?.(mutateIntensity)}
-                title={`MUTATE — perturb the current scene by ${Math.round(mutateIntensity * 100)}%`}
+                title={`MUTATE — one-shot random perturbation of the current scene by ${Math.round(mutateIntensity * 100)}% (voice mix, macros, effect levels). Fires once per click.`}
               >
                 MUTATE
               </button>
@@ -791,6 +934,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <span className="preset-mut-value" aria-hidden="true">
                 {Math.round(mutateIntensity * 100)}%
               </span>
+            </div>
+            <div className="scene-actions-row scene-gestures-row">
+              <span className="scene-gestures-group-label">LONG-FORM</span>
               <DropdownSelect
                 value={state.journey ?? ""}
                 options={[
@@ -799,7 +945,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 ]}
                 onChange={(v) => setJourney(v === "" ? null : (v as JourneyId))}
                 className="preset-journey-select"
-                title="JOURNEY — authored ritual phases (arrival → bloom → suspension → dissolve). Replaces evolve drift while active."
+                title="JOURNEY (~20 min) — authored 4-phase ritual: arrival → bloom → suspension → dissolve. While active, replaces EVOLVE's automatic drift with the scripted arc."
                 ariaLabel="Journey"
               />
               {motionRecEnabled && (
@@ -808,13 +954,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   className={isRecordingMotion ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
                   onClick={() => onToggleMotionRecord?.()}
                   title={isRecordingMotion
-                    ? "Stop motion recording — captured gestures travel with the next share URL"
-                    : "Record meaningful gestures (60 s / 200 events max) into the next share URL"}
+                    ? "Stop REC MOTION — captured gestures travel with the next share URL and replay on load"
+                    : "REC MOTION (60 s / 200 events) — capture your live slider moves into the next share URL so listeners hear your performance, not just the final state"}
                 >
                   {isRecordingMotion ? "● REC MOTION" : "REC MOTION"}
                 </button>
               )}
             </div>
+            </>
             )}
 
             {/* Piano keyboard + octave — moved into the preset-strip

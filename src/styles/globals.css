@@ -2561,6 +2561,65 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 .scene-actions-row:hover { opacity: 1; }
 
+.scene-gestures-help {
+  margin-top: 8px;
+  padding: 6px 8px;
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--text-dim);
+  opacity: 0.75;
+  border-left: 2px solid var(--border);
+}
+
+.scene-gestures-group-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  color: var(--text-dim);
+  opacity: 0.65;
+  padding-right: 4px;
+  min-width: 60px;
+}
+
+.scene-history-row {
+  gap: 4px;
+  padding-top: 6px;
+  border-top: none;
+  opacity: 0.65;
+}
+.scene-history-row:hover { opacity: 1; }
+
+.history-btn {
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: var(--bg-cell);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  font-family: inherit;
+  min-width: 28px;
+  line-height: 1.1;
+}
+.history-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--preview);
+}
+.history-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.history-btn-armed {
+  color: color-mix(in srgb, var(--preview) 70%, var(--text));
+  border-color: color-mix(in srgb, var(--preview) 45%, var(--border));
+}
+.history-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
 /* Climate XY surface */
 .climate-panel { height: 100%; }
 

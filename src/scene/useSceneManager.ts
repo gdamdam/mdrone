@@ -85,6 +85,7 @@ import { requestSigilRefresh, type Visualizer } from "../components/visualizers"
 import type { PitchClass } from "../types";
 import type { DroneViewHandle } from "../components/DroneView";
 import { applyFxSnapshot, applyMixerSnapshot, capturePortableScene } from "./sceneSnapshots";
+import { saveCustomTuning } from "../microtuning";
 
 export interface ShareSceneBuildResult {
   scene: PortableScene;
@@ -199,6 +200,19 @@ export function useSceneManager({
     if (palette) {
       applyPalette(palette);
       savePaletteId(palette.id);
+    }
+    // If the scene travels with a custom tuning, upsert it into the
+    // local registry BEFORE applying drone state so the tuning is
+    // resolvable when the engine reads drone.tuningId.
+    if (scene.customTuning) {
+      const ct = scene.customTuning;
+      if (
+        typeof ct.id === "string" && ct.id.startsWith("custom:") &&
+        typeof ct.label === "string" &&
+        Array.isArray(ct.degrees) && ct.degrees.length === 13
+      ) {
+        saveCustomTuning(ct.label, ct.degrees);
+      }
     }
     // Only one visualizer (pitch mandala) — coerce legacy values.
     setMeditateVisualizer("pitchMandala");
