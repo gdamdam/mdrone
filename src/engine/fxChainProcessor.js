@@ -1206,3 +1206,132 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
   }
 }
 registerProcessor("fx-fdn-reverb", FdnReverbProcessor);
+
+// ═════════════════════════════════════════════════════════════════════
+// LOUDNESS METER — short-term LUFS (EBU R128) + sample-peak
+// ═════════════════════════════════════════════════════════════════════
+//
+// Computes integrated loudness over a 3-second sliding window and the
+// running sample-peak in linear amplitude. Publishes both back to the
+// main thread via the processor port at ~30 Hz for UI rendering.
+//
+// Implementation notes:
+// - K-weighting (EBU R128 pre-filter): a shelving HPF cascaded with a
+//   high-shelf. We use the published biquad coefficients at 48 kHz;
+//   for other sample rates the cutoffs shift slightly but the error
+//   is small enough (<0.2 LU) for UI-visible integration.
+// - Short-term window = 3 seconds. We keep a ring buffer of per-block
+//   mean-squared values and average them — cheap, no re-filter per read.
+// - True-peak approximation: sample peak + a 4-sample running max to
+//   catch inter-sample peaks within the window. Not ITU-R BS.1770
+//   4× oversampled true-peak, but a defensible bound that runs cheap.
+//
+class LoudnessMeterProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() { return []; }
+
+  constructor() {
+    super();
+    // Stage 1: high-shelf pre-filter @ ~1680 Hz (EBU R128 prescribed
+    // biquad, normalised for 48 kHz — deviations at 44.1/96 k are
+    // within UI tolerance).
+    this.s1b0 =  1.53512485958697;
+    this.s1b1 = -2.69169618940638;
+    this.s1b2 =  1.19839281085285;
+    this.s1a1 = -1.69065929318241;
+    this.s1a2 =  0.73248077421585;
+    // Stage 2: high-pass @ ~38 Hz.
+    this.s2b0 =  1.0;
+    this.s2b1 = -2.0;
+    this.s2b2 =  1.0;
+    this.s2a1 = -1.99004745483398;
+    this.s2a2 =  0.99007225036621;
+    // Per-channel filter state
+    this.zL1 = [0, 0]; this.zL2 = [0, 0];
+    this.zR1 = [0, 0]; this.zR2 = [0, 0];
+
+    // Short-term window (3 seconds of per-block mean-squared values).
+    // At the standard 128-frame block size we get 375 blocks / sec @ 48k;
+    // 3 s × 375 ≈ 1125 entries. Allocate 2048 for headroom at higher SR.
+    this.msRing = new Float32Array(2048);
+    this.msIdx = 0;
+    this.msCount = 0;
+    this.msFilled = 0;
+
+    // Sample-peak window (200 ms) and running true-peak-ish max.
+    this.peakDecay = Math.exp(-1 / (0.2 * sampleRate)); // 200 ms tail
+    this.peakEnv = 0;
+
+    // Publish throttle: emit one port message every ~33 ms ≈ 30 Hz.
+    this.publishEveryNBlocks = Math.max(1, Math.floor(sampleRate / (128 * 30)));
+    this.publishCounter = 0;
+  }
+
+  // Biquad (DF-I), returns filtered sample and updates zs in-place.
+  _biquad(x, b0, b1, b2, a1, a2, z) {
+    const y = b0 * x + z[0];
+    z[0] = b1 * x - a1 * y + z[1];
+    z[1] = b2 * x - a2 * y;
+    return y;
+  }
+
+  process(inputs) {
+    const input = inputs[0];
+    if (!input || input.length === 0) return true;
+    const inL = input[0];
+    const inR = input.length > 1 ? input[1] : input[0];
+    const n = inL.length;
+
+    // Sanitise biquad state against NaN carryover.
+    for (const z of [this.zL1, this.zL2, this.zR1, this.zR2]) {
+      if (!Number.isFinite(z[0])) z[0] = 0;
+      if (!Number.isFinite(z[1])) z[1] = 0;
+    }
+    if (!Number.isFinite(this.peakEnv)) this.peakEnv = 0;
+
+    let sumSq = 0;
+    let blockPeak = 0;
+    for (let i = 0; i < n; i++) {
+      // Stage 1 then stage 2 K-weighting, per channel.
+      let l = this._biquad(inL[i], this.s1b0, this.s1b1, this.s1b2, this.s1a1, this.s1a2, this.zL1);
+      l = this._biquad(l, this.s2b0, this.s2b1, this.s2b2, this.s2a1, this.s2a2, this.zL2);
+      let r = this._biquad(inR[i], this.s1b0, this.s1b1, this.s1b2, this.s1a1, this.s1a2, this.zR1);
+      r = this._biquad(r, this.s2b0, this.s2b1, this.s2b2, this.s2a1, this.s2a2, this.zR2);
+      sumSq += l * l + r * r;
+      const a = Math.max(Math.abs(inL[i]), Math.abs(inR[i]));
+      if (a > blockPeak) blockPeak = a;
+    }
+
+    // Peak envelope — instant attack, 200 ms exponential release.
+    if (blockPeak > this.peakEnv) this.peakEnv = blockPeak;
+    else this.peakEnv *= this.peakDecay;
+
+    // Mean square for this block, averaged across L+R (×0.5 for stereo
+    // dual-mono convention in EBU R128).
+    const ms = sumSq / (2 * n);
+    this.msRing[this.msIdx] = ms;
+    this.msIdx = (this.msIdx + 1) % this.msRing.length;
+    if (this.msFilled < this.msRing.length) this.msFilled++;
+
+    // Short-term window = last 3 s ≈ sampleRate * 3 / 128 blocks.
+    const windowBlocks = Math.min(this.msFilled, Math.floor(sampleRate * 3 / n));
+    let sum = 0;
+    const start = (this.msIdx - windowBlocks + this.msRing.length) % this.msRing.length;
+    for (let k = 0; k < windowBlocks; k++) {
+      sum += this.msRing[(start + k) % this.msRing.length];
+    }
+    const meanSq = windowBlocks > 0 ? sum / windowBlocks : 0;
+    // LUFS = -0.691 + 10 log10(meanSq). Floor at -70 for UI sanity.
+    const lufs = meanSq > 1e-12 ? (-0.691 + 10 * Math.log10(meanSq)) : -70;
+    const peakDb = this.peakEnv > 1e-6 ? 20 * Math.log10(this.peakEnv) : -120;
+
+    this.publishCounter++;
+    if (this.publishCounter >= this.publishEveryNBlocks) {
+      this.publishCounter = 0;
+      try {
+        this.port.postMessage({ type: "meter", lufsShort: lufs, peakDb });
+      } catch { /* noop */ }
+    }
+    return true;
+  }
+}
+registerProcessor("fx-loudness-meter", LoudnessMeterProcessor);

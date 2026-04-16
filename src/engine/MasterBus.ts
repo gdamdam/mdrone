@@ -24,6 +24,17 @@ export class MasterBus {
   private limiterEnabled = true;
   private limiterCeiling = -1;
   private limiterReleaseSec = 0.12;
+  /** Headphone-safe mode: when true, outputTrim is clamped to a
+   *  conservative -6 dBFS ceiling (≈ 0.5 linear) regardless of the
+   *  user's volume control. Protects listeners on phones / cheap
+   *  in-ear monitors where a hot preset can be uncomfortable. P3. */
+  private headphoneSafe = false;
+  private unsafeVolumeCache = 1;
+  /** Loudness-meter worklet (tap off outputTrim → analyser). Emits
+   *  `{ lufsShort, peakDb }` messages at ~30 Hz. UI subscribes via
+   *  getLoudnessMeter() / onLoudnessUpdate(). P3. */
+  private loudnessMeter: AudioWorkletNode | null = null;
+  private loudnessListener: ((m: { lufsShort: number; peakDb: number }) => void) | null = null;
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
@@ -126,6 +137,28 @@ export class MasterBus {
     this.limiterNode.connect(this.limiterOut);
     // Reapply current state.
     this.applyLimiterParams();
+
+    // Loudness meter — tap off outputTrim so it reads what the user
+    // actually hears (post-limiter, post-volume). The tap is parallel:
+    // the signal continues to analyser / destination untouched.
+    try {
+      this.loudnessMeter = new AudioWorkletNode(this.ctx, "fx-loudness-meter", {
+        numberOfInputs: 1,
+        numberOfOutputs: 0,
+      });
+      this.outputTrim.connect(this.loudnessMeter);
+      this.loudnessMeter.port.onmessage = (e) => {
+        const msg = e.data;
+        if (msg && msg.type === "meter" && this.loudnessListener) {
+          this.loudnessListener({ lufsShort: msg.lufsShort, peakDb: msg.peakDb });
+        }
+      };
+    } catch { /* registration may race; leave null */ }
+  }
+
+  onLoudnessUpdate(cb: (m: { lufsShort: number; peakDb: number }) => void): () => void {
+    this.loudnessListener = cb;
+    return () => { if (this.loudnessListener === cb) this.loudnessListener = null; };
   }
 
   private applyLimiterParams(): void {
@@ -158,10 +191,25 @@ export class MasterBus {
 
   setMasterVolume(v: number): void {
     const vol = Math.max(0, Math.min(1.5, v));
-    this.outputTrim.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.05);
+    this.unsafeVolumeCache = vol;
+    const effective = this.headphoneSafe ? Math.min(vol, MasterBus.HEADPHONE_SAFE_MAX) : vol;
+    this.outputTrim.gain.setTargetAtTime(effective, this.ctx.currentTime, 0.05);
   }
 
-  getMasterVolume(): number { return this.outputTrim.gain.value; }
+  getMasterVolume(): number { return this.unsafeVolumeCache; }
+
+  /** -6 dBFS linear ceiling for headphone-safe mode. */
+  private static readonly HEADPHONE_SAFE_MAX = 0.5;
+
+  setHeadphoneSafe(on: boolean): void {
+    if (this.headphoneSafe === on) return;
+    this.headphoneSafe = on;
+    const effective = on
+      ? Math.min(this.unsafeVolumeCache, MasterBus.HEADPHONE_SAFE_MAX)
+      : this.unsafeVolumeCache;
+    this.outputTrim.gain.setTargetAtTime(effective, this.ctx.currentTime, 0.05);
+  }
+  isHeadphoneSafe(): boolean { return this.headphoneSafe; }
 
   setHpfFreq(hz: number): void {
     this.hpf.frequency.value = Math.max(10, hz);

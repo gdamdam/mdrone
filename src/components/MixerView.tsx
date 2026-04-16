@@ -70,6 +70,18 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
   const [ceiling, setCeiling] = useState(() => engine?.getLimiterCeiling() ?? -1);
   const [volumeInternal, setVolumeInternal] = useState(() => engine?.getOutputTrim().gain.value ?? 1);
   const volume = volumeProp ?? volumeInternal;
+  const [headphoneSafe, setHeadphoneSafe] = useState(() => engine?.isHeadphoneSafe() ?? false);
+  // Live readings from the loudness worklet (~30 Hz update).
+  const [lufsShort, setLufsShort] = useState<number | null>(null);
+  const [peakDb, setPeakDb] = useState<number | null>(null);
+  useEffect(() => {
+    if (!engine) return;
+    const unsub = engine.onLoudnessUpdate(({ lufsShort: l, peakDb: p }) => {
+      setLufsShort(l);
+      setPeakDb(p);
+    });
+    return () => { unsub(); };
+  }, [engine]);
 
   // Clip LED — rAF loop against the master analyser
   const clipLedRef = useRef<HTMLDivElement>(null);
@@ -196,6 +208,50 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
 
         <Strip label="VOL" value={volume} min={0} max={1.5} step={0.01} unit="" onChange={onVolume}
           title="Master output trim — final volume, post-limiter" />
+
+        <div className="mixer-divider" />
+
+        {/* Headphone-safe toggle — caps outputTrim to -6 dBFS so a hot
+            preset can't damage ears on cheap IEMs. P3. */}
+        <div className="mixer-strip" title="Headphone-safe — clamps output to -6 dBFS regardless of VOL">
+          <div className="mixer-strip-label">SAFE</div>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !headphoneSafe;
+              setHeadphoneSafe(next);
+              if (engine) engine.setHeadphoneSafe(next);
+            }}
+            className="mixer-limiter-btn"
+            style={{
+              background: headphoneSafe ? "var(--preview)" : "var(--bg)",
+              color: headphoneSafe ? "#000" : "var(--text-dim)",
+              borderColor: headphoneSafe ? "var(--preview)" : "var(--border)",
+            }}
+          >
+            {headphoneSafe ? "ON" : "OFF"}
+          </button>
+          <div className="mixer-clip-row">
+            <span className="mixer-clip-label">HP</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Loudness read-out — EBU R128 short-term LUFS (3 s sliding
+          window) and decaying sample-peak. 30 Hz updates. P3. */}
+      <div className="mixer-loudness-row">
+        <span className="mixer-loudness-item">
+          <span className="mixer-loudness-label">LUFS-S</span>
+          <span className="mixer-loudness-value">
+            {lufsShort == null ? "—" : lufsShort.toFixed(1)}
+          </span>
+        </span>
+        <span className="mixer-loudness-item">
+          <span className="mixer-loudness-label">PEAK</span>
+          <span className="mixer-loudness-value">
+            {peakDb == null ? "—" : `${peakDb.toFixed(1)} dBFS`}
+          </span>
+        </span>
       </div>
 
       <div className="mixer-hint">

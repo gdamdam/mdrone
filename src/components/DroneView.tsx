@@ -29,6 +29,8 @@ const SHORT_GROUP_LABELS: Partial<Record<PresetGroup, string>> = {
 import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
 import { FxBar } from "./FxBar";
+import { EFFECT_ORDER, type EffectId } from "../engine/FxChain";
+import { STORAGE_KEYS } from "../config";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
 import { relationLabels, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
@@ -266,6 +268,40 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // MUTATE intensity — local state, not persisted across reloads.
   // 0.25 is an audible but coherent default for typical drones.
   const [mutateIntensity, setMutateIntensity] = useState(0.25);
+  // Gestures menu (JOURNEY / MUTATE / MOTION-REC) is collapsed by default
+  // so the primary MORPH + EVOLVE controls stay dominant. See audit P2 —
+  // motion-surface consolidation.
+  const [gesturesOpen, setGesturesOpen] = useState(false);
+  // User-customised effect chain order, persisted in localStorage.
+  // Hydrated from storage on mount; any invalid / missing value falls
+  // back to the canonical EFFECT_ORDER. Every change is pushed to the
+  // engine via setEffectOrder. Per audit P2 — drag-reorderable FX chain.
+  const [effectOrder, setEffectOrder] = useState<readonly EffectId[]>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage?.getItem(STORAGE_KEYS.effectOrder) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length === EFFECT_ORDER.length) {
+          const known = new Set<string>(EFFECT_ORDER);
+          const seen = new Set<string>();
+          const ok = parsed.every((x) => typeof x === "string" && known.has(x) && !seen.has(x) && (seen.add(x), true));
+          if (ok) return parsed as EffectId[];
+        }
+      }
+    } catch { /* swallow — fall back to default */ }
+    return EFFECT_ORDER;
+  });
+  // Push the hydrated / latest order to the engine whenever either
+  // changes. `engine` may be null during the first render before the
+  // AudioContext boots — the engine spin-up path will pick up the
+  // current order from state at that point.
+  useEffect(() => {
+    if (engine) engine.setEffectOrder(effectOrder);
+  }, [engine, effectOrder]);
+  const handleEffectReorder = useCallback((next: EffectId[]) => {
+    setEffectOrder(next);
+    try { window.localStorage?.setItem(STORAGE_KEYS.effectOrder, JSON.stringify(next)); } catch { /* noop */ }
+  }, []);
 
   // WEATHER intro emphasis — true only on first fresh mount (no
   // prior autosave). Dismisses on first WEATHER interaction or 5s
@@ -423,30 +459,90 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <VuMeter analyser={engine?.getAnalyser() ?? null} width={600} height={16} />
       </div>
       <div className="panel preset-panel preset-panel-wide">
-        {/* Compact preset strip — shows active preset, click to expand */}
-        <button
-          className="preset-strip"
-          onClick={() => toggle("presets" as Section)}
-          title="Click to browse presets"
-        >
-          {(() => {
-            const active = PRESETS.find((p) => p.id === state.activePresetId);
-            return active ? (
-              <>
-                <span
-                  className="preset-strip-icon"
-                  style={{ ["--icon" as string]: `url(/preset-icons/${active.id}.svg)` } as React.CSSProperties}
-                  aria-hidden="true"
-                />
-                <span className="preset-strip-meta">
-                  <span className="preset-strip-name">{active.name}</span>
-                  <span className="preset-strip-attr">{active.attribution}</span>
-                </span>
-              </>
-            ) : (
-              <span className="preset-strip-name">No preset</span>
-            );
-          })()}
+        {/* Compact preset strip — active preset meta, inline keyboard,
+            tonic readout, expand chevron. Converted from a single
+            <button> to a flex row so the inline keyboard can host its
+            own clickable keys without nesting-button invariants. */}
+        <div className="preset-strip">
+          <button
+            type="button"
+            className="preset-strip-meta-btn"
+            onClick={() => toggle("presets" as Section)}
+            title="Click to browse presets"
+          >
+            {(() => {
+              const active = PRESETS.find((p) => p.id === state.activePresetId);
+              return active ? (
+                <>
+                  <span
+                    className="preset-strip-icon"
+                    style={{ ["--icon" as string]: `url(/preset-icons/${active.id}.svg)` } as React.CSSProperties}
+                    aria-hidden="true"
+                  />
+                  <span className="preset-strip-meta">
+                    <span className="preset-strip-name">{active.name}</span>
+                    <span className="preset-strip-attr">{active.attribution}</span>
+                  </span>
+                </>
+              ) : (
+                <span className="preset-strip-name">No preset</span>
+              );
+            })()}
+          </button>
+          {/* Inline piano keyboard — sits left of the tonic readout so
+              the user can retune without scrolling. Relocated from the
+              scene-actions area per the layout pass (P2.3). */}
+          <div className="tonic-keys tonic-keys-inline preset-strip-keys">
+            {PITCH_CLASSES.map((pc) => {
+              const isSharp = pc.includes("#");
+              const isActive = state.root === pc;
+              return (
+                <button
+                  key={pc}
+                  type="button"
+                  className={
+                    `tonic-key${isSharp ? " tonic-key-black" : ""}${isActive ? " tonic-key-active" : ""}`
+                  }
+                  onClick={() => setRoot(pc)}
+                  title={pc}
+                  aria-label={pc}
+                >
+                  {isActive ? pc.replace("#", "♯") : ""}
+                </button>
+              );
+            })}
+          </div>
+          <div className="weather-octave preset-strip-octave">
+            <button
+              type="button"
+              className="header-octave-btn"
+              onClick={() => setOctave(Math.max(1, state.octave - 1))}
+              disabled={state.octave <= 1}
+              aria-label="Octave down"
+            >
+              −
+            </button>
+            <span className="header-octave-value">{state.octave}</span>
+            <button
+              type="button"
+              className="header-octave-btn"
+              onClick={() => setOctave(Math.min(6, state.octave + 1))}
+              disabled={state.octave >= 6}
+              aria-label="Octave up"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className={kbdActive ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
+              onClick={onToggleKbd}
+              title={kbdActive
+                ? "QWERTY keyboard active — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up"
+                : "Enable QWERTY keyboard as tonic controller"}
+            >
+              ⌨
+            </button>
+          </div>
           <span className="preset-strip-tonic">
             {state.root}{state.octave} · {(() => {
               const idx = PITCH_CLASSES.indexOf(state.root);
@@ -454,8 +550,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               return (440 * Math.pow(2, semi / 12)).toFixed(1);
             })()} Hz
           </span>
-          <span className="preset-strip-chevron">{disclosed.presets ? "▾" : "▸"}</span>
-        </button>
+          <button
+            type="button"
+            className="preset-strip-chevron"
+            onClick={() => toggle("presets" as Section)}
+            aria-label={disclosed.presets ? "Collapse preset list" : "Expand preset list"}
+          >
+            {disclosed.presets ? "▾" : "▸"}
+          </button>
+        </div>
         {disclosed.presets && (
         <>
         <div className="preset-tabs" role="tablist">
@@ -576,6 +679,41 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
 
             <div className="scene-actions-row">
+              {/* PARTNER stays inline — it's a live voicing control,
+                  not a motion gesture. */}
+              <DropdownSelect
+                value={state.partner.enabled ? state.partner.relation : ""}
+                options={[
+                  { value: "", label: "PARTNER: off" },
+                  ...PARTNER_RELATIONS.map((r) => ({ value: r, label: `PARTNER: ${r}` })),
+                ]}
+                onChange={(v) => {
+                  if (v === "") {
+                    setPartner({ ...state.partner, enabled: false });
+                  } else {
+                    setPartner({ enabled: true, relation: v as PartnerRelation });
+                  }
+                }}
+                className="preset-journey-select"
+                title="PARTNER — sympathetic second drone layer at a fixed musical relation."
+                ariaLabel="Sympathetic partner"
+              />
+              {/* GESTURES — collapses JOURNEY + MUTATE + MOTION-REC behind
+                  one disclosure so MORPH + EVOLVE stay the dominant
+                  motion vocabulary on the surface. Per audit P2. */}
+              <button
+                type="button"
+                className={gesturesOpen ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
+                onClick={() => setGesturesOpen((v) => !v)}
+                title="Show JOURNEY / MUTATE / REC MOTION gestures"
+                aria-expanded={gesturesOpen}
+              >
+                {gesturesOpen ? "▾ GESTURES" : "▸ GESTURES"}
+              </button>
+            </div>
+
+            {gesturesOpen && (
+            <div className="scene-actions-row scene-gestures-row">
               <button
                 type="button"
                 className="preset-mut-btn"
@@ -598,23 +736,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <span className="preset-mut-value" aria-hidden="true">
                 {Math.round(mutateIntensity * 100)}%
               </span>
-              <DropdownSelect
-                value={state.partner.enabled ? state.partner.relation : ""}
-                options={[
-                  { value: "", label: "PARTNER: off" },
-                  ...PARTNER_RELATIONS.map((r) => ({ value: r, label: `PARTNER: ${r}` })),
-                ]}
-                onChange={(v) => {
-                  if (v === "") {
-                    setPartner({ ...state.partner, enabled: false });
-                  } else {
-                    setPartner({ enabled: true, relation: v as PartnerRelation });
-                  }
-                }}
-                className="preset-journey-select"
-                title="PARTNER — sympathetic second drone layer at a fixed musical relation."
-                ariaLabel="Sympathetic partner"
-              />
               <DropdownSelect
                 value={state.journey ?? ""}
                 options={[
@@ -639,57 +760,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 </button>
               )}
             </div>
+            )}
 
-            {/* Piano keyboard + octave — below scene actions */}
-            <div className="weather-tonic-row">
-              <div className="tonic-keys tonic-keys-inline">
-                {PITCH_CLASSES.map((pc) => {
-                  const isSharp = pc.includes("#");
-                  const isActive = state.root === pc;
-                  return (
-                    <button
-                      key={pc}
-                      className={
-                        `tonic-key${isSharp ? " tonic-key-black" : ""}${isActive ? " tonic-key-active" : ""}`
-                      }
-                      onClick={() => setRoot(pc)}
-                      title={pc}
-                      aria-label={pc}
-                    >
-                      {isActive ? pc.replace("#", "♯") : ""}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="weather-octave">
-                <button
-                  className="header-octave-btn"
-                  onClick={() => setOctave(Math.max(1, state.octave - 1))}
-                  disabled={state.octave <= 1}
-                  aria-label="Octave down"
-                >
-                  −
-                </button>
-                <span className="header-octave-value">{state.octave}</span>
-                <button
-                  className="header-octave-btn"
-                  onClick={() => setOctave(Math.min(6, state.octave + 1))}
-                  disabled={state.octave >= 6}
-                  aria-label="Octave up"
-                >
-                  +
-                </button>
-                <button
-                  className={kbdActive ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
-                  onClick={onToggleKbd}
-                  title={kbdActive
-                    ? "QWERTY keyboard active — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up"
-                    : "Enable QWERTY keyboard as tonic controller"}
-                >
-                  ⌨
-                </button>
-              </div>
-            </div>
+            {/* Piano keyboard + octave — moved into the preset-strip
+                at the top of this view per layout pass (P2.3). */}
           </div>
         </div>
 
@@ -736,7 +810,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             ))}
           </div>
           <div className="fx-col">
-            <FxBar engine={engine} states={state.effects} onToggle={toggleEffect} />
+            <FxBar
+              engine={engine}
+              states={state.effects}
+              onToggle={toggleEffect}
+              order={effectOrder}
+              onReorder={handleEffectReorder}
+            />
           </div>
         </div>
         )}

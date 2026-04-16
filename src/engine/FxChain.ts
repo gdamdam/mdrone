@@ -192,6 +192,18 @@ export class FxChain {
     plate: false, hall: false, shimmer: false, freeze: false,
     cistern: false, granular: false, graincloud: false, ringmod: false, formant: false,
   };
+  /** User-customisable serial chain order. Defaults to EFFECT_ORDER.
+   *  Mutated by `setEffectOrder` — the UI exposes drag-reorder via
+   *  FxBar (P2). Every EffectId appears exactly once; a validator on
+   *  setEffectOrder enforces this. */
+  private currentOrder: EffectId[] = [...EFFECT_ORDER];
+  /** Grain → plate excitation send (P3). Installed in onWorkletReady;
+   *  routes the two granular worklets' output into the parallel plate
+   *  tank so grains excite the reverb body directly. Default 0.3.
+   *  Exposed via setGrainToPlateGain() so a preset or the UI can
+   *  make the grain-excited plate louder (≤1). */
+  private grainToPlateNode: GainNode | null = null;
+  private grainToPlateGain = 0.3;
 
   /** Parallel reverb send levels — 0..1 per reverb family effect. When
    *  non-zero, a parallel copy of the effect receives the raw pre-serial
@@ -257,16 +269,10 @@ export class FxChain {
       formant: makeInsert(),
     };
 
-    // Chain inserts in EFFECT_ORDER, ending with the last one feeding
-    // dryOut. This is the one place that wires the DSP order — the
-    // UI derives its view from the same exported array.
-    this.input.connect(this.inserts[EFFECT_ORDER[0]].insertIn);
-    for (let i = 0; i < EFFECT_ORDER.length - 1; i++) {
-      this.inserts[EFFECT_ORDER[i]].insertOut.connect(
-        this.inserts[EFFECT_ORDER[i + 1]].insertIn,
-      );
-    }
-    this.inserts[EFFECT_ORDER[EFFECT_ORDER.length - 1]].insertOut.connect(this.dryOut);
+    // Chain inserts in currentOrder (defaults to EFFECT_ORDER on
+    // construction). User reorder via setEffectOrder disconnects and
+    // re-wires this same graph — the worklet instances stay alive.
+    this.wireInsertChain(this.currentOrder);
 
     this.wireTape();
     this.wireWow();
@@ -581,6 +587,80 @@ export class FxChain {
     this.delayNode.connect(ins.wetGain).connect(ins.insertOut);
   }
 
+  /** Wire the serial chain: input → inserts[order[0]].insertIn,
+   *  insertOut[i] → insertIn[i+1], insertOut[last] → dryOut. Called
+   *  from the constructor and from setEffectOrder() after an
+   *  unwireInsertChain(). */
+  private wireInsertChain(order: readonly EffectId[]): void {
+    const first = this.inserts[order[0]];
+    this.input.connect(first.insertIn);
+    for (let i = 0; i < order.length - 1; i++) {
+      this.inserts[order[i]].insertOut.connect(this.inserts[order[i + 1]].insertIn);
+    }
+    this.inserts[order[order.length - 1]].insertOut.connect(this.dryOut);
+  }
+
+  /** Disconnect the links wireInsertChain() created. Leaves the
+   *  inserts' internal DSP (worklets, biquads, delay lines) connected
+   *  — only the insertIn/insertOut hookups between neighbours get
+   *  cut so the new order can be wired fresh. */
+  private unwireInsertChain(order: readonly EffectId[]): void {
+    const first = this.inserts[order[0]];
+    try { this.input.disconnect(first.insertIn); } catch { /* noop */ }
+    for (let i = 0; i < order.length - 1; i++) {
+      try {
+        this.inserts[order[i]].insertOut.disconnect(
+          this.inserts[order[i + 1]].insertIn,
+        );
+      } catch { /* noop */ }
+    }
+    try {
+      this.inserts[order[order.length - 1]].insertOut.disconnect(this.dryOut);
+    } catch { /* noop */ }
+  }
+
+  /** Reorder the serial effect chain. Validates that the new order
+   *  contains every EffectId exactly once, then disconnects the
+   *  current chain graph and rewires in the new order. Insert DSP
+   *  (worklets, biquads) is preserved — only the inter-insert links
+   *  are rewired. If `order` is invalid, no-op. */
+  setEffectOrder(order: readonly EffectId[]): void {
+    if (order.length !== EFFECT_ORDER.length) return;
+    const seen = new Set<string>();
+    for (const id of order) {
+      if (!(id in this.inserts)) return;
+      if (seen.has(id)) return;
+      seen.add(id);
+    }
+    // No-op if the new order matches the current one.
+    let same = true;
+    for (let i = 0; i < order.length; i++) {
+      if (order[i] !== this.currentOrder[i]) { same = false; break; }
+    }
+    if (same) return;
+    this.unwireInsertChain(this.currentOrder);
+    this.currentOrder = [...order];
+    this.wireInsertChain(this.currentOrder);
+  }
+
+  /** Returns a copy of the current chain order. The UI reads this
+   *  to render buttons + preview in the same sequence as the DSP. */
+  getEffectOrder(): EffectId[] {
+    return [...this.currentOrder];
+  }
+
+  /** Grain → parallel-plate excitation send level (0..1). Exposes
+   *  the cross-bus send so presets and the UI can dial in how much
+   *  "the grain cloud excites the reverb body." P3. */
+  setGrainToPlateGain(v: number): void {
+    const clamped = Math.max(0, Math.min(1, v));
+    this.grainToPlateGain = clamped;
+    if (this.grainToPlateNode) {
+      this.grainToPlateNode.gain.setTargetAtTime(clamped, this.ctx.currentTime, 0.08);
+    }
+  }
+  getGrainToPlateGain(): number { return this.grainToPlateGain; }
+
   /** HALL / CISTERN serial insert DSP is installed in `onWorkletReady`
    *  (see below) using the Freeverb-style `fx-fdn-reverb` worklet. Here
    *  we only reserve the insert's DSP slot as a silent passthrough
@@ -877,7 +957,8 @@ export class FxChain {
     // of "effect pasted on top." The grain IS the excitation for the
     // reverb, like Eno's ambient architecture.
     const grainToPlate = ctx.createGain();
-    grainToPlate.gain.value = 0.3; // subtle — grains color the plate, don't overwhelm it
+    grainToPlate.gain.value = this.grainToPlateGain;
+    this.grainToPlateNode = grainToPlate;
     if (this.granularWorklet) {
       this.granularWorklet.connect(grainToPlate);
     }

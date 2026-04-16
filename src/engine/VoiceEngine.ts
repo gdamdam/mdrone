@@ -1,7 +1,7 @@
 import { FxChain } from "./FxChain";
 import type { PresetMaterialProfile } from "./presets";
 import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
-import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type Voice, type VoiceType } from "./VoiceBuilder";
+import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type TanpuraTuningId, type Voice, type VoiceType } from "./VoiceBuilder";
 
 export class VoiceEngine {
   private static readonly MIN_REBUILD_XFADE_SEC = 0.3;
@@ -44,6 +44,42 @@ export class VoiceEngine {
   private fmRatio = 2.0;
   private fmIndex = 2.4;
   private fmFeedback = 0;
+  // Tanpura string tuning (Sa Pa / Sa Ma / Sa Ni / all-four). Applied
+  // at voice construction; setting it triggers a voice rebuild via
+  // scheduleVoiceRebuild() so the KS delay lengths repick.
+  private tanpuraTuning: TanpuraTuningId = "classic";
+  /** Max active voice layers. Low-core devices (≤4 logical cores,
+   *  typical mobile / small laptops) cap at 4 to prevent audio-thread
+   *  overload when a preset asks for 6-7 simultaneous voices. Default
+   *  is derived from `navigator.hardwareConcurrency` at construction.
+   *  Setting this field to `ALL_VOICE_TYPES.length` (7) disables the
+   *  cap for desktop / high-core systems. P3 — mobile auto-degrader. */
+  private maxVoiceLayers: number = VoiceEngine.detectMaxVoiceLayers();
+  private static detectMaxVoiceLayers(): number {
+    if (typeof navigator === "undefined") return ALL_VOICE_TYPES.length;
+    const cores = navigator.hardwareConcurrency;
+    if (typeof cores === "number" && cores > 0 && cores <= 4) return 4;
+    return ALL_VOICE_TYPES.length;
+  }
+  /** Priority order for auto-degradation — cheapest voices first so
+   *  they survive when the cap is applied. Matches the relative CPU
+   *  cost of each voice at default settings (tanpura = 4 KS loops +
+   *  jawari, metal = 12-partial modal stack, etc.). */
+  private static readonly VOICE_COST_PRIORITY: readonly VoiceType[] = [
+    "tanpura", "air", "fm", "amp", "piano", "reed", "metal",
+  ] as const;
+  /** Apply the `maxVoiceLayers` cap — returns a copy of `layers` with
+   *  the lowest-priority active layers turned off once the active
+   *  count exceeds the cap. Called from rebuildIntervals / startDrone
+   *  so the cap applies uniformly. */
+  private capLayers(layers: Record<VoiceType, boolean>): Record<VoiceType, boolean> {
+    const active = VoiceEngine.VOICE_COST_PRIORITY.filter((t) => layers[t]);
+    if (active.length <= this.maxVoiceLayers) return layers;
+    const keep = new Set(active.slice(0, this.maxVoiceLayers));
+    const capped = { ...layers };
+    for (const t of ALL_VOICE_TYPES) capped[t] = layers[t] && keep.has(t);
+    return capped;
+  }
   private readonly baseMacroTC = 0.4;
 
   private presetMaterialProfile: PresetMaterialProfile = DEFAULT_PRESET_MATERIAL_PROFILE;
@@ -118,12 +154,13 @@ export class VoiceEngine {
     this.wetSend.gain.cancelScheduledValues(now);
     this.wetSend.gain.setTargetAtTime(air * 0.8, now, 0.05);
 
+    const capped = this.capLayers(this.voiceLayers);
     for (const type of ALL_VOICE_TYPES) {
-      if (!this.voiceLayers[type]) continue;
+      if (!capped[type]) continue;
       const layerGain = this.ensureLayerGain(type);
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback);
+        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);
@@ -403,6 +440,26 @@ export class VoiceEngine {
 
   getFmFeedback(): number { return this.fmFeedback; }
 
+  /** Max active voice layers. Set to 7 on desktop, 4 on low-core
+   *  devices. Called by AudioEngine once at construction and by the
+   *  UI if the user overrides the auto-detected value. */
+  setMaxVoiceLayers(n: number): void {
+    this.maxVoiceLayers = Math.max(1, Math.min(ALL_VOICE_TYPES.length, Math.floor(n)));
+    this.scheduleVoiceRebuild();
+  }
+  getMaxVoiceLayers(): number { return this.maxVoiceLayers; }
+
+  setTanpuraTuning(id: TanpuraTuningId): void {
+    if (this.tanpuraTuning === id) return;
+    this.tanpuraTuning = id;
+    // Rebuild so the new stringDetune array lands in the worklet —
+    // the tuning is only read at voice construction. scheduleVoiceRebuild
+    // is a no-op when the drone isn't playing (applies on next start).
+    this.scheduleVoiceRebuild();
+  }
+
+  getTanpuraTuning(): TanpuraTuningId { return this.tanpuraTuning; }
+
 
   private get MACRO_TC(): number {
     return this.baseMacroTC * (0.3 + this.morphAmount * 5.7);
@@ -451,13 +508,18 @@ export class VoiceEngine {
     );
 
     const targetIntervalCount = this.droneIntervalsCents.length;
+    // Apply the mobile auto-degrader cap — pretend the capped-out
+    // layers are disabled for this rebuild. Priority order in
+    // capLayers keeps cheap voices (tanpura / air / fm) over the
+    // expensive ones (reed / metal / piano).
+    const capped = this.capLayers(this.voiceLayers);
 
     // Incremental diff: retire layers that should be off OR whose
     // voice count no longer matches the target interval count; keep
     // every other live layer untouched so unrelated layers don't dip.
     for (const [type, voices] of Array.from(this.droneVoicesByLayer.entries())) {
       const shouldKeep =
-        this.voiceLayers[type] && voices.length === targetIntervalCount;
+        capped[type] && voices.length === targetIntervalCount;
       if (shouldKeep) continue;
 
       const oldGain = this.layerGains.get(type);
@@ -474,7 +536,7 @@ export class VoiceEngine {
 
     // Bring up layers that should be on but aren't currently live.
     for (const type of ALL_VOICE_TYPES) {
-      if (!this.voiceLayers[type]) continue;
+      if (!capped[type]) continue;
       if (this.droneVoicesByLayer.has(type)) continue;
 
       const layerGain = this.ctx.createGain();
@@ -486,7 +548,7 @@ export class VoiceEngine {
 
       const voices: Voice[] = [];
       for (const c of this.droneIntervalsCents) {
-        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback);
+        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
         voices.push(voice);

@@ -26,6 +26,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const opts = options?.processorOptions || {};
     this.voiceType = opts.voiceType || "tanpura";
     this.reedShape = opts.reedShape || "odd";
+    // Tanpura string tuning — see TANPURA_TUNING_RATIOS in tanpura.js.
+    // Default "classic" = pre-P3 unison micro-detune so scenes reload
+    // identically unless the preset / UI explicitly picks a tuning.
+    this.tanpuraTuningOpt = opts.tanpuraTuning || "classic";
     this.fmRatioOpt = opts.fmRatio || 2.0;
     this.fmIndexOpt = opts.fmIndex || 2.4;
     this.fmFeedbackOpt = opts.fmFeedback || 0;

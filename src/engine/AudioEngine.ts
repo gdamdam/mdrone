@@ -272,8 +272,40 @@ export class AudioEngine {
   setFmFeedback(fb: number): void { this.voiceEngine.setFmFeedback(fb); }
   getFmFeedback(): number { return this.voiceEngine.getFmFeedback(); }
 
+  setTanpuraTuning(id: import("./VoiceBuilder").TanpuraTuningId): void {
+    this.voiceEngine.setTanpuraTuning(id);
+  }
+  getTanpuraTuning(): import("./VoiceBuilder").TanpuraTuningId {
+    return this.voiceEngine.getTanpuraTuning();
+  }
+
+  /** Maximum active voice layers. On mobile / low-core devices the
+   *  default is auto-capped at 4; desktop defaults to 7 (all voices).
+   *  See VoiceEngine.detectMaxVoiceLayers. P3 — auto-degrader. */
+  setMaxVoiceLayers(n: number): void { this.voiceEngine.setMaxVoiceLayers(n); }
+  getMaxVoiceLayers(): number { return this.voiceEngine.getMaxVoiceLayers(); }
+
   setParallelSends(sends: Partial<{ plate: number; hall: number; cistern: number }>): void {
     this.fxChain.setParallelSends(sends);
+  }
+
+  /** Serial effect-chain order. UI (FxBar) persists the user's
+   *  reorder via localStorage and replays it on every engine spin-up
+   *  so the saved chain order survives reloads. */
+  setEffectOrder(order: readonly EffectId[]): void {
+    this.fxChain.setEffectOrder(order);
+  }
+
+  getEffectOrder(): EffectId[] {
+    return this.fxChain.getEffectOrder();
+  }
+
+  /** Grain → parallel-plate excitation send (0..1). See FxChain. */
+  setGrainToPlateGain(v: number): void {
+    this.fxChain.setGrainToPlateGain(v);
+  }
+  getGrainToPlateGain(): number {
+    return this.fxChain.getGrainToPlateGain();
   }
 
   /** Seed the deterministic reverb IR PRNG — so the same preset id
@@ -396,4 +428,15 @@ export class AudioEngine {
 
   setDrive(amount: number): void { this.masterBus.setDrive(amount); }
   getDrive(): number { return this.masterBus.getDrive(); }
+
+  setHeadphoneSafe(on: boolean): void { this.masterBus.setHeadphoneSafe(on); }
+  isHeadphoneSafe(): boolean { return this.masterBus.isHeadphoneSafe(); }
+
+  /** Subscribe to LUFS-S + true-peak readings from the loudness
+   *  worklet. Returns an unsubscribe function. The callback fires at
+   *  ~30 Hz with the EBU R128 short-term LUFS and the decaying
+   *  sample-peak (dB). P3. */
+  onLoudnessUpdate(cb: (m: { lufsShort: number; peakDb: number }) => void): () => void {
+    return this.masterBus.onLoudnessUpdate(cb);
+  }
 }

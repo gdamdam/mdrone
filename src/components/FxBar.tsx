@@ -28,6 +28,13 @@ interface FxBarProps {
   states: Record<EffectId, boolean>;
   /** Called when the user taps a button (short click). */
   onToggle: (id: EffectId) => void;
+  /** Current serial-chain order. Defaults to EFFECT_ORDER. DroneView
+   *  owns this so it can persist to localStorage; FxBar just renders
+   *  the buttons in this sequence and calls onReorder when the user
+   *  drags. */
+  order?: readonly EffectId[];
+  /** Called with the new order when the user completes a drag. */
+  onReorder?: (next: EffectId[]) => void;
 }
 
 interface FxDef {
@@ -114,7 +121,7 @@ const FX_DEFS: Record<EffectId, FxDef> = {
   },
 };
 
-export function FxBar({ engine, states, onToggle }: FxBarProps) {
+export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps) {
   const [modalFx, setModalFx] = useState<EffectId | null>(null);
 
   // Long-press gates a toggle — if the hold fires, open the modal and
@@ -148,14 +155,44 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
     onToggle(id);
   }, [onToggle]);
 
-  // Derive the active chain (enabled effects in DSP order) once per
-  // render from the engine's canonical EFFECT_ORDER. The numeric
-  // badges on lit buttons and the preview row below both read from
-  // this same list, so they are guaranteed to agree with each other
-  // and with actual DSP routing.
-  const activeChain: EffectId[] = EFFECT_ORDER.filter((id) => states[id]);
+  // Active chain in whatever order the user has configured (falls
+  // back to EFFECT_ORDER when no custom order is supplied). Badges +
+  // preview read from this same list so the UI always matches the
+  // engine's actual serial routing.
+  const chainOrder: readonly EffectId[] = order ?? EFFECT_ORDER;
+  const activeChain: EffectId[] = chainOrder.filter((id) => states[id]);
   const activePositions: Partial<Record<EffectId, number>> = {};
   activeChain.forEach((id, i) => { activePositions[id] = i + 1; });
+
+  // HTML5 drag-and-drop state — the id currently being dragged, so
+  // the drop handler knows what to move. Ref (not state) because it
+  // drives imperative dataTransfer/drop logic, not rendering.
+  const dragIdRef = useRef<EffectId | null>(null);
+
+  const onDragStart = (id: EffectId) => (e: React.DragEvent) => {
+    dragIdRef.current = id;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", id); } catch { /* noop */ }
+    }
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    if (dragIdRef.current !== null) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    }
+  };
+  const onDropBtn = (targetId: EffectId) => (e: React.DragEvent) => {
+    e.preventDefault();
+    const dragged = dragIdRef.current;
+    dragIdRef.current = null;
+    if (!dragged || dragged === targetId || !onReorder) return;
+    const next = chainOrder.filter((id) => id !== dragged);
+    const ti = next.indexOf(targetId);
+    if (ti < 0) return;
+    next.splice(ti, 0, dragged);
+    onReorder(next);
+  };
 
   return (
     <div className="fx-bar-panel">
@@ -182,7 +219,7 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
         <div className="panel-hint">No effects active — tap a button below to add one to the chain</div>
       )}
       <div className="fx-bar">
-        {EFFECT_ORDER.map((id) => {
+        {chainOrder.map((id) => {
           const fx = FX_DEFS[id];
           const pos = activePositions[id];
           return (
@@ -193,11 +230,15 @@ export function FxBar({ engine, states, onToggle }: FxBarProps) {
               onPointerUp={cancelLongPress}
               onPointerLeave={cancelLongPress}
               onPointerCancel={cancelLongPress}
+              draggable={onReorder !== undefined}
+              onDragStart={onDragStart(id)}
+              onDragOver={onDragOver}
+              onDrop={onDropBtn(id)}
               className={states[id] ? "fx-btn fx-btn-active" : "fx-btn"}
               title={
                 pos !== undefined
-                  ? `${fx.hint}\n\nActive chain position: ${pos} of ${activeChain.length}. Long-press for settings.`
-                  : `${fx.hint}\n\nInactive — long-press for settings.`
+                  ? `${fx.hint}\n\nActive chain position: ${pos} of ${activeChain.length}. Drag to reorder · long-press for settings.`
+                  : `${fx.hint}\n\nInactive — drag to reorder · long-press for settings.`
               }
             >
               <span className="fx-btn-num" aria-hidden="true">{pos ?? ""}</span>

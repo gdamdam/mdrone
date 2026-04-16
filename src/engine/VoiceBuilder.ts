@@ -33,6 +33,21 @@ export type VoiceType = "tanpura" | "reed" | "metal" | "air" | "piano" | "fm" | 
  *  - "sine"     pure fundamental only — Dream House, Radigue ARP 2500 */
 export type ReedShape = "odd" | "even" | "balanced" | "sine";
 
+/** Tanpura string tuning — lets the four KS strings read as a real
+ *  tanpura (Sa Pa / Sa Ma / Sa Ni) instead of four near-unison copies.
+ *  Kept as a VoiceBuilder option (applied at voice construction) so
+ *  changes require a voice rebuild. */
+export type TanpuraTuningId = "classic" | "sa-pa" | "sa-ma" | "sa-ni" | "sa-ma-pa-ni";
+export const TANPURA_TUNING_IDS: readonly TanpuraTuningId[] =
+  ["classic", "sa-pa", "sa-ma", "sa-ni", "sa-ma-pa-ni"] as const;
+export const TANPURA_TUNING_LABELS: Record<TanpuraTuningId, string> = {
+  "classic":     "Sa Sa Sa Sa (unison)",
+  "sa-pa":       "Sa Pa (fifth)",
+  "sa-ma":       "Sa Ma (fourth)",
+  "sa-ni":       "Sa Ni (major 7th)",
+  "sa-ma-pa-ni": "Sa Ma Pa Ni (all four)",
+};
+
 export const ALL_VOICE_TYPES: readonly VoiceType[] = ["tanpura", "reed", "metal", "air", "piano", "fm", "amp"] as const;
 
 export interface Voice {
@@ -64,6 +79,7 @@ export function buildVoice(
   fmRatio = 2.0,
   fmIndex = 2.4,
   fmFeedback = 0,
+  tanpuraTuning: TanpuraTuningId = "classic",
 ): Voice {
   const targetFreq = rootFreq * Math.pow(2, intervalCents / 1200);
 
@@ -78,6 +94,7 @@ export function buildVoice(
       fmRatio,
       fmIndex,
       fmFeedback,
+      tanpuraTuning,
     },
   });
 

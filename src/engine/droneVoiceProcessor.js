@@ -160,6 +160,10 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const opts = options?.processorOptions || {};
     this.voiceType = opts.voiceType || "tanpura";
     this.reedShape = opts.reedShape || "odd";
+    // Tanpura string tuning — see TANPURA_TUNING_RATIOS in tanpura.js.
+    // Default "classic" = pre-P3 unison micro-detune so scenes reload
+    // identically unless the preset / UI explicitly picks a tuning.
+    this.tanpuraTuningOpt = opts.tanpuraTuning || "classic";
     this.fmRatioOpt = opts.fmRatio || 2.0;
     this.fmIndexOpt = opts.fmIndex || 2.4;
     this.fmFeedbackOpt = opts.fmFeedback || 0;
@@ -335,12 +339,33 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
 // Prototype extensions on DroneVoiceProcessor; concatenated
 // after core.js by scripts/build-worklet.mjs.
 
+// Authored tanpura string tunings. Keys match the `tanpuraTuning`
+// option threaded through VoiceBuilder → processorOptions. Each value
+// is a 4-element array of frequency ratios relative to the drone root.
+//   classic       micro-detune unison (original default)
+//   sa-pa         low Sa, two middle Sa, high Pa (fifth) — most ragas
+//   sa-ma         Ma (fourth) instead of Pa — Malkauns et al.
+//   sa-ni         Ni (major 7th) — late-night ragas (Bhairav / Lalit)
+//   sa-ma-pa-ni   all four distinct — non-traditional harmony
+const TANPURA_TUNING_RATIOS = {
+  "classic":     [1.0, 1.00116, 0.99884, 1.00058],
+  "sa-pa":       [0.5, 1.0, 1.0, 1.5],
+  "sa-ma":       [0.5, 1.0, 1.0, 4 / 3],
+  "sa-ni":       [0.5, 1.0, 1.0, 15 / 8],
+  "sa-ma-pa-ni": [1.0, 4 / 3, 1.5, 15 / 8],
+};
+
 DroneVoiceProcessor.prototype.initTanpura = function() {
     this.NUM_STRINGS = 4;
-    this.stringDetune = [1.0, 1.00116, 0.99884, 1.00058];
+    const tuningId = this.tanpuraTuningOpt || "classic";
+    const ratios = TANPURA_TUNING_RATIOS[tuningId] || TANPURA_TUNING_RATIOS.classic;
+    this.stringDetune = ratios.slice();
     this.stringPanL = [0.85, 1.0, 0.7, 0.9];
     this.stringPanR = [1.0, 0.7, 0.85, 0.9];
-    this.ksMax = Math.ceil(sampleRate * 0.04) + 8;
+    // 60 ms delay line — enough for a sub-octave (0.5×) string down to
+    // a ~17 Hz root. Previously 40 ms which clipped explicit Sa-below
+    // tunings at low tonics.
+    this.ksMax = Math.ceil(sampleRate * 0.06) + 8;
     this.ksBufs = [];
     this.ksBufsR = [];
     this.ksIdxs = new Int32Array(this.NUM_STRINGS);

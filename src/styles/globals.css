@@ -329,6 +329,52 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 12px;
   color: var(--text-dim);
   flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  font-family: inherit;
+}
+.preset-strip-chevron:hover { color: var(--text); }
+
+/* Left-hand clickable block of the preset strip: icon + meta. */
+.preset-strip-meta-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.preset-strip-meta-btn:hover .preset-strip-name { color: var(--preview); }
+
+/* Inline keyboard + octave controls within the preset strip. Tight
+   gaps so the whole strip stays one row; the keyboard reads as a
+   complement to the tonic readout rather than an extra row below. */
+.preset-strip-keys {
+  flex: 1 1 auto;
+  min-width: 140px;
+  justify-content: flex-start;
+}
+.preset-strip-octave {
+  flex-shrink: 0;
+}
+.preset-strip-octave .header-kbd-btn,
+.preset-strip-octave .header-octave-btn { font-size: 11px; }
+
+@media (max-width: 720px) {
+  /* Narrow viewports: wrap the strip so the keyboard falls onto its
+     own line instead of being squeezed off-screen. */
+  .preset-strip { flex-wrap: wrap; }
+  .preset-strip-keys { order: 4; flex-basis: 100%; margin-top: 6px; }
+  .preset-strip-octave { order: 5; }
 }
 
 /* TIMBRE + EFFECTS two-column layout */
@@ -3043,6 +3089,19 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   min-width: 40px;
   text-align: center;
 }
+
+.mixer-loudness-row {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  padding: 8px 12px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.mixer-loudness-item { display: inline-flex; gap: 6px; align-items: baseline; }
+.mixer-loudness-label { opacity: 0.7; letter-spacing: 0.8px; }
+.mixer-loudness-value { color: var(--text); font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
 
 .mixer-hint {
   font-size: 10px;
