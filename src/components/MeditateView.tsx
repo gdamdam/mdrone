@@ -9,19 +9,16 @@
  *   - double-click anywhere on the canvas to cycle to the next one
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import {
   VISUALIZER_FNS,
-  VISUALIZER_GROUPS,
-  VISUALIZER_LABELS,
-  VISUALIZER_ORDER,
+  resetPitchMandala,
   type AudioFrame,
   type PhaseClock,
   type Visualizer,
 } from "./visualizers";
 import { clearDeityPreview } from "./deities";
-import { DropdownSelect } from "./DropdownSelect";
 
 interface MeditateViewProps {
   engine: AudioEngine | null;
@@ -62,9 +59,11 @@ export function MeditateView({
   useEffect(() => { onFullscreenDblClickRef.current = onFullscreenDoubleClick; }, [onFullscreenDoubleClick]);
   useEffect(() => { onFullscreenDragRef.current = onFullscreenDrag; }, [onFullscreenDrag]);
 
+  // Only one visualizer now (pitch mandala). Double-click / cycle is
+  // a no-op; the callbacks stay in the prop contract so Layout keeps
+  // its fullscreen-double-click handler intact.
   const cycleVisualizer = useCallback(() => {
-    const i = VISUALIZER_ORDER.indexOf(visualizer);
-    onChangeVisualizer(VISUALIZER_ORDER[(i + 1) % VISUALIZER_ORDER.length]);
+    onChangeVisualizer(visualizer);
   }, [onChangeVisualizer, visualizer]);
 
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -96,9 +95,10 @@ export function MeditateView({
   const phaseResetRef = useRef(0);
   useEffect(() => {
     visualizerRef.current = visualizer;
-    // Reset the growth clock when switching visualizer so each one
-    // starts from its simple state and unfolds from there.
+    // Reset the growth clock + pitch-mandala long integrator so the
+    // image starts from a clean state after preset/session changes.
     phaseResetRef.current = performance.now();
+    resetPitchMandala();
   }, [visualizer]);
 
   useEffect(() => {
@@ -496,23 +496,10 @@ export function MeditateView({
     };
   }, [engine, active]);
 
-  const label = useMemo(() => VISUALIZER_LABELS[visualizer], [visualizer]);
-
   return (
     <div className="meditate-view">
       <div className="meditate-toolbar">
-        <span className="meditate-toolbar-label">VISUALIZER</span>
-        <DropdownSelect<Visualizer>
-          value={visualizer}
-          groups={VISUALIZER_GROUPS.map((g) => ({
-            label: g.label,
-            items: g.items.map((v) => ({ value: v, label: VISUALIZER_LABELS[v] })),
-          }))}
-          onChange={onChangeVisualizer}
-          className="header-select"
-          title="Choose visualizer — double-click the canvas to cycle"
-          ariaLabel="Visualizer"
-        />
+        <span className="meditate-toolbar-label">PITCH MANDALA</span>
         <button
           className="header-btn"
           onClick={toggleFullscreen}
@@ -520,21 +507,13 @@ export function MeditateView({
         >
           {isFullscreen ? "✕ EXIT" : "⛶ FULLSCREEN"}
         </button>
-        <span className="meditate-toolbar-hint">· double-click to cycle ·</span>
       </div>
-      {visualizer === "dreamMachine" && (
-        <div className="meditate-warning">
-          ⚠ DREAM MACHINE uses ~10 Hz flicker. Not recommended for anyone with
-          photosensitive epilepsy. Classic usage: close your eyes and let the
-          strobe light through your eyelids.
-        </div>
-      )}
       <div ref={wrapRef} className="meditate-canvas-wrap">
         <canvas
           ref={canvasRef}
           className="meditate-canvas"
           onDoubleClick={cycleVisualizer}
-          title={`${label} · double-click to cycle`}
+          title="PITCH MANDALA"
         />
       </div>
     </div>

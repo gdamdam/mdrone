@@ -140,7 +140,7 @@ test("share codec round-trips a portable scene payload", async () => {
     },
     ui: {
       paletteId: "ember",
-      visualizer: "mandala",
+      visualizer: "pitchMandala",
     },
   });
 
@@ -153,7 +153,7 @@ test("share codec round-trips a portable scene payload", async () => {
   assert.equal(decoded.drone.tuningId, "just5");
   assert.equal(decoded.drone.relationId, "tonic-fifth");
   assert.deepEqual(decoded.drone.fineTuneOffsets, [0, 4.5]);
-  assert.equal(decoded.ui.visualizer, "mandala");
+  assert.equal(decoded.ui.visualizer, "pitchMandala");
 });
 
 test("autosaved scene round-trips through localStorage", () => {
@@ -235,7 +235,7 @@ test("autosaved scene round-trips through localStorage", () => {
     },
     ui: {
       paletteId: "ember",
-      visualizer: "mandala",
+      visualizer: "pitchMandala",
     },
   }, "Fallback"));
 

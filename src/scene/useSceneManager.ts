@@ -200,7 +200,8 @@ export function useSceneManager({
       applyPalette(palette);
       savePaletteId(palette.id);
     }
-    setMeditateVisualizer(scene.ui.visualizer);
+    // Only one visualizer (pitch mandala) — coerce legacy values.
+    setMeditateVisualizer("pitchMandala");
     requestSigilRefresh();
     ignoreNextPresetNameRef.current = true;
     droneViewRef.current?.applySnapshot(scene.drone);

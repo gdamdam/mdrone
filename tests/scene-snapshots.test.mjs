@@ -166,7 +166,7 @@ test("capturePortableScene packages drone, mixer, fx, and ui state", () => {
       pluckRate: 1,
       presetTrim: 1,
     },
-    "mandala",
+    "pitchMandala",
     "Scene Name",
   );
 
@@ -174,5 +174,5 @@ test("capturePortableScene packages drone, mixer, fx, and ui state", () => {
   assert.equal(scene.drone.root, "D");
   assert.equal(scene.mixer.hpfHz, 30);
   assert.equal(scene.fx.levels.freeze, 0.9);
-  assert.equal(scene.ui.visualizer, "mandala");
+  assert.equal(scene.ui.visualizer, "pitchMandala");
 });

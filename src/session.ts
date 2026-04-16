@@ -125,22 +125,7 @@ const TUNING_IDS: readonly TuningId[] = ["equal", "just5", "meantone", "harmonic
 const RELATION_IDS: readonly RelationId[] = ["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"] as const;
 const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sawtooth"] as const;
 const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk"] as const;
-const VISUALIZERS: readonly Visualizer[] = [
-  "mandala",
-  "haloGlow",
-  "fractal",
-  "rothko",
-  "tapeDecay",
-  "dreamHouse",
-  "sigil",
-  "starGate",
-  "cymatics",
-  "inkBloom",
-  "horizon",
-  "aurora",
-  "orb",
-  "dreamMachine",
-] as const;
+const VISUALIZERS: readonly Visualizer[] = ["pitchMandala"] as const;
 
 const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {
   tape: 1,
@@ -170,7 +155,7 @@ export const DEFAULT_FX_SNAPSHOT: FxSessionSnapshot = {
 
 export const DEFAULT_UI_SNAPSHOT: UiSessionSnapshot = {
   paletteId: "ember",
-  visualizer: "mandala",
+  visualizer: "pitchMandala",
 };
 
 const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
