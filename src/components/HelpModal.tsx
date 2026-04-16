@@ -229,10 +229,13 @@ export function HelpModal({ onClose }: HelpModalProps) {
             current group.
             <br /><br />
             <strong>MIDI:</strong> Enable in Settings. Note-on → tonic +
-            octave. CC mapping with learn mode: click a target
-            (WEATHER X/Y, DRIFT, AIR, etc.), move a physical knob to
-            assign. Defaults: CC1 → WEATHER Y, CC2 → WEATHER X,
-            CC64 → HOLD, CC71-76 → macros.
+            octave. CC mapping covers ~46 targets grouped by{" "}
+            <em>Macros / Weather / Mixer / Voices / Effects / Triggers</em>.
+            Click a target, move a knob to learn. Triggers (PANIC,
+            RND, MUTATE) fire once when the CC crosses ≥ 64; HOLD
+            follows sustain-pedal state. Defaults: CC1 → WEATHER Y,
+            CC2 → WEATHER X, CC64 → HOLD, CC71-76 → macros — every
+            other target is unassigned until you bind it.
           </p>
 
           <div className="fx-modal-divider" />

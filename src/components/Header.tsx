@@ -6,6 +6,7 @@ import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
 import { DialogModal } from "./DialogModal";
 import { DropdownSelect } from "./DropdownSelect";
+import { MIDI_TARGETS, MIDI_TARGETS_BY_ID, MIDI_TARGET_GROUPS } from "../engine/midiMapping";
 
 const HelpModal = lazy(() =>
   import("./HelpModal").then((m) => ({ default: m.HelpModal })),
@@ -52,8 +53,8 @@ interface HeaderProps {
   midiError: string | null;
   onToggleMidi: (on: boolean) => void;
   midiCcMap: import("../engine/midiMapping").CcMap;
-  midiLearnTarget: import("../engine/midiMapping").MidiTarget | null;
-  onMidiLearn: (target: import("../engine/midiMapping").MidiTarget | null) => void;
+  midiLearnTarget: string | null;
+  onMidiLearn: (target: string | null) => void;
   onMidiResetMap: () => void;
   weatherVisual: import("../config").WeatherVisual;
   onChangeWeatherVisual: (v: import("../config").WeatherVisual) => void;
@@ -476,26 +477,34 @@ export function Header({
               <div className="fx-modal-section-label">MIDI CC MAPPING</div>
               <p className="fx-modal-desc">
                 {midiLearnTarget
-                  ? `Move a knob or fader to assign it to ${midiLearnTarget.toUpperCase()}...`
-                  : "Click a parameter to learn a CC, or use the defaults."}
+                  ? `Move a knob or fader to assign it to ${(MIDI_TARGETS_BY_ID.get(midiLearnTarget)?.label ?? midiLearnTarget).toUpperCase()}...`
+                  : "Click a parameter to learn a CC. Unassigned targets show “—”."}
               </p>
-              <div className="midi-cc-grid">
-                {(["weatherX", "weatherY", "drift", "air", "time", "bloom", "glide", "sub", "volume", "hold"] as const).map((target) => {
-                  const cc = Object.entries(midiCcMap).find(([, v]) => v === target)?.[0] ?? "—";
-                  const isLearning = midiLearnTarget === target;
-                  return (
-                    <button
-                      key={target}
-                      className={`midi-cc-btn${isLearning ? " midi-cc-btn-learn" : ""}`}
-                      onClick={() => onMidiLearn(isLearning ? null : target)}
-                      title={isLearning ? "Cancel learn" : `CC${cc} → ${target}. Click to re-learn.`}
-                    >
-                      <span className="midi-cc-target">{target.toUpperCase()}</span>
-                      <span className="midi-cc-num">{isLearning ? "..." : `CC${cc}`}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {MIDI_TARGET_GROUPS.map((groupName) => {
+                const groupTargets = MIDI_TARGETS.filter((t) => t.group === groupName);
+                return (
+                  <div key={groupName} className="midi-cc-group">
+                    <div className="midi-cc-group-label">{groupName.toUpperCase()}</div>
+                    <div className="midi-cc-grid">
+                      {groupTargets.map((target) => {
+                        const cc = Object.entries(midiCcMap).find(([, v]) => v === target.id)?.[0] ?? "—";
+                        const isLearning = midiLearnTarget === target.id;
+                        return (
+                          <button
+                            key={target.id}
+                            className={`midi-cc-btn${isLearning ? " midi-cc-btn-learn" : ""}`}
+                            onClick={() => onMidiLearn(isLearning ? null : target.id)}
+                            title={isLearning ? "Cancel learn" : `CC${cc} → ${target.label}. Click to re-learn.`}
+                          >
+                            <span className="midi-cc-target">{target.label}</span>
+                            <span className="midi-cc-num">{isLearning ? "..." : cc === "—" ? "—" : `CC${cc}`}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
               <div className="fx-modal-actions">
                 <button className="header-btn" onClick={onMidiResetMap}>
                   RESET TO DEFAULTS

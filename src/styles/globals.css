@@ -1102,6 +1102,18 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-variant-numeric: tabular-nums;
 }
 
+.midi-cc-group { margin-top: 10px; }
+
+.midi-cc-group-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  color: var(--text-dim);
+  opacity: 0.7;
+  margin: 0 0 4px;
+  padding-left: 2px;
+}
+
 /* Formant vowel selector buttons */
 .fx-vowel-row {
   display: flex;

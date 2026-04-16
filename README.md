@@ -202,7 +202,18 @@ QWERTY tonic requires the ⌨ button enabled in the SHAPE column.
 
 Web MIDI note-in retunes tonic + octave from external hardware. CC mapping with learn mode: click a target, move a knob to assign.
 
-10 assignable CC targets: WEATHER X/Y, DRIFT, AIR, TIME, BLOOM, GLIDE, SUB, VOL, HOLD.
+**~46 assignable targets** organised into groups that mirror the instrument:
+
+| Group | Targets |
+|---|---|
+| Macros | DRIFT, AIR, TIME, SUB, BLOOM, GLIDE, MORPH, EVOLVE, PLUCK |
+| Weather | WEATHER X, WEATHER Y, LFO RATE, LFO DEPTH |
+| Mixer | VOL, HPF, EQ LOW / MID / HIGH, GLUE, DRIVE, CEILING |
+| Voices | TANPURA, REED, METAL, AIR VX, PIANO, FM, AMP |
+| Effects | TAPE, WOW, SUB (fx), COMB, DELAY, PLATE, HALL, SHIMMER, FREEZE, CISTERN, GRANULAR, GRAINCLOUD, RINGMOD, FORMANT |
+| Triggers | HOLD, PANIC, RND, MUTATE (fire on rising edge ≥ 64; HOLD follows sustain-pedal state) |
+
+Defaults:
 
 | CC | Default target |
 |---|---|
@@ -211,6 +222,8 @@ Web MIDI note-in retunes tonic + octave from external hardware. CC mapping with 
 | CC7 (volume) | VOL |
 | CC64 (sustain) | HOLD |
 | CC71–76 | DRIFT, AIR, TIME, BLOOM, GLIDE, SUB |
+
+Every other target is unassigned by default — learn to bind.
 
 ---
 

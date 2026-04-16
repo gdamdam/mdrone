@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
-import { loadCcMap, saveCcMap, assignCc, resetCcMap, type CcMap, type MidiTarget } from "../engine/midiMapping";
+import { loadCcMap, saveCcMap, assignCc, resetCcMap, MIDI_TARGETS_BY_ID, type CcMap } from "../engine/midiMapping";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION, STORAGE_KEYS, type WeatherVisual } from "../config";
@@ -112,16 +112,32 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     droneViewRef.current?.setOctave(clamped);
   }, []);
 
-  // MIDI CC mapping — hardcoded defaults + user learn overrides.
+  // MIDI CC mapping — target registry + learn-mode overrides. The
+  // registry lives in midiMapping.ts; the dispatch below knows how
+  // to route each target id to the engine / drone view / scene
+  // manager.
   const [ccMap, setCcMap] = useState<CcMap>(loadCcMap);
-  const [midiLearnTarget, setMidiLearnTarget] = useState<MidiTarget | null>(null);
+  const [midiLearnTarget, setMidiLearnTarget] = useState<string | null>(null);
   const ccMapRef = useRef(ccMap);
   const midiLearnRef = useRef(midiLearnTarget);
   useEffect(() => { ccMapRef.current = ccMap; }, [ccMap]);
   useEffect(() => { midiLearnRef.current = midiLearnTarget; }, [midiLearnTarget]);
 
+  // Refs so the dispatch doesn't close over stale handler identities.
+  // sceneManager is re-created on every render; handlePanic is an
+  // inline closure; without refs every MIDI message would rebuild
+  // the CC handler.
+  const panicRef = useRef<() => void>(() => {});
+  const randomSceneRef = useRef<() => void>(() => {});
+  const mutateSceneRef = useRef<(intensity: number) => void>(() => {});
+
+  // Track which trigger CCs are currently "on" so we fire once per
+  // rising edge (value crosses from <64 to >=64) instead of repeating
+  // while the controller sustains a held button.
+  const triggerOnRef = useRef<Set<number>>(new Set());
+
   const handleMidiCc = useCallback((cc: number, value: number) => {
-    // Learn mode: assign this CC to the pending target
+    // Learn mode: assign this CC to the pending target id.
     if (midiLearnRef.current) {
       const next = assignCc(ccMapRef.current, cc, midiLearnRef.current);
       setCcMap(next);
@@ -130,48 +146,101 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       return;
     }
 
-    const target = ccMapRef.current[cc];
+    const targetId = ccMapRef.current[cc];
+    if (!targetId) return;
+    const target = MIDI_TARGETS_BY_ID.get(targetId);
     if (!target) return;
-    const norm = value / 127; // 0..1
 
-    switch (target) {
-      case "weatherX":
-        droneViewRef.current?.applyLivePatch?.({ climateX: norm }, { record: true });
-        break;
-      case "weatherY":
-        droneViewRef.current?.applyLivePatch?.({ climateY: norm }, { record: true });
-        break;
-      case "drift":
-        droneViewRef.current?.applyLivePatch?.({ drift: norm }, { record: true });
-        break;
-      case "air":
-        droneViewRef.current?.applyLivePatch?.({ air: norm }, { record: true });
-        break;
-      case "time":
-        droneViewRef.current?.applyLivePatch?.({ time: norm }, { record: true });
-        break;
-      case "bloom":
-        droneViewRef.current?.applyLivePatch?.({ bloom: norm }, { record: true });
-        break;
-      case "glide":
-        droneViewRef.current?.applyLivePatch?.({ glide: norm }, { record: true });
-        break;
-      case "sub":
-        droneViewRef.current?.applyLivePatch?.({ sub: norm }, { record: true });
-        break;
-      case "volume":
-        engine?.setMasterVolume?.(norm * 1.5); // 0..1.5 range
-        break;
-      case "hold":
-        // CC64 sustain pedal: ≥64 = on, <64 = off
-        if (value >= 64) {
-          if (!engine?.isPlaying()) holdToggleRef.current?.();
-        } else {
-          if (engine?.isPlaying()) holdToggleRef.current?.();
-        }
-        break;
+    // ── Triggers — fire on rising edge, except HOLD which behaves
+    //    like a sustain pedal (tracks state, not edges). ──────────
+    if (target.kind === "trigger") {
+      const isOn = value >= 64;
+      const wasOn = triggerOnRef.current.has(cc);
+      if (isOn) triggerOnRef.current.add(cc);
+      else triggerOnRef.current.delete(cc);
+
+      if (targetId === "hold") {
+        // Sustain-pedal semantics: on ⇒ ensure playing, off ⇒ ensure stopped.
+        if (isOn && !engine?.isPlaying()) holdToggleRef.current?.();
+        else if (!isOn && engine?.isPlaying()) holdToggleRef.current?.();
+        return;
+      }
+      if (!isOn || wasOn) return; // one-shot on rising edge only
+      switch (targetId) {
+        case "panic":  panicRef.current(); break;
+        case "rnd":    randomSceneRef.current(); break;
+        case "mutate": mutateSceneRef.current(0.25); break;
+      }
+      return;
+    }
+
+    // ── Continuous dispatch — `norm` is 0..1. Most targets are
+    //    nominally 0..1; those that aren't remap inside the case. ─
+    const norm = value / 127;
+    const dv = droneViewRef.current;
+    const eng = engine;
+    switch (targetId) {
+      // Macros (voice + motion)
+      case "drift":  dv?.applyLivePatch?.({ drift:  norm }, { record: true }); break;
+      case "air":    dv?.applyLivePatch?.({ air:    norm }, { record: true }); break;
+      case "time":   dv?.applyLivePatch?.({ time:   norm }, { record: true }); break;
+      case "sub":    dv?.applyLivePatch?.({ sub:    norm }, { record: true }); break;
+      case "bloom":  dv?.applyLivePatch?.({ bloom:  norm }, { record: true }); break;
+      case "glide":  dv?.applyLivePatch?.({ glide:  norm }, { record: true }); break;
+      case "morph":  dv?.applyLivePatch?.({ presetMorph: norm }, { record: true }); break;
+      case "evolve": dv?.applyLivePatch?.({ evolve: norm }, { record: true }); break;
+      case "pluck":  dv?.applyLivePatch?.({ pluckRate: norm * 2 }, { record: true }); break;
+
+      // Weather + LFO
+      case "weatherX":  dv?.applyLivePatch?.({ climateX: norm }, { record: true }); break;
+      case "weatherY":  dv?.applyLivePatch?.({ climateY: norm }, { record: true }); break;
+      // LFO rate log-scaled 0.05..8 Hz to match the SHAPE panel's RATE macro.
+      case "lfoRate":   dv?.applyLivePatch?.({ lfoRate: 0.05 * Math.pow(160, norm) }, { record: true }); break;
+      case "lfoAmount": dv?.applyLivePatch?.({ lfoAmount: norm }, { record: true }); break;
+
+      // Mixer
+      case "volume":  eng?.setMasterVolume?.(norm * 1.5); break;
+      case "hpf":     eng?.setHpfFreq?.(norm * 60); break;            // 0..60 Hz
+      case "eqLow":   { const g = eng?.getEqLow();  if (g) g.gain.value = (norm - 0.5) * 24; } break; // ±12 dB
+      case "eqMid":   { const g = eng?.getEqMid();  if (g) g.gain.value = (norm - 0.5) * 24; } break;
+      case "eqHigh":  { const g = eng?.getEqHigh(); if (g) g.gain.value = (norm - 0.5) * 24; } break;
+      case "glue":    eng?.setGlueAmount?.(norm); break;
+      case "drive":   eng?.setDrive?.(1 + norm * 3); break;           // 1..4×
+      case "ceiling": eng?.setLimiterCeiling?.(-6 + norm * 6); break; // -6..0 dBFS
+
+      // Voice levels (0..1)
+      case "voice.tanpura": eng?.setVoiceLevel?.("tanpura", norm); break;
+      case "voice.reed":    eng?.setVoiceLevel?.("reed",    norm); break;
+      case "voice.metal":   eng?.setVoiceLevel?.("metal",   norm); break;
+      case "voice.air":     eng?.setVoiceLevel?.("air",     norm); break;
+      case "voice.piano":   eng?.setVoiceLevel?.("piano",   norm); break;
+      case "voice.fm":      eng?.setVoiceLevel?.("fm",      norm); break;
+      case "voice.amp":     eng?.setVoiceLevel?.("amp",     norm); break;
+
+      // Effect levels (0..1). The SHAPE effect toggles are still the
+      // authority on whether an effect is in-chain; this CC just
+      // scales the wet-return gain of whichever effects are active.
+      case "fx.tape":       eng?.getFxChain?.().setEffectLevel("tape",       norm); break;
+      case "fx.wow":        eng?.getFxChain?.().setEffectLevel("wow",        norm); break;
+      case "fx.sub":        eng?.getFxChain?.().setEffectLevel("sub",        norm); break;
+      case "fx.comb":       eng?.getFxChain?.().setEffectLevel("comb",       norm); break;
+      case "fx.delay":      eng?.getFxChain?.().setEffectLevel("delay",      norm); break;
+      case "fx.plate":      eng?.getFxChain?.().setEffectLevel("plate",      norm); break;
+      case "fx.hall":       eng?.getFxChain?.().setEffectLevel("hall",       norm); break;
+      case "fx.shimmer":    eng?.getFxChain?.().setEffectLevel("shimmer",    norm); break;
+      case "fx.freeze":     eng?.getFxChain?.().setEffectLevel("freeze",     norm); break;
+      case "fx.cistern":    eng?.getFxChain?.().setEffectLevel("cistern",    norm); break;
+      case "fx.granular":   eng?.getFxChain?.().setEffectLevel("granular",   norm); break;
+      case "fx.graincloud": eng?.getFxChain?.().setEffectLevel("graincloud", norm); break;
+      case "fx.ringmod":    eng?.getFxChain?.().setEffectLevel("ringmod",    norm); break;
+      case "fx.formant":    eng?.getFxChain?.().setEffectLevel("formant",    norm); break;
     }
   }, [engine]);
+
+  // Ref sync for handlers referenced by handleMidiCc's trigger branch.
+  // Done after the handlers are declared (see below) to avoid TDZ.
+  randomSceneRef.current = sceneManager.handleRandomScene;
+  mutateSceneRef.current = sceneManager.handleMutateScene;
 
   // Exposed for the Settings modal's MIDI section
   const handleResetCcMap = useCallback(() => { setCcMap(resetCcMap()); }, []);
@@ -259,6 +328,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     // Brief delay so the ramp-out completes before reload kills the context
     setTimeout(() => window.location.reload(), 300);
   };
+  panicRef.current = handlePanic;
 
   const recordingSupport = engine.getRecordingSupport();
   const recordingTitle = !recordingSupport.supported
