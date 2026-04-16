@@ -323,6 +323,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   white-space: nowrap;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
+  /* Pin the tonic + Hz readout to the far right so the keyboard and
+     octave controls sit after the preset meta, with a variable gap
+     between them and the readout. */
+  margin-left: auto;
 }
 
 .preset-strip-chevron {
@@ -355,12 +359,15 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 .preset-strip-meta-btn:hover .preset-strip-name { color: var(--preview); }
 
-/* Inline keyboard + octave controls within the preset strip. Tight
-   gaps so the whole strip stays one row; the keyboard reads as a
-   complement to the tonic readout rather than an extra row below. */
+/* Inline keyboard + octave controls within the preset strip. Keys
+   are capped to roughly half of what a full-width keyboard would
+   take so the preset-strip stays balanced: meta label on the left,
+   keyboard + octave in the middle, tonic readout + chevron on the
+   right. */
 .preset-strip-keys {
-  flex: 1 1 auto;
-  min-width: 140px;
+  flex: 0 1 200px;
+  min-width: 120px;
+  max-width: 220px;
   justify-content: flex-start;
 }
 .preset-strip-octave {
@@ -368,6 +375,24 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 .preset-strip-octave .header-kbd-btn,
 .preset-strip-octave .header-octave-btn { font-size: 11px; }
+
+/* Tanpura tuning picker inside the SHAPE panel — only rendered
+   while the tanpura voice is active. Kept on its own row so it
+   reads as a secondary voice setting, not a macro. */
+.shape-tanpura-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.shape-tanpura-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  min-width: 60px;
+}
+.shape-tanpura-select { flex: 1 1 auto; min-width: 0; }
 
 @media (max-width: 720px) {
   /* Narrow viewports: wrap the strip so the keyboard falls onto its

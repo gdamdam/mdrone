@@ -31,6 +31,11 @@ import type { PitchClass } from "../types";
 import { FxBar } from "./FxBar";
 import { EFFECT_ORDER, type EffectId } from "../engine/FxChain";
 import { STORAGE_KEYS } from "../config";
+import {
+  TANPURA_TUNING_IDS,
+  TANPURA_TUNING_LABELS,
+  type TanpuraTuningId,
+} from "../engine/VoiceBuilder";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
 import { relationLabels, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
@@ -301,6 +306,23 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   const handleEffectReorder = useCallback((next: EffectId[]) => {
     setEffectOrder(next);
     try { window.localStorage?.setItem(STORAGE_KEYS.effectOrder, JSON.stringify(next)); } catch { /* noop */ }
+  }, []);
+
+  // Tanpura string-tuning picker. Shown in the SHAPE panel only when
+  // the tanpura voice is active. Persisted so reloads keep the choice.
+  const [tanpuraTuning, setTanpuraTuningState] = useState<TanpuraTuningId>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage?.getItem(STORAGE_KEYS.tanpuraTuning) : null;
+      if (raw && (TANPURA_TUNING_IDS as readonly string[]).includes(raw)) return raw as TanpuraTuningId;
+    } catch { /* noop */ }
+    return "classic";
+  });
+  useEffect(() => {
+    if (engine) engine.setTanpuraTuning(tanpuraTuning);
+  }, [engine, tanpuraTuning]);
+  const handleTanpuraTuning = useCallback((id: TanpuraTuningId) => {
+    setTanpuraTuningState(id);
+    try { window.localStorage?.setItem(STORAGE_KEYS.tanpuraTuning, id); } catch { /* noop */ }
   }, []);
 
   // WEATHER intro emphasis — true only on first fresh mount (no
@@ -677,6 +699,28 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
               />
             </div>
+
+            {/* Tanpura string tuning — shown only when the tanpura
+                voice is active. Classic preserves the legacy micro-
+                detune unison; Sa Pa / Sa Ma / Sa Ni swap one string
+                out for the classical raga tuning. Changing rebuilds
+                voices (VoiceEngine.setTanpuraTuning). */}
+            {state.voiceLayers.tanpura && (
+              <div className="shape-tanpura-row">
+                <span className="shape-tanpura-label">TANPURA</span>
+                <DropdownSelect
+                  value={tanpuraTuning}
+                  options={TANPURA_TUNING_IDS.map((id) => ({
+                    value: id,
+                    label: TANPURA_TUNING_LABELS[id],
+                  }))}
+                  onChange={(v) => handleTanpuraTuning(v as TanpuraTuningId)}
+                  className="shape-tanpura-select"
+                  title="Tanpura string tuning — classical Sa Pa / Sa Ma / Sa Ni or unison"
+                  ariaLabel="Tanpura tuning"
+                />
+              </div>
+            )}
 
             <div className="scene-actions-row">
               {/* PARTNER stays inline — it's a live voicing control,
