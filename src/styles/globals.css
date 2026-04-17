@@ -402,7 +402,12 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .preset-strip-tonic-btn { min-width: 150px; max-width: 220px; }
 
 @media (max-width: 720px) {
-  .preset-strip { flex-wrap: wrap; }
+  /* Tighter padding + gap on mobile so the strip doesn't eat a third
+     of the viewport height with its own chrome. */
+  .preset-strip { flex-wrap: wrap; padding: 6px 8px; gap: 6px; }
+  /* Drop the subtitle on mobile — it wraps onto a second line and
+     the preset name alone reads fine at this width. Desktop keeps it. */
+  .preset-strip-attr { display: none; }
   /* Keyboard, octave stepper, and the separate Hz readout are all
      replaced by the single wide tonic dropdown on mobile. Dual-class
      selectors bump specificity above the baseline `.tonic-keys` +
@@ -411,14 +416,16 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .preset-strip-keys.tonic-keys,
   .preset-strip-octave.weather-octave,
   .preset-strip .preset-strip-tonic { display: none; }
+  /* Picker shares the second row with the chevron instead of taking
+     it alone — `flex: 1 1 auto` lets the chevron sit at the right. */
   .preset-strip-tonic-picker {
     display: block;
     order: 4;
-    flex: 1 1 100%;
-    margin-top: 6px;
-    margin-left: auto;
+    flex: 1 1 auto;
+    margin-top: 0;
   }
   .preset-strip-tonic-btn { width: 100%; max-width: none; }
+  .preset-strip-chevron { order: 5; margin-top: 0; }
 }
 
 /* TIMBRE + EFFECTS two-column layout */
