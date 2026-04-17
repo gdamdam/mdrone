@@ -399,7 +399,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
    there — and shown on mobile instead of the keyboard + octave + Hz
    readout, which are hidden below. */
 .preset-strip-tonic-picker { display: none; }
-.preset-strip-tonic-btn { min-width: 150px; max-width: 220px; }
+.preset-strip-tonic-btn {
+  min-width: 150px;
+  max-width: 220px;
+  /* Pill — fully rounded capsule so the tonic button reads as a
+     distinct performer-grade control, not a standard form select. */
+  border-radius: 999px;
+  padding: 6px 14px;
+}
 
 @media (max-width: 720px) {
   /* Tighter padding + gap on mobile so the strip doesn't eat a third
