@@ -401,7 +401,6 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleHold={handleToggleHold}
         holding={headerHolding}
         onToggleRec={handleToggleRec}
-        onPanic={handlePanic}
         onOpenShare={() => setShareOpen(true)}
         onRandomScene={sceneManager.handleRandomScene}
         tuneOffsetHint={headerTuneHint}

@@ -37,7 +37,6 @@ interface HeaderProps {
   onToggleHold: () => void;
   holding: boolean;
   onToggleRec: () => void;
-  onPanic: () => void;
   onOpenShare: () => void;
   onRandomScene: () => void;
   /** Pre-formatted "fine-tune active" hint string (e.g. "±7 ¢"),
@@ -87,7 +86,6 @@ export function Header({
   onToggleHold,
   holding,
   onToggleRec,
-  onPanic,
   onOpenShare,
   onRandomScene,
   isRec,
@@ -677,21 +675,6 @@ export function Header({
                     : "Show the REC MOTION button in the drone view"}
                 >
                   {motionRecEnabled ? "● MOTION RECORDING" : "MOTION RECORDING"}
-                </button>
-              </div>
-
-              <div className="fx-modal-divider" />
-              <div className="fx-modal-section-label">PANIC</div>
-              <p className="fx-modal-desc">
-                Stop the drone and kill any lingering reverb/delay tails. Standard MIDI-style emergency silence.
-              </p>
-              <div className="fx-modal-actions">
-                <button
-                  className="header-btn"
-                  onClick={() => { onPanic(); setSessionOpen(false); }}
-                  title="Panic — silence everything immediately"
-                >
-                  PANIC
                 </button>
               </div>
 

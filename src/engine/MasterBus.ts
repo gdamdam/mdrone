@@ -105,6 +105,16 @@ export class MasterBus {
     this.preLimiterAnalyser = this.ctx.createAnalyser();
     this.preLimiterAnalyser.fftSize = 1024;
 
+    // Parallel CLIP-LED tap at the very top of the master bus —
+    // before HPF / EQ / glue / drive. The drive chain's tanh curve
+    // mathematically bounds the pre-limiter signal to ~1/√drive
+    // (≈ 0.82 at default drive=1.5), which means a tap after drive
+    // will never exceed unity no matter how hot the mix is. Tapping
+    // masterGain captures the raw voice+FX sum — peak > 1.0 there
+    // is the honest "your mix exceeds 0 dBFS" event we want to
+    // flag. Parallel connection; doesn't interrupt the main path.
+    this.masterGain.connect(this.preLimiterAnalyser);
+
     this.masterGain.connect(this.hpf);
     this.hpf.connect(this.eqLow);
     this.eqLow.connect(this.eqMid);
@@ -115,8 +125,6 @@ export class MasterBus {
     this.drivePre.connect(this.drive);
     this.drive.connect(this.drivePost);
     this.drivePost.connect(this.limiterIn);
-    // Parallel tap — pre-limiter peak for the CLIP LED.
-    this.limiterIn.connect(this.preLimiterAnalyser);
     // Passthrough until worklet ready.
     this.limiterIn.connect(this.limiterOut);
     this.limiterOut.connect(this.outputTrim);

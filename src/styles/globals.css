@@ -3360,6 +3360,37 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-family: monospace;
 }
 
+.mixer-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 8px;
+  position: relative;
+}
+.mixer-footer-row .mixer-hint {
+  flex: 1 1 auto;
+}
+
+.mixer-reset-btn {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms;
+}
+.mixer-reset-btn:hover {
+  color: var(--text);
+  border-color: var(--preview);
+}
+
 .mixer-limiter-btn {
   width: 48px;
   height: 48px;

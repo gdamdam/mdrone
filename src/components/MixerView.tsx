@@ -121,10 +121,13 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
         const v = Math.abs(buf[i]);
         if (v > peak) peak = v;
       }
-      // Threshold is > 1.0 (true overshoot beyond 0 dBFS). In normal
-      // hot-but-clean playback the drive chain bounds the pre-limiter
-      // signal well below unity via its tanh curve; only real
-      // transients cross 1.0 and need the limiter to catch them.
+      // Threshold is > 1.0 (true overshoot beyond 0 dBFS). The
+      // analyser now taps the very top of the master bus (masterGain)
+      // rather than the pre-limiter node — the drive chain's tanh
+      // curve mathematically bounds post-drive peaks to ~1/√drive,
+      // which meant any post-drive tap could never register overshoot.
+      // masterGain sees the raw voice+FX sum, so peak > 1.0 is the
+      // honest "your mix exceeds 0 dBFS going into the master."
       if (peak > 1.0) holdUntil = now + 120;
       el.classList.toggle("clip-on", now < holdUntil);
     };
@@ -137,6 +140,26 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
     const next = HPF_STEPS[(idx + 1) % HPF_STEPS.length];
     setHpfHz(next);
     if (engine) engine.setHpfFreq(next);
+  };
+
+  /** Reset all mixer levels to their neutral defaults. Headphone-safe
+   *  is intentionally excluded — it's a listener-protection toggle,
+   *  not a mix level, and users who enable it shouldn't have a
+   *  generic "reset" button silently disarm it. */
+  const resetMixer = () => {
+    setHpfHz(10);         if (engine) engine.setHpfFreq(10);
+    setLow(0);            if (engine) engine.getEqLow().gain.value = 0;
+    setMid(0);            if (engine) engine.getEqMid().gain.value = 0;
+    setHigh(0);           if (engine) engine.getEqHigh().gain.value = 0;
+    setGlue(0);           if (engine) engine.setGlueAmount(0);
+    setDrive(1);          if (engine) engine.setDrive(1);
+    setLimiterOn(true);   if (engine) engine.setLimiterEnabled(true);
+    setCeiling(-1);       if (engine) engine.setLimiterCeiling(-1);
+    if (onVolumeChange) onVolumeChange(1);
+    else {
+      setVolumeInternal(1);
+      if (engine) engine.setMasterVolume(1);
+    }
   };
 
   const onLow = (v: number) => { setLow(v); if (engine) engine.getEqLow().gain.value = v; };
@@ -272,8 +295,18 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
         </span>
       </div>
 
-      <div className="mixer-hint">
-        Master bus: HPF → 3-band EQ → glue → drive → limiter → trim → out
+      <div className="mixer-footer-row">
+        <button
+          type="button"
+          className="mixer-reset-btn"
+          onClick={resetMixer}
+          title="Reset all mixer levels to defaults (HPF OFF, flat EQ, glue 0, drive 1, limiter on at -1 dBFS, volume unity). Headphone-safe is not touched."
+        >
+          RESET
+        </button>
+        <div className="mixer-hint">
+          Master bus: HPF → 3-band EQ → glue → drive → limiter → trim → out
+        </div>
       </div>
     </div>
   );
