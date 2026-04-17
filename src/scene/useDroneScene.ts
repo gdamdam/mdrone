@@ -589,6 +589,16 @@ export function useDroneScene({
     engine.setEvolve(snapshot.evolve);
     engine.setTanpuraPluckRate(snapshot.pluckRate);
     engine.setPresetTrim(snapshot.presetTrim);
+    // Seed the evolve PRNG from the scene so long-form evolve paths
+    // reproduce across loads; apply the pitch-locked LFO division
+    // after the rate/amount so the lock takes effect over the manual
+    // rate when non-zero.
+    engine.setEvolveSeed(snapshot.seed);
+    if (typeof snapshot.lfoDivision === "number") {
+      engine.setLfoDivision(snapshot.lfoDivision);
+    } else {
+      engine.setLfoDivision(0);
+    }
     if (shouldPlay) {
       if (!current.playing || needsVoiceRebuild) {
         engine.startDrone(nextFreq, nextIntervals);

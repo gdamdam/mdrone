@@ -454,6 +454,26 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
   // Tanpura string-tuning picker. Shown in the SHAPE panel only when
   // the tanpura voice is active. Persisted so reloads keep the choice.
+  // Pitch-locked LFO division cycle — 0 = off, otherwise LFO rate =
+  // rootHz / N so pitch changes retune the LFO proportionally
+  // (Radigue / Éliane-style). Mirror the engine so cycling through
+  // the chip updates both sides. Not localStorage-persisted; scene
+  // snapshots carry it when non-zero.
+  const [lfoDivision, setLfoDivisionState] = useState<number>(
+    () => engine?.getLfoDivision?.() ?? 0,
+  );
+  useEffect(() => {
+    if (engine) engine.setLfoDivision(lfoDivision);
+  }, [engine, lfoDivision]);
+  const cycleLfoDivision = useCallback(() => {
+    setLfoDivisionState((prev) => {
+      if (prev === 0) return 1024;
+      if (prev === 1024) return 2048;
+      if (prev === 2048) return 4096;
+      return 0;
+    });
+  }, []);
+
   const [tanpuraTuning, setTanpuraTuningState] = useState<TanpuraTuningId>(() => {
     try {
       const raw = typeof window !== "undefined" ? window.localStorage?.getItem(STORAGE_KEYS.tanpuraTuning) : null;
@@ -611,16 +631,28 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // through handleTanpuraTuning so React state, localStorage, and
   // engine all stay in sync (the useEffect above would otherwise
   // overwrite the engine with the stale local value on next render).
-  const getSnapshotWithLocals = useCallback((): DroneSessionSnapshot => ({
-    ...getSnapshot(),
-    tanpuraTuning,
-  }), [getSnapshot, tanpuraTuning]);
+  const getSnapshotWithLocals = useCallback((): DroneSessionSnapshot => {
+    const base = getSnapshot();
+    const snap: DroneSessionSnapshot = { ...base, tanpuraTuning };
+    // lfoDivision lives on the engine (MotionEngine); capture it
+    // only when non-zero so legacy saves stay byte-identical for
+    // scenes that never touched the pitch-locked LFO.
+    const div = engine?.getLfoDivision?.() ?? 0;
+    if (div > 0) snap.lfoDivision = div;
+    return snap;
+  }, [getSnapshot, tanpuraTuning, engine]);
   const applySnapshotWithLocals = useCallback((snap: DroneSessionSnapshot) => {
     if (snap.tanpuraTuning && snap.tanpuraTuning !== tanpuraTuning) {
       handleTanpuraTuning(snap.tanpuraTuning);
     }
+    // Sync local UI state to the scene's lfoDivision so the chip
+    // reflects the loaded value (engine side is also set inside
+    // applyDroneSnapshot, but our useEffect would otherwise push
+    // the stale local 0 back on next render).
+    const nextDiv = typeof snap.lfoDivision === "number" ? snap.lfoDivision : 0;
+    if (nextDiv !== lfoDivision) setLfoDivisionState(nextDiv);
     applySnapshot(snap);
-  }, [applySnapshot, handleTanpuraTuning, tanpuraTuning]);
+  }, [applySnapshot, handleTanpuraTuning, tanpuraTuning, lfoDivision]);
 
   useImperativeHandle(ref, () => ({
     getSnapshot: getSnapshotWithLocals,
@@ -1347,6 +1379,21 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 }
               >
                 {lfoSyncMode === "free" ? "FREE" : lfoSyncMode}
+              </button>
+              <button
+                type="button"
+                className={
+                  "lfo-sync-chip" +
+                  (lfoDivision > 0 ? " lfo-sync-chip-armed lfo-sync-chip-locked" : "")
+                }
+                onClick={cycleLfoDivision}
+                title={
+                  lfoDivision === 0
+                    ? "PITCH-LOCK off. Click to lock LFO rate to rootHz/N — tuning and octave changes retune the LFO proportionally."
+                    : `LFO rate locked to rootHz/${lfoDivision}. Click to cycle.`
+                }
+              >
+                {lfoDivision === 0 ? "HZ" : `÷${lfoDivision}`}
               </button>
             </div>
             <Macro

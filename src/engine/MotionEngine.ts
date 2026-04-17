@@ -53,6 +53,25 @@ export class MotionEngine {
   private evolveInterval: number | null = null;
   private presetMotionProfile: PresetMotionProfile = DEFAULT_PRESET_MOTION_PROFILE;
 
+  /** Seeded PRNG state for the evolve loop. Using a seeded source
+   *  (instead of Math.random) means a scene + evolve amount + tick
+   *  count reproduces the same macro-form across loads — required
+   *  for share-scene determinism. */
+  private evolveRngState = 0x9e3779b1;
+
+  /** Pitch-locked LFO division. 0 = off (user-set Hz rate applies).
+   *  N > 0 locks the user LFO to rootFreq / N so tuning or octave
+   *  changes retune the LFO proportionally — Radigue / Éliane-style
+   *  beat modulation that tracks the drone. Typical divisions
+   *  (1024 / 2048 / 4096) give 0.05–0.5 Hz rates in the normal
+   *  drone root range. */
+  private lfoDivision = 0;
+
+  /** Active master-gain fade controller. Each call to startFade()
+   *  supersedes the previous one (we cancel scheduled values on the
+   *  target param). Null means no fade in flight. */
+  private fadeCancel: (() => void) | null = null;
+
   constructor(options: MotionEngineOptions) {
     this.ctx = options.ctx;
     this.fxChain = options.fxChain;
@@ -113,6 +132,94 @@ export class MotionEngine {
   }
 
   getEvolve(): number { return this.evolveAmount; }
+
+  /** Re-seed the evolve PRNG so subsequent walk steps are
+   *  deterministic. Called from applyDroneSnapshot with the scene's
+   *  stored seed so reloads reproduce the same long-form trajectory. */
+  setEvolveSeed(seed: number): void {
+    this.evolveRngState = (seed >>> 0) || 0x9e3779b1;
+    this.evolveTicks = 0;
+  }
+
+  /** Start a master-gain fade to targetLinear over `seconds`.
+   *  Cancels any previous fade first so back-to-back fade-in/out
+   *  presses don't leave the gain in a surprising state. Returns a
+   *  cancel function the caller can stash if it wants to interrupt
+   *  mid-ramp. */
+  startFade(outputTrimParam: AudioParam, targetLinear: number, seconds: number): () => void {
+    if (this.fadeCancel) this.fadeCancel();
+    const now = this.ctx.currentTime;
+    const dur = Math.max(1, Math.min(3600, seconds));
+    try { outputTrimParam.cancelScheduledValues(now); } catch { /* noop */ }
+    try {
+      outputTrimParam.setValueAtTime(outputTrimParam.value, now);
+      // linearRampToValueAtTime over minutes is exactly what we want
+      // for a fade-in/out gesture — the browser handles sample-accurate
+      // smoothing and we don't need a rAF.
+      outputTrimParam.linearRampToValueAtTime(Math.max(0, targetLinear), now + dur);
+    } catch { /* noop */ }
+    const cancel = () => {
+      try { outputTrimParam.cancelScheduledValues(this.ctx.currentTime); } catch { /* noop */ }
+    };
+    this.fadeCancel = cancel;
+    return cancel;
+  }
+
+  cancelFade(): void {
+    if (this.fadeCancel) {
+      this.fadeCancel();
+      this.fadeCancel = null;
+    }
+  }
+
+  /** Lock the user LFO rate to a root-frequency division. 0 = off. */
+  setLfoDivision(n: number): void {
+    this.lfoDivision = Math.max(0, Math.floor(n));
+    this.applyLfoDivision();
+  }
+
+  getLfoDivision(): number { return this.lfoDivision; }
+
+  /** Called by AudioEngine whenever the root frequency changes so the
+   *  pitch-locked LFO tracks it. No-op when division is 0. */
+  notifyRootChanged(): void {
+    this.applyLfoDivision();
+  }
+
+  private applyLfoDivision(): void {
+    if (!this.userLfo || this.lfoDivision <= 0) return;
+    const rootHz = this.getDroneFreqImpl();
+    const targetHz = Math.max(0.02, Math.min(8, rootHz / this.lfoDivision));
+    this.userLfo.frequency.setTargetAtTime(targetHz, this.ctx.currentTime, 0.1);
+  }
+
+  // mulberry32 — deterministic PRNG used by the evolve walk.
+  private rand(): number {
+    let t = (this.evolveRngState = (this.evolveRngState + 0x6d2b79f5) >>> 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  /** Multi-timescale step generator. The classic single-timescale
+   *  random walk rattles inside its own range without a macro arc
+   *  because every step is the same size. This sums three timescales
+   *  (slow → medium → fast) so the trajectory has both fine-grain
+   *  wobble AND a slow drift over minutes — the long-form arc drone
+   *  audiences expect from a 30–60 minute piece. Weights normalised
+   *  so the overall step magnitude matches the old walk at
+   *  amplitude 1. */
+  private multiScaleStep(): number {
+    // Three-octave sum of LF sinusoids, phase-driven by tick count
+    // so no wall-clock dependency. Each LFO reads a different
+    // fraction of the tick counter with a seeded phase offset.
+    const t = this.evolveTicks;
+    const phase1 = (this.rand() * 2 - 1);
+    const slow = Math.sin(t * 0.018 + phase1 * 3.14) * 0.55;
+    const med  = Math.sin(t * 0.072 + phase1 * 1.9) * 0.30;
+    const fast = (this.rand() - 0.5) * 0.30;
+    return slow + med + fast;
+  }
 
   subscribeSceneMutations(listener: (mutation: EngineSceneMutation) => void): () => void {
     this.sceneMutationListeners.add(listener);
@@ -208,13 +315,19 @@ export class MotionEngine {
       const amt = this.evolveAmount;
       const profile = this.presetMotionProfile;
       const mutation: EngineSceneMutation = {};
+      // Multi-timescale seeded step. The old walk was a uniform
+      // random-walk on 8 s ticks; over 30-60 min listening it rattled
+      // ±range without a macro arc. multiScaleStep() sums three
+      // timescales (slow drift + medium wobble + fast jitter) and
+      // pulls from a seeded PRNG so the arc is reproducible across
+      // share-scene reloads.
       const walk = (
         cur: number,
         range: readonly [number, number],
         weight = 1,
       ) => {
         const step = (0.012 + amt * 0.028) * profile.macroStep * weight;
-        return MotionEngine.clamp(cur + (Math.random() - 0.5) * step * 2, range[0], range[1]);
+        return MotionEngine.clamp(cur + this.multiScaleStep() * step, range[0], range[1]);
       };
 
       this.setClimateX(walk(this.climateX, profile.climateXRange, 1));
@@ -236,7 +349,7 @@ export class MotionEngine {
         this.evolveTicks % walkPeriod === 0
       ) {
         const steps = profile.tonicIntervals;
-        const delta = steps[Math.floor(Math.random() * steps.length)];
+        const delta = steps[Math.floor(this.rand() * steps.length)];
         const newFreq = this.getDroneFreqImpl() * Math.pow(2, delta / 12);
         if (newFreq >= 40 && newFreq <= 440) {
           this.setDroneFreqImpl(newFreq);

@@ -71,6 +71,9 @@ export interface DroneSessionSnapshot {
    *  backward-compat — legacy shares fall back to the receiver's
    *  local choice. */
   tanpuraTuning?: TanpuraTuningId;
+  /** Pitch-locked LFO division (rate = rootHz / N). 0 = off.
+   *  Optional for backward-compat; legacy shares just use lfoRate. */
+  lfoDivision?: number;
 }
 
 export interface MixerSessionSnapshot {
@@ -409,6 +412,10 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     partner: normalizePartner(value.partner),
     ...(isOneOf(value.tanpuraTuning, TANPURA_TUNING_IDS)
       ? { tanpuraTuning: value.tanpuraTuning }
+      : {}),
+    ...(typeof value.lfoDivision === "number" && Number.isFinite(value.lfoDivision)
+      && value.lfoDivision >= 0 && value.lfoDivision <= 8192
+      ? { lfoDivision: Math.floor(value.lfoDivision) }
       : {}),
   };
 }

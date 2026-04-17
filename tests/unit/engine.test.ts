@@ -89,14 +89,16 @@ describe("PRESETS (authored) validation", () => {
     }
   });
 
-  it("every shipped tuning is referenced by at least one authored preset", () => {
-    // Guards against the "shipped but orphaned" condition: tunings in
-    // src/microtuning.ts that ship to production but no preset uses,
-    // so users can't encounter them via preset browsing.
+  it("every shipped builtin tuning is referenced by at least one authored preset", () => {
+    // Guards against "shipped but orphaned" for builtin tunings only.
+    // Authored `custom:` tunings (Young WTP, Partch, 15-TET, etc.) are
+    // curated options surfaced via the tuning picker / Scale Editor
+    // and don't require a preset to be discoverable.
     const usedTuningIds = new Set(
       PRESETS.map((p) => p.tuningId).filter((id): id is NonNullable<typeof id> => id != null),
     );
     for (const tuning of TUNINGS) {
+      if (typeof tuning.id === "string" && tuning.id.startsWith("custom:")) continue;
       expect(
         usedTuningIds.has(tuning.id),
         `tuning "${tuning.id}" is shipped but no preset uses it`,

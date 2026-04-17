@@ -72,6 +72,14 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
   const volume = volumeProp ?? volumeInternal;
   const [headphoneSafe, setHeadphoneSafe] = useState(() => engine?.isHeadphoneSafe() ?? false);
   const [width, setWidth] = useState(() => engine?.getWidth() ?? 1);
+  // Slow-envelope / fade controller. Duration cycles through
+  // drone-friendly values (30 s / 2 min / 5 min / 20 min). The
+  // actual fade is a linearRampToValueAtTime on the master output
+  // trim so it's sample-accurate without a rAF tick. Not persisted.
+  const FADE_DURATIONS = [30, 120, 300, 1200] as const;
+  const [fadeDurIdx, setFadeDurIdx] = useState(1);
+  const fadeSeconds = FADE_DURATIONS[fadeDurIdx];
+  const fadeLabel = (s: number) => (s < 60 ? `${s}s` : `${Math.round(s / 60)}m`);
   // Live readings from the loudness worklet (~30 Hz update).
   const [lufsShort, setLufsShort] = useState<number | null>(null);
   const [peakDb, setPeakDb] = useState<number | null>(null);
@@ -255,6 +263,36 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
 
         <Strip label="WIDTH" value={width} min={0} max={2} step={0.01} unit="" onChange={onWidth} centre={1}
           title="Stereo width — M/S matrix. 1 = identity, 0 = mono, 2 = wide (phase-inverted side)." />
+
+        <div className="mixer-strip" title="Slow envelope — master-gain fade over minutes. Click IN / OUT to start; tap the duration to cycle 30 s / 2 min / 5 min / 20 min.">
+          <div className="mixer-strip-label">FADE</div>
+          <div className="mixer-clip-row" style={{ display: "flex", gap: 4 }}>
+            <button
+              type="button"
+              className="mixer-limiter-btn"
+              onClick={() => { if (engine) engine.startMasterFade(volume, fadeSeconds); }}
+              title={`Fade in to current VOL over ${fadeLabel(fadeSeconds)}`}
+            >
+              IN
+            </button>
+            <button
+              type="button"
+              className="mixer-limiter-btn"
+              onClick={() => { if (engine) engine.startMasterFade(0, fadeSeconds); }}
+              title={`Fade to silence over ${fadeLabel(fadeSeconds)}`}
+            >
+              OUT
+            </button>
+          </div>
+          <button
+            type="button"
+            className="mixer-limiter-btn"
+            onClick={() => setFadeDurIdx((i) => (i + 1) % FADE_DURATIONS.length)}
+            title="Cycle fade duration"
+          >
+            {fadeLabel(fadeSeconds)}
+          </button>
+        </div>
 
         <div className="mixer-divider" />
 

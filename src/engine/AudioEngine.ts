@@ -164,6 +164,8 @@ export class AudioEngine {
 
   setDroneFreq(freq: number): void {
     this.voiceEngine.setDroneFreq(freq);
+    // Pitch-locked LFO divisions follow the root when it changes.
+    this.motionEngine.notifyRootChanged();
   }
 
   setIntervals(intervalsCents: number[]): void {
@@ -443,6 +445,25 @@ export class AudioEngine {
 
   setWidth(w: number): void { this.masterBus.setWidth(w); }
   getWidth(): number { return this.masterBus.getWidth(); }
+
+  /** Start a slow master-gain fade to the given linear target over
+   *  `seconds` (clamped 1..3600). Transient performance gesture —
+   *  not persisted in saved scenes. */
+  startMasterFade(targetLinear: number, seconds: number): void {
+    this.motionEngine.startFade(
+      this.masterBus.getOutputTrim().gain,
+      targetLinear,
+      seconds,
+    );
+  }
+  cancelMasterFade(): void { this.motionEngine.cancelFade(); }
+
+  /** Pitch-locked LFO: rate = rootHz / N. 0 disables. */
+  setLfoDivision(n: number): void { this.motionEngine.setLfoDivision(n); }
+  getLfoDivision(): number { return this.motionEngine.getLfoDivision(); }
+
+  /** Seed the evolve PRNG — makes evolve reproducible across loads. */
+  setEvolveSeed(seed: number): void { this.motionEngine.setEvolveSeed(seed); }
 
   /** Subscribe to LUFS-S + true-peak readings from the loudness
    *  worklet. Returns an unsubscribe function. The callback fires at
