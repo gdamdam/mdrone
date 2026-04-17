@@ -1334,10 +1334,10 @@ export const PRESETS: Preset[] = [
     climateX: 0.16,   // very dark — oxide shedding kills highs first
     climateY: 0.18,   // moderated wow — "even" + heavy wow was reading as
                       // saturated noise, not degradation
-    // tape + wow = the degradation. Graincloud removed — the stutter
-    // grains were dominating the character toward noise; the tape +
-    // wow pair carries the Basinski oxide-crumble on its own.
-    effects: ["tape", "wow"],
+    // tape + wow = the oxide crumble; graincloud adds the fragmented
+    // tape-loop drop-outs that are a Disintegration Loops signature.
+    // (Tried without graincloud — user asked for it back.)
+    effects: ["tape", "wow", "graincloud"],
     scale: "major",   // DL sits in ambiguous bright-melancholy, not minor
     gain: 0.95,
     motionProfile: motionProfile({

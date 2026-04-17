@@ -127,13 +127,15 @@ const ON_LEVELS: Record<EffectId, number> = {
   formant: 1.0,
 };
 
-/** The serial FDN hall/cistern replaced a louder convolver path; give
- *  the worklet output a local make-up trim so sparse reverb-led presets
- *  sit with the rest of the library without changing preset data or
- *  parallel-send calibration. */
+/** Serial FDN hall/cistern trim. Previously 1.75 / 1.3 to compensate
+ *  for the dry-loss when hall/cistern were wet-only inserts — now
+ *  that they're additive (dry is preserved through the bypass path)
+ *  the trim just scales the wet on top of dry. 1.0 keeps the reverb
+ *  tail at unity; presets that want more wet can ride AIR or bump
+ *  the effect level. */
 const SERIAL_REVERB_TRIM = {
-  hall: 1.75,
-  cistern: 1.3,
+  hall: 1.0,
+  cistern: 1.0,
 } as const;
 
 interface Insert {
@@ -1089,13 +1091,21 @@ export class FxChain {
     // Apply the bypass / wet crossfade. Wet target is per-effect
     // level × (air for reverbs only).
     //
-    // Granular / graincloud are **additive** inserts: the grain
-    // cloud is meant to sit on top of the drone rather than replace
-    // it, so the dry (bypass) path stays open even when enabled and
-    // the wet path just adds the grain output. For every other
-    // effect the insert is a classic bypass↔wet crossfade.
+    // Additive inserts: dry (bypass) path stays open when enabled and
+    // the wet path just adds the effect output on top. Granular +
+    // graincloud have always behaved this way (the grain cloud sits
+    // on top of the drone). The reverb family (plate/hall/shimmer/
+    // cistern) joined them — a wet-only reverb was deleting the dry
+    // voice, which is why every preset with hall in the chain
+    // sounded much quieter than neighbours. Serial reverbs in DAWs
+    // are conventionally dry+wet mixes; this matches that expectation
+    // and keeps preset levels aligned without a per-preset trim table.
+    // For every other effect the insert is still a classic bypass↔wet
+    // crossfade.
     const wetTarget = on ? this.wetTargetFor(id) : 0;
-    const isAdditive = id === "granular" || id === "graincloud";
+    const isAdditive =
+      id === "granular" || id === "graincloud" ||
+      id === "plate" || id === "hall" || id === "shimmer" || id === "cistern";
     const bypassTarget = isAdditive ? 1 : (on ? 0 : 1);
     ins.bypassGain.gain.setTargetAtTime(bypassTarget, now, this.xfadeTC);
     ins.wetGain.gain.setTargetAtTime(wetTarget, now, this.xfadeTC);
