@@ -116,11 +116,17 @@ const ON_LEVELS: Record<EffectId, number> = {
   sub: 0.9,
   comb: 0.68,
   delay: 0.9,
-  plate: 1.0,
-  hall: 1.0,
-  shimmer: 0.95,
+  // Reverb-family defaults halved now that plate/hall/shimmer/cistern
+  // are additive (dry + wet) rather than wet-only. Previous 1.0 values
+  // were calibrated for the old "replace dry with wet" behaviour —
+  // applying them on top of the preserved dry was double-loud and
+  // saturating any preset with reverb in the chain (Shruti Box,
+  // Sevenfold, Tibetan Bowl, etc.).
+  plate: 0.55,
+  hall: 0.55,
+  shimmer: 0.5,
+  cistern: 0.55,
   freeze: 1.0,
-  cistern: 1.0,
   granular: 0.8,
   graincloud: 0.8,
   ringmod: 0.7,
