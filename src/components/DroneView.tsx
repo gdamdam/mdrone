@@ -229,6 +229,10 @@ export interface DroneViewHandle {
   setOctave(octave: number): void;
   applyPresetById(presetId: string): void;
   startImmediate(root: PitchClass, octave: number, presetId?: string): void;
+  /** Ensure the PRESETS disclosure is open. Called by the header
+   *  scene-marquee so tapping the currently-playing name expands the
+   *  preset list, matching the preset-strip meta button. */
+  openPresets(): void;
 }
 
 /**
@@ -606,6 +610,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       handlePreset(presetId);
     },
     startImmediate,
+    openPresets() {
+      setDisclosed((prev) => prev.presets ? prev : { ...prev, presets: true });
+    },
   }), [
     applySnapshot,
     applyLivePatch,

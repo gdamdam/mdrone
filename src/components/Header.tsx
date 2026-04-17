@@ -39,6 +39,10 @@ interface HeaderProps {
   onToggleRec: () => void;
   onOpenShare: () => void;
   onRandomScene: () => void;
+  /** Tapping the scene marquee (preset name display) expands the
+   *  preset list — matches the behaviour of clicking the preset-strip
+   *  meta button in the DRONE view. */
+  onOpenPresets?: () => void;
   /** Pre-formatted "fine-tune active" hint string (e.g. "±7 ¢"),
    *  or null when no offsets are non-zero or microtuning isn't on. */
   tuneOffsetHint?: string | null;
@@ -88,6 +92,7 @@ export function Header({
   onToggleRec,
   onOpenShare,
   onRandomScene,
+  onOpenPresets,
   isRec,
   recTimeMs,
   recordingSupported,
@@ -296,12 +301,22 @@ export function Header({
           ))}
         </div>
 
-        {/* Center — scene marquee */}
-        <div className="header-display" title={displayText}>
+        {/* Center — scene marquee. Clickable so tapping the current
+            preset name pops open the preset list (tab auto-switches
+            to DRONE if the user is on MIDI / MIXER). */}
+        <button
+          type="button"
+          className="header-display"
+          title={`${displayText} — tap to browse presets`}
+          onClick={() => {
+            setViewMode("drone");
+            onOpenPresets?.();
+          }}
+        >
           <div className="header-display-track">
             {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span>
           </div>
-        </div>
+        </button>
 
         {/* Right — primary play controls */}
         <div className="header-center">

@@ -658,6 +658,18 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     0 0 4px color-mix(in srgb, var(--preview) 6%, transparent);
   padding: 5px 8px;
   contain: paint;
+  /* Now a <button>: kill default chrome so the marquee styling stays. */
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.header-display:hover {
+  border-color: color-mix(in srgb, var(--preview) 55%, var(--border));
+}
+.header-display:focus-visible {
+  outline: 2px solid var(--preview);
+  outline-offset: 2px;
 }
 
 .header-brand {

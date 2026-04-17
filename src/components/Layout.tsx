@@ -403,6 +403,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleRec={handleToggleRec}
         onOpenShare={() => setShareOpen(true)}
         onRandomScene={sceneManager.handleRandomScene}
+        onOpenPresets={() => droneViewRef.current?.openPresets()}
         tuneOffsetHint={headerTuneHint}
         isRec={isRec}
         recTimeMs={recTimeMs}
