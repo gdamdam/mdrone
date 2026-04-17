@@ -51,11 +51,18 @@ function createFakeEngine() {
       isLimiterEnabled: () => true,
       getLimiterCeiling: () => -1.2,
       getOutputTrim: () => ({ gain: { value: 0.95 } }),
+      isHeadphoneSafe: () => false,
+      getEffectOrder: () => [
+        "tape", "wow", "sub", "comb", "delay",
+        "plate", "hall", "shimmer", "freeze", "cistern",
+        "granular", "graincloud", "ringmod", "formant",
+      ],
       setHpfFreq: (value) => calls.push(["hpf", value]),
       setGlueAmount: (value) => calls.push(["glue", value]),
       setDrive: (value) => calls.push(["drive", value]),
       setLimiterCeiling: (value) => calls.push(["ceiling", value]),
       setLimiterEnabled: (value) => calls.push(["limiter", value]),
+      setHeadphoneSafe: (value) => calls.push(["headphoneSafe", value]),
       getFxChain: () => fxChain,
     },
   };
