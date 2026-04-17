@@ -837,7 +837,7 @@ export const PRESETS: Preset[] = [
     }),
   },
   {
-    id: "coil-time-machines", group: "Noise / Industrial",
+    id: "coil-time-machines", group: "Sacred / Ritual",
     name: "Time Machines",
     attribution: "Ceremonial single-note trance · suspended time",
     hint: "A low single-note ritual drone with narcotic stillness. Reed body, a whisper of FM for the Coil synth character, almost no decorative movement — just the faintest tape-flange rotation.",
@@ -1536,7 +1536,7 @@ export const PRESETS: Preset[] = [
 
   // ─── Ellen Arkbro — meantone chord drones ───────────────────────────
   {
-    id: "arkbro-chords", group: "Minimal / Just",
+    id: "arkbro-chords", group: "Organ / Chamber",
     name: "For Organ",
     attribution: "Meantone organ + brass · church stillness",
     hint: "Austere meantone chords with a pale brass-air edge around the pipes. Drier and more vertical than Kali Organ: less incense, more stone, breath, and chordal suspension hanging in a church.",
@@ -1778,7 +1778,7 @@ export const PRESETS: Preset[] = [
   },
   // ─── Charlemagne Palestine — overtone piano strumming ──────────────
   {
-    id: "palestine-strumming", group: "Organ / Chamber",
+    id: "palestine-strumming", group: "Minimal / Just",
     name: "Strumming",
     attribution: "Overtone piano · ascending shimmer clouds",
     hint: "Charlemagne Palestine's strumming technique — sustained piano at high bloom with shimmer feeding overtones back into the harmonic series. The piano becomes an overtone generator, not a melody instrument.",
@@ -1899,7 +1899,7 @@ export const PRESETS: Preset[] = [
 
   // ─── Eleh — pure electronic sub-heavy drone ────────────────────────
   {
-    id: "eleh-descent", group: "Noise / Industrial",
+    id: "eleh-descent", group: "Minimal / Just",
     name: "Descent",
     attribution: "Pure electronic drone · sub-heavy · no instrument reference",
     hint: "Eleh-style pure electronic drone. FM + sine reed, sub-heavy, minimal FX. No instrument imitation — just harmonic stacking, low weight, and slow spectral movement. The sound of electricity sustaining.",
