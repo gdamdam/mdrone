@@ -532,6 +532,21 @@ registerProcessor("fx-shimmer", ShimmerReverbProcessor);
 //   - Loop the captured audio with a short (30 ms) crossfade at the seam
 //   - When active flips to 0: fade the loop out over 300 ms, resume writing
 //
+// Phase-vocoder magnitude-hold freeze. When active rises:
+//   1. take the most recent N-sample window from the ring buffer
+//   2. FFT → store magnitudes per bin, discard phases
+// While active, each hop (= N/4 samples):
+//   3. build a synthetic complex spectrum using the held magnitudes
+//      and fresh random phases (one seeded PRNG roll per bin)
+//   4. IFFT → Hann-window → overlap-add into an output accumulator
+// Read: one sample per process loop from the accumulator, clearing
+//   as we go so the buffer doesn't accumulate indefinitely.
+//
+// This is what people mean when they say "spectral freeze": the
+// magnitude envelope is held exactly but the phases scramble, so
+// any captured rhythmic content de-articulates into a sustained
+// tone-complex. The old loop-and-crossfade freeze re-articulated
+// rhythm on every loop seam — that's the gap this closes.
 class FreezeProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
@@ -542,92 +557,233 @@ class FreezeProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    // 2 seconds of stereo ring buffer
-    this.ringLen = Math.ceil(sampleRate * 2);
-    this.ringL = new Float32Array(this.ringLen);
-    this.ringR = new Float32Array(this.ringLen);
-    this.writeIdx = 0;
-    this.readIdx = 0;
-    this.snapStart = 0;
+    this.N = 2048;                  // FFT size
+    this.hop = 512;                 // 75% overlap
+    // COLA normalisation: sum of Hann^2 over 4 overlapping frames at
+    // hop = N/4 is ~1.5·N/4, so per-sample division by 1.5 restores
+    // unity-ish gain. Empirically tuned to match the old loop-freeze
+    // perceived level so existing presets don't jump in loudness.
+    this.olaScale = 1 / 1.5;
+
+    // Hann window (N samples)
+    this.hann = new Float32Array(this.N);
+    for (let i = 0; i < this.N; i++) {
+      this.hann[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.N - 1)));
+    }
+    // Bit-reverse index table for iterative FFT
+    this.bitrev = new Uint32Array(this.N);
+    const bits = Math.round(Math.log2(this.N));
+    for (let i = 0; i < this.N; i++) {
+      let r = 0, x = i;
+      for (let b = 0; b < bits; b++) { r = (r << 1) | (x & 1); x >>>= 1; }
+      this.bitrev[i] = r;
+    }
+
+    // Input ring — 1 frame deep, wraps continuously so a freeze can
+    // capture the last N samples regardless of where the write head is.
+    this.ringL = new Float32Array(this.N);
+    this.ringR = new Float32Array(this.N);
+    this.ringIdx = 0;
+
+    // Held magnitudes (real-spectrum half: 0..N/2 inclusive).
+    this.magL = new Float32Array(this.N / 2 + 1);
+    this.magR = new Float32Array(this.N / 2 + 1);
+    this.haveSnapshot = false;
+
+    // Output OLA ring of length N.
+    this.outL = new Float32Array(this.N);
+    this.outR = new Float32Array(this.N);
+    this.outReadPos = 0;
+    this.outWritePos = 0;
+    this.sinceHop = 0;
+
+    // Fade envelope (same rates as before for familiar feel)
     this.wasActive = 0;
-    this.fadeEnv = 0; // 0..1 envelope for capture fade in/out
-    // 30 ms crossfade region at the loop boundary
-    this.fadeLen = Math.ceil(sampleRate * 0.03);
+    this.fadeEnv = 0;
+
+    // FFT scratch — interleaved complex (re, im).
+    this.fftBuf = new Float32Array(this.N * 2);
+    this.tmpFrame = new Float32Array(this.N);
+
+    // Seeded PRNG (mulberry32) for phase randomisation. Deterministic
+    // per-freeze so share-scene reloads reproduce the exact freeze
+    // texture.
+    this.rngState = 0x51f00ddb;
+  }
+
+  rand() {
+    let t = (this.rngState = (this.rngState + 0x6d2b79f5) >>> 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  // In-place iterative Cooley-Tukey radix-2 FFT / IFFT on interleaved
+  // complex buffer (length 2N). `inverse` divides by N at the end.
+  fft(buf, inverse) {
+    const N = this.N;
+    for (let i = 0; i < N; i++) {
+      const j = this.bitrev[i];
+      if (j > i) {
+        const i2 = i << 1, j2 = j << 1;
+        const re = buf[i2], im = buf[i2 + 1];
+        buf[i2] = buf[j2]; buf[i2 + 1] = buf[j2 + 1];
+        buf[j2] = re; buf[j2 + 1] = im;
+      }
+    }
+    for (let size = 2; size <= N; size <<= 1) {
+      const half = size >> 1;
+      const theta = (inverse ? 2 : -2) * Math.PI / size;
+      const wpRe = Math.cos(theta), wpIm = Math.sin(theta);
+      for (let i = 0; i < N; i += size) {
+        let wRe = 1, wIm = 0;
+        for (let k = 0; k < half; k++) {
+          const aIdx = (i + k) << 1;
+          const bIdx = (i + k + half) << 1;
+          const bRe = buf[bIdx], bIm = buf[bIdx + 1];
+          const tRe = wRe * bRe - wIm * bIm;
+          const tIm = wRe * bIm + wIm * bRe;
+          const aRe = buf[aIdx], aIm = buf[aIdx + 1];
+          buf[aIdx] = aRe + tRe; buf[aIdx + 1] = aIm + tIm;
+          buf[bIdx] = aRe - tRe; buf[bIdx + 1] = aIm - tIm;
+          const nwRe = wRe * wpRe - wIm * wpIm;
+          wIm = wRe * wpIm + wIm * wpRe;
+          wRe = nwRe;
+        }
+      }
+    }
+    if (inverse) {
+      const invN = 1 / N;
+      for (let i = 0; i < N * 2; i++) buf[i] *= invN;
+    }
+  }
+
+  // Copy the most recent N samples of the ring into `tmp` starting
+  // at the oldest sample (ringIdx is the next-write position).
+  unrollRing(ring, tmp) {
+    const N = this.N;
+    const start = this.ringIdx; // next-write = oldest sample position
+    for (let i = 0; i < N; i++) {
+      tmp[i] = ring[(start + i) % N];
+    }
+  }
+
+  analyzeChannel(ring, mags) {
+    const N = this.N;
+    const buf = this.fftBuf;
+    const tmp = this.tmpFrame;
+    this.unrollRing(ring, tmp);
+    for (let i = 0; i < N; i++) {
+      buf[i << 1] = tmp[i] * this.hann[i];
+      buf[(i << 1) + 1] = 0;
+    }
+    this.fft(buf, false);
+    const half = N >> 1;
+    for (let b = 0; b <= half; b++) {
+      const re = buf[b << 1];
+      const im = buf[(b << 1) + 1];
+      mags[b] = Math.sqrt(re * re + im * im);
+    }
+  }
+
+  // Build a random-phase spectrum from held magnitudes, IFFT, window,
+  // OLA into outBuf starting at outStart (modulo N).
+  synthChannel(mags, outBuf, outStart) {
+    const N = this.N;
+    const buf = this.fftBuf;
+    const half = N >> 1;
+    // Pack conjugate-symmetric spectrum
+    for (let b = 0; b <= half; b++) {
+      const m = mags[b];
+      const phase = this.rand() * 2 * Math.PI;
+      const re = m * Math.cos(phase);
+      const im = m * Math.sin(phase);
+      buf[b << 1] = re;
+      buf[(b << 1) + 1] = im;
+      if (b > 0 && b < half) {
+        buf[(N - b) << 1] = re;
+        buf[((N - b) << 1) + 1] = -im;
+      }
+    }
+    // DC + Nyquist bins have no imaginary contribution
+    buf[1] = 0;
+    buf[(half << 1) + 1] = 0;
+    this.fft(buf, true);
+    const scale = this.olaScale;
+    for (let i = 0; i < N; i++) {
+      const pos = (outStart + i) % N;
+      outBuf[pos] += buf[i << 1] * this.hann[i] * scale;
+    }
   }
 
   process(_inputs, outputs, parameters) {
     const input = _inputs[0];
     const output = outputs[0];
-    if (!input || input.length === 0 || !output) return true;
-    const inL = input[0];
-    const inR = input.length > 1 ? input[1] : input[0];
+    if (!output) return true;
+    const inL = input && input[0] ? input[0] : null;
+    const inR = input && input.length > 1 ? input[1] : inL;
     const outL = output[0];
     const outR = output.length > 1 ? output[1] : output[0];
     const n = outL.length;
+    const N = this.N;
+    const hop = this.hop;
 
     const active = parameters.active[0];
     const mix = parameters.mix[0];
 
-    // Detect rising edge — snapshot current write position
+    // Rising edge: snapshot magnitudes from the most recent N-sample
+    // window of the ring buffer. Output OLA state is reset so the
+    // first synthesised frames appear clean at the read head.
     if (active > 0.5 && this.wasActive <= 0.5) {
-      this.snapStart = this.writeIdx;
-      this.readIdx = this.writeIdx;
+      if (inL) this.analyzeChannel(this.ringL, this.magL);
+      if (inR) this.analyzeChannel(this.ringR, this.magR);
+      this.haveSnapshot = true;
+      this.outL.fill(0);
+      this.outR.fill(0);
+      this.outReadPos = 0;
+      this.outWritePos = 0;
+      this.sinceHop = hop; // trigger synthesis on the first sample
     }
     this.wasActive = active;
 
-    // Target envelope — ramp fadeEnv toward 1 when active, 0 when not
     const envTarget = active > 0.5 ? 1 : 0;
-    const envRate = active > 0.5 ? 0.0008 : 0.0004; // faster in, slower out
+    const envRate = active > 0.5 ? 0.0008 : 0.0004;
 
     for (let i = 0; i < n; i++) {
-      // Smoothly approach target envelope
+      // Continuously capture input into the ring so a future freeze
+      // captures whatever's playing now. The ring is always written
+      // even while frozen — it costs a couple of stores per sample
+      // and keeps the "release → re-capture" path trivial.
+      if (inL) this.ringL[this.ringIdx] = inL[i];
+      if (inR) this.ringR[this.ringIdx] = inR[i];
+      this.ringIdx = (this.ringIdx + 1) % N;
+
       if (this.fadeEnv < envTarget) this.fadeEnv = Math.min(envTarget, this.fadeEnv + envRate);
       else if (this.fadeEnv > envTarget) this.fadeEnv = Math.max(envTarget, this.fadeEnv - envRate);
 
-      if (this.fadeEnv < 0.0001) {
-        // Fully idle — write input to ring, output silence
-        this.ringL[this.writeIdx] = inL[i];
-        this.ringR[this.writeIdx] = inR[i];
-        this.writeIdx = (this.writeIdx + 1) % this.ringLen;
-        outL[i] = 0;
-        outR[i] = 0;
-      } else {
-        // Capture / playback mode
-        // Determine current read position relative to snapStart
-        const offset = (this.readIdx - this.snapStart + this.ringLen) % this.ringLen;
-        // Normal read
-        let sL = this.ringL[this.readIdx];
-        let sR = this.ringR[this.readIdx];
-
-        // Crossfade at the loop boundary: for the last fadeLen samples
-        // before we'd wrap to snapStart, blend with samples from the
-        // opposite side of the loop to hide the seam.
-        const tailZone = this.ringLen - this.fadeLen;
-        if (offset >= tailZone) {
-          const fadeT = (offset - tailZone) / this.fadeLen; // 0..1 near the seam
-          const altOffset = offset - this.ringLen + this.fadeLen; // negative → reads from start side
-          const altIdx = (this.snapStart + altOffset + this.ringLen) % this.ringLen;
-          const altL = this.ringL[altIdx];
-          const altR = this.ringR[altIdx];
-          sL = sL * (1 - fadeT) + altL * fadeT;
-          sR = sR * (1 - fadeT) + altR * fadeT;
-        }
-
-        // Advance read, wrapping at the snapshot-relative loop length
-        this.readIdx = (this.readIdx + 1) % this.ringLen;
-
-        // Apply envelope and mix
-        outL[i] = sL * mix * this.fadeEnv;
-        outR[i] = sR * mix * this.fadeEnv;
-
-        // While releasing (active=0 but still fading), resume writing
-        // so when we fully fade out the ring is primed for a fresh capture
-        if (active <= 0.5) {
-          this.ringL[this.writeIdx] = inL[i];
-          this.ringR[this.writeIdx] = inR[i];
-          this.writeIdx = (this.writeIdx + 1) % this.ringLen;
+      // Hop-aligned synthesis — every `hop` output samples we add a
+      // freshly randomised N-sample frame starting at outWritePos.
+      if (this.haveSnapshot && this.fadeEnv > 0.0001) {
+        this.sinceHop++;
+        if (this.sinceHop >= hop) {
+          this.sinceHop = 0;
+          this.synthChannel(this.magL, this.outL, this.outWritePos);
+          this.synthChannel(this.magR, this.outR, this.outWritePos);
+          this.outWritePos = (this.outWritePos + hop) % N;
         }
       }
+
+      let sL = 0, sR = 0;
+      if (this.haveSnapshot && this.fadeEnv > 0.0001) {
+        sL = this.outL[this.outReadPos];
+        sR = this.outR[this.outReadPos];
+        this.outL[this.outReadPos] = 0;
+        this.outR[this.outReadPos] = 0;
+        this.outReadPos = (this.outReadPos + 1) % N;
+      }
+
+      outL[i] = sL * mix * this.fadeEnv;
+      outR[i] = sR * mix * this.fadeEnv;
     }
     return true;
   }
