@@ -31,6 +31,31 @@ import { normalizePortableScene, type PortableScene } from "../src/session";
 const APP_ORIGIN = "https://mdrone.mpump.live";
 const VERSION = "1.7.2";
 
+interface Env {
+  SHORT: KVNamespace;
+}
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+const ID_RE = /^[a-z0-9]{6}$/;
+
+function genId(): string {
+  const bytes = new Uint8Array(5);
+  crypto.getRandomValues(bytes);
+  let n = 0;
+  for (const b of bytes) n = n * 256 + b;
+  return n.toString(36).padStart(6, "0").slice(-6);
+}
+
+async function sha256Hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /* ─── resvg-wasm init ─────────────────────────────────────────────────── */
 
 // Initialise once per isolate — the module keeps the WebAssembly.Instance
@@ -229,13 +254,94 @@ function buildOgHtml(p: OgParams): string {
 </body></html>`;
 }
 
+/* ─── shorten endpoint ────────────────────────────────────────────────── */
+
+/**
+ * POST /shorten — create a short URL for a scene share link.
+ * Dedupes by SHA-256 of the submitted URL. Scoped to sd.mpump.live so
+ * short IDs can only redirect to our own share-card origin.
+ */
+async function handleShorten(request: Request, env: Env): Promise<Response> {
+  try {
+    const body = await request.json<{ url?: unknown }>();
+    const target = typeof body.url === "string" ? body.url : "";
+    if (!target) {
+      return new Response(JSON.stringify({ error: "Missing url" }), {
+        status: 400, headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+    let parsed: URL;
+    try { parsed = new URL(target); } catch {
+      return new Response(JSON.stringify({ error: "Invalid url" }), {
+        status: 400, headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+    if (parsed.host !== "sd.mpump.live") {
+      return new Response(JSON.stringify({ error: "Host not allowed" }), {
+        status: 400, headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+
+    const hashHex = await sha256Hex(target);
+    const existing = await env.SHORT.get(`h:${hashHex}`);
+    if (existing) {
+      return new Response(
+        JSON.stringify({ id: existing, short: `https://sd.mpump.live/${existing}` }),
+        { headers: { "Content-Type": "application/json", ...CORS } },
+      );
+    }
+
+    // Generate a non-colliding ID. Three attempts is ample at 6 base36 chars.
+    let id = "";
+    for (let i = 0; i < 3; i++) {
+      const candidate = genId();
+      if (!(await env.SHORT.get(`u:${candidate}`))) { id = candidate; break; }
+    }
+    if (!id) {
+      return new Response(JSON.stringify({ error: "ID allocation failed" }), {
+        status: 500, headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
+
+    await Promise.all([
+      env.SHORT.put(`u:${id}`, target),
+      env.SHORT.put(`h:${hashHex}`, id),
+    ]);
+    return new Response(
+      JSON.stringify({ id, short: `https://sd.mpump.live/${id}` }),
+      { headers: { "Content-Type": "application/json", ...CORS } },
+    );
+  } catch {
+    return new Response(JSON.stringify({ error: "Bad request" }), {
+      status: 400, headers: { "Content-Type": "application/json", ...CORS },
+    });
+  }
+}
+
 /* ─── routes ──────────────────────────────────────────────────────────── */
 
-async function handleRequest(url: URL): Promise<Response> {
+async function handleRequest(url: URL, request: Request, env: Env): Promise<Response> {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS });
+  }
+
   if (url.pathname === "/health") {
     return new Response(JSON.stringify({ ok: true, v: VERSION }), {
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...CORS },
     });
+  }
+
+  if (url.pathname === "/shorten" && request.method === "POST") {
+    return handleShorten(request, env);
+  }
+
+  // Short-URL lookup — must come before the `/` + no-payload root handler
+  // so a short ID isn't swallowed as a root redirect. 6 base36 chars.
+  const firstSegment = url.pathname.slice(1);
+  if (ID_RE.test(firstSegment)) {
+    const dest = await env.SHORT.get(`u:${firstSegment}`);
+    if (dest) return Response.redirect(dest, 302);
+    return new Response("Not found", { status: 404, headers: CORS });
   }
 
   if (url.pathname === "/img" || url.pathname === "/img/") {
@@ -302,9 +408,9 @@ async function handleRequest(url: URL): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     try {
-      return await handleRequest(new URL(request.url));
+      return await handleRequest(new URL(request.url), request, env);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown";
       return new Response(`Error: ${msg}`, { status: 500 });

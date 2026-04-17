@@ -3213,9 +3213,47 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   resize: vertical;
 }
 
-.share-modal-url {
-  min-height: 92px;
-  line-height: 1.45;
+input.share-modal-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-x: auto;
+  resize: none;
+}
+
+input.share-modal-url:focus {
+  outline: 1px solid var(--accent, currentColor);
+  outline-offset: -1px;
+}
+
+.share-modal-link-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.share-modal-link-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.share-modal-url-toggle {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.share-modal-url-toggle:hover {
+  color: var(--text);
 }
 
 /* Card-style segmented control — 4 buttons (auto/sigil/tarot/fractal).

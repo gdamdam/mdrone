@@ -9,6 +9,7 @@ import {
   resolveSceneCardStyle,
   withSceneCardStyleParam,
 } from "../shareCard";
+import { shortenSceneUrl } from "../shareRelay";
 
 interface ShareModalProps {
   initialName: string;
@@ -33,6 +34,9 @@ function sanitizeFilename(input: string): string {
 export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModalProps) {
   const [name, setName] = useState(initialName);
   const [url, setUrl] = useState("");
+  const [shortUrl, setShortUrl] = useState<string | null>(null);
+  const [showLongUrl, setShowLongUrl] = useState(false);
+  const shortCacheRef = useRef<Map<string, string>>(new Map());
   const [scene, setScene] = useState<PortableScene | null>(null);
   const [styleChoice, setStyleChoice] = useState<SceneCardStyleChoice>("auto");
   const [busy, setBusy] = useState(true);
@@ -86,6 +90,31 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
   }, [baseUrl, error, resolvedStyle, scene]);
 
   useEffect(() => {
+    if (!url) {
+      setShortUrl(null);
+      return;
+    }
+    const cached = shortCacheRef.current.get(url);
+    if (cached) {
+      setShortUrl(cached);
+      return;
+    }
+    setShortUrl(null);
+    let cancelled = false;
+    void shortenSceneUrl(url).then((result) => {
+      if (cancelled || !result) return;
+      shortCacheRef.current.set(url, result.short);
+      setShortUrl(result.short);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  const isShortened = shortUrl !== null && shortUrl !== url;
+  const displayUrl = showLongUrl || !shortUrl ? url : shortUrl;
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -111,12 +140,36 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
   }, [resolvedStyle, scene]);
 
   const copyLink = async () => {
-    if (!url) return;
-    try {
-      await navigator.clipboard.writeText(url);
+    if (!displayUrl) return;
+    const legacyCopy = (): boolean => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = displayUrl;
+        ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch {
+        return false;
+      }
+    };
+    let ok = false;
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(displayUrl);
+        ok = true;
+      } catch {
+        ok = legacyCopy();
+      }
+    } else {
+      ok = legacyCopy();
+    }
+    if (ok) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
-    } catch {
+    } else {
       setError("Clipboard copy failed. You can still select the link manually.");
     }
   };
@@ -148,12 +201,12 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
   };
 
   const nativeShare = async () => {
-    if (!url || typeof navigator.share !== "function") return;
+    if (!displayUrl || typeof navigator.share !== "function") return;
     try {
       await navigator.share({
         title: name.trim() || initialName,
         text: "Open this mdrone landscape in the browser.",
-        url,
+        url: displayUrl,
       });
     } catch {
       // ignore cancelled shares
@@ -217,15 +270,33 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
         <div className="fx-modal-params">
 
           <label className="fx-modal-param">
-            <span className="fx-modal-param-label">
-              LINK
-              <span className="fx-modal-param-value">{busy ? "building..." : copied ? "copied" : ""}</span>
+            <span className="fx-modal-param-label share-modal-link-label">
+              <span>LINK</span>
+              <span className="share-modal-link-meta">
+                {isShortened && !error && (
+                  <button
+                    type="button"
+                    className="share-modal-url-toggle"
+                    onClick={() => setShowLongUrl((v) => !v)}
+                    title={
+                      showLongUrl
+                        ? "Switch to short link (requires relay)"
+                        : "Switch to full link (self-contained, works even if the relay is offline)"
+                    }
+                  >
+                    {showLongUrl ? "short link" : "full link (offline)"}
+                  </button>
+                )}
+                <span className="fx-modal-param-value">
+                  {busy ? "building..." : copied ? "copied" : ""}
+                </span>
+              </span>
             </span>
-            <textarea
+            <input
               className="share-modal-url"
               readOnly
-              value={error ? error : url}
-              rows={4}
+              value={error ? error : displayUrl}
+              onFocus={(e) => e.currentTarget.select()}
             />
           </label>
         </div>
