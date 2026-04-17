@@ -2379,7 +2379,13 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   // active layers equals a fixed budget. This smooths out authoring
   // accidents (e.g. 3 layers at 1.0 vs 1 layer at 1.0). The per-voice
   // mix ratio is preserved — only the sum is normalized.
-  const ACTIVE_LEVEL_BUDGET = 1.4;
+  // 1.4 was pushing every preset into the drive + limiter by default —
+  // the active-voice sum plus reverb wet stacks meant the limiter
+  // engaged constantly, producing the "saturated all the time"
+  // character users flagged. 1.0 keeps the voice stack at unity; the
+  // reverb wet (now additive, ~0.22 per reverb at AIR 0.4) layers on
+  // top without slamming the chain.
+  const ACTIVE_LEVEL_BUDGET = 1.0;
   const activeSum = ALL_VOICE_TYPES.reduce(
     (s, t) => s + (layers[t] ? levels[t] : 0),
     0,

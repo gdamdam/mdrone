@@ -79,16 +79,20 @@ export class MasterBus {
     this.glueMakeup = this.ctx.createGain();
     this.glueMakeup.gain.value = 1.25;
 
-    // Default drive = 1.5×
+    // Drive default dropped from 1.5 to 1.1. With 1.5 the waveshaper
+    // was always saturating — it gave every preset a permanent tanh
+    // crush on top of whatever the voices + reverbs were doing.
+    // Users who want more grit still crank the DRIVE control in the
+    // mixer; default is now near-unity and transparent.
     this.drivePre = this.ctx.createGain();
-    this.drivePre.gain.value = 1.5;
+    this.drivePre.gain.value = 1.1;
 
     this.drive = this.ctx.createWaveShaper();
-    this.drive.curve = MasterBus.makeDriveCurve(1.5);
+    this.drive.curve = MasterBus.makeDriveCurve(1.1);
     this.drive.oversample = "2x";
 
     this.drivePost = this.ctx.createGain();
-    this.drivePost.gain.value = 1 / Math.sqrt(1.5);
+    this.drivePost.gain.value = 1 / Math.sqrt(1.1);
 
     // Worklet-backed brickwall limiter is installed on `onWorkletReady`.
     this.limiterIn = this.ctx.createGain();

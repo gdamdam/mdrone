@@ -284,7 +284,11 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   // Stars of the Lid: reed(even) + air — no tanpura, no metal, no shimmer
   assert.equal(uiState.voiceLayers.reed, true);
   assert.equal(uiState.voiceLayers.tanpura, false);
-  assert.ok(uiState.voiceLevels.reed > 0.8);
+  // Budget was relaxed from 1.4 → 1.0 to stop default saturation;
+  // reed level now lands at 1.0 / (1 + 0.45) = 0.69 for SOTL's
+  // reed+air stack. Assert against the floor that still proves
+  // normalization happened without over-boosting.
+  assert.ok(uiState.voiceLevels.reed > 0.5);
   assert.ok(effectCalls.some(([id, on]) => id === "tape" && on === true));
   assert.ok(effectCalls.some(([id, on]) => id === "shimmer" && on === false));
   assert.ok(effectCalls.some(([id, on]) => id === "delay" && on === false));
