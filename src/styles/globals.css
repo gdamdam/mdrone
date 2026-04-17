@@ -409,27 +409,49 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 @media (max-width: 720px) {
-  /* Header reorg. Drop the EXPERIMENTAL badge and the sigil/leaf
-     icon — logo alone reads on narrow viewports. Promote the scene
-     marquee to its own full-width row so the preset name actually
-     fits (was showing ~2 chars). Transport controls wrap cleanly
-     below on their own row. */
-  /* Hide only the EXPERIMENTAL badge on mobile — the sigil stays
-     (it's the About link + visual anchor). Parent-scoped so (0,2,0)
-     beats the base .title-badge rule (0,1,0) further down the file. */
-  .header-row-brand .title-badge { display: none; }
-  .header-row-main { flex-wrap: wrap; }
-  /* Parent-scoped (0,2,0) so these override the base .header-display
-     rule (0,1,0) with `width: clamp(110px, 12vw, 160px)` that lands
-     later in the file and would otherwise win on source-order. */
-  .header-row-main .header-display {
-    flex: 1 1 100%;
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-    order: 10;
+  /* Mobile header — two rows only:
+       Row 1: MDRONE · tabs · VOL · ⚙ · sigil
+       Row 2: marquee (grows) · HOLD · RND · ● REC · SHARE
+     Strategy: turn the whole .header into a wrapping flex row on
+     mobile and `display: contents` every intermediate wrapper so
+     every leaf button is a direct flex item. A pseudo-element at
+     order 50 with flex-basis:100% forces the break between rows. */
+  .header { flex-direction: row; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .header-row-brand,
+  .header-row-main,
+  .header-center,
+  .header-secondary { display: contents; }
+  .header::before {
+    content: "";
+    order: 50;
+    flex-basis: 100%;
+    height: 0;
   }
-  .header-row-main .header-display-track { text-align: center; }
+  /* Shrink logo + sigil for the compact header row. */
+  .title { order: 1; }
+  .title-art { font-size: 4px; line-height: 1; }
+  .title-sigil { order: 4; width: 22px; height: 22px; margin-left: auto; }
+  /* Hide EXPERIMENTAL badge — no room on this row. */
+  .header-row-brand .title-badge { display: none; }
+
+  /* Row 1 */
+  .view-toggle { order: 2; flex: 0 1 auto; min-width: 0; }
+  .header-btn-volume { order: 3; }
+  .header-btn-menu { order: 3; }
+
+  /* Row 2 — marquee grabs the slack, transport cluster packs right. */
+  .header .header-display {
+    order: 51;
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+  .header .header-display-track { text-align: center; }
+  .header-hold-btn { order: 52; }
+  .header-btn-random { order: 53; }
+  .header-btn-record { order: 54; }
+  .header-btn-share { order: 55; }
 
   /* Tighter padding + gap on mobile so the strip doesn't eat a third
      of the viewport height with its own chrome. */
