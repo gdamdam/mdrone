@@ -15,6 +15,8 @@
  * Keep per-frame allocations to a minimum — these run in a rAF loop.
  */
 
+import { showNotification } from "../notifications";
+
 export type Visualizer =
   | "mandala"
   | "haloGlow"
@@ -801,6 +803,7 @@ const TAPE_W = 900;    // length of the physical loop
 const TAPE_H = 80;
 const TAPE_STORAGE_KEY = "mdrone.meditate.tapeDecay";
 let tapeLastSave = 0;
+let tapePersistDisabled = false;
 let tapeOffset = 0;     // scroll position (px)
 let tapeLoopIndex = 0;  // which playback pass we're on
 function paintBaseTape() {
@@ -924,11 +927,24 @@ export function drawTapeDecay(
   ctx.fillRect(0, bandY, w, bandH);
 
   // Persist every 6 s so Basinski-style resume works
-  if (p.t * 1000 - tapeLastSave > 6000) {
+  if (!tapePersistDisabled && p.t * 1000 - tapeLastSave > 6000) {
     tapeLastSave = p.t * 1000;
     try {
       localStorage.setItem(TAPE_STORAGE_KEY, tapeCanvas!.toDataURL("image/png"));
-    } catch { /* ok */ }
+    } catch (e) {
+      // Quota exceeded — drop the stored tape and stop retrying so
+      // we don't spam the user every 6 s. A fresh tape picks up next
+      // visit. Any other error is silent.
+      const name = (e as { name?: string })?.name ?? "";
+      if (name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED") {
+        tapePersistDisabled = true;
+        try { localStorage.removeItem(TAPE_STORAGE_KEY); } catch { /* ok */ }
+        showNotification(
+          "Tape loop too large to save — it will reset next session.",
+          "info",
+        );
+      }
+    }
   }
 
   // Subtitle with pass counter

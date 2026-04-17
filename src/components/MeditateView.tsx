@@ -71,17 +71,59 @@ export function MeditateView({
   const [isFullscreen, setIsFullscreen] = useState(false);
   useEffect(() => { isFullscreenRef.current = isFullscreen; }, [isFullscreen]);
   useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const onFsChange = () => {
+      const docAny = document as Document & {
+        webkitFullscreenElement?: Element | null;
+        msFullscreenElement?: Element | null;
+      };
+      setIsFullscreen(!!(
+        document.fullscreenElement ||
+        docAny.webkitFullscreenElement ||
+        docAny.msFullscreenElement
+      ));
+    };
     document.addEventListener("fullscreenchange", onFsChange);
-    return () => document.removeEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("webkitfullscreenchange", onFsChange);
+    document.addEventListener("MSFullscreenChange", onFsChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener("webkitfullscreenchange", onFsChange);
+      document.removeEventListener("MSFullscreenChange", onFsChange);
+    };
   }, []);
   const toggleFullscreen = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      el.requestFullscreen?.().catch(() => { /* ignore */ });
+    // Prefixed variants for older Edge / WebKit Windows builds.
+    const elAny = el as HTMLDivElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+      msRequestFullscreen?: () => Promise<void> | void;
+    };
+    const docAny = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      msFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+      msExitFullscreen?: () => Promise<void> | void;
+    };
+    const isFs = !!(
+      document.fullscreenElement ||
+      docAny.webkitFullscreenElement ||
+      docAny.msFullscreenElement
+    );
+    if (!isFs) {
+      const req =
+        el.requestFullscreen?.bind(el) ??
+        elAny.webkitRequestFullscreen?.bind(el) ??
+        elAny.msRequestFullscreen?.bind(el);
+      try { Promise.resolve(req?.()).catch(() => { /* ignore */ }); }
+      catch { /* ignore */ }
     } else {
-      document.exitFullscreen?.().catch(() => { /* ignore */ });
+      const exit =
+        document.exitFullscreen?.bind(document) ??
+        docAny.webkitExitFullscreen?.bind(document) ??
+        docAny.msExitFullscreen?.bind(document);
+      try { Promise.resolve(exit?.()).catch(() => { /* ignore */ }); }
+      catch { /* ignore */ }
     }
   }, []);
 

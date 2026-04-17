@@ -134,10 +134,16 @@ export function useMidiInput(
         return;
       }
       if (on && !accessRef.current) {
-        (navigator as Navigator & {
+        // Guard against stalled Windows MIDI drivers: if
+        // requestMIDIAccess hangs, surface a clear error after 5 s
+        // instead of leaving the user with a dead button.
+        const accessPromise = (navigator as Navigator & {
           requestMIDIAccess: () => Promise<MidiAccessLike>;
-        })
-          .requestMIDIAccess()
+        }).requestMIDIAccess();
+        const timeout = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("MIDI access timed out")), 5000);
+        });
+        Promise.race([accessPromise, timeout])
           .then((access) => {
             // Browser MIDIAccess uses richer types than our minimal
             // local interface; cast through unknown to bypass the

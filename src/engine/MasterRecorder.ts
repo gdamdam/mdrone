@@ -110,7 +110,7 @@ export class MasterRecorder {
     const wav = MasterRecorder.encodeWav24(left, right, this.ctx.sampleRate);
     const wavBlob = new Blob([wav], { type: "audio/wav" });
 
-    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 23);
     const a = document.createElement("a");
     a.href = URL.createObjectURL(wavBlob);
     a.download = `mdrone-${ts}.wav`;
