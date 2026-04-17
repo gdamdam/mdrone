@@ -656,7 +656,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </button>
           {/* Inline piano keyboard — sits left of the tonic readout so
               the user can retune without scrolling. Relocated from the
-              scene-actions area per the layout pass (P2.3). */}
+              scene-actions area per the layout pass (P2.3). Hidden on
+              mobile where space is tight; the two native-select
+              dropdowns below take its place there. */}
           <div className="tonic-keys tonic-keys-inline preset-strip-keys">
             {PITCH_CLASSES.map((pc) => {
               const isSharp = pc.includes("#");
@@ -676,6 +678,38 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 </button>
               );
             })}
+          </div>
+          {/* Mobile tonic picker — custom-styled DropdownSelect (not
+              the native OS select) listing all 72 options (12 pitch
+              classes × 6 octaves) grouped by octave. Each option
+              labelled "A2 · 110.0 Hz" so the closed button displays
+              what's playing. Only shown on narrow viewports (CSS
+              toggles visibility at ≤ 720 px); the inline keyboard
+              above remains the default on desktop. */}
+          <div className="preset-strip-tonic-picker">
+            <DropdownSelect
+              value={`${state.root}|${state.octave}`}
+              groups={[1, 2, 3, 4, 5, 6].map((oct) => ({
+                label: `OCTAVE ${oct}`,
+                items: PITCH_CLASSES.map((pc) => {
+                  const idx = PITCH_CLASSES.indexOf(pc);
+                  const semi = idx - 9 + (oct - 4) * 12;
+                  const hz = 440 * Math.pow(2, semi / 12);
+                  return {
+                    value: `${pc}|${oct}`,
+                    label: `${pc.replace("#", "♯")}${oct} · ${hz.toFixed(1)} Hz`,
+                  };
+                }),
+              }))}
+              onChange={(v) => {
+                const [pc, oct] = v.split("|");
+                setRoot(pc as PitchClass);
+                setOctave(parseInt(oct, 10));
+              }}
+              className="preset-strip-tonic-btn"
+              ariaLabel="Tonic and octave"
+              title="Pick the tonic and octave"
+            />
           </div>
           <div className="weather-octave preset-strip-octave">
             <button

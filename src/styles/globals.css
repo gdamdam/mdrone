@@ -394,12 +394,28 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 .shape-tanpura-select { flex: 1 1 auto; min-width: 0; }
 
+/* Mobile tonic picker is a custom DropdownSelect (not the native OS
+   select). Hidden on desktop — the inline keyboard is the default
+   there — and shown on mobile instead of the keyboard + octave + Hz
+   readout, which are hidden below. */
+.preset-strip-tonic-picker { display: none; }
+.preset-strip-tonic-btn { min-width: 150px; max-width: 220px; }
+
 @media (max-width: 720px) {
-  /* Narrow viewports: wrap the strip so the keyboard falls onto its
-     own line instead of being squeezed off-screen. */
   .preset-strip { flex-wrap: wrap; }
-  .preset-strip-keys { order: 4; flex-basis: 100%; margin-top: 6px; }
-  .preset-strip-octave { order: 5; }
+  /* Keyboard, octave stepper, and the separate Hz readout are all
+     replaced by the single wide tonic dropdown on mobile. */
+  .preset-strip-keys,
+  .preset-strip-octave,
+  .preset-strip-tonic { display: none; }
+  .preset-strip-tonic-picker {
+    display: block;
+    order: 4;
+    flex: 1 1 100%;
+    margin-top: 6px;
+    margin-left: auto;
+  }
+  .preset-strip-tonic-btn { width: 100%; max-width: none; }
 }
 
 /* TIMBRE + EFFECTS two-column layout */
