@@ -1335,3 +1335,77 @@ class LoudnessMeterProcessor extends AudioWorkletProcessor {
   }
 }
 registerProcessor("fx-loudness-meter", LoudnessMeterProcessor);
+
+// ═════════════════════════════════════════════════════════════════════
+// RECORDER TAP — 32-bit float capture for studio-grade WAV export.
+// ═════════════════════════════════════════════════════════════════════
+//
+// Taps the master signal in parallel (no output connection needed).
+// When recording, batches Float32 channel data from each 128-frame
+// block and posts it to the main thread every N blocks. Main thread
+// accumulates the chunks into growing per-channel Float32Arrays and
+// encodes to 24-bit WAV on stop.
+//
+// Messages:
+//   main → node : { type: "start" }   — begin capturing
+//   main → node : { type: "stop" }    — stop + flush remaining buffer
+//   node → main : { type: "chunk", samples: [Float32Array, Float32Array] }
+//   node → main : { type: "done" }    — last chunk sent, safe to encode
+class RecorderTapProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.capturing = false;
+    // 32 × 128 = 4096-frame batches ≈ 93 ms at 44.1 k. Small enough
+    // that a stop-click yields <100 ms of lost tail; large enough
+    // that we aren't messaging 344 times/s.
+    this.batchBlocks = 32;
+    this.blockInBatch = 0;
+    this.bufL = new Float32Array(this.batchBlocks * 128);
+    this.bufR = new Float32Array(this.batchBlocks * 128);
+    this.port.onmessage = (e) => {
+      const msg = e.data;
+      if (!msg) return;
+      if (msg.type === "start") {
+        this.capturing = true;
+        this.blockInBatch = 0;
+      } else if (msg.type === "stop") {
+        if (this.blockInBatch > 0) this.flush();
+        this.capturing = false;
+        try { this.port.postMessage({ type: "done" }); } catch { /* noop */ }
+      }
+    };
+  }
+
+  flush() {
+    const frames = this.blockInBatch * 128;
+    // Slice to exact frame count so the last (partial) batch doesn't
+    // carry stale data from the previous full batch into the WAV.
+    const left = this.bufL.slice(0, frames);
+    const right = this.bufR.slice(0, frames);
+    try {
+      this.port.postMessage(
+        { type: "chunk", samples: [left, right] },
+        [left.buffer, right.buffer],
+      );
+    } catch { /* noop */ }
+    // New backing buffers so the transferred ones aren't reused.
+    this.bufL = new Float32Array(this.batchBlocks * 128);
+    this.bufR = new Float32Array(this.batchBlocks * 128);
+    this.blockInBatch = 0;
+  }
+
+  process(inputs) {
+    if (!this.capturing) return true;
+    const input = inputs[0];
+    if (!input || input.length === 0) return true;
+    const inL = input[0];
+    const inR = input[1] || inL;
+    const offset = this.blockInBatch * 128;
+    this.bufL.set(inL, offset);
+    this.bufR.set(inR, offset);
+    this.blockInBatch += 1;
+    if (this.blockInBatch >= this.batchBlocks) this.flush();
+    return true;
+  }
+}
+registerProcessor("fx-recorder-tap", RecorderTapProcessor);
