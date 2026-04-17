@@ -48,11 +48,11 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <p className="fx-modal-desc">
             <strong>DRONE</strong> — the instrument: presets, tonic, mode,
             macros, effects, climate, history slots, scale editor.<br />
-            <strong>MEDITATE</strong> — a full-screen pitch mandala.
-            Twelve radial arcs by pitch class, accrued over a 30 s
-            long integrator. Deliberately slow — the visual lags behind
-            the sound, matching what's present over time, not at the
-            instant.<br />
+            <strong>MEDITATE</strong> — 22 full-screen visualizers
+            in four groups (GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC).
+            Dropdown picks one; double-click the canvas to cycle.
+            PITCH MANDALA is the drone-specific standout: pitch-class
+            arcs accrued over a long integrator.<br />
             <strong>MIXER</strong> — master bus: HPF, 3-band EQ, glue
             compression, drive, brickwall limiter with ceiling, SAFE
             (headphone-safe) clamp, CLIP LED, LUFS-S + peak meter, trim.

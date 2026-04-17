@@ -56,7 +56,7 @@ No install. No account. No personal tracking. Session data stays in your browser
 | View | Purpose |
 |---|---|
 | **DRONE** | The instrument: header tonic / octave / HOLD transport, preset library, voice stack, macros, breathing LFO, climate XY pad, effect chain, undo/redo + A/B snapshot slots, SCALE editor, GESTURES panel |
-| **MEDITATE** | A single full-screen pitch-mandala visualizer. Accrues pitch-class presence over a slow (30 s) integrator — explicitly not audio-rate reactive |
+| **MEDITATE** | 22 full-screen visualizers grouped GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC, picked from a dropdown (double-click canvas to cycle). Includes a PITCH MANDALA that accrues pitch-class presence over a slow integrator, alongside Rothko fields, flow particles, cymatics, starGate, Radigue / Basinski / La Monte Young / Coil homages, and more. |
 | **MIXER** | Master bus: HPF, 3-band EQ, glue compression, drive, brickwall limiter with ceiling, SAFE (headphone-safe) toggle, CLIP LED (pre-limiter peak), LUFS-S + PEAK metering, final output trim |
 
 ---
@@ -163,11 +163,16 @@ Master-bus controls matched to the mpump / mloop family vocabulary:
 
 ## MEDITATE view
 
-A single full-screen pitch-mandala visualizer. Twelve radial arcs positioned by pitch class (C at top, clockwise), arc width driven by a **30 s long integrator over the engine's active pitch-class energies** (root + intervals + 8 harmonics per voice).
+22 authored visualizers organised into four groups in the picker:
 
-Deliberately not audio-rate reactive — no glow, no hue-from-audio, no amplitude pumping. Palette is matte and preset-macro-driven (warmth crossfades graphite → parchment). The visual should feel *behind* the sound, accruing, not reacting.
+- **GEOMETRIC** — breathing mandala, pitch mandala, flow field, waveform ring, sigil bloom, cymatics
+- **SPECTRAL** — aurora, waterfall (plain / ascii / hybrid / matrix-rain)
+- **FIELD / PAINTERLY** — Rothko field, tape decay (Basinski), Dream House magenta (La Monte Young), ink bloom, halo & rays, horizon sunrise, resonant orb
+- **HYPNOTIC** — feedback tunnel (Jarman), star gate (Coil / 2001), Julia fractal, dream machine *(10 Hz flicker — warning shown; close eyes for the classic usage)*
 
-Double-click toggles fullscreen.
+PITCH MANDALA is the standout for drone work: twelve radial arcs positioned by pitch class (C at top), arc width driven by a long integrator over the engine's active pitch-class energies (root + intervals + 8 harmonics per voice). Accrues rather than reacts.
+
+Dropdown in the toolbar picks the active visualizer; **double-click the canvas** to cycle through. Fullscreen via the ⛶ button.
 
 ---
 
