@@ -59,6 +59,7 @@ export function captureFxSnapshot(engine: AudioEngine): FxSessionSnapshot {
     combFeedback: fx.getCombFeedback(),
     subCenter: fx.getSubCenter(),
     freezeMix: fx.getFreezeFeedback(),
+    order: engine.getEffectOrder(),
   };
 }
 

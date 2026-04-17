@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "./config";
-import type { EffectId } from "./engine/FxChain";
+import { EFFECT_ORDER, type EffectId } from "./engine/FxChain";
 import type { VoiceType } from "./engine/VoiceBuilder";
 import type { PitchClass, RelationId, ScaleId, TuningId } from "./types";
 import type { PaletteId } from "./themes";
@@ -83,6 +83,12 @@ export interface FxSessionSnapshot {
   combFeedback: number;
   subCenter: number;
   freezeMix: number;
+  /** User-customised serial chain order. Optional to stay
+   *  backward-compatible with share URLs / sessions authored before
+   *  this field existed — those fall back to whatever order the
+   *  receiver already has. Absent, malformed, duplicated, or
+   *  unknown-id arrays are dropped during normalize. */
+  order?: readonly EffectId[];
 }
 
 export interface UiSessionSnapshot {
@@ -415,7 +421,7 @@ export function normalizeMixerSnapshot(value: unknown): MixerSessionSnapshot | n
 
 export function normalizeFxSnapshot(value: unknown): FxSessionSnapshot {
   const record = isRecord(value) ? value : {};
-  return {
+  const snapshot: FxSessionSnapshot = {
     levels: normalizeEffectLevels(record.levels),
     delayTime: readNumber(record.delayTime, DEFAULT_FX_SNAPSHOT.delayTime, 0.05, 2),
     delayFeedback: readNumber(record.delayFeedback, DEFAULT_FX_SNAPSHOT.delayFeedback, 0, 0.95),
@@ -423,6 +429,20 @@ export function normalizeFxSnapshot(value: unknown): FxSessionSnapshot {
     subCenter: readNumber(record.subCenter, DEFAULT_FX_SNAPSHOT.subCenter, 40, 300),
     freezeMix: readNumber(record.freezeMix, DEFAULT_FX_SNAPSHOT.freezeMix, 0, 1),
   };
+  const order = normalizeEffectOrder(record.order);
+  if (order) snapshot.order = order;
+  return snapshot;
+}
+
+function normalizeEffectOrder(value: unknown): readonly EffectId[] | null {
+  if (!Array.isArray(value) || value.length !== EFFECT_ORDER.length) return null;
+  const known = new Set<string>(EFFECT_ORDER);
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== "string" || !known.has(entry) || seen.has(entry)) return null;
+    seen.add(entry);
+  }
+  return value as EffectId[];
 }
 
 export function normalizeUiSnapshot(value: unknown): UiSessionSnapshot {

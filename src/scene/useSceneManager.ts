@@ -221,6 +221,12 @@ export function useSceneManager({
     droneViewRef.current?.applySnapshot(scene.drone);
     applyMixerSnapshot(engine, scene.mixer);
     applyFxSnapshot(engine, scene.fx);
+    // FX chain order lives in DroneView state (hydrated from
+    // localStorage) which pushes to the engine on every render, so
+    // applying order directly on the engine would be overwritten on
+    // the next frame. Route through DroneView so React state,
+    // localStorage, and engine all agree.
+    if (scene.fx.order) droneViewRef.current?.applyEffectOrder(scene.fx.order);
     onMixerSync();
     setCurrentSessionId(options?.sessionId ?? null);
     setCurrentSessionName(scene.name);

@@ -233,6 +233,12 @@ export interface DroneViewHandle {
    *  scene-marquee so tapping the currently-playing name expands the
    *  preset list, matching the preset-strip meta button. */
   openPresets(): void;
+  /** Apply a user-customised FX chain order (from a share URL or
+   *  loaded session). Updates React state, localStorage, and the
+   *  engine via the same cascade a manual drag-reorder uses, so a
+   *  subsequent render can't overwrite the engine with a stale
+   *  locally-persisted order. */
+  applyEffectOrder(order: readonly EffectId[]): void;
 }
 
 /**
@@ -441,7 +447,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   useEffect(() => {
     if (engine) engine.setEffectOrder(effectOrder);
   }, [engine, effectOrder]);
-  const handleEffectReorder = useCallback((next: EffectId[]) => {
+  const handleEffectReorder = useCallback((next: readonly EffectId[]) => {
     setEffectOrder(next);
     try { window.localStorage?.setItem(STORAGE_KEYS.effectOrder, JSON.stringify(next)); } catch { /* noop */ }
   }, []);
@@ -613,6 +619,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     openPresets() {
       setDisclosed((prev) => prev.presets ? prev : { ...prev, presets: true });
     },
+    applyEffectOrder: handleEffectReorder,
   }), [
     applySnapshot,
     applyLivePatch,
@@ -622,6 +629,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     startImmediate,
     togglePlay,
     handlePreset,
+    handleEffectReorder,
   ]);
 
   return (
