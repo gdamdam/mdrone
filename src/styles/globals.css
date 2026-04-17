@@ -414,17 +414,22 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
      marquee to its own full-width row so the preset name actually
      fits (was showing ~2 chars). Transport controls wrap cleanly
      below on their own row. */
-  /* Parent-scoped so (0,2,0) beats the base .title-sigil /
-     .title-badge rules (0,1,0) that land later in the file. */
-  .header-row-brand .title-badge,
-  .header-row-brand .title-sigil { display: none; }
+  /* Hide only the EXPERIMENTAL badge on mobile — the sigil stays
+     (it's the About link + visual anchor). Parent-scoped so (0,2,0)
+     beats the base .title-badge rule (0,1,0) further down the file. */
+  .header-row-brand .title-badge { display: none; }
   .header-row-main { flex-wrap: wrap; }
-  .header-display {
+  /* Parent-scoped (0,2,0) so these override the base .header-display
+     rule (0,1,0) with `width: clamp(110px, 12vw, 160px)` that lands
+     later in the file and would otherwise win on source-order. */
+  .header-row-main .header-display {
     flex: 1 1 100%;
     width: 100%;
+    max-width: none;
+    min-width: 0;
     order: 10;
   }
-  .header-display-track { text-align: center; }
+  .header-row-main .header-display-track { text-align: center; }
 
   /* Tighter padding + gap on mobile so the strip doesn't eat a third
      of the viewport height with its own chrome. */
