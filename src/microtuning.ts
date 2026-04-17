@@ -94,9 +94,57 @@ export const BUILTIN_TUNINGS: readonly TuningTable[] = [
   {
     id: "slendro",
     label: "Slendro",
-    // Javanese gamelan 5-tone (~240 cent steps) mapped to nearest degree slots
-    // Tones: 0, 240, 480, 720, 960 — assigned to m2, M3, TT/P5, M6 positions
-    degrees: [0, 240, 240, 480, 480, 480, 720, 720, 720, 960, 960, 960, 1200],
+    // Javanese gamelan 5-tone scale. The 5 slendro pitches
+    // (0, 240, 480, 720, 960, +octave 1200) are placed at the degree
+    // slots the relations actually pick (0, 3, 5, 7, 10, 12) so
+    // unison / fourth / fifth / drone-triad / harmonic-stack all
+    // resolve to real slendro intervals. The remaining 6 filler
+    // slots are monotonically interpolated between anchors so every
+    // degree yields a distinct pitch — no earlier bug where picking
+    // different slendro degrees produced duplicate cents.
+    degrees: [0, 80, 160, 240, 360, 480, 600, 720, 800, 880, 960, 1080, 1200],
+  },
+];
+
+/** Authored / curated tunings shipped alongside builtins. Use the
+ *  `custom:` ID prefix so they ride the existing custom-tuning infra
+ *  (resolver fallback, share-URL embedding) without colliding with
+ *  user-authored tables of the same slug — authored entries are
+ *  added via code; user entries live in localStorage. */
+export const AUTHORED_TUNINGS: readonly TuningTable[] = [
+  {
+    id: "custom:young-wtp" as CustomTuningId,
+    label: "Young — Well-Tuned-Piano (7-limit)",
+    // La Monte Young's Well-Tuned-Piano 7-limit just lattice (1964-
+    // present). Ratios (rooted at 1/1, sorted ascending):
+    // 1/1, 567/512, 9/8, 147/128, 1323/1024, 21/16, 189/128, 3/2,
+    // 49/32, 441/256, 7/4, 63/32, 2/1. Cents rounded to 0.1.
+    degrees: [0, 176.6, 203.9, 239.5, 444.0, 470.8, 674.6, 702.0, 737.7, 941.4, 968.8, 1172.7, 1200],
+  },
+  {
+    id: "custom:just7" as CustomTuningId,
+    label: "Just 7-limit",
+    // 7-limit just intonation — adds the 7th partial (7/4, 7/6, 7/5)
+    // to standard 5-limit. Ratios: 1/1, 16/15, 9/8, 7/6, 5/4, 4/3,
+    // 7/5, 3/2, 8/5, 5/3, 7/4, 15/8, 2/1.
+    degrees: [0, 111.73, 203.91, 266.87, 386.31, 498.04, 582.51, 701.96, 813.69, 884.36, 968.83, 1088.27, 1200],
+  },
+  {
+    id: "custom:partch-11" as CustomTuningId,
+    label: "Partch 11-limit subset",
+    // 13-degree subset of Harry Partch's 43-tone just intonation
+    // scale. Ratios: 1/1, 11/10, 10/9, 7/6, 5/4, 4/3, 11/8, 3/2,
+    // 11/7, 5/3, 7/4, 11/6, 2/1.
+    degrees: [0, 165.0, 182.4, 266.87, 386.31, 498.04, 551.32, 701.96, 782.5, 884.36, 968.83, 1049.4, 1200],
+  },
+  {
+    id: "custom:15-tet" as CustomTuningId,
+    label: "15-TET (Catler)",
+    // 15-tone equal temperament — 80-cent steps. Used by Jon Catler
+    // and others for microtonal guitar / pentadecaphonic harmony.
+    // 13 ascending degrees from the 15-step ladder, bound to the
+    // octave at P8.
+    degrees: [0, 80, 240, 320, 400, 480, 560, 640, 720, 800, 880, 960, 1200],
   },
 ];
 
@@ -193,7 +241,7 @@ export function getCustomTunings(): readonly TuningTable[] {
 }
 
 export function getAllTunings(): readonly TuningTable[] {
-  return [...BUILTIN_TUNINGS, ...customTunings];
+  return [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings];
 }
 
 /** Subscribe to custom-tuning registry changes. The callback fires
@@ -239,13 +287,13 @@ export function deleteCustomTuning(id: string): void {
  *  saveCustomTuning / deleteCustomTuning. */
 export const TUNINGS: readonly TuningTable[] = new Proxy([] as TuningTable[], {
   get(_target, prop, receiver) {
-    const combined = [...BUILTIN_TUNINGS, ...customTunings];
+    const combined = [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings];
     const value = Reflect.get(combined, prop, receiver);
     if (typeof value === "function") return value.bind(combined);
     return value;
   },
   has(_target, prop) {
-    const combined = [...BUILTIN_TUNINGS, ...customTunings];
+    const combined = [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings];
     return Reflect.has(combined, prop);
   },
 });
@@ -253,13 +301,13 @@ export const TUNINGS: readonly TuningTable[] = new Proxy([] as TuningTable[], {
 // ── Lookups ──────────────────────────────────────────────────────────
 
 let tuningMap = new Map<string, TuningTable>(
-  [...BUILTIN_TUNINGS, ...customTunings].map((t) => [t.id, t]),
+  [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings].map((t) => [t.id, t]),
 );
 const relationMap = new Map(RELATIONS.map((r) => [r.id, r]));
 
 function rebuildTuningMap(): void {
   tuningMap = new Map<string, TuningTable>(
-    [...BUILTIN_TUNINGS, ...customTunings].map((t) => [t.id, t]),
+    [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings].map((t) => [t.id, t]),
   );
 }
 

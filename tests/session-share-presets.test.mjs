@@ -328,10 +328,12 @@ test("preset material profiles distinguish stable tones from unstable weather", 
 });
 
 test("all presets carry tuningId and relationId", () => {
-  const validTunings = new Set(["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"]);
+  const validBuiltinTunings = new Set(["equal", "just5", "meantone", "harmonics", "maqam-rast", "slendro"]);
   const validRelations = new Set(["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"]);
   for (const p of PRESETS) {
-    assert.ok(validTunings.has(p.tuningId), `${p.id} has invalid tuningId: ${p.tuningId}`);
+    const ok = validBuiltinTunings.has(p.tuningId) ||
+      (typeof p.tuningId === "string" && p.tuningId.startsWith("custom:"));
+    assert.ok(ok, `${p.id} has invalid tuningId: ${p.tuningId}`);
     assert.ok(validRelations.has(p.relationId), `${p.id} has invalid relationId: ${p.relationId}`);
   }
 });
@@ -353,7 +355,10 @@ test("migrated preset tuning assignments match musical intent", () => {
   check("arkbro-chords", "meantone", "drone-triad");
   // Harmonic series presets
   check("radigue-drift", "harmonics", "harmonic-stack");
-  check("young-well-tuned", "harmonics", "harmonic-stack");
+  // young-well-tuned now points at the actual Young 7-limit WTP
+  // lattice (custom:young-wtp) rather than the generic harmonics
+  // table, so the preset name and the underlying tuning agree.
+  check("young-well-tuned", "custom:young-wtp", "harmonic-stack");
   check("tibetan-bowl", "harmonics", "unison");
   // Equal temperament / noise
   check("deep-listening", "equal", "unison");

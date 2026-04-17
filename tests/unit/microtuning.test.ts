@@ -20,9 +20,9 @@ describe("TUNINGS", () => {
   });
 
   it("every tuning has 13 non-decreasing degrees spanning 0..1200", () => {
-    // Non-decreasing (not strict) because sub-12-tone tunings like
-    // `slendro` are padded with duplicate cent values to fill the
-    // 13-entry table — this is intentional in src/microtuning.ts.
+    // Non-decreasing (not strict) to stay tolerant of future sub-12-
+    // tone tables; current tables all have 13 strictly-ascending
+    // distinct degrees so picks never collapse to duplicates.
     for (const t of TUNINGS) {
       expect(t.degrees.length, `tuning "${t.id}"`).toBe(13);
       expect(t.degrees[0]).toBe(0);
@@ -75,6 +75,30 @@ describe("resolver fallbacks & combinatorics", () => {
         expect(cents.length, `${t.id} × ${r.id}`).toBe(r.picks.length);
         for (const c of cents) expect(Number.isFinite(c)).toBe(true);
       }
+    }
+  });
+
+  it("slendro degrees are strictly ascending (no picks collapse to dupes)", () => {
+    const slendro = tuningById("slendro");
+    for (let i = 1; i < slendro.degrees.length; i++) {
+      expect(slendro.degrees[i], `slendro degree ${i}`).toBeGreaterThan(
+        slendro.degrees[i - 1],
+      );
+    }
+  });
+
+  it("authored custom tunings are resolvable by id", () => {
+    for (const id of [
+      "custom:young-wtp",
+      "custom:just7",
+      "custom:partch-11",
+      "custom:15-tet",
+    ] as const) {
+      const t = tuningById(id);
+      expect(t.id, `authored tuning "${id}" should be present`).toBe(id);
+      expect(t.degrees.length).toBe(13);
+      expect(t.degrees[0]).toBe(0);
+      expect(t.degrees[12]).toBe(1200);
     }
   });
 });

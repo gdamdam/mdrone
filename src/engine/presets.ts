@@ -1579,9 +1579,9 @@ export const PRESETS: Preset[] = [
   {
     id: "young-well-tuned", group: "Minimal / Just",
     name: "Well-Tuned",
-    attribution: "Harmonic-series piano · sympathetic sustain",
-    hint: "Harmonic-series piano resonance more than piano notes: bright partial clouds, long sympathetic bloom, and a sense of one retuned instrument opening into many overtones.",
-    tuningId: "harmonics", relationId: "harmonic-stack",
+    attribution: "Young 7-limit WTP lattice · sympathetic sustain",
+    hint: "Young's Well-Tuned-Piano 7-limit just lattice: bright partial clouds, long sympathetic bloom, the characteristic 444-cent third, and a sense of one retuned instrument opening into many overtones.",
+    tuningId: "custom:young-wtp", relationId: "harmonic-stack",
     voiceLayers: ["piano", "reed"],
     voiceLevels: { piano: 1, reed: 0.08 },
     reedShape: "sine",
