@@ -137,7 +137,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         <p className="start-gate-sub">
           <em>A browser drone instrument.</em>
           <br />
-          Hold a note. Move the weather.
+          Hold a tone.
           <br />
           Let the room breathe.
         </p>
