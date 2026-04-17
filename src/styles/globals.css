@@ -409,45 +409,41 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 @media (max-width: 720px) {
-  /* Mobile header — two rows only:
-       Row 1: MDRONE · tabs · VOL · ⚙ · sigil
-       Row 2: marquee (grows) · HOLD · RND · ● REC · SHARE
-     Strategy: turn the whole .header into a wrapping flex row on
-     mobile and `display: contents` every intermediate wrapper so
-     every leaf button is a direct flex item. A pseudo-element at
-     order 50 with flex-basis:100% forces the break between rows. */
-  .header { flex-direction: row; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .header-row-brand,
-  .header-row-main,
+  /* Mobile header — three rows:
+       Row 1: MDRONE · sigil            (brand row, unchanged shape)
+       Row 2: tabs · VOL · ⚙
+       Row 3: marquee (grows) · HOLD · RND · ● REC · SHARE
+     Row 1 is the default flex row of .header-row-brand. Rows 2 & 3
+     are produced inside .header-row-main by `display: contents` on
+     its .header-center + .header-secondary wrappers (so the leaf
+     buttons become direct flex children of .header-row-main) plus
+     a pseudo-element line break at order 50. */
+  .header-row-brand .title-badge { display: none; }
+
+  .header-row-main { flex-wrap: wrap; gap: 6px; align-items: center; }
   .header-center,
   .header-secondary { display: contents; }
-  .header::before {
+  .header-row-main::before {
     content: "";
     order: 50;
     flex-basis: 100%;
     height: 0;
   }
-  /* Shrink logo + sigil for the compact header row. */
-  .title { order: 1; }
-  .title-art { font-size: 4px; line-height: 1; }
-  .title-sigil { order: 4; width: 22px; height: 22px; margin-left: auto; }
-  /* Hide EXPERIMENTAL badge — no room on this row. */
-  .header-row-brand .title-badge { display: none; }
 
-  /* Row 1 */
-  .view-toggle { order: 2; flex: 0 1 auto; min-width: 0; }
-  .header-btn-volume { order: 3; }
+  /* Row 2 */
+  .view-toggle { order: 1; flex: 0 1 auto; min-width: 0; }
+  .header-btn-volume { order: 2; }
   .header-btn-menu { order: 3; }
 
-  /* Row 2 — marquee grabs the slack, transport cluster packs right. */
-  .header .header-display {
+  /* Row 3 — marquee grabs the slack, transport cluster packs right. */
+  .header-row-main .header-display {
     order: 51;
     flex: 1 1 0;
     width: auto;
     min-width: 0;
     max-width: none;
   }
-  .header .header-display-track { text-align: center; }
+  .header-row-main .header-display-track { text-align: center; }
   .header-hold-btn { order: 52; }
   .header-btn-random { order: 53; }
   .header-btn-record { order: 54; }
