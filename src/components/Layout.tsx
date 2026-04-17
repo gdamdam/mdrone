@@ -8,6 +8,7 @@ import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { NotificationTray } from "./NotificationTray";
 import { showNotification } from "../notifications";
+import { measureAllPresets } from "../devtools/measureLoudness";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 import { MeditateView } from "./MeditateView";
@@ -105,6 +106,25 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     const id = window.setInterval(check, 5 * 60 * 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  // Dev tool — iterate every preset, sample the loudness worklet,
+  // emit a markdown audit table + download file. Exposed on window
+  // so the review can be triggered from the browser console:
+  //   await __measureAllPresets()
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__measureAllPresets = () => measureAllPresets({
+      engine,
+      applyPresetById: (id) => droneViewRef.current?.applyPresetById(id),
+      ensurePlaying: () => {
+        if (!engine.isPlaying()) holdToggleRef.current?.();
+      },
+    });
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__measureAllPresets;
+    };
+  }, [engine]);
 
   // MIDI input — external keyboard drives tonic + octave.
   const handleMidiNote = useCallback((note: number) => {
