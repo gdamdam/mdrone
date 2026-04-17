@@ -795,8 +795,8 @@ export const PRESETS: Preset[] = [
     attribution: "Ritual metal · singing bowl",
     hint: "Metal bowl modes over a low sine-reed fundamental — the continuous rim-friction tone plus the inharmonic mode cloud above it. Circular, resonant, not a bright bell.",
     tuningId: "harmonics", relationId: "unison",
-    voiceLayers: ["metal", "reed", "air"],
-    voiceLevels: { metal: 1, reed: 0.22, air: 0.24 },
+    voiceLayers: ["metal", "reed"],
+    voiceLevels: { metal: 1, reed: 0.22 },
     octaveRange: [3, 4],
     // Sine reed gives the continuous low fundamental that real bowls
     // have from their rim-friction excitation. Replaces the previous

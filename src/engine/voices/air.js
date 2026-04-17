@@ -3,16 +3,19 @@
 // after core.js by scripts/build-worklet.mjs.
 
 DroneVoiceProcessor.prototype.initAir = function() {
-    // 3 resonators at semi-inharmonic ratios — keeps the air voice
-    // light and airy rather than pitched. The earlier bump to 5
-    // bands reintroduced too much bass/mid energy (sum of bands ≈
-    // 1.34 vs the old 1.01) which, combined with the ×1.4 final
-    // multiplier, pushed the voice from "breath" into "pitched
-    // body". Semi-inharmonic ratios avoid the strictly-harmonic
-    // whistle the old 1/2/3 produced without adding energy.
+    // Pipe-flue / breath resonator model. Harmonic partials (1 2 3 4 6)
+    // give a pipe-organ character instead of the beating "wrong organ"
+    // the previous semi-inharmonic ratios produced. The noise
+    // excitation is dropped to a gentle 1.2× feed (was 4.5) so the
+    // pink source animates the resonators without blasting them —
+    // resonance does the work, not raw amplitude. Natural 1/n-like
+    // rolloff on partial amps for a bellows-lung falloff. High-shelf
+    // brighten block is gone — it was adding hiss to a noise-based
+    // voice. Final amp halved to 0.8 so layered presets don't
+    // accumulate air energy into saturation territory.
     this.airN = 5;
-    this.airRatios = new Float32Array([1.0, 2.07, 3.11, 4.71, 7.23]);
-    this.airAmps   = new Float32Array([0.55, 0.30, 0.16, 0.08, 0.04]);
+    this.airRatios = new Float32Array([1.0, 2.0, 3.0, 4.0, 6.0]);
+    this.airAmps   = new Float32Array([0.50, 0.34, 0.20, 0.11, 0.05]);
     this.airPans   = new Float32Array([0.0, -0.25, 0.25, 0.35, -0.35]);
     // Two-pole state-variable bandpass state per resonator (L + R independent)
     // state: [lowL, bandL, lowR, bandR]
@@ -20,19 +23,25 @@ DroneVoiceProcessor.prototype.initAir = function() {
     for (let i = 0; i < this.airN; i++) {
       this.airStates.push(new Float32Array(4));
     }
-    // Q walk state
-    this.airQWalks = new Float32Array(this.airN).fill(11);
-    this.airQTargets = new Float32Array(this.airN).fill(11);
+    // Q walk state — higher baseline (16) for sustained pipe-like
+    // partials, modulated by drift within a narrower range than the
+    // old 8-20 that was spiking to whistle territory.
+    this.airQWalks = new Float32Array(this.airN).fill(16);
+    this.airQTargets = new Float32Array(this.airN).fill(16);
     this.airTickCounter = 0;
-    // Wind gusting — slow random amplitude walk on noise input
+    // Bellows gust — slow random amplitude walk on noise input.
     this.airGustLevel = 1;
     this.airGustTarget = 1;
     this.airGustPhase = this.rng() * Math.PI * 2;
-    // Independent pink noise states for L and R to avoid mono
+    // Independent pink noise state for R so the stereo image isn't mono.
     this.pinkR = { b0: 0, b1: 0, b2: 0, b3: 0, b4: 0, b5: 0, b6: 0 };
-    // High-shelf state for air character (one-pole)
-    this.hsL = 0;
-    this.hsR = 0;
+    // DC-block state — one-pole HPF at ~20 Hz to bleed off sub-
+    // sonic drift the noise source + SVF can accumulate over long
+    // holds. Small alpha keeps the HPF well below any audible range.
+    this.airDcL = 0;
+    this.airDcR = 0;
+    this.airDcPrevL = 0;
+    this.airDcPrevR = 0;
 };
 
   // Second pink noise generator (uses pinkR state) for independent R channel
@@ -51,9 +60,12 @@ DroneVoiceProcessor.prototype.pinkNoiseR = function() {
 };
 
 DroneVoiceProcessor.prototype.airProcess = function(L, R, n, freq, drift, amp) {
-    // drift modulates the Q random-walk range
-    const qMin = 8 - drift * 2;
-    const qMax = 16 + drift * 4;
+    // Q walk range — tighter than before. 12-20 at drift 0 keeps the
+    // tone clean-pipe; wider 10-26 at high drift adds animation. The
+    // old 8-20 spiked into whistle territory at high drift which was
+    // part of the "scream like wind" complaint.
+    const qMin = 12 - drift * 2;
+    const qMax = 20 + drift * 6;
 
     for (let i = 0; i < n; i++) {
       // Slow Q walk every ~512 samples
@@ -64,7 +76,7 @@ DroneVoiceProcessor.prototype.airProcess = function(L, R, n, freq, drift, amp) {
         }
       }
 
-      // Wind gusting — slow amplitude walk (~0.1 Hz) on the noise
+      // Bellows gust — slow amplitude walk (~0.12 Hz) on the noise
       // source gives breath-like character instead of flat pink.
       this.airGustLevel += (this.airGustTarget - this.airGustLevel) * 0.00004;
       this.airGustPhase += 6.283 * 0.12 / sampleRate;
@@ -73,8 +85,11 @@ DroneVoiceProcessor.prototype.airProcess = function(L, R, n, freq, drift, amp) {
         this.airGustTarget = 0.6 + this.rng() * 0.4;
       }
       const gust = this.airGustLevel;
-      const noiseL = this.pinkNoise() * 4.5 * gust;
-      const noiseR = this.pinkNoiseR() * 4.5 * gust;
+      // Noise excitation much reduced — 1.2 instead of 4.5. The
+      // resonators do the work; hot noise input was reading as hiss
+      // rather than pipe/breath.
+      const noiseL = this.pinkNoise() * 1.2 * gust;
+      const noiseR = this.pinkNoiseR() * 1.2 * gust;
 
       let sumL = 0, sumR = 0;
       for (let r = 0; r < this.airN; r++) {
@@ -105,14 +120,18 @@ DroneVoiceProcessor.prototype.airProcess = function(L, R, n, freq, drift, amp) {
         sumR += bandR * rGain;
       }
 
-      // High-shelf boost (one-pole) for air brightness
-      this.hsL = this.hsL * 0.6 + sumL * 0.4;
-      this.hsR = this.hsR * 0.6 + sumR * 0.4;
-      const brightenedL = sumL + (sumL - this.hsL) * 0.5;
-      const brightenedR = sumR + (sumR - this.hsR) * 0.5;
+      // DC-block — one-pole HPF at ~20 Hz (coefficient ~0.995).
+      // Strips any sub-audio drift the SVF stack can accumulate over
+      // long holds without colouring the audible band.
+      const dcL = sumL - this.airDcPrevL + this.airDcL * 0.995;
+      this.airDcPrevL = sumL;
+      this.airDcL = dcL;
+      const dcR = sumR - this.airDcPrevR + this.airDcR * 0.995;
+      this.airDcPrevR = sumR;
+      this.airDcR = dcR;
 
-      L[i] = brightenedL * amp * 1.4;
-      R[i] = brightenedR * amp * 1.4;
+      L[i] = dcL * amp * 0.8;
+      R[i] = dcR * amp * 0.8;
     }
 };
 
