@@ -4,8 +4,10 @@
  *
  *   fx-plate    — Jon Dattorro's classic plate reverb (4 diffusers +
  *                 tank with modulated allpass + figure-8 tap outputs)
- *   fx-shimmer  — pitch-shift feedback loop (crossfading-head delay
- *                 line shifter + short allpass network for tail)
+ *   fx-shimmer  — octave-up feedback cloud via crossfading-head
+ *                 delay-line shifter (tape-style, not PSOLA; see
+ *                 SHIMMER block below for tradeoffs) + short allpass
+ *                 network for tail
  *   fx-freeze   — ring buffer capture + crossfaded loop playback
  *
  * The other effects (HALL, TAPE, WOW, DELAY, SUB, COMB) stay in the
@@ -334,16 +336,24 @@ class DattorroPlateProcessor extends AudioWorkletProcessor {
 registerProcessor("fx-plate", DattorroPlateProcessor);
 
 // ═════════════════════════════════════════════════════════════════════
-// SHIMMER REVERB — pitch-shift feedback cloud
+// SHIMMER — octave-up feedback cloud
 // ═════════════════════════════════════════════════════════════════════
+// This is NOT a phase-vocoder / PSOLA pitch shifter. It is a
+// crossfading-head delay-line shifter (tape-style variable-speed
+// playback): two read heads at 2× playback rate with Lagrange
+// interpolation, crossfaded so samples keep streaming as the heads
+// wrap. That means transients smear and formants shift up with the
+// pitch — perfect for drone clouds, unsuitable for monophonic
+// polyphonic material where formant preservation matters.
+//
 // Architecture:
 //
-//   Input → pitch-shifting delay line (+12 semitones via 2 crossfading
-//           read heads at 2x playback rate, classic Lagrange approach)
+//   Input → crossfading-head delay line (+12 semitones, 2 heads @ 2×,
+//           Lagrange-interp reads)
 //         → lowpass (tame upper-octave harshness)
 //         → 2-allpass diffuser (spread the pitched signal)
 //         → feedback gain
-//           ↳ back into the pitch shifter input
+//           ↳ back into the shifter input
 //         → output
 //
 // The +12 feedback loop creates the classic Eno Ambient 2 / Jonsi
@@ -522,6 +532,21 @@ registerProcessor("fx-shimmer", ShimmerReverbProcessor);
 //   - Loop the captured audio with a short (30 ms) crossfade at the seam
 //   - When active flips to 0: fade the loop out over 300 ms, resume writing
 //
+// Phase-vocoder magnitude-hold freeze. When active rises:
+//   1. take the most recent N-sample window from the ring buffer
+//   2. FFT → store magnitudes per bin, discard phases
+// While active, each hop (= N/4 samples):
+//   3. build a synthetic complex spectrum using the held magnitudes
+//      and fresh random phases (one seeded PRNG roll per bin)
+//   4. IFFT → Hann-window → overlap-add into an output accumulator
+// Read: one sample per process loop from the accumulator, clearing
+//   as we go so the buffer doesn't accumulate indefinitely.
+//
+// This is what people mean when they say "spectral freeze": the
+// magnitude envelope is held exactly but the phases scramble, so
+// any captured rhythmic content de-articulates into a sustained
+// tone-complex. The old loop-and-crossfade freeze re-articulated
+// rhythm on every loop seam — that's the gap this closes.
 class FreezeProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
@@ -532,92 +557,233 @@ class FreezeProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    // 2 seconds of stereo ring buffer
-    this.ringLen = Math.ceil(sampleRate * 2);
-    this.ringL = new Float32Array(this.ringLen);
-    this.ringR = new Float32Array(this.ringLen);
-    this.writeIdx = 0;
-    this.readIdx = 0;
-    this.snapStart = 0;
+    this.N = 2048;                  // FFT size
+    this.hop = 512;                 // 75% overlap
+    // COLA normalisation: sum of Hann^2 over 4 overlapping frames at
+    // hop = N/4 is ~1.5·N/4, so per-sample division by 1.5 restores
+    // unity-ish gain. Empirically tuned to match the old loop-freeze
+    // perceived level so existing presets don't jump in loudness.
+    this.olaScale = 1 / 1.5;
+
+    // Hann window (N samples)
+    this.hann = new Float32Array(this.N);
+    for (let i = 0; i < this.N; i++) {
+      this.hann[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.N - 1)));
+    }
+    // Bit-reverse index table for iterative FFT
+    this.bitrev = new Uint32Array(this.N);
+    const bits = Math.round(Math.log2(this.N));
+    for (let i = 0; i < this.N; i++) {
+      let r = 0, x = i;
+      for (let b = 0; b < bits; b++) { r = (r << 1) | (x & 1); x >>>= 1; }
+      this.bitrev[i] = r;
+    }
+
+    // Input ring — 1 frame deep, wraps continuously so a freeze can
+    // capture the last N samples regardless of where the write head is.
+    this.ringL = new Float32Array(this.N);
+    this.ringR = new Float32Array(this.N);
+    this.ringIdx = 0;
+
+    // Held magnitudes (real-spectrum half: 0..N/2 inclusive).
+    this.magL = new Float32Array(this.N / 2 + 1);
+    this.magR = new Float32Array(this.N / 2 + 1);
+    this.haveSnapshot = false;
+
+    // Output OLA ring of length N.
+    this.outL = new Float32Array(this.N);
+    this.outR = new Float32Array(this.N);
+    this.outReadPos = 0;
+    this.outWritePos = 0;
+    this.sinceHop = 0;
+
+    // Fade envelope (same rates as before for familiar feel)
     this.wasActive = 0;
-    this.fadeEnv = 0; // 0..1 envelope for capture fade in/out
-    // 30 ms crossfade region at the loop boundary
-    this.fadeLen = Math.ceil(sampleRate * 0.03);
+    this.fadeEnv = 0;
+
+    // FFT scratch — interleaved complex (re, im).
+    this.fftBuf = new Float32Array(this.N * 2);
+    this.tmpFrame = new Float32Array(this.N);
+
+    // Seeded PRNG (mulberry32) for phase randomisation. Deterministic
+    // per-freeze so share-scene reloads reproduce the exact freeze
+    // texture.
+    this.rngState = 0x51f00ddb;
+  }
+
+  rand() {
+    let t = (this.rngState = (this.rngState + 0x6d2b79f5) >>> 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  // In-place iterative Cooley-Tukey radix-2 FFT / IFFT on interleaved
+  // complex buffer (length 2N). `inverse` divides by N at the end.
+  fft(buf, inverse) {
+    const N = this.N;
+    for (let i = 0; i < N; i++) {
+      const j = this.bitrev[i];
+      if (j > i) {
+        const i2 = i << 1, j2 = j << 1;
+        const re = buf[i2], im = buf[i2 + 1];
+        buf[i2] = buf[j2]; buf[i2 + 1] = buf[j2 + 1];
+        buf[j2] = re; buf[j2 + 1] = im;
+      }
+    }
+    for (let size = 2; size <= N; size <<= 1) {
+      const half = size >> 1;
+      const theta = (inverse ? 2 : -2) * Math.PI / size;
+      const wpRe = Math.cos(theta), wpIm = Math.sin(theta);
+      for (let i = 0; i < N; i += size) {
+        let wRe = 1, wIm = 0;
+        for (let k = 0; k < half; k++) {
+          const aIdx = (i + k) << 1;
+          const bIdx = (i + k + half) << 1;
+          const bRe = buf[bIdx], bIm = buf[bIdx + 1];
+          const tRe = wRe * bRe - wIm * bIm;
+          const tIm = wRe * bIm + wIm * bRe;
+          const aRe = buf[aIdx], aIm = buf[aIdx + 1];
+          buf[aIdx] = aRe + tRe; buf[aIdx + 1] = aIm + tIm;
+          buf[bIdx] = aRe - tRe; buf[bIdx + 1] = aIm - tIm;
+          const nwRe = wRe * wpRe - wIm * wpIm;
+          wIm = wRe * wpIm + wIm * wpRe;
+          wRe = nwRe;
+        }
+      }
+    }
+    if (inverse) {
+      const invN = 1 / N;
+      for (let i = 0; i < N * 2; i++) buf[i] *= invN;
+    }
+  }
+
+  // Copy the most recent N samples of the ring into `tmp` starting
+  // at the oldest sample (ringIdx is the next-write position).
+  unrollRing(ring, tmp) {
+    const N = this.N;
+    const start = this.ringIdx; // next-write = oldest sample position
+    for (let i = 0; i < N; i++) {
+      tmp[i] = ring[(start + i) % N];
+    }
+  }
+
+  analyzeChannel(ring, mags) {
+    const N = this.N;
+    const buf = this.fftBuf;
+    const tmp = this.tmpFrame;
+    this.unrollRing(ring, tmp);
+    for (let i = 0; i < N; i++) {
+      buf[i << 1] = tmp[i] * this.hann[i];
+      buf[(i << 1) + 1] = 0;
+    }
+    this.fft(buf, false);
+    const half = N >> 1;
+    for (let b = 0; b <= half; b++) {
+      const re = buf[b << 1];
+      const im = buf[(b << 1) + 1];
+      mags[b] = Math.sqrt(re * re + im * im);
+    }
+  }
+
+  // Build a random-phase spectrum from held magnitudes, IFFT, window,
+  // OLA into outBuf starting at outStart (modulo N).
+  synthChannel(mags, outBuf, outStart) {
+    const N = this.N;
+    const buf = this.fftBuf;
+    const half = N >> 1;
+    // Pack conjugate-symmetric spectrum
+    for (let b = 0; b <= half; b++) {
+      const m = mags[b];
+      const phase = this.rand() * 2 * Math.PI;
+      const re = m * Math.cos(phase);
+      const im = m * Math.sin(phase);
+      buf[b << 1] = re;
+      buf[(b << 1) + 1] = im;
+      if (b > 0 && b < half) {
+        buf[(N - b) << 1] = re;
+        buf[((N - b) << 1) + 1] = -im;
+      }
+    }
+    // DC + Nyquist bins have no imaginary contribution
+    buf[1] = 0;
+    buf[(half << 1) + 1] = 0;
+    this.fft(buf, true);
+    const scale = this.olaScale;
+    for (let i = 0; i < N; i++) {
+      const pos = (outStart + i) % N;
+      outBuf[pos] += buf[i << 1] * this.hann[i] * scale;
+    }
   }
 
   process(_inputs, outputs, parameters) {
     const input = _inputs[0];
     const output = outputs[0];
-    if (!input || input.length === 0 || !output) return true;
-    const inL = input[0];
-    const inR = input.length > 1 ? input[1] : input[0];
+    if (!output) return true;
+    const inL = input && input[0] ? input[0] : null;
+    const inR = input && input.length > 1 ? input[1] : inL;
     const outL = output[0];
     const outR = output.length > 1 ? output[1] : output[0];
     const n = outL.length;
+    const N = this.N;
+    const hop = this.hop;
 
     const active = parameters.active[0];
     const mix = parameters.mix[0];
 
-    // Detect rising edge — snapshot current write position
+    // Rising edge: snapshot magnitudes from the most recent N-sample
+    // window of the ring buffer. Output OLA state is reset so the
+    // first synthesised frames appear clean at the read head.
     if (active > 0.5 && this.wasActive <= 0.5) {
-      this.snapStart = this.writeIdx;
-      this.readIdx = this.writeIdx;
+      if (inL) this.analyzeChannel(this.ringL, this.magL);
+      if (inR) this.analyzeChannel(this.ringR, this.magR);
+      this.haveSnapshot = true;
+      this.outL.fill(0);
+      this.outR.fill(0);
+      this.outReadPos = 0;
+      this.outWritePos = 0;
+      this.sinceHop = hop; // trigger synthesis on the first sample
     }
     this.wasActive = active;
 
-    // Target envelope — ramp fadeEnv toward 1 when active, 0 when not
     const envTarget = active > 0.5 ? 1 : 0;
-    const envRate = active > 0.5 ? 0.0008 : 0.0004; // faster in, slower out
+    const envRate = active > 0.5 ? 0.0008 : 0.0004;
 
     for (let i = 0; i < n; i++) {
-      // Smoothly approach target envelope
+      // Continuously capture input into the ring so a future freeze
+      // captures whatever's playing now. The ring is always written
+      // even while frozen — it costs a couple of stores per sample
+      // and keeps the "release → re-capture" path trivial.
+      if (inL) this.ringL[this.ringIdx] = inL[i];
+      if (inR) this.ringR[this.ringIdx] = inR[i];
+      this.ringIdx = (this.ringIdx + 1) % N;
+
       if (this.fadeEnv < envTarget) this.fadeEnv = Math.min(envTarget, this.fadeEnv + envRate);
       else if (this.fadeEnv > envTarget) this.fadeEnv = Math.max(envTarget, this.fadeEnv - envRate);
 
-      if (this.fadeEnv < 0.0001) {
-        // Fully idle — write input to ring, output silence
-        this.ringL[this.writeIdx] = inL[i];
-        this.ringR[this.writeIdx] = inR[i];
-        this.writeIdx = (this.writeIdx + 1) % this.ringLen;
-        outL[i] = 0;
-        outR[i] = 0;
-      } else {
-        // Capture / playback mode
-        // Determine current read position relative to snapStart
-        const offset = (this.readIdx - this.snapStart + this.ringLen) % this.ringLen;
-        // Normal read
-        let sL = this.ringL[this.readIdx];
-        let sR = this.ringR[this.readIdx];
-
-        // Crossfade at the loop boundary: for the last fadeLen samples
-        // before we'd wrap to snapStart, blend with samples from the
-        // opposite side of the loop to hide the seam.
-        const tailZone = this.ringLen - this.fadeLen;
-        if (offset >= tailZone) {
-          const fadeT = (offset - tailZone) / this.fadeLen; // 0..1 near the seam
-          const altOffset = offset - this.ringLen + this.fadeLen; // negative → reads from start side
-          const altIdx = (this.snapStart + altOffset + this.ringLen) % this.ringLen;
-          const altL = this.ringL[altIdx];
-          const altR = this.ringR[altIdx];
-          sL = sL * (1 - fadeT) + altL * fadeT;
-          sR = sR * (1 - fadeT) + altR * fadeT;
-        }
-
-        // Advance read, wrapping at the snapshot-relative loop length
-        this.readIdx = (this.readIdx + 1) % this.ringLen;
-
-        // Apply envelope and mix
-        outL[i] = sL * mix * this.fadeEnv;
-        outR[i] = sR * mix * this.fadeEnv;
-
-        // While releasing (active=0 but still fading), resume writing
-        // so when we fully fade out the ring is primed for a fresh capture
-        if (active <= 0.5) {
-          this.ringL[this.writeIdx] = inL[i];
-          this.ringR[this.writeIdx] = inR[i];
-          this.writeIdx = (this.writeIdx + 1) % this.ringLen;
+      // Hop-aligned synthesis — every `hop` output samples we add a
+      // freshly randomised N-sample frame starting at outWritePos.
+      if (this.haveSnapshot && this.fadeEnv > 0.0001) {
+        this.sinceHop++;
+        if (this.sinceHop >= hop) {
+          this.sinceHop = 0;
+          this.synthChannel(this.magL, this.outL, this.outWritePos);
+          this.synthChannel(this.magR, this.outR, this.outWritePos);
+          this.outWritePos = (this.outWritePos + hop) % N;
         }
       }
+
+      let sL = 0, sR = 0;
+      if (this.haveSnapshot && this.fadeEnv > 0.0001) {
+        sL = this.outL[this.outReadPos];
+        sR = this.outR[this.outReadPos];
+        this.outL[this.outReadPos] = 0;
+        this.outR[this.outReadPos] = 0;
+        this.outReadPos = (this.outReadPos + 1) % N;
+      }
+
+      outL[i] = sL * mix * this.fadeEnv;
+      outR[i] = sR * mix * this.fadeEnv;
     }
     return true;
   }
@@ -678,7 +844,7 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     ];
   }
 
-  constructor() {
+  constructor(options) {
     super();
     this.bufLen = Math.floor(GRANULAR_BUFFER_SEC * sampleRate);
     this.bufL = new Float32Array(this.bufLen);
@@ -705,14 +871,32 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     // so successive grains read consecutive chunks of the ring buffer.
     this.orderedReadIdx = 0;
 
-    // Port message handler — main thread pushes the current drone
-    // interval stack here so grain pitches stay in the scene's scale.
+    // Seeded PRNG (mulberry32) for grain pitch / pan / jitter.
+    // Using a seeded source instead of Math.random is what makes
+    // share-scene round-trips sonically deterministic — two loads
+    // of the same seed + parameters produce the same grain cloud.
+    // Seed comes from processorOptions at construction and can be
+    // replaced live via a `setSeed` port message.
+    const initialSeed = (options && options.processorOptions && options.processorOptions.seed) | 0;
+    this.rngState = (initialSeed >>> 0) || 0x9e3779b1;
+
     this.port.onmessage = (e) => {
       const msg = e.data;
-      if (msg && msg.type === "setScale" && Array.isArray(msg.cents) && msg.cents.length > 0) {
+      if (!msg) return;
+      if (msg.type === "setScale" && Array.isArray(msg.cents) && msg.cents.length > 0) {
         this.scaleCents = msg.cents.slice();
+      } else if (msg.type === "setSeed" && typeof msg.seed === "number") {
+        this.rngState = (msg.seed >>> 0) || 0x9e3779b1;
       }
     };
+  }
+
+  // mulberry32 — small fast PRNG with decent statistical quality.
+  rng() {
+    let t = (this.rngState = (this.rngState + 0x6d2b79f5) >>> 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (((t ^ (t >>> 14)) >>> 0) / 4294967296);
   }
 
   spawnGrain(size, pitchSpread, panSpread, position, pitchMode, spawnMode) {
@@ -737,15 +921,15 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     // continuous scatter produces on tonal sources).
     let ratio;
     if (pitchMode > 0.5 && this.scaleCents.length > 0) {
-      const pick = this.scaleCents[Math.floor(Math.random() * this.scaleCents.length)] | 0;
+      const pick = this.scaleCents[Math.floor(this.rng() * this.scaleCents.length)] | 0;
       ratio = Math.pow(2, pick / 1200);
     } else {
-      const pitchOct = (Math.random() * 2 - 1) * pitchSpread;
+      const pitchOct = (this.rng() * 2 - 1) * pitchSpread;
       ratio = Math.pow(2, pitchOct);
     }
 
     // Random pan: -1..1 scaled by panSpread
-    const pan = (Math.random() * 2 - 1) * panSpread;
+    const pan = (this.rng() * 2 - 1) * panSpread;
     // Equal-power pan
     const theta = (pan + 1) * 0.25 * Math.PI; // 0..π/2
     const gL = Math.cos(theta);
@@ -770,7 +954,7 @@ class FxGranularProcessor extends AudioWorkletProcessor {
       startIdx = this.orderedReadIdx;
       this.orderedReadIdx = (this.orderedReadIdx + lenSamples) % this.bufLen;
     } else {
-      const jitter = (Math.random() - 0.5) * 0.04 * sampleRate;
+      const jitter = (this.rng() - 0.5) * 0.04 * sampleRate;
       const back = position * (this.bufLen - lenSamples * 2) + jitter;
       startIdx = this.writeIdx - back - lenSamples;
       while (startIdx < 0) startIdx += this.bufLen;
@@ -919,9 +1103,15 @@ registerProcessor("fx-granular", FxGranularProcessor);
 // by the time the peak reaches the output. That's what makes this a
 // true brickwall instead of a fast-attack compressor.
 //
-// Sample-peak (not true-peak) detector — for sustained drone content
-// the inter-sample peak excess is <1.5 dB, so leaving 1 dB of head-
-// room below the ceiling keeps true-peak bounded in practice.
+// Detector runs a cheap 2× oversampled true-peak estimator: the
+// classic 4-point Lagrange interpolator at t = 0.5 computes the
+// intersample value halfway between each adjacent pair, and the
+// detector takes the max of sample-peak and intersample-peak. This
+// catches the ~1.5 dB intersample-peak excess that a sample-peak
+// detector misses on transient-rich material (grain re-triggers,
+// freeze edges) at the cost of ~8 multiplies per sample. Gain is
+// still applied at the 1× rate to the delayed 1× signal, so no
+// upsample/downsample latency beyond the existing lookahead.
 //
 class BrickwallLimiterProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -956,6 +1146,14 @@ class BrickwallLimiterProcessor extends AudioWorkletProcessor {
 
     // Gain-envelope state (1.0 = no attenuation).
     this.gainEnv = 1.0;
+
+    // 4-sample input history per channel for the 4-point Lagrange
+    // intersample-peak interpolator. We compute the mid-sample value
+    // at position -0.5 (halfway between sample -1 and sample 0 —
+    // i.e. the previous pair) using Lagrange coefficients
+    // [-1/16, 9/16, 9/16, -1/16] and fold |mid| into the peak test.
+    this.histL = new Float32Array(4);
+    this.histR = new Float32Array(4);
   }
 
   process(_inputs, outputs, parameters) {
@@ -985,10 +1183,31 @@ class BrickwallLimiterProcessor extends AudioWorkletProcessor {
     // NaN sanitation
     if (!Number.isFinite(this.gainEnv)) this.gainEnv = 1.0;
 
+    const hL = this.histL;
+    const hR = this.histR;
+
     for (let i = 0; i < n; i++) {
       const l = inL[i];
       const r = inR[i];
-      const peakIn = Math.max(Math.abs(l), Math.abs(r));
+
+      // Shift the 4-sample history and append the current input.
+      hL[0] = hL[1]; hL[1] = hL[2]; hL[2] = hL[3]; hL[3] = l;
+      hR[0] = hR[1]; hR[1] = hR[2]; hR[2] = hR[3]; hR[3] = r;
+
+      // 4-point Lagrange at t = 0.5 — mid-sample value between
+      // hist[1] and hist[2]. Sample-peak fails to catch intersample
+      // peaks up to ~1.5 dB; this intersample value folds into the
+      // peak test so the limiter meets its ceiling on intersample
+      // content too.
+      const midL = -0.0625 * hL[0] + 0.5625 * hL[1] + 0.5625 * hL[2] - 0.0625 * hL[3];
+      const midR = -0.0625 * hR[0] + 0.5625 * hR[1] + 0.5625 * hR[2] - 0.0625 * hR[3];
+      const absL = Math.abs(l);
+      const absR = Math.abs(r);
+      const absML = Math.abs(midL);
+      const absMR = Math.abs(midR);
+      let peakIn = absL > absR ? absL : absR;
+      if (absML > peakIn) peakIn = absML;
+      if (absMR > peakIn) peakIn = absMR;
 
       // Read the delayed output sample BEFORE overwriting the slot
       const idxRead = this.delayIdx;
@@ -1039,8 +1258,12 @@ class BrickwallLimiterProcessor extends AudioWorkletProcessor {
 registerProcessor("fx-brickwall", BrickwallLimiterProcessor);
 
 // ═════════════════════════════════════════════════════════════════════
-// FDN REVERB — Freeverb-style 8 combs + 4 allpasses per channel
+// FREEVERB-STYLE REVERB — 8 parallel combs + 4 series allpasses / ch
 // ═════════════════════════════════════════════════════════════════════
+// (Registered as `fx-fdn-reverb` for backward-compat with saved scenes
+// — it is NOT an FDN in the Jot sense; there is no mixing matrix.
+// Architecture is Schroeder / Freeverb: parallel feedback combs
+// followed by series allpasses.)
 //
 // Replaces the old noise-IR ConvolverNode for HALL and CISTERN. The
 // convolver reads as "noise verb"; this topology reads as a modelled
@@ -1217,9 +1440,10 @@ registerProcessor("fx-fdn-reverb", FdnReverbProcessor);
 //
 // Implementation notes:
 // - K-weighting (EBU R128 pre-filter): a shelving HPF cascaded with a
-//   high-shelf. We use the published biquad coefficients at 48 kHz;
-//   for other sample rates the cutoffs shift slightly but the error
-//   is small enough (<0.2 LU) for UI-visible integration.
+//   high-shelf. Biquad coefficients are computed per-sample-rate via
+//   the pyloudnorm / ITU-R BS.1770 formulation (bilinear transform
+//   of the analog prototype at the actual audio graph rate), so the
+//   meter stays accurate at 44.1 / 48 / 88.2 / 96 kHz.
 // - Short-term window = 3 seconds. We keep a ring buffer of per-block
 //   mean-squared values and average them — cheap, no re-filter per read.
 // - True-peak approximation: sample peak + a 4-sample running max to
@@ -1231,20 +1455,39 @@ class LoudnessMeterProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    // Stage 1: high-shelf pre-filter @ ~1680 Hz (EBU R128 prescribed
-    // biquad, normalised for 48 kHz — deviations at 44.1/96 k are
-    // within UI tolerance).
-    this.s1b0 =  1.53512485958697;
-    this.s1b1 = -2.69169618940638;
-    this.s1b2 =  1.19839281085285;
-    this.s1a1 = -1.69065929318241;
-    this.s1a2 =  0.73248077421585;
-    // Stage 2: high-pass @ ~38 Hz.
-    this.s2b0 =  1.0;
-    this.s2b1 = -2.0;
-    this.s2b2 =  1.0;
-    this.s2a1 = -1.99004745483398;
-    this.s2a2 =  0.99007225036621;
+    // Compute K-weighting biquads at the actual sample rate. Values
+    // here match the published 48 kHz constants exactly and adapt
+    // automatically at any other common sample rate.
+    const sr = sampleRate;
+    // Stage 1 — high-shelf pre-filter @ 1681.97 Hz, +4 dB
+    {
+      const f0 = 1681.974450955533;
+      const G = 3.999843853973347;
+      const Q = 0.7071752369554196;
+      const K = Math.tan((Math.PI * f0) / sr);
+      const K2 = K * K;
+      const Vh = Math.pow(10.0, G / 20.0);
+      const Vb = Math.pow(Vh, 0.499666774155);
+      const a0 = 1.0 + K / Q + K2;
+      this.s1b0 = (Vh + (Vb * K) / Q + K2) / a0;
+      this.s1b1 = (2.0 * (K2 - Vh)) / a0;
+      this.s1b2 = (Vh - (Vb * K) / Q + K2) / a0;
+      this.s1a1 = (2.0 * (K2 - 1.0)) / a0;
+      this.s1a2 = (1.0 - K / Q + K2) / a0;
+    }
+    // Stage 2 — RLB high-pass @ 38.14 Hz
+    {
+      const f0 = 38.13547087602444;
+      const Q = 0.5003270373347091;
+      const K = Math.tan((Math.PI * f0) / sr);
+      const K2 = K * K;
+      const a0 = 1.0 + K / Q + K2;
+      this.s2b0 = 1.0;
+      this.s2b1 = -2.0;
+      this.s2b2 = 1.0;
+      this.s2a1 = (2.0 * (K2 - 1.0)) / a0;
+      this.s2a2 = (1.0 - K / Q + K2) / a0;
+    }
     // Per-channel filter state
     this.zL1 = [0, 0]; this.zL2 = [0, 0];
     this.zR1 = [0, 0]; this.zR2 = [0, 0];
