@@ -4,8 +4,10 @@
  *
  *   fx-plate    — Jon Dattorro's classic plate reverb (4 diffusers +
  *                 tank with modulated allpass + figure-8 tap outputs)
- *   fx-shimmer  — pitch-shift feedback loop (crossfading-head delay
- *                 line shifter + short allpass network for tail)
+ *   fx-shimmer  — octave-up feedback cloud via crossfading-head
+ *                 delay-line shifter (tape-style, not PSOLA; see
+ *                 SHIMMER block below for tradeoffs) + short allpass
+ *                 network for tail
  *   fx-freeze   — ring buffer capture + crossfaded loop playback
  *
  * The other effects (HALL, TAPE, WOW, DELAY, SUB, COMB) stay in the
@@ -334,16 +336,24 @@ class DattorroPlateProcessor extends AudioWorkletProcessor {
 registerProcessor("fx-plate", DattorroPlateProcessor);
 
 // ═════════════════════════════════════════════════════════════════════
-// SHIMMER REVERB — pitch-shift feedback cloud
+// SHIMMER — octave-up feedback cloud
 // ═════════════════════════════════════════════════════════════════════
+// This is NOT a phase-vocoder / PSOLA pitch shifter. It is a
+// crossfading-head delay-line shifter (tape-style variable-speed
+// playback): two read heads at 2× playback rate with Lagrange
+// interpolation, crossfaded so samples keep streaming as the heads
+// wrap. That means transients smear and formants shift up with the
+// pitch — perfect for drone clouds, unsuitable for monophonic
+// polyphonic material where formant preservation matters.
+//
 // Architecture:
 //
-//   Input → pitch-shifting delay line (+12 semitones via 2 crossfading
-//           read heads at 2x playback rate, classic Lagrange approach)
+//   Input → crossfading-head delay line (+12 semitones, 2 heads @ 2×,
+//           Lagrange-interp reads)
 //         → lowpass (tame upper-octave harshness)
 //         → 2-allpass diffuser (spread the pitched signal)
 //         → feedback gain
-//           ↳ back into the pitch shifter input
+//           ↳ back into the shifter input
 //         → output
 //
 // The +12 feedback loop creates the classic Eno Ambient 2 / Jonsi
@@ -678,7 +688,7 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     ];
   }
 
-  constructor() {
+  constructor(options) {
     super();
     this.bufLen = Math.floor(GRANULAR_BUFFER_SEC * sampleRate);
     this.bufL = new Float32Array(this.bufLen);
@@ -705,14 +715,32 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     // so successive grains read consecutive chunks of the ring buffer.
     this.orderedReadIdx = 0;
 
-    // Port message handler — main thread pushes the current drone
-    // interval stack here so grain pitches stay in the scene's scale.
+    // Seeded PRNG (mulberry32) for grain pitch / pan / jitter.
+    // Using a seeded source instead of Math.random is what makes
+    // share-scene round-trips sonically deterministic — two loads
+    // of the same seed + parameters produce the same grain cloud.
+    // Seed comes from processorOptions at construction and can be
+    // replaced live via a `setSeed` port message.
+    const initialSeed = (options && options.processorOptions && options.processorOptions.seed) | 0;
+    this.rngState = (initialSeed >>> 0) || 0x9e3779b1;
+
     this.port.onmessage = (e) => {
       const msg = e.data;
-      if (msg && msg.type === "setScale" && Array.isArray(msg.cents) && msg.cents.length > 0) {
+      if (!msg) return;
+      if (msg.type === "setScale" && Array.isArray(msg.cents) && msg.cents.length > 0) {
         this.scaleCents = msg.cents.slice();
+      } else if (msg.type === "setSeed" && typeof msg.seed === "number") {
+        this.rngState = (msg.seed >>> 0) || 0x9e3779b1;
       }
     };
+  }
+
+  // mulberry32 — small fast PRNG with decent statistical quality.
+  rng() {
+    let t = (this.rngState = (this.rngState + 0x6d2b79f5) >>> 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (((t ^ (t >>> 14)) >>> 0) / 4294967296);
   }
 
   spawnGrain(size, pitchSpread, panSpread, position, pitchMode, spawnMode) {
@@ -737,15 +765,15 @@ class FxGranularProcessor extends AudioWorkletProcessor {
     // continuous scatter produces on tonal sources).
     let ratio;
     if (pitchMode > 0.5 && this.scaleCents.length > 0) {
-      const pick = this.scaleCents[Math.floor(Math.random() * this.scaleCents.length)] | 0;
+      const pick = this.scaleCents[Math.floor(this.rng() * this.scaleCents.length)] | 0;
       ratio = Math.pow(2, pick / 1200);
     } else {
-      const pitchOct = (Math.random() * 2 - 1) * pitchSpread;
+      const pitchOct = (this.rng() * 2 - 1) * pitchSpread;
       ratio = Math.pow(2, pitchOct);
     }
 
     // Random pan: -1..1 scaled by panSpread
-    const pan = (Math.random() * 2 - 1) * panSpread;
+    const pan = (this.rng() * 2 - 1) * panSpread;
     // Equal-power pan
     const theta = (pan + 1) * 0.25 * Math.PI; // 0..π/2
     const gL = Math.cos(theta);
@@ -770,7 +798,7 @@ class FxGranularProcessor extends AudioWorkletProcessor {
       startIdx = this.orderedReadIdx;
       this.orderedReadIdx = (this.orderedReadIdx + lenSamples) % this.bufLen;
     } else {
-      const jitter = (Math.random() - 0.5) * 0.04 * sampleRate;
+      const jitter = (this.rng() - 0.5) * 0.04 * sampleRate;
       const back = position * (this.bufLen - lenSamples * 2) + jitter;
       startIdx = this.writeIdx - back - lenSamples;
       while (startIdx < 0) startIdx += this.bufLen;
@@ -1039,8 +1067,12 @@ class BrickwallLimiterProcessor extends AudioWorkletProcessor {
 registerProcessor("fx-brickwall", BrickwallLimiterProcessor);
 
 // ═════════════════════════════════════════════════════════════════════
-// FDN REVERB — Freeverb-style 8 combs + 4 allpasses per channel
+// FREEVERB-STYLE REVERB — 8 parallel combs + 4 series allpasses / ch
 // ═════════════════════════════════════════════════════════════════════
+// (Registered as `fx-fdn-reverb` for backward-compat with saved scenes
+// — it is NOT an FDN in the Jot sense; there is no mixing matrix.
+// Architecture is Schroeder / Freeverb: parallel feedback combs
+// followed by series allpasses.)
 //
 // Replaces the old noise-IR ConvolverNode for HALL and CISTERN. The
 // convolver reads as "noise verb"; this topology reads as a modelled
@@ -1217,9 +1249,10 @@ registerProcessor("fx-fdn-reverb", FdnReverbProcessor);
 //
 // Implementation notes:
 // - K-weighting (EBU R128 pre-filter): a shelving HPF cascaded with a
-//   high-shelf. We use the published biquad coefficients at 48 kHz;
-//   for other sample rates the cutoffs shift slightly but the error
-//   is small enough (<0.2 LU) for UI-visible integration.
+//   high-shelf. Biquad coefficients are computed per-sample-rate via
+//   the pyloudnorm / ITU-R BS.1770 formulation (bilinear transform
+//   of the analog prototype at the actual audio graph rate), so the
+//   meter stays accurate at 44.1 / 48 / 88.2 / 96 kHz.
 // - Short-term window = 3 seconds. We keep a ring buffer of per-block
 //   mean-squared values and average them — cheap, no re-filter per read.
 // - True-peak approximation: sample peak + a 4-sample running max to
@@ -1231,20 +1264,39 @@ class LoudnessMeterProcessor extends AudioWorkletProcessor {
 
   constructor() {
     super();
-    // Stage 1: high-shelf pre-filter @ ~1680 Hz (EBU R128 prescribed
-    // biquad, normalised for 48 kHz — deviations at 44.1/96 k are
-    // within UI tolerance).
-    this.s1b0 =  1.53512485958697;
-    this.s1b1 = -2.69169618940638;
-    this.s1b2 =  1.19839281085285;
-    this.s1a1 = -1.69065929318241;
-    this.s1a2 =  0.73248077421585;
-    // Stage 2: high-pass @ ~38 Hz.
-    this.s2b0 =  1.0;
-    this.s2b1 = -2.0;
-    this.s2b2 =  1.0;
-    this.s2a1 = -1.99004745483398;
-    this.s2a2 =  0.99007225036621;
+    // Compute K-weighting biquads at the actual sample rate. Values
+    // here match the published 48 kHz constants exactly and adapt
+    // automatically at any other common sample rate.
+    const sr = sampleRate;
+    // Stage 1 — high-shelf pre-filter @ 1681.97 Hz, +4 dB
+    {
+      const f0 = 1681.974450955533;
+      const G = 3.999843853973347;
+      const Q = 0.7071752369554196;
+      const K = Math.tan((Math.PI * f0) / sr);
+      const K2 = K * K;
+      const Vh = Math.pow(10.0, G / 20.0);
+      const Vb = Math.pow(Vh, 0.499666774155);
+      const a0 = 1.0 + K / Q + K2;
+      this.s1b0 = (Vh + (Vb * K) / Q + K2) / a0;
+      this.s1b1 = (2.0 * (K2 - Vh)) / a0;
+      this.s1b2 = (Vh - (Vb * K) / Q + K2) / a0;
+      this.s1a1 = (2.0 * (K2 - 1.0)) / a0;
+      this.s1a2 = (1.0 - K / Q + K2) / a0;
+    }
+    // Stage 2 — RLB high-pass @ 38.14 Hz
+    {
+      const f0 = 38.13547087602444;
+      const Q = 0.5003270373347091;
+      const K = Math.tan((Math.PI * f0) / sr);
+      const K2 = K * K;
+      const a0 = 1.0 + K / Q + K2;
+      this.s2b0 = 1.0;
+      this.s2b1 = -2.0;
+      this.s2b2 = 1.0;
+      this.s2a1 = (2.0 * (K2 - 1.0)) / a0;
+      this.s2a2 = (1.0 - K / Q + K2) / a0;
+    }
     // Per-channel filter state
     this.zL1 = [0, 0]; this.zL2 = [0, 0];
     this.zR1 = [0, 0]; this.zR2 = [0, 0];

@@ -176,8 +176,10 @@ export class FxChain {
   // saturator "sub" was really a bass boost rather than a subharmonic.
   private subOsc!: OscillatorNode;
   private subEnvGain!: GainNode;
-  // HALL + CISTERN are now Freeverb-style FDN worklets (see
-  // fxChainProcessor.js / `fx-fdn-reverb`). They are instantiated in
+  // HALL + CISTERN are now Freeverb-style reverb worklets (parallel
+  // combs + series allpasses, see fxChainProcessor.js / processor id
+  // `fx-fdn-reverb` — kept for backward-compat; not a Jot FDN). They
+  // are instantiated in
   // `onWorkletReady()` because AudioWorkletNode construction requires
   // the module to be registered first. The ConvolverNode IR path is
   // retained for the PARALLEL reverb bus (see parallelHall/Cistern
@@ -749,6 +751,20 @@ export class FxChain {
     this.hallImpulse = null;
     this.cisternImpulse = null;
     this.syncNativeReverbBuffers();
+    // Grain worklets support live re-seeding via port message, so
+    // reuse the same seed-source here — no need to reconstruct the
+    // node. This is what makes grain-heavy shared scenes sound the
+    // same on reload instead of scattering grains differently each
+    // time. Distinct XOR constants keep the two grain instances
+    // decorrelated without needing independent seeds in the scene.
+    this.granularWorklet?.port.postMessage({
+      type: "setSeed",
+      seed: this.reverbSeed ^ 0x6C51,
+    });
+    this.grainCloudWorklet?.port.postMessage({
+      type: "setSeed",
+      seed: this.reverbSeed ^ 0x9C51,
+    });
     // Rebuild the serial FDN worklets to pick up the new seed. This is
     // the simplest honest way — AudioWorkletNode takes processorOptions
     // only at construction, so we replace the nodes. Disconnect first
@@ -922,6 +938,7 @@ export class FxChain {
       numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
+      processorOptions: { seed: this.reverbSeed ^ 0x6C51 },
     });
     // Pin internal mix to 1.0 (pure grain, no dry pass-through)
     // so the insert-level wet gain cleanly maps to "added grain
@@ -943,6 +960,7 @@ export class FxChain {
       numberOfInputs: 1,
       numberOfOutputs: 1,
       outputChannelCount: [2],
+      processorOptions: { seed: this.reverbSeed ^ 0x9C51 },
     });
     // Classic-granular defaults — very short grains (40 ms) at high
     // density (25 grains/s). Overlap = 1.0 — each grain lives just
