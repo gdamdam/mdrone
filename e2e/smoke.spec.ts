@@ -79,8 +79,11 @@ test("3. selecting a preset updates the UI without errors", async ({ page }) => 
   await page.goto("/");
   await dismissStartGate(page);
 
-  // Expand the preset strip (collapsed by default) to reveal preset buttons.
-  await page.locator(".preset-strip").first().click();
+  // Expand the preset strip (collapsed by default) to reveal preset
+  // buttons. The outer `.preset-strip` div is a flex container with
+  // many interactive children (tonic keys, octave, chevron); clicking
+  // it at center lands ambiguously. The chevron is the stable toggle.
+  await page.locator(".preset-strip-chevron").first().click();
   // Click whichever preset is first in the active tab.
   const preset = page.locator(".preset-btn").first();
   await expect(preset).toBeVisible({ timeout: 5000 });
