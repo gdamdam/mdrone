@@ -136,7 +136,30 @@ const SCALE_IDS: readonly ScaleId[] = ["drone", "major", "minor", "dorian", "phr
 const RELATION_IDS: readonly RelationId[] = ["unison", "tonic-fifth", "tonic-fourth", "minor-triad", "drone-triad", "harmonic-stack"] as const;
 const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sawtooth"] as const;
 const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk", "parchment"] as const;
-const VISUALIZERS: readonly Visualizer[] = ["pitchMandala"] as const;
+const VISUALIZERS: readonly Visualizer[] = [
+  "mandala",
+  "pitchMandala",
+  "haloGlow",
+  "fractal",
+  "rothko",
+  "tapeDecay",
+  "dreamHouse",
+  "sigil",
+  "starGate",
+  "cymatics",
+  "inkBloom",
+  "horizon",
+  "aurora",
+  "orb",
+  "dreamMachine",
+  "flowField",
+  "waterfall",
+  "feedbackTunnel",
+  "waterfallAscii",
+  "waterfallRain",
+  "waterfallHybrid",
+  "waveformRing",
+] as const;
 
 const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {
   tape: 1,
@@ -166,7 +189,7 @@ export const DEFAULT_FX_SNAPSHOT: FxSessionSnapshot = {
 
 export const DEFAULT_UI_SNAPSHOT: UiSessionSnapshot = {
   paletteId: "ember",
-  visualizer: "pitchMandala",
+  visualizer: "mandala",
 };
 
 const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {

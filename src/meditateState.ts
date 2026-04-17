@@ -1,17 +1,21 @@
 import type { Visualizer } from "./components/visualizers";
+import { VISUALIZER_ORDER } from "./components/visualizers";
 
 const STORAGE_KEY = "mdrone.meditate.visualizer";
 
-/** Only one visualizer exists now (pitch mandala). Legacy stored
- *  values from previous sessions are ignored — the loader always
- *  returns the canonical value. */
 export function loadMeditateVisualizer(): Visualizer {
-  return "pitchMandala";
+  try {
+    const value = localStorage.getItem(STORAGE_KEY) as Visualizer | null;
+    if (value && VISUALIZER_ORDER.includes(value)) return value;
+  } catch {
+    // ignore storage failures
+  }
+  return "mandala";
 }
 
-export function saveMeditateVisualizer(_visualizer: Visualizer): void {
+export function saveMeditateVisualizer(visualizer: Visualizer): void {
   try {
-    localStorage.setItem(STORAGE_KEY, "pitchMandala");
+    localStorage.setItem(STORAGE_KEY, visualizer);
   } catch {
     // ignore storage failures
   }

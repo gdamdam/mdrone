@@ -215,8 +215,7 @@ export function useSceneManager({
         saveCustomTuning(ct.label, ct.degrees);
       }
     }
-    // Only one visualizer (pitch mandala) — coerce legacy values.
-    setMeditateVisualizer("pitchMandala");
+    setMeditateVisualizer(scene.ui.visualizer);
     requestSigilRefresh();
     ignoreNextPresetNameRef.current = true;
     droneViewRef.current?.applySnapshot(scene.drone);
