@@ -562,6 +562,32 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     group: PresetGroup;
     presetId: string | null;
   } | null>(null);
+
+  // Scene-chain morph — when seconds > 0, clicking a preset runs a
+  // fade-out → snap → fade-in crossfade via AudioEngine.morphRun so
+  // back-to-back scenes in a 30-min set aren't abrupt cuts.
+  // Transient UI-only state; not persisted.
+  const MORPH_CYCLE = [0, 10, 30, 120] as const;
+  const [morphSeconds, setMorphSeconds] = useState<number>(0);
+  const cycleMorph = useCallback(() => {
+    setMorphSeconds((prev) => {
+      const i = MORPH_CYCLE.indexOf(prev as (typeof MORPH_CYCLE)[number]);
+      return MORPH_CYCLE[(i + 1) % MORPH_CYCLE.length];
+    });
+  }, []);
+  const morphLabel = morphSeconds === 0
+    ? "CUT"
+    : morphSeconds < 60
+      ? `${morphSeconds}s`
+      : `${Math.round(morphSeconds / 60)}m`;
+  const onPresetClick = useCallback((presetId: string, group: PresetGroup) => {
+    const run = () => { handlePreset(presetId); setTabOverride({ group, presetId }); };
+    if (morphSeconds > 0 && engine) {
+      engine.morphRun(run, morphSeconds);
+    } else {
+      run();
+    }
+  }, [engine, handlePreset, morphSeconds]);
   const presetTab =
     tabOverride && tabOverride.presetId === state.activePresetId
       ? tabOverride.group
@@ -836,12 +862,24 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               {SHORT_GROUP_LABELS[g] ?? g}
             </button>
           ))}
+          <button
+            type="button"
+            className={morphSeconds > 0 ? "preset-tab preset-tab-active" : "preset-tab"}
+            onClick={cycleMorph}
+            title={
+              morphSeconds === 0
+                ? "Scene-chain OFF — preset clicks swap instantly. Click to cycle through 10s / 30s / 2min crossfade."
+                : `Scene-chain ON — preset clicks crossfade over ${morphLabel} (fade-out, snap, fade-in).`
+            }
+          >
+            {morphSeconds === 0 ? "CUT" : `↔ ${morphLabel}`}
+          </button>
         </div>
         <div className="preset-grid">
           {visiblePresets.map((p) => (
             <button
               key={p.id}
-              onClick={() => { handlePreset(p.id); setTabOverride({ group: p.group, presetId: p.id }); }}
+              onClick={() => onPresetClick(p.id, p.group)}
               className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
               title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
             >

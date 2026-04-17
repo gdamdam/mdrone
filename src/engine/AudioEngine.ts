@@ -458,6 +458,49 @@ export class AudioEngine {
   }
   cancelMasterFade(): void { this.motionEngine.cancelFade(); }
 
+  private morphTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /** Scene-chain crossfade: fade outputTrim to silence over the first
+   *  half of `seconds`, snap-apply the caller's scene change at the
+   *  midpoint, then ramp back up over the second half. The honest
+   *  lightweight version of a scene crossfade — no second audio
+   *  graph, no two-bus sum, just a silence-gap morph that gets you
+   *  90% of the musical feeling for 10% of the complexity. Two
+   *  morph calls in flight stack correctly: the second cancels the
+   *  first's pending swap + ramp. */
+  morphRun(apply: () => void, seconds: number): void {
+    const dur = Math.max(1, Math.min(300, seconds));
+    const half = dur / 2;
+    const trim = this.masterBus.getOutputTrim().gain;
+    const savedLinear = trim.value;
+    if (this.morphTimeout !== null) {
+      clearTimeout(this.morphTimeout);
+      this.morphTimeout = null;
+    }
+    // Ramp to silence
+    this.startMasterFade(0, half);
+    this.morphTimeout = setTimeout(() => {
+      this.morphTimeout = null;
+      try { apply(); } catch (err) { console.error("mdrone: morph apply failed", err); }
+      // Choose the fade-in target:
+      //   - if apply() set a new output volume (applyMixerSnapshot
+      //     writes trim.value = mixer.volume), use that as the new
+      //     target — the user's intended scene-B volume;
+      //   - otherwise restore the pre-morph volume.
+      // Force the ramp to start from 0 even if apply() stomped the
+      // trim value, so we get a clean silence-gap crossfade without
+      // a click at the midpoint.
+      let target = trim.value;
+      if (target < 0.01) target = savedLinear;
+      const now = this.ctx.currentTime;
+      try { trim.cancelScheduledValues(now); } catch { /* noop */ }
+      try {
+        trim.setValueAtTime(0, now);
+        trim.linearRampToValueAtTime(Math.max(0, target), now + half);
+      } catch { /* noop */ }
+    }, Math.round(half * 1000));
+  }
+
   /** Pitch-locked LFO: rate = rootHz / N. 0 disables. */
   setLfoDivision(n: number): void { this.motionEngine.setLfoDivision(n); }
   getLfoDivision(): number { return this.motionEngine.getLfoDivision(); }
