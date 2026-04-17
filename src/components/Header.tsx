@@ -1,6 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import type { PitchClass, ViewMode } from "../types";
-import { APP_VERSION } from "../config";
 import { resetAllLocalStorage, type SavedSession } from "../session";
 import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
@@ -237,7 +236,6 @@ export function Header({
       <div className="header-row header-row-brand">
         <div className="title">
           <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
-          <span className="title-version">v{APP_VERSION}</span>
           <span className="title-badge">EXPERIMENTAL</span>
         </div>
         <a
