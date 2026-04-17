@@ -12,7 +12,38 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script data-goatcounter="https://mdrone.goatcounter.com/count"
-            async src="//gc.zgo.at/count.js"></script>
+    <script>
+      // Load goatcounter off the critical boot path and only in real
+      // production contexts: skip localhost / 127.0.0.1 / file://
+      // (no dev noise, no self-counts) and skip when offline (no
+      // failed-request noise in devtools). Inject after the 'load'
+      // event so boot isn't paying for analytics. Any failure is
+      // silent — analytics must never break the app.
+      (function () {
+        try {
+          var h = location.hostname;
+          if (
+            h === "localhost" ||
+            h === "127.0.0.1" ||
+            h === "0.0.0.0" ||
+            location.protocol === "file:" ||
+            navigator.onLine === false
+          ) return;
+          var inject = function () {
+            var s = document.createElement("script");
+            s.async = true;
+            s.src = "//gc.zgo.at/count.js";
+            s.setAttribute(
+              "data-goatcounter",
+              "https://mdrone.goatcounter.com/count"
+            );
+            s.onerror = function () { /* silent */ };
+            document.body.appendChild(s);
+          };
+          if (document.readyState === "complete") inject();
+          else window.addEventListener("load", inject, { once: true });
+        } catch (_e) { /* silent */ }
+      })();
+    </script>
   </body>
 </html>
