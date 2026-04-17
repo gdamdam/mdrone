@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/badge/version-1.10.1-blue" alt="Version"></a>
+  <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/badge/version-1.10.2-blue" alt="Version"></a>
   <a href="https://github.com/gdamdam/mdrone/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/Web%20Audio-API-FF6600" alt="Web Audio API">
   <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">
