@@ -20,6 +20,7 @@ export function captureMixerSnapshot(engine: AudioEngine): MixerSessionSnapshot 
     limiterOn: engine.isLimiterEnabled(),
     ceiling: engine.getLimiterCeiling(),
     volume: engine.getOutputTrim().gain.value,
+    headphoneSafe: engine.isHeadphoneSafe(),
   };
 }
 
@@ -33,6 +34,9 @@ export function applyMixerSnapshot(engine: AudioEngine, mixer: MixerSessionSnaps
   engine.setLimiterCeiling(mixer.ceiling);
   engine.setLimiterEnabled(mixer.limiterOn);
   engine.getOutputTrim().gain.value = mixer.volume;
+  if (typeof mixer.headphoneSafe === "boolean") {
+    engine.setHeadphoneSafe(mixer.headphoneSafe);
+  }
 }
 
 export function captureFxSnapshot(engine: AudioEngine): FxSessionSnapshot {

@@ -605,9 +605,26 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
   const dismissWeatherIntro = useCallback(() => setWeatherIntro(false), []);
 
+  // Wrap getSnapshot/applySnapshot so tanpuraTuning — which lives in
+  // DroneView state rather than the scene reducer — round-trips
+  // through PortableScene the same way effectOrder does. Apply routes
+  // through handleTanpuraTuning so React state, localStorage, and
+  // engine all stay in sync (the useEffect above would otherwise
+  // overwrite the engine with the stale local value on next render).
+  const getSnapshotWithLocals = useCallback((): DroneSessionSnapshot => ({
+    ...getSnapshot(),
+    tanpuraTuning,
+  }), [getSnapshot, tanpuraTuning]);
+  const applySnapshotWithLocals = useCallback((snap: DroneSessionSnapshot) => {
+    if (snap.tanpuraTuning && snap.tanpuraTuning !== tanpuraTuning) {
+      handleTanpuraTuning(snap.tanpuraTuning);
+    }
+    applySnapshot(snap);
+  }, [applySnapshot, handleTanpuraTuning, tanpuraTuning]);
+
   useImperativeHandle(ref, () => ({
-    getSnapshot,
-    applySnapshot,
+    getSnapshot: getSnapshotWithLocals,
+    applySnapshot: applySnapshotWithLocals,
     applyLivePatch,
     togglePlay,
     setRoot,
@@ -621,9 +638,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     },
     applyEffectOrder: handleEffectReorder,
   }), [
-    applySnapshot,
+    getSnapshotWithLocals,
+    applySnapshotWithLocals,
     applyLivePatch,
-    getSnapshot,
     setOctave,
     setRoot,
     startImmediate,

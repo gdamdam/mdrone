@@ -1,6 +1,10 @@
 import { STORAGE_KEYS } from "./config";
 import { EFFECT_ORDER, type EffectId } from "./engine/FxChain";
-import type { VoiceType } from "./engine/VoiceBuilder";
+import {
+  TANPURA_TUNING_IDS,
+  type TanpuraTuningId,
+  type VoiceType,
+} from "./engine/VoiceBuilder";
 import type { PitchClass, RelationId, ScaleId, TuningId } from "./types";
 import type { PaletteId } from "./themes";
 import type { Visualizer } from "./components/visualizers";
@@ -62,6 +66,11 @@ export interface DroneSessionSnapshot {
    *  partner cents are appended to the main interval list and the
    *  audio engine spawns parallel voices automatically. */
   partner: PartnerState;
+  /** User-chosen tanpura string tuning. Affects harmonic character
+   *  when the tanpura voice layer is active. Optional for
+   *  backward-compat — legacy shares fall back to the receiver's
+   *  local choice. */
+  tanpuraTuning?: TanpuraTuningId;
 }
 
 export interface MixerSessionSnapshot {
@@ -74,6 +83,10 @@ export interface MixerSessionSnapshot {
   limiterOn: boolean;
   ceiling: number;
   volume: number;
+  /** Headphone-safe mode caps output around -6 dB. Optional for
+   *  backward-compat — legacy shares fall back to the receiver's
+   *  local toggle. */
+  headphoneSafe?: boolean;
 }
 
 export interface FxSessionSnapshot {
@@ -391,6 +404,9 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     seed: readNumber(value.seed, DEFAULT_DRONE_SNAPSHOT.seed, 0, 0xFFFFFFFF),
     journey: isOneOf(value.journey, JOURNEY_IDS) ? value.journey : null,
     partner: normalizePartner(value.partner),
+    ...(isOneOf(value.tanpuraTuning, TANPURA_TUNING_IDS)
+      ? { tanpuraTuning: value.tanpuraTuning }
+      : {}),
   };
 }
 
@@ -416,6 +432,9 @@ export function normalizeMixerSnapshot(value: unknown): MixerSessionSnapshot | n
     limiterOn: readBoolean(value.limiterOn, DEFAULT_MIXER_SNAPSHOT.limiterOn),
     ceiling: readNumber(value.ceiling, DEFAULT_MIXER_SNAPSHOT.ceiling, -24, 0),
     volume: readNumber(value.volume, DEFAULT_MIXER_SNAPSHOT.volume, 0, 1.5),
+    ...(typeof value.headphoneSafe === "boolean"
+      ? { headphoneSafe: value.headphoneSafe }
+      : {}),
   };
 }
 
