@@ -356,13 +356,17 @@ export class FxChain {
 
     // Dry pass preserves the source spectrum so low-fundamental drones
     // don't get gutted when formant is on. Formant sum is mixed in at
-    // ~0.9× so vowel colour lands near 0 dB net against dry.
+    // 1.3× so the vowel colour reads through the dry — the earlier 0.9×
+    // kept the level near 0 dB net but masked the vowel character on
+    // sustained drones (user feedback: "formants are there but not
+    // loud enough"). 1.3 puts the vowel slightly above unity against
+    // dry, the limiter catches any overshoot on hot presets.
     const dryTap = ctx.createGain();
     dryTap.gain.value = 1;
     ins.insertIn.connect(dryTap).connect(ins.wetGain);
 
     const formantTrim = ctx.createGain();
-    formantTrim.gain.value = 0.9;
+    formantTrim.gain.value = 1.3;
     formantSum.connect(formantTrim).connect(ins.wetGain);
 
     ins.wetGain.connect(ins.insertOut);
@@ -1232,7 +1236,12 @@ export class FxChain {
     [300, 870, 2250],    // oo
     [530, 1850, 2500],   // eh
   ];
-  private formantVowelIdx = 0;
+  // Default vowel — "oh" (F1 ≈ 400 Hz). Chest-heavy and throat-like,
+  // sits naturally with drone fundamentals. Previous default was "ah"
+  // (F1 ≈ 700 Hz) which read too speech-like / harmonium-bright for
+  // chant-oriented presets. Per-preset override is planned but for
+  // now a single default change fits most use.
+  private formantVowelIdx = 2;
   private formantShift = 1;
 
   setFormantVowel(idx: number): void {

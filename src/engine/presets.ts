@@ -749,7 +749,10 @@ export const PRESETS: Preset[] = [
     hint: "Deep reed fundamental with a prominent inharmonic metal halo above — the defining overtone shimmer of Gyuto-style throat singing. Comb resonance locks the harmonics to the root.",
     tuningId: "equal", relationId: "unison",
     voiceLayers: ["reed", "metal", "amp"],
-    voiceLevels: { reed: 1, metal: 0.45, amp: 0.15 },
+    // Metal (inharmonic overtone halo) is the defining Gyuto-style
+    // character — push it forward; reed is support, not the lead.
+    // Prior balance read as harmonium, not throat chant.
+    voiceLevels: { reed: 0.6, metal: 0.85, amp: 0.2 },
     octaveRange: [1, 2],
     drift: 0.14,
     air: 0.38,
@@ -1318,8 +1321,8 @@ export const PRESETS: Preset[] = [
     tuningId: "equal", relationId: "drone-triad",
     voiceLayers: ["reed"],
     voiceLevels: { reed: 1 },
-    reedShape: "even",
-    drift: 0.16,
+    reedShape: "balanced",
+    drift: 0.10,
     air: 0.25,        // dry — DL is close-miked studio
     time: 0.03,
     sub: 0.24,
@@ -1329,10 +1332,12 @@ export const PRESETS: Preset[] = [
     lfoRate: 0.035,
     lfoAmount: 0.02,
     climateX: 0.16,   // very dark — oxide shedding kills highs first
-    climateY: 0.28,   // heavy wow — the tape is physically degrading
-    // tape + wow = the degradation. Graincloud at low density adds
-    // fragmented tape-loop drop-outs. No reverb — DL is intimate.
-    effects: ["tape", "wow", "graincloud"],
+    climateY: 0.18,   // moderated wow — "even" + heavy wow was reading as
+                      // saturated noise, not degradation
+    // tape + wow = the degradation. Graincloud removed — the stutter
+    // grains were dominating the character toward noise; the tape +
+    // wow pair carries the Basinski oxide-crumble on its own.
+    effects: ["tape", "wow"],
     scale: "major",   // DL sits in ambiguous bright-melancholy, not minor
     gain: 0.95,
     motionProfile: motionProfile({
