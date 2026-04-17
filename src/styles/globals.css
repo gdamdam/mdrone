@@ -414,8 +414,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
      marquee to its own full-width row so the preset name actually
      fits (was showing ~2 chars). Transport controls wrap cleanly
      below on their own row. */
-  .title-badge,
-  .title-sigil { display: none; }
+  /* Parent-scoped so (0,2,0) beats the base .title-sigil /
+     .title-badge rules (0,1,0) that land later in the file. */
+  .header-row-brand .title-badge,
+  .header-row-brand .title-sigil { display: none; }
   .header-row-main { flex-wrap: wrap; }
   .header-display {
     flex: 1 1 100%;
