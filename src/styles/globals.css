@@ -404,10 +404,13 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 @media (max-width: 720px) {
   .preset-strip { flex-wrap: wrap; }
   /* Keyboard, octave stepper, and the separate Hz readout are all
-     replaced by the single wide tonic dropdown on mobile. */
-  .preset-strip-keys,
-  .preset-strip-octave,
-  .preset-strip-tonic { display: none; }
+     replaced by the single wide tonic dropdown on mobile. Dual-class
+     selectors bump specificity above the baseline `.tonic-keys` +
+     `.weather-octave` rules that set `display: flex` later in the
+     file — same-specificity ties would let those win. */
+  .preset-strip-keys.tonic-keys,
+  .preset-strip-octave.weather-octave,
+  .preset-strip .preset-strip-tonic { display: none; }
   .preset-strip-tonic-picker {
     display: block;
     order: 4;
