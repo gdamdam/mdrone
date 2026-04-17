@@ -131,7 +131,6 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
           >
             {LOGO}
           </pre>
-          <span className="start-gate-badge">EXPERIMENTAL</span>
         </div>
 
         <p className="start-gate-sub">

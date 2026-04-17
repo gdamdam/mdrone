@@ -236,7 +236,6 @@ export function Header({
       <div className="header-row header-row-brand">
         <div className="title">
           <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
-          <span className="title-badge">EXPERIMENTAL</span>
         </div>
         <a
           className="title-sigil"
