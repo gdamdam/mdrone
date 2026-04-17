@@ -1233,7 +1233,8 @@ export const PRESETS: Preset[] = [
     reedShape: "odd",
     octaveRange: [2, 3],
     drift: 0.38,       // tape warp + metal partial wander
-    air: 0.6,
+    air: 0.42,         // was 0.6 — additive reverbs + cistern on
+                       // serial were reading as a wall of wash
     time: 0.08,
     sub: 0.36,
     bloom: 0.86,
@@ -1243,8 +1244,11 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.14,
     climateX: 0.32,    // cold
     climateY: 0.24,    // dim
+    // Cistern carries the deep-chamber body; the previous
+    // parallelSends.cistern was double-verb on top of the serial
+    // insert. Removed — the additive serial cistern already
+    // preserves dry + wet cleanly.
     effects: ["tape", "wow", "comb", "cistern", "granular"],
-    parallelSends: { cistern: 0.35 },
     scale: "minor",
     gain: 0.86,
     motionProfile: motionProfile({
