@@ -947,9 +947,15 @@ registerProcessor("fx-granular", FxGranularProcessor);
 // by the time the peak reaches the output. That's what makes this a
 // true brickwall instead of a fast-attack compressor.
 //
-// Sample-peak (not true-peak) detector — for sustained drone content
-// the inter-sample peak excess is <1.5 dB, so leaving 1 dB of head-
-// room below the ceiling keeps true-peak bounded in practice.
+// Detector runs a cheap 2× oversampled true-peak estimator: the
+// classic 4-point Lagrange interpolator at t = 0.5 computes the
+// intersample value halfway between each adjacent pair, and the
+// detector takes the max of sample-peak and intersample-peak. This
+// catches the ~1.5 dB intersample-peak excess that a sample-peak
+// detector misses on transient-rich material (grain re-triggers,
+// freeze edges) at the cost of ~8 multiplies per sample. Gain is
+// still applied at the 1× rate to the delayed 1× signal, so no
+// upsample/downsample latency beyond the existing lookahead.
 //
 class BrickwallLimiterProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -984,6 +990,14 @@ class BrickwallLimiterProcessor extends AudioWorkletProcessor {
 
     // Gain-envelope state (1.0 = no attenuation).
     this.gainEnv = 1.0;
+
+    // 4-sample input history per channel for the 4-point Lagrange
+    // intersample-peak interpolator. We compute the mid-sample value
+    // at position -0.5 (halfway between sample -1 and sample 0 —
+    // i.e. the previous pair) using Lagrange coefficients
+    // [-1/16, 9/16, 9/16, -1/16] and fold |mid| into the peak test.
+    this.histL = new Float32Array(4);
+    this.histR = new Float32Array(4);
   }
 
   process(_inputs, outputs, parameters) {
@@ -1013,10 +1027,31 @@ class BrickwallLimiterProcessor extends AudioWorkletProcessor {
     // NaN sanitation
     if (!Number.isFinite(this.gainEnv)) this.gainEnv = 1.0;
 
+    const hL = this.histL;
+    const hR = this.histR;
+
     for (let i = 0; i < n; i++) {
       const l = inL[i];
       const r = inR[i];
-      const peakIn = Math.max(Math.abs(l), Math.abs(r));
+
+      // Shift the 4-sample history and append the current input.
+      hL[0] = hL[1]; hL[1] = hL[2]; hL[2] = hL[3]; hL[3] = l;
+      hR[0] = hR[1]; hR[1] = hR[2]; hR[2] = hR[3]; hR[3] = r;
+
+      // 4-point Lagrange at t = 0.5 — mid-sample value between
+      // hist[1] and hist[2]. Sample-peak fails to catch intersample
+      // peaks up to ~1.5 dB; this intersample value folds into the
+      // peak test so the limiter meets its ceiling on intersample
+      // content too.
+      const midL = -0.0625 * hL[0] + 0.5625 * hL[1] + 0.5625 * hL[2] - 0.0625 * hL[3];
+      const midR = -0.0625 * hR[0] + 0.5625 * hR[1] + 0.5625 * hR[2] - 0.0625 * hR[3];
+      const absL = Math.abs(l);
+      const absR = Math.abs(r);
+      const absML = Math.abs(midL);
+      const absMR = Math.abs(midR);
+      let peakIn = absL > absR ? absL : absR;
+      if (absML > peakIn) peakIn = absML;
+      if (absMR > peakIn) peakIn = absMR;
 
       // Read the delayed output sample BEFORE overwriting the slot
       const idxRead = this.delayIdx;
