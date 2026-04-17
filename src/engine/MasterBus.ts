@@ -41,6 +41,21 @@ export class MasterBus {
   private loudnessMeter: AudioWorkletNode | null = null;
   private loudnessListener: ((m: { lufsShort: number; peakDb: number }) => void) | null = null;
 
+  /** Stereo width stage — mid/side matrix between outputTrim and the
+   *  analyser. width = 1.0 is identity (LL=RR=1, LR=RL=0); width = 0
+   *  folds to mono; width = 2 exaggerates the sides (phase-inverted
+   *  cross feed). Implemented as a 4-gain matrix between a
+   *  ChannelSplitter and ChannelMerger so it stays a few cheap
+   *  multiplies per sample and plays nicely with the browser's
+   *  native smoothing. */
+  private readonly widthSplitter: ChannelSplitterNode;
+  private readonly widthMerger: ChannelMergerNode;
+  private readonly widthLL: GainNode;
+  private readonly widthLR: GainNode;
+  private readonly widthRL: GainNode;
+  private readonly widthRR: GainNode;
+  private widthValue = 1;
+
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
 
@@ -101,6 +116,19 @@ export class MasterBus {
     this.outputTrim = this.ctx.createGain();
     this.outputTrim.gain.value = 1;
 
+    // Width stage — M/S matrix at unity by default. Gains are swapped
+    // in on setWidth() via setTargetAtTime for a click-free change.
+    this.widthSplitter = this.ctx.createChannelSplitter(2);
+    this.widthMerger = this.ctx.createChannelMerger(2);
+    this.widthLL = this.ctx.createGain();
+    this.widthRR = this.ctx.createGain();
+    this.widthLR = this.ctx.createGain();
+    this.widthRL = this.ctx.createGain();
+    this.widthLL.gain.value = 1;
+    this.widthRR.gain.value = 1;
+    this.widthLR.gain.value = 0;
+    this.widthRL.gain.value = 0;
+
     this.analyser = this.ctx.createAnalyser();
     // 1024 is enough for Header/VuMeter RMS; MeditateView upsizes
     // to 2048 on mount when it needs spectrum resolution.
@@ -132,7 +160,17 @@ export class MasterBus {
     // Passthrough until worklet ready.
     this.limiterIn.connect(this.limiterOut);
     this.limiterOut.connect(this.outputTrim);
-    this.outputTrim.connect(this.analyser);
+    // outputTrim → [ M/S width matrix ] → analyser → destination
+    this.outputTrim.connect(this.widthSplitter);
+    this.widthSplitter.connect(this.widthLL, 0);
+    this.widthSplitter.connect(this.widthLR, 1);
+    this.widthSplitter.connect(this.widthRL, 0);
+    this.widthSplitter.connect(this.widthRR, 1);
+    this.widthLL.connect(this.widthMerger, 0, 0);
+    this.widthLR.connect(this.widthMerger, 0, 0);
+    this.widthRL.connect(this.widthMerger, 0, 1);
+    this.widthRR.connect(this.widthMerger, 0, 1);
+    this.widthMerger.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
   }
 
@@ -233,6 +271,25 @@ export class MasterBus {
     this.outputTrim.gain.setTargetAtTime(effective, this.ctx.currentTime, 0.05);
   }
   isHeadphoneSafe(): boolean { return this.headphoneSafe; }
+
+  /** Stereo width. 1.0 = unchanged, 0 = mono (L+R summed), 2.0 =
+   *  exaggerated side (phase-inverted cross-feed). Out of range
+   *  inputs are clamped. Coefficient derivation:
+   *    L' = 0.5*((1+w)*L + (1-w)*R)
+   *    R' = 0.5*((1-w)*L + (1+w)*R)  */
+  setWidth(w: number): void {
+    const clamped = Math.max(0, Math.min(2, w));
+    this.widthValue = clamped;
+    const t = this.ctx.currentTime;
+    const pair = 0.5 * (1 + clamped);
+    const cross = 0.5 * (1 - clamped);
+    this.widthLL.gain.setTargetAtTime(pair, t, 0.03);
+    this.widthRR.gain.setTargetAtTime(pair, t, 0.03);
+    this.widthLR.gain.setTargetAtTime(cross, t, 0.03);
+    this.widthRL.gain.setTargetAtTime(cross, t, 0.03);
+  }
+
+  getWidth(): number { return this.widthValue; }
 
   setHpfFreq(hz: number): void {
     this.hpf.frequency.value = Math.max(10, hz);

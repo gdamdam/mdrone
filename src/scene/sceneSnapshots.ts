@@ -21,6 +21,7 @@ export function captureMixerSnapshot(engine: AudioEngine): MixerSessionSnapshot 
     ceiling: engine.getLimiterCeiling(),
     volume: engine.getOutputTrim().gain.value,
     headphoneSafe: engine.isHeadphoneSafe(),
+    width: engine.getWidth(),
   };
 }
 
@@ -36,6 +37,9 @@ export function applyMixerSnapshot(engine: AudioEngine, mixer: MixerSessionSnaps
   engine.getOutputTrim().gain.value = mixer.volume;
   if (typeof mixer.headphoneSafe === "boolean") {
     engine.setHeadphoneSafe(mixer.headphoneSafe);
+  }
+  if (typeof mixer.width === "number") {
+    engine.setWidth(mixer.width);
   }
 }
 

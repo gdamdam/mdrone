@@ -87,6 +87,9 @@ export interface MixerSessionSnapshot {
    *  backward-compat — legacy shares fall back to the receiver's
    *  local toggle. */
   headphoneSafe?: boolean;
+  /** Stereo width (M/S matrix). 1.0 = identity, 0 = mono, 2 = wide.
+   *  Optional for backward-compat — legacy shares fall back to 1. */
+  width?: number;
 }
 
 export interface FxSessionSnapshot {
@@ -434,6 +437,9 @@ export function normalizeMixerSnapshot(value: unknown): MixerSessionSnapshot | n
     volume: readNumber(value.volume, DEFAULT_MIXER_SNAPSHOT.volume, 0, 1.5),
     ...(typeof value.headphoneSafe === "boolean"
       ? { headphoneSafe: value.headphoneSafe }
+      : {}),
+    ...(typeof value.width === "number" && Number.isFinite(value.width)
+      ? { width: Math.max(0, Math.min(2, value.width)) }
       : {}),
   };
 }

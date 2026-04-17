@@ -441,6 +441,9 @@ export class AudioEngine {
   setHeadphoneSafe(on: boolean): void { this.masterBus.setHeadphoneSafe(on); }
   isHeadphoneSafe(): boolean { return this.masterBus.isHeadphoneSafe(); }
 
+  setWidth(w: number): void { this.masterBus.setWidth(w); }
+  getWidth(): number { return this.masterBus.getWidth(); }
+
   /** Subscribe to LUFS-S + true-peak readings from the loudness
    *  worklet. Returns an unsubscribe function. The callback fires at
    *  ~30 Hz with the EBU R128 short-term LUFS and the decaying

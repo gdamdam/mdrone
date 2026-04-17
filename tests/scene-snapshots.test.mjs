@@ -52,6 +52,8 @@ function createFakeEngine() {
       getLimiterCeiling: () => -1.2,
       getOutputTrim: () => ({ gain: { value: 0.95 } }),
       isHeadphoneSafe: () => false,
+      getWidth: () => 1,
+      setWidth: (value) => calls.push(["width", value]),
       getEffectOrder: () => [
         "tape", "wow", "sub", "comb", "delay",
         "plate", "hall", "shimmer", "freeze", "cistern",

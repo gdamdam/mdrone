@@ -71,6 +71,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
   const [volumeInternal, setVolumeInternal] = useState(() => engine?.getOutputTrim().gain.value ?? 1);
   const volume = volumeProp ?? volumeInternal;
   const [headphoneSafe, setHeadphoneSafe] = useState(() => engine?.isHeadphoneSafe() ?? false);
+  const [width, setWidth] = useState(() => engine?.getWidth() ?? 1);
   // Live readings from the loudness worklet (~30 Hz update).
   const [lufsShort, setLufsShort] = useState<number | null>(null);
   const [peakDb, setPeakDb] = useState<number | null>(null);
@@ -155,6 +156,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
     setDrive(1);          if (engine) engine.setDrive(1);
     setLimiterOn(true);   if (engine) engine.setLimiterEnabled(true);
     setCeiling(-1);       if (engine) engine.setLimiterCeiling(-1);
+    setWidth(1);          if (engine) engine.setWidth(1);
     if (onVolumeChange) onVolumeChange(1);
     else {
       setVolumeInternal(1);
@@ -181,6 +183,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
       if (engine) engine.setMasterVolume(v);
     }
   };
+  const onWidth = (v: number) => { setWidth(v); if (engine) engine.setWidth(v); };
 
   const hpfOn = hpfHz > 10;
 
@@ -249,6 +252,9 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
 
         <Strip label="VOL" value={volume} min={0} max={1.5} step={0.01} unit="" onChange={onVolume}
           title="Master output trim — final volume, post-limiter" />
+
+        <Strip label="WIDTH" value={width} min={0} max={2} step={0.01} unit="" onChange={onWidth} centre={1}
+          title="Stereo width — M/S matrix. 1 = identity, 0 = mono, 2 = wide (phase-inverted side)." />
 
         <div className="mixer-divider" />
 
