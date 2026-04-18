@@ -70,6 +70,104 @@ export function MeditateView({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   useEffect(() => { isFullscreenRef.current = isFullscreen; }, [isFullscreen]);
+
+  // Pop-out window — opens a same-origin browser popup (drag it to
+  // monitor 2, then click ⛶ FULLSCREEN inside it for true second-
+  // monitor immersion). The source canvas stays in this React tree
+  // (no re-parenting → ctx + rAF loop survive); the popup just
+  // renders a <video> mirroring `canvas.captureStream(30)`. Audio
+  // engine stays in this tab.
+  //
+  // We use `window.open` rather than the Document Picture-in-Picture
+  // API because PiP windows are sandboxed: `requestFullscreen()` is
+  // blocked inside them. A plain popup has no such restriction.
+  const popWinRef = useRef<Window | null>(null);
+  const popStreamRef = useRef<MediaStream | null>(null);
+  const popPollRef = useRef<number | null>(null);
+  const [isPopOut, setIsPopOut] = useState(false);
+  const closePopOut = useCallback(() => {
+    if (popPollRef.current !== null) {
+      window.clearInterval(popPollRef.current);
+      popPollRef.current = null;
+    }
+    popStreamRef.current?.getTracks().forEach((t) => t.stop());
+    popStreamRef.current = null;
+    if (popWinRef.current && !popWinRef.current.closed) popWinRef.current.close();
+    popWinRef.current = null;
+    setIsPopOut(false);
+  }, []);
+  const togglePopOut = useCallback(() => {
+    if (popWinRef.current && !popWinRef.current.closed) {
+      closePopOut();
+      return;
+    }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const stream = (canvas as HTMLCanvasElement & {
+      captureStream?: (fps?: number) => MediaStream;
+    }).captureStream?.(30);
+    if (!stream) return;
+
+    const pop = window.open("", "mdrone-meditate", "popup,width=1024,height=1024");
+    if (!pop) {
+      // Popup blocked.
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    popWinRef.current = pop;
+    popStreamRef.current = stream;
+
+    const doc = pop.document;
+    doc.title = "mdrone · visualizer";
+    const style = doc.createElement("style");
+    style.textContent =
+      "html,body{margin:0;padding:0;height:100%;background:#000;overflow:hidden;cursor:none}" +
+      "video{width:100vw;height:100vh;object-fit:contain;background:#000;display:block}" +
+      ".pop-fs-btn{position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.55);color:#cfc;" +
+      "border:1px solid rgba(200,255,200,0.4);font:11px/1 ui-monospace,monospace;" +
+      "padding:8px 12px;letter-spacing:1px;cursor:pointer;opacity:0;transition:opacity 0.25s;" +
+      "border-radius:3px;z-index:10}" +
+      "body:hover .pop-fs-btn{opacity:0.9}";
+    doc.head.appendChild(style);
+
+    const video = doc.createElement("video");
+    video.autoplay = true;
+    video.muted = true;
+    (video as HTMLVideoElement & { playsInline?: boolean }).playsInline = true;
+    video.srcObject = stream;
+    doc.body.appendChild(video);
+
+    const fsBtn = doc.createElement("button");
+    fsBtn.className = "pop-fs-btn";
+    fsBtn.textContent = "⛶ FULLSCREEN";
+    const goFs = () => {
+      const el = doc.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void> | void;
+      };
+      const req = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
+      try { Promise.resolve(req?.()).catch(() => { /* ignore */ }); }
+      catch { /* ignore */ }
+    };
+    fsBtn.addEventListener("click", goFs);
+    doc.body.appendChild(fsBtn);
+
+    // window.open popups don't reliably fire pagehide cross-browser.
+    // Poll `closed` so we can clean up our refs and update the button
+    // label when the user closes the popup with the OS chrome.
+    popPollRef.current = window.setInterval(() => {
+      if (popWinRef.current?.closed) closePopOut();
+    }, 500);
+
+    setIsPopOut(true);
+  }, [closePopOut]);
+  useEffect(() => {
+    return () => {
+      // Close any open popup when the meditate view unmounts so
+      // tab-switching away doesn't leave an orphan window streaming
+      // a stale canvas.
+      closePopOut();
+    };
+  }, [closePopOut]);
   useEffect(() => {
     const onFsChange = () => {
       const docAny = document as Document & {
@@ -561,6 +659,17 @@ export function MeditateView({
           title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen"}
         >
           {isFullscreen ? "✕ EXIT" : "⛶ FULLSCREEN"}
+        </button>
+        <button
+          className="header-btn"
+          onClick={togglePopOut}
+          title={
+            isPopOut
+              ? "Close pop-out window"
+              : "Open visualizer in a separate window (drag to monitor 2, then ⛶ FULLSCREEN)"
+          }
+        >
+          {isPopOut ? "✕ POP IN" : "↗ POP OUT"}
         </button>
         <span className="meditate-toolbar-hint">· double-click to cycle ·</span>
       </div>
