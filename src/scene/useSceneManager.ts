@@ -473,7 +473,7 @@ export function useSceneManager({
     setCurrentPresetName(generated);
     saveCurrentSessionId(null);
     requestSigilRefresh();
-  }, [captureCurrentSceneSnapshot, currentPresetName, currentSessionName, droneViewRef]);
+  }, [droneViewRef]);
 
   /** Perturb the current scene's numeric parameters by `intensity`
    *  (0..1). The full scene-history stack in DroneView captures the

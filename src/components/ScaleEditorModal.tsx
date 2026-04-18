@@ -14,7 +14,7 @@
  * writes localStorage directly.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BUILTIN_TUNINGS,
   DEGREE_LABELS,
@@ -69,13 +69,13 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
   });
   const [degrees, setDegrees] = useState<number[]>(() => [...initialBase.degrees]);
 
-  useEffect(() => {
-    // Re-seed degrees when the base selection changes.
-    const base = allTunings.find((t) => t.id === baseId);
-    if (base) setDegrees([...base.degrees]);
-  }, [baseId, allTunings]);
-
   const refreshRegistry = () => setAllTunings(getAllTunings());
+
+  const handleBaseChange = (nextBaseId: TuningId) => {
+    setBaseId(nextBaseId);
+    const base = allTunings.find((t) => t.id === nextBaseId);
+    if (base) setDegrees([...base.degrees]);
+  };
 
   const handleCentsChange = (index: number, raw: string) => {
     const n = parseFloat(raw);
@@ -126,7 +126,7 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
           <select
             className="scale-editor-select"
             value={baseId}
-            onChange={(e) => setBaseId(e.target.value as TuningId)}
+            onChange={(e) => handleBaseChange(e.target.value as TuningId)}
           >
             <optgroup label="Builtin">
               {BUILTIN_TUNINGS.map((t) => (
