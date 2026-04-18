@@ -6,12 +6,18 @@ export function VuMeter({
   analyser,
   width = 240,
   height = 10,
+  isActive,
 }: {
   analyser: AnalyserNode | null;
   width?: number;
   height?: number;
+  /** When provided and returns false, the meter clears and skips
+   *  analysis — avoids showing idle chain noise when not playing. */
+  isActive?: () => boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isActiveRef = useRef(isActive);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
   useEffect(() => {
     if (!analyser) return;
     const canvas = canvasRef.current;
@@ -23,12 +29,21 @@ export function VuMeter({
     let peakDecay = 0;
     let raf = 0;
     let lastPaint = -Infinity;
+    let idleCleared = false;
+    let lastPlayingAt = -Infinity;
     const FRAME_MS = 1000 / 30;
+    // Keep drawing for up to GRACE_MS after Stop so reverb tails are
+    // visible, but only while RMS exceeds FLOOR_RMS — this prevents
+    // idle chain noise (pre-Start) from animating the meter.
+    const GRACE_MS = 3000;
+    const FLOOR_RMS = 0.004; // ≈ -48 dBFS
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       if (document.hidden) return;
       if (now - lastPaint < FRAME_MS) return;
       lastPaint = now;
+      const playing = !isActiveRef.current || isActiveRef.current();
+      if (playing) lastPlayingAt = now;
       analyser.getByteTimeDomainData(buf);
       let sum = 0;
       let peak = 0;
@@ -39,6 +54,18 @@ export function VuMeter({
         if (a > peak) peak = a;
       }
       const rms = Math.sqrt(sum / buf.length);
+      const withinGrace = now - lastPlayingAt < GRACE_MS;
+      const active = playing || (withinGrace && rms > FLOOR_RMS);
+      if (!active) {
+        if (!idleCleared) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          peakHold = 0;
+          peakDecay = 0;
+          idleCleared = true;
+        }
+        return;
+      }
+      idleCleared = false;
       const level = Math.min(1, rms * 3);
       const peakLvl = Math.min(1, peak * 1.05);
       if (peakLvl > peakHold) {

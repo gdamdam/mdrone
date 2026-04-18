@@ -305,6 +305,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   const slotBRef = useRef<DroneSessionSnapshot | null>(null);
   const suppressPushRef = useRef(false);
   const [historyRev, setHistoryRev] = useState(0);
+  const [shapeHintsOn, setShapeHintsOn] = useState<boolean>(() => {
+    try { return window.localStorage?.getItem("mdrone.shapeHintsOn") === "1"; }
+    catch { return false; }
+  });
+  const toggleShapeHints = () => setShapeHintsOn((v) => {
+    const next = !v;
+    try { window.localStorage?.setItem("mdrone.shapeHintsOn", next ? "1" : "0"); }
+    catch { /* noop */ }
+    return next;
+  });
 
   const bumpRev = useCallback(() => setHistoryRev((r) => r + 1), []);
 
@@ -711,7 +721,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     <>
     <div className="drone-layout">
       <div className="preset-vu-wide">
-        <VuMeter analyser={engine?.getAnalyser() ?? null} width={600} height={16} />
+        <VuMeter
+          analyser={engine?.getAnalyser() ?? null}
+          width={600}
+          height={16}
+          isActive={() => engine?.isPlaying() ?? false}
+        />
       </div>
       <div className="panel preset-panel preset-panel-wide">
         {/* Compact preset strip — active preset meta, inline keyboard,
@@ -841,6 +856,18 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </span>
           <button
             type="button"
+            className={morphSeconds > 0 ? "preset-strip-morph preset-strip-morph-active" : "preset-strip-morph"}
+            onClick={cycleMorph}
+            title={
+              morphSeconds === 0
+                ? "Preset crossfade OFF — preset clicks swap instantly. Click to cycle through 10s / 30s / 2min crossfade."
+                : `Preset crossfade ON — clicks crossfade over ${morphLabel} (fade-out, snap, fade-in).`
+            }
+          >
+            ↔ {morphSeconds === 0 ? "OFF" : morphLabel}
+          </button>
+          <button
+            type="button"
             className="preset-strip-chevron"
             onClick={() => toggle("presets" as Section)}
             aria-label={disclosed.presets ? "Collapse preset list" : "Expand preset list"}
@@ -862,18 +889,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               {SHORT_GROUP_LABELS[g] ?? g}
             </button>
           ))}
-          <button
-            type="button"
-            className={morphSeconds > 0 ? "preset-tab preset-tab-active" : "preset-tab"}
-            onClick={cycleMorph}
-            title={
-              morphSeconds === 0
-                ? "Scene-chain OFF — preset clicks swap instantly. Click to cycle through 10s / 30s / 2min crossfade."
-                : `Scene-chain ON — preset clicks crossfade over ${morphLabel} (fade-out, snap, fade-in).`
-            }
-          >
-            {morphSeconds === 0 ? "CUT" : `↔ ${morphLabel}`}
-          </button>
         </div>
         <div className="preset-grid">
           {visiblePresets.map((p) => (
@@ -910,10 +925,20 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             visual={weatherVisual ?? "flow"}
           />
 
-          <div className="weather-controls">
+          <div className={shapeHintsOn ? "weather-controls shape-hints-on" : "weather-controls"}>
             <div className="shape-header">
               <span className="shape-title">SHAPE</span>
               <span className="shape-hint">sculpt the body of the drone</span>
+              <button
+                type="button"
+                className={shapeHintsOn ? "shape-hints-toggle shape-hints-toggle-on" : "shape-hints-toggle"}
+                onClick={toggleShapeHints}
+                title={shapeHintsOn ? "Hide macro descriptions" : "Show a one-line description under each macro"}
+                aria-label="Toggle macro hints"
+                aria-pressed={shapeHintsOn}
+              >
+                ?
+              </button>
             </div>
             <div className="macro-primary-col">
               <Macro
@@ -922,6 +947,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 onChange={setDrift}
                 icon={<IconDrift />}
                 title="Drift — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
+                hint="partials wander in pitch"
               />
               <Macro
                 label="AIR"
@@ -929,6 +955,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 onChange={setAir}
                 icon={<IconAir />}
                 title="Air — wet send into the atmosphere chain (reverb + space)"
+                hint="reverb / space send"
               />
               <Macro
                 label="TIME"
@@ -936,6 +963,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 onChange={setTime}
                 icon={<IconTime />}
                 title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
+                hint="rate of weather motion"
               />
               <Macro
                 label="BLOOM"
@@ -944,6 +972,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconBloom />}
                 displayValue={`${(0.3 + state.bloom * 9.7).toFixed(1)}s`}
                 title="Bloom — attack time on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
+                hint="voice attack on next HOLD"
               />
               <Macro
                 label="GLIDE"
@@ -952,6 +981,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconGlide />}
                 displayValue={`${(0.05 * Math.pow(160, state.glide)).toFixed(2)}s`}
                 title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
+                hint="retune time between notes"
               />
             </div>
 
@@ -962,6 +992,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 onChange={(v) => { setPresetMorph(v); engine?.setPresetMorph(v); }}
                 icon={<IconBloom />}
                 title="MORPH (seconds) — time the drone takes to cross-fade when you load another preset. 0 = snap, 1 = ~20 s glacial fade."
+                hint="preset-change crossfade"
               />
               <Macro
                 label="EVOLVE"
@@ -969,6 +1000,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 onChange={(v) => { setPresetEvolve(v); engine?.setEvolve(v); }}
                 icon={<IconDrift />}
                 title="EVOLVE (minutes) — how much the drone drifts on its own while a preset is held. 0 = dead-still, 1 = continuous slow change."
+                hint="autonomous slow drift"
               />
               <Macro
                 label="SUB"
@@ -976,6 +1008,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 onChange={setSub}
                 icon={<IconSub />}
                 title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
+                hint="sub-octave triangle layer"
               />
             </div>
 
@@ -1467,6 +1500,7 @@ function Macro({
   icon,
   title,
   displayValue,
+  hint,
 }: {
   label: string;
   value: number;
@@ -1475,11 +1509,18 @@ function Macro({
   title: string;
   /** Optional pre-formatted value string; falls back to 0..100 %. */
   displayValue?: string;
+  /** Short one-liner rendered under the label when the parent
+   *  panel has `.shape-hints-on` — teaches what the macro does
+   *  without waiting for the tooltip. */
+  hint?: string;
 }) {
   return (
     <div className="macro-row" title={title}>
       {icon && <span className="macro-icon">{icon}</span>}
-      <span className="macro-label">{label}</span>
+      <span className="macro-label-col">
+        <span className="macro-label">{label}</span>
+        {hint && <span className="macro-hint">{hint}</span>}
+      </span>
       <input
         type="range"
         min={0}

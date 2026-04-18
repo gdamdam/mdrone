@@ -298,6 +298,7 @@ export function Header({
           ))}
         </div>
 
+
         {/* Center — scene marquee. Clickable so tapping the current
             preset name pops open the preset list (tab auto-switches
             to DRONE if the user is on MIDI / MIXER). */}
