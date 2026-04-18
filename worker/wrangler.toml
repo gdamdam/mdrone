@@ -16,7 +16,7 @@ rules = [
 ]
 
 [define]
-__APP_VERSION__ = '"1.7.2"'
+__APP_VERSION__ = '"1.8.0"'
 
 # KV namespace for short-URL storage. `preview_id` reuses the production
 # namespace — create a separate one via `wrangler kv namespace create SHORT

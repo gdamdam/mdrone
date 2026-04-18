@@ -9,7 +9,7 @@ import {
   resolveSceneCardStyle,
   withSceneCardStyleParam,
 } from "../shareCard";
-import { shortenSceneUrl } from "../shareRelay";
+import { shortenSceneUrl, trackShare } from "../shareRelay";
 
 interface ShareModalProps {
   initialName: string;
@@ -34,9 +34,9 @@ function sanitizeFilename(input: string): string {
 export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModalProps) {
   const [name, setName] = useState(initialName);
   const [url, setUrl] = useState("");
-  const [shortUrl, setShortUrl] = useState<string | null>(null);
+  const [shortInfo, setShortInfo] = useState<{ short: string; id: string } | null>(null);
   const [showLongUrl, setShowLongUrl] = useState(false);
-  const shortCacheRef = useRef<Map<string, string>>(new Map());
+  const shortCacheRef = useRef<Map<string, { short: string; id: string }>>(new Map());
   const [scene, setScene] = useState<PortableScene | null>(null);
   const [styleChoice, setStyleChoice] = useState<SceneCardStyleChoice>("auto");
   const [busy, setBusy] = useState(true);
@@ -91,26 +91,28 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
 
   useEffect(() => {
     if (!url) {
-      setShortUrl(null);
+      setShortInfo(null);
       return;
     }
     const cached = shortCacheRef.current.get(url);
     if (cached) {
-      setShortUrl(cached);
+      setShortInfo(cached);
       return;
     }
-    setShortUrl(null);
+    setShortInfo(null);
     let cancelled = false;
     void shortenSceneUrl(url).then((result) => {
       if (cancelled || !result) return;
-      shortCacheRef.current.set(url, result.short);
-      setShortUrl(result.short);
+      const entry = { short: result.short, id: result.id };
+      shortCacheRef.current.set(url, entry);
+      setShortInfo(entry);
     });
     return () => {
       cancelled = true;
     };
   }, [url]);
 
+  const shortUrl = shortInfo?.short ?? null;
   const isShortened = shortUrl !== null && shortUrl !== url;
   const displayUrl = showLongUrl || !shortUrl ? url : shortUrl;
 
@@ -169,6 +171,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
     if (ok) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
+      if (shortInfo?.id) trackShare(shortInfo.id);
     } else {
       setError("Clipboard copy failed. You can still select the link manually.");
     }
@@ -208,6 +211,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
         text: "Open this mdrone landscape in the browser.",
         url: displayUrl,
       });
+      if (shortInfo?.id) trackShare(shortInfo.id);
     } catch {
       // ignore cancelled shares
     }

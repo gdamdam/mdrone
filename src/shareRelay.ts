@@ -39,3 +39,17 @@ export async function shortenSceneUrl(
     return null;
   }
 }
+
+/**
+ * Bump the share counter for a short link (admin-only metric, surfaced at
+ * /mddashboard). Fire-and-forget — never blocks the share/copy UI and never
+ * surfaces failures to the user.
+ */
+export function trackShare(id: string): void {
+  void fetch(`${RELAY}/track`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+    signal: AbortSignal.timeout(3000),
+  }).catch(() => {});
+}
