@@ -33,6 +33,8 @@ const VERSION = "1.8.0";
 
 interface Env {
   SHORT: KVNamespace;
+  DASHBOARD_USER?: string;
+  DASHBOARD_PASS?: string;
 }
 
 const CORS = {
@@ -329,6 +331,27 @@ async function collectStats(env: Env): Promise<StatsPayload> {
   return { rows, totals, count: rows.length };
 }
 
+function requireBasicAuth(request: Request, env: Env): Response | null {
+  const user = env.DASHBOARD_USER;
+  const pass = env.DASHBOARD_PASS;
+  if (!user || !pass) {
+    return new Response("Dashboard auth not configured", { status: 503 });
+  }
+  const header = request.headers.get("Authorization") ?? "";
+  if (header.startsWith("Basic ")) {
+    try {
+      const [u, p] = atob(header.slice(6)).split(":");
+      if (u === user && p === pass) return null;
+    } catch {
+      // fall through to 401
+    }
+  }
+  return new Response("Authentication required", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="mddashboard", charset="UTF-8"' },
+  });
+}
+
 async function handleStats(env: Env): Promise<Response> {
   try {
     const data = await collectStats(env);
@@ -540,6 +563,8 @@ async function handleRequest(
   }
 
   if (url.pathname === "/mddashboard" && request.method === "GET") {
+    const unauthorized = requireBasicAuth(request, env);
+    if (unauthorized) return unauthorized;
     return handleDashboard(env);
   }
 

@@ -34,6 +34,8 @@ stickers/
 
 # Wrangler local dev cache
 worker/.wrangler/
+worker/.dev.vars
+.dev.vars
 
 # Claude Code local workspace
 .claude/
