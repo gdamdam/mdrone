@@ -34,6 +34,33 @@ const dismissStartGate = async (page: Page) => {
   await btn.click();
 };
 
+// Stub the share-relay worker (dev: localhost:8787, prod: sd.mpump.live) so
+// tests don't depend on a running wrangler dev server or outbound network.
+const stubShareRelay = async (page: Page) => {
+  const handler = async (route: import("@playwright/test").Route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/health") {
+      await route.fulfill({ status: 200, contentType: "text/plain", body: "ok" });
+      return;
+    }
+    if (url.pathname === "/shorten") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ id: "test", short: "https://sd.mpump.live/s/test" }),
+      });
+      return;
+    }
+    if (url.pathname === "/track") {
+      await route.fulfill({ status: 200, contentType: "text/plain", body: "" });
+      return;
+    }
+    await route.fulfill({ status: 404, body: "" });
+  };
+  await page.route("http://localhost:8787/**", handler);
+  await page.route("https://sd.mpump.live/**", handler);
+};
+
 test.beforeEach(async ({ context }) => {
   // Fresh state per test so "continue last scene" flows don't leak.
   await context.clearCookies();
@@ -138,6 +165,7 @@ test("4. FX bar DOM order matches engine EFFECT_ORDER", async ({ page }) => {
 
 test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, browser }) => {
   const errors = trackErrors(page);
+  await stubShareRelay(page);
   await page.goto("/");
   await dismissStartGate(page);
 
@@ -166,6 +194,7 @@ test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, br
   const freshContext = await browser.newContext();
   const fresh = await freshContext.newPage();
   const freshErrors = trackErrors(fresh);
+  await stubShareRelay(fresh);
   await fresh.goto(localShareUrl);
 
   // A share URL replaces StartGate with a "▶ Play this scene" button.
