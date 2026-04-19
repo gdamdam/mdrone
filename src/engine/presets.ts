@@ -2358,6 +2358,37 @@ const PRESET_MATERIAL_PROFILES: Record<string, PresetMaterialProfile> = {
     shimmerPulse: 0.03,
     subPulse: 0.05,
   }),
+  "didgeridoo": materialProfile({
+    driftBias: { air: 1.1, reed: 0.95 },
+    levelWobble: { air: 0.06, reed: 0.015 },
+    wobbleRate: 0.38,
+    subPulse: 0.05,
+  }),
+  "sunn-amp-drone": materialProfile({
+    driftBias: { amp: 1.05, reed: 0.98, metal: 1.08 },
+    levelWobble: { amp: 0.018, reed: 0.012, metal: 0.025 },
+    wobbleRate: 0.5,
+    subPulse: 0.06,
+  }),
+  "tuvan-khoomei": materialProfile({
+    driftBias: { reed: 1.02, metal: 1.08 },
+    levelWobble: { reed: 0.022, metal: 0.03, air: 0.018 },
+    wobbleRate: 0.62,
+    shimmerPulse: 0.03,
+  }),
+  "alice-coltrane-devotional": materialProfile({
+    driftBias: { reed: 0.95, piano: 1.03 },
+    levelWobble: { reed: 0.02, piano: 0.018 },
+    wobbleRate: 0.45,
+    shimmerPulse: 0.04,
+    subPulse: 0.03,
+  }),
+  "sarangi": materialProfile({
+    driftBias: { reed: 1.1, tanpura: 1.05 },
+    levelWobble: { reed: 0.025, tanpura: 0.012 },
+    wobbleRate: 0.55,
+    pluckRange: [0.9, 1.12],
+  }),
 };
 
 export function getPresetMaterialProfile(presetOrId: Preset | string | null): PresetMaterialProfile {
