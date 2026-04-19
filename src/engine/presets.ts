@@ -367,10 +367,10 @@ export const PRESETS: Preset[] = [
     id: "dream-house", group: "Minimal / Just",
     name: "Dream House",
     attribution: "Long-tone just-intonation · pure sines · beating intervals",
-    hint: "Pure sine tones (reed.shape = sine) in just 5-limit intervals. The beating between tones IS the composition — La Monte Young & Marian Zazeela's Dream House, uncoloured.",
+    hint: "Pure sine tones (reed.shape = sine) in just 5-limit intervals, with no air or reverb coloration. The beating between tones IS the composition — La Monte Young & Marian Zazeela's Dream House, uncoloured.",
     tuningId: "just5", relationId: "drone-triad",
-    voiceLayers: ["reed", "air"],
-    voiceLevels: { reed: 1, air: 0.1 },
+    voiceLayers: ["reed"],
+    voiceLevels: { reed: 1 },
     reedShape: "sine",
     octaveRange: [2, 3],
     drift: 0.06,
@@ -554,10 +554,12 @@ export const PRESETS: Preset[] = [
     lfoShape: "sine",
     lfoRate: 0.018,
     lfoAmount: 0.2,   // stronger swell — the tape stretches
-    climateX: 0.18,   // very dark — degraded tape rolls off highs
+    climateX: 0.18,   // dark but not buried — cathedral still reads through hiss
     climateY: 0.24,   // more wow flutter
-    // Heavy tape degradation is the defining difference from Nitrous
-    // Oxide. Hall only (no plate — the space is buried under tape).
+    // SOTL tape wear is CONTINUOUS (wow, saturation, HF loss) — NOT
+    // fragmented grain drop-outs. Graincloud belongs on Basinski, not
+    // here. Differentiation from stars-of-the-lid: heavier wow, longer
+    // lfo swell, darker climate, lower gain.
     effects: ["tape", "wow", "hall"],
     parallelSends: { hall: 0.35 },
     scale: "minor",
@@ -659,7 +661,7 @@ export const PRESETS: Preset[] = [
     id: "radigue-drift", group: "Minimal / Just",
     name: "Radig Drift",
     attribution: "Pure sine drone · microscopic motion",
-    hint: "A single sine tone (reed.shape = sine), dry, crystalline. The Éliane Radigue / ARP 2500 lineage — drift happens microscopically, the room stays close and uncoloured.",
+    hint: "A single sine tone (reed.shape = sine) with a close parallel room — the Éliane Radigue / ARP 2500 lineage. Drift happens microscopically; the room stays close and uncoloured.",
     tuningId: "harmonics", relationId: "harmonic-stack",
     voiceLayers: ["reed"],
     voiceLevels: { reed: 1 },
@@ -673,14 +675,15 @@ export const PRESETS: Preset[] = [
     glide: 0.9,       // longest glide in the library
     lfoShape: "sine",
     lfoRate: 0.04,
-    lfoAmount: 0.06,  // subtle — slow filter breathing adds microscopic life
+    lfoAmount: 0.06,  // subtle gain breathing — filter-routed LFO deferred
+                      // pending audition of the new FX stack (see
+                      // misc/2026-04-19-preset-roadmap.md Sprint 3)
     climateX: 0.3,
     climateY: 0.12,
-    // Keep the core sine stack present and let a close room sit in
-    // parallel behind it. Serial hall pushed the whole preset too far
-    // back once HALL moved to the quieter FDN path.
-    effects: [],
-    parallelSends: { hall: 0.22 },
+    // Plate adds a very close room behind the sine stack; hall in
+    // parallel for depth.
+    effects: ["plate"],
+    parallelSends: { hall: 0.22, plate: 0.25 },
     scale: "drone",
     gain: 1.22,
     motionProfile: motionProfile({
@@ -701,11 +704,12 @@ export const PRESETS: Preset[] = [
   {
     id: "eno-airport", group: "Ambient / Cinematic",
     name: "Terminal Airport",
-    attribution: "Pure 5-limit ambient · piano + pad · long decay",
-    hint: "Sparse piano intervals over the faintest reed halo, all in just 5-limit intervals. The room is bright and public, not lush: a departure lounge hanging in the air, with plenty of silence left between the tones.",
+    attribution: "Pure 5-limit ambient · piano + tape pad",
+    hint: "Sparse piano intervals over an even-partial reed pad (Eno's tape-generated pad lineage), all in just 5-limit intervals. Bright and public, not lush — a departure lounge hanging in the air, with silence left between the tones.",
     tuningId: "just5", relationId: "drone-triad",
-    voiceLayers: ["piano"],
-    voiceLevels: { piano: 1 },
+    voiceLayers: ["piano", "reed"],
+    voiceLevels: { piano: 1, reed: 0.5 },
+    reedShape: "even",
     octaveRange: [3, 5],
     drift: 0.04,       // near-static — tape loops don't drift
     air: 0.35,         // bright hall but not drenched
@@ -718,10 +722,10 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.01,   // almost nothing
     climateX: 0.55,    // bright — sunlit departure lounge
     climateY: 0.04,
-    // Airport needs the piano attacks to stay legible; use a parallel
-    // hall wash instead of replacing the source with wet-only hall.
-    effects: [],
-    parallelSends: { hall: 0.42 },
+    // Piano attacks must stay legible; plate serial + hall parallel
+    // gives reed pad a sheen without swallowing the piano.
+    effects: ["plate", "tape"],
+    parallelSends: { hall: 0.42, plate: 0.28 },
     // just5 instead of pentatonic: pentatonic's M2 (200¢) beats against
     // the root and 5th. just5 is root + 5-limit major 3rd + 5th — fully
     // consonant, beating-free, warm.
@@ -840,10 +844,10 @@ export const PRESETS: Preset[] = [
     id: "coil-time-machines", group: "Sacred / Ritual",
     name: "Time Machines",
     attribution: "Ceremonial single-note trance · suspended time",
-    hint: "A low single-note ritual drone with narcotic stillness. Reed body, a whisper of FM for the Coil synth character, almost no decorative movement — just the faintest tape-flange rotation.",
+    hint: "A low single-note ritual drone with narcotic stillness. Reed body with a whisper of FM for the Coil synth character and tape-flange rotation for suspended time. Differentiation from Tired Eyes comes from the low [1,2] octave and sub depth, not timbral FM.",
     tuningId: "equal", relationId: "unison",
     voiceLayers: ["reed", "fm", "air"],
-    voiceLevels: { reed: 0.95, fm: 0.28, air: 0.18 },
+    voiceLevels: { reed: 0.95, fm: 0.32, air: 0.18 },
     octaveRange: [1, 2],
     drift: 0.08,
     air: 0.38,
@@ -1273,10 +1277,10 @@ export const PRESETS: Preset[] = [
     id: "fennesz-endless", group: "Ambient / Cinematic",
     name: "Endless Summer",
     attribution: "Warm continuous guitar smear · golden haze",
-    hint: "Reed (even harmonics — closest to processed guitar) with long bloom and glide through plate + hall + tape, plus a classic graincloud for the glitchy grain-stutter that defines Fennesz's processed-laptop-guitar sound. Endless Summer — continuous warm melodic smear under a grain shimmer.",
+    hint: "Reed (even harmonics — closest to processed guitar) with an air halo, long bloom and glide through tape + graincloud + parallel plate/hall. Endless Summer — continuous warm melodic smear under a grain shimmer.",
     tuningId: "equal", relationId: "drone-triad",
-    voiceLayers: ["reed"],
-    voiceLevels: { reed: 1 },
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 1, air: 0.3 },
     reedShape: "even",
     octaveRange: [3, 4],
     drift: 0.08,       // very stable — Fennesz holds chords, doesn't drift
@@ -1321,10 +1325,10 @@ export const PRESETS: Preset[] = [
     id: "basinski-disintegration", group: "Ambient / Cinematic",
     name: "Disintegration",
     attribution: "Decaying tape loop · oxide crumble",
-    hint: "Solo reed (bowed-string shape) with tape degradation + wow flutter and an ordered graincloud for the fragmented tape-loop drop-outs — Basinski's Disintegration Loops. A single melodic string fragment eroding under tape wear. Dry, close-miked.",
+    hint: "Reed + amp-hum as the loop source; tape+wow+graincloud as the crumbling medium. Basinski's Disintegration Loops: the source doesn't evolve, the medium erodes around it. Dry, close-miked.",
     tuningId: "equal", relationId: "drone-triad",
-    voiceLayers: ["reed"],
-    voiceLevels: { reed: 1 },
+    voiceLayers: ["reed", "amp"],
+    voiceLevels: { reed: 0.5, amp: 0.15 },
     reedShape: "balanced",
     drift: 0.10,
     air: 0.25,        // dry — DL is close-miked studio
@@ -1340,7 +1344,8 @@ export const PRESETS: Preset[] = [
                       // saturated noise, not degradation
     // tape + wow = the oxide crumble; graincloud adds the fragmented
     // tape-loop drop-outs that are a Disintegration Loops signature.
-    // (Tried without graincloud — user asked for it back.)
+    // NOT freeze: FREEZE captures a moment at load and loops it under
+    // the live signal — "works on load, wrong over time" trap.
     effects: ["tape", "wow", "graincloud"],
     scale: "major",   // DL sits in ambiguous bright-melancholy, not minor
     gain: 0.95,
@@ -1945,21 +1950,21 @@ export const PRESETS: Preset[] = [
     id: "niblock-wall", group: "Minimal / Just",
     name: "Microtone Wall",
     attribution: "Dense beating · close intervals",
-    hint: "Phill Niblock's wall of close-tuned instruments. Even-harmonic PolyBLEP reed in drone-triad with very high drift — the partials wander in pitch creating dense beating patterns. The beating between near-unison tones is the entire composition.",
+    hint: "Phill Niblock's wall of close-tuned instruments. Even-harmonic PolyBLEP reed in drone-triad. The motion is the beating between near-unison partials — the overall drone is paradigmatically still. Microscopic only.",
     tuningId: "just5", relationId: "drone-triad",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.2 },
     reedShape: "even",
     octaveRange: [2, 3],
-    drift: 0.45,
+    drift: 0.08,
     air: 0.35,
-    time: 0.06,
+    time: 0.03,
     sub: 0.2,
-    bloom: 0.7,
-    glide: 0.6,
+    bloom: 0.95,
+    glide: 0.15,
     lfoShape: "sine",
     lfoRate: 0.04,
-    lfoAmount: 0.04,
+    lfoAmount: 0.02,
     climateX: 0.45,
     climateY: 0.3,
     effects: ["plate", "hall"],
@@ -1967,13 +1972,13 @@ export const PRESETS: Preset[] = [
     scale: "drone",
     gain: 0.88,
     motionProfile: motionProfile({
-      climateXRange: [0.38, 0.52],
-      climateYRange: [0.22, 0.38],
-      bloomRange: [0.6, 0.8],
-      timeRange: [0.04, 0.1],
-      driftRange: [0.38, 0.55],
+      climateXRange: [0.42, 0.48],
+      climateYRange: [0.26, 0.34],
+      bloomRange: [0.9, 0.98],
+      timeRange: [0.02, 0.05],
+      driftRange: [0.05, 0.12],
       subRange: [0.15, 0.28],
-      macroStep: 0.4,
+      macroStep: 0.2,
       tonicWalk: "none",
       tonicFloor: 1,
       textureFloor: 0.82,
