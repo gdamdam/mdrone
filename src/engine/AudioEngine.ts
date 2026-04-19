@@ -42,9 +42,11 @@ export class AudioEngine {
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     // Let the device pick its native rate. Forcing 44.1 kHz wasted headroom
     // on 48 k hardware and added unnecessary resampling aliasing.
-    // `latencyHint: "interactive"` nudges the browser toward a smaller
-    // output buffer; mitigates crackle on Windows shared-mode drivers.
-    this.ctx = new AC({ latencyHint: "interactive" });
+    // No latencyHint — Safari + AirPods produced signal-correlated hash
+    // under "interactive" because the forced-small output buffer is
+    // below what Bluetooth AAC can reliably deliver, causing constant
+    // under-run noise. Let each browser pick its own default buffer.
+    this.ctx = new AC();
     this.loadMonitor = new AudioLoadMonitor(this.ctx);
 
     // Diagnostic: `?nativetest=1` creates a plain OscillatorNode →
