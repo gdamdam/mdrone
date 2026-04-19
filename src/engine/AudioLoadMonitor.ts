@@ -38,6 +38,11 @@ const STRUGGLE_ENTER_WINDOW_MS = 3000;
 const STRUGGLE_ENTER_COUNT = 2;
 // Leave struggling state after this many ms with no new underruns.
 const STRUGGLE_EXIT_MS = 5000;
+// Grace period after construction during which underruns are ignored.
+// Worklet module load, first-block allocations, sample-rate negotiation,
+// and visibility-change resume all cause legitimate drift early on that
+// isn't indicative of sustained load.
+const WARMUP_MS = 10000;
 
 export class AudioLoadMonitor {
   private readonly ctx: AudioContext;
@@ -47,6 +52,7 @@ export class AudioLoadMonitor {
   private recentUnderruns: number[] = [];
   private lastUnderrunAt = -Infinity;
   private interval: ReturnType<typeof setInterval> | null = null;
+  private startedAtMs: number;
   private state: AudioLoadState;
 
   constructor(ctx: AudioContext) {
@@ -59,7 +65,8 @@ export class AudioLoadMonitor {
       outputLatencyMs: (ctx.outputLatency ?? 0) * 1000,
       sampleRate: ctx.sampleRate,
     };
-    this.lastWallMs = performance.now();
+    this.startedAtMs = performance.now();
+    this.lastWallMs = this.startedAtMs;
     this.lastAudioSec = ctx.currentTime;
     this.interval = setInterval(() => this.tick(), SAMPLE_INTERVAL_MS);
   }
@@ -82,8 +89,9 @@ export class AudioLoadMonitor {
     // Positive = audio behind wall (stall). Small negatives are clock noise.
     const drift = wallDelta - audioDelta;
     const now = performance.now();
+    const warmedUp = now - this.startedAtMs >= WARMUP_MS;
 
-    if (drift > UNDERRUN_DRIFT_MS) {
+    if (drift > UNDERRUN_DRIFT_MS && warmedUp) {
       this.lastUnderrunAt = now;
       this.recentUnderruns.push(now);
       this.state.underruns += 1;
@@ -94,9 +102,11 @@ export class AudioLoadMonitor {
       this.recentUnderruns.shift();
     }
 
-    const struggling = this.state.struggling
-      ? now - this.lastUnderrunAt < STRUGGLE_EXIT_MS
-      : this.recentUnderruns.length >= STRUGGLE_ENTER_COUNT;
+    const struggling = !warmedUp
+      ? false
+      : this.state.struggling
+        ? now - this.lastUnderrunAt < STRUGGLE_EXIT_MS
+        : this.recentUnderruns.length >= STRUGGLE_ENTER_COUNT;
 
     this.state = {
       struggling,

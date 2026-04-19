@@ -151,12 +151,25 @@ export class MasterBus {
     this.hpf.connect(this.eqLow);
     this.eqLow.connect(this.eqMid);
     this.eqMid.connect(this.eqHigh);
-    this.eqHigh.connect(this.glueComp);
-    this.glueComp.connect(this.glueMakeup);
-    this.glueMakeup.connect(this.drivePre);
-    this.drivePre.connect(this.drive);
-    this.drive.connect(this.drivePost);
-    this.drivePost.connect(this.limiterIn);
+    // Diagnostic flag: `?bypassmaster=1` in the URL routes past the glue
+    // compressor + drive waveshaper to test whether iOS Safari's always-on
+    // DynamicsCompressor/WaveShaper noise is the source of the "frrrr"
+    // background hiss reported on iPhone. Remove once the suspect is
+    // confirmed and the fix lands.
+    const bypassMaster = typeof location !== "undefined"
+      && new URLSearchParams(location.search).has("bypassmaster");
+    if (bypassMaster) {
+      // eslint-disable-next-line no-console
+      console.log("mdrone: ?bypassmaster=1 — skipping glueComp + drive");
+      this.eqHigh.connect(this.limiterIn);
+    } else {
+      this.eqHigh.connect(this.glueComp);
+      this.glueComp.connect(this.glueMakeup);
+      this.glueMakeup.connect(this.drivePre);
+      this.drivePre.connect(this.drive);
+      this.drive.connect(this.drivePost);
+      this.drivePost.connect(this.limiterIn);
+    }
     // Passthrough until worklet ready.
     this.limiterIn.connect(this.limiterOut);
     this.limiterOut.connect(this.outputTrim);
