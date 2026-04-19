@@ -2176,7 +2176,7 @@ export const PRESETS: Preset[] = [
     climateX: 0.55,
     climateY: 0.1,
     effects: ["shimmer", "plate"],
-    parallelSends: { shimmer: 0.35, hall: 0.3 },
+    parallelSends: { hall: 0.3 },
     scale: "harmonics",
     gain: 1.33,
     motionProfile: motionProfile({
@@ -2217,7 +2217,7 @@ export const PRESETS: Preset[] = [
     climateY: 0.18,
     combFeedback: 0.4,
     effects: ["comb", "plate"],
-    parallelSends: { comb: 0.32, hall: 0.28 },
+    parallelSends: { hall: 0.28 },
     scale: "drone",
     gain: 0.6,
     motionProfile: motionProfile({
