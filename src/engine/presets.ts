@@ -306,7 +306,7 @@ export const PRESETS: Preset[] = [
     climateY: 0.14,
     effects: ["hall", "tape"],
     scale: "drone",
-    gain: 0.56,
+    gain: 0.4,
     motionProfile: motionProfile({
       climateXRange: [0.34, 0.48],
       climateYRange: [0.08, 0.22],
@@ -347,7 +347,7 @@ export const PRESETS: Preset[] = [
     // without the hall coming after tape in the serial chain.
     parallelSends: { hall: 0.3 },
     scale: "meantone",
-    gain: 0.51,
+    gain: 0.34,
     motionProfile: motionProfile({
       climateXRange: [0.24, 0.36],
       climateYRange: [0.06, 0.16],
@@ -431,7 +431,7 @@ export const PRESETS: Preset[] = [
     // signal. This is the actual cistern experience.
     parallelSends: { cistern: 0.55 },
     scale: "drone",
-    gain: 1.46,
+    gain: 1.06,
     motionProfile: motionProfile({
       climateXRange: [0.32, 0.48],
       climateYRange: [0.1, 0.22],
@@ -471,7 +471,7 @@ export const PRESETS: Preset[] = [
     effects: ["hall"],
     parallelSends: { hall: 0.22 },
     scale: "drone",
-    gain: 0.93,
+    gain: 0.64,
     motionProfile: motionProfile({
       climateXRange: [0.06, 0.14],
       climateYRange: [0.03, 0.08],
@@ -519,7 +519,7 @@ export const PRESETS: Preset[] = [
     parallelSends: { hall: 0.35 },
     scale: "minor",
     // gain cut to leave headroom for the amplitude swell peaks.
-    gain: 0.45,
+    gain: 0.26,
     motionProfile: motionProfile({
       climateXRange: [0.36, 0.5],
       climateYRange: [0.14, 0.3],
@@ -563,7 +563,7 @@ export const PRESETS: Preset[] = [
     effects: ["tape", "wow", "hall"],
     parallelSends: { hall: 0.35 },
     scale: "minor",
-    gain: 0.43,
+    gain: 0.32,
     motionProfile: motionProfile({
       climateXRange: [0.26, 0.38],
       climateYRange: [0.08, 0.18],
@@ -821,7 +821,7 @@ export const PRESETS: Preset[] = [
     scale: "drone",
     // Lower gain than before because the sine-reed bed provides the
     // continuous fundamental that was previously faked with gain 1.5.
-    gain: 1.6,
+    gain: 0.91,
     motionProfile: motionProfile({
       climateXRange: [0.28, 0.42],
       climateYRange: [0.06, 0.14],
@@ -867,7 +867,7 @@ export const PRESETS: Preset[] = [
     effects: ["tape", "wow"],
     parallelSends: { hall: 0.28 },
     scale: "drone",
-    gain: 0.29,
+    gain: 0.19,
     motionProfile: motionProfile({
       climateXRange: [0.14, 0.22],
       climateYRange: [0.04, 0.1],
@@ -950,7 +950,7 @@ export const PRESETS: Preset[] = [
     effects: ["hall"],
     parallelSends: { hall: 0.4 },
     scale: "drone",
-    gain: 1.54,
+    gain: 1.12,
     motionProfile: motionProfile({
       climateXRange: [0.28, 0.42],
       climateYRange: [0.12, 0.26],
@@ -993,7 +993,7 @@ export const PRESETS: Preset[] = [
     // no-input mixer / ring-modulator feedback chain.
     effects: ["tape", "comb", "hall", "ringmod"],
     scale: "drone",
-    gain: 0.71,
+    gain: 0.48,
     motionProfile: motionProfile({
       climateXRange: [0.16, 0.3],
       climateYRange: [0.12, 0.28],
@@ -1035,7 +1035,7 @@ export const PRESETS: Preset[] = [
     climateY: 0.08,
     effects: ["hall", "tape", "sub"],
     scale: "drone",
-    gain: 0.18,
+    gain: 0.13,
     motionProfile: motionProfile({
       climateXRange: [0.06, 0.14],
       climateYRange: [0.05, 0.1],
@@ -1083,7 +1083,7 @@ export const PRESETS: Preset[] = [
     effects: ["tape", "comb", "ringmod"],
     parallelSends: { hall: 0.35 },
     scale: "drone",
-    gain: 0.81,
+    gain: 0.47,
     motionProfile: motionProfile({
       climateXRange: [0.48, 0.72],
       climateYRange: [0.34, 0.62],
@@ -1128,7 +1128,7 @@ export const PRESETS: Preset[] = [
     // on top of the wind/comb/tape weather texture.
     effects: ["hall", "comb", "wow", "tape", "granular"],
     scale: "drone",
-    gain: 0.14,
+    gain: 0.05,
     motionProfile: motionProfile({
       climateXRange: [0.16, 0.3],
       climateYRange: [0.14, 0.32],
@@ -1167,7 +1167,7 @@ export const PRESETS: Preset[] = [
     climateY: 0.12,
     effects: ["plate", "hall", "sub"],
     scale: "drone",
-    gain: 1.17,
+    gain: 0.76,
     motionProfile: motionProfile({
       climateXRange: [0.22, 0.32],
       climateYRange: [0.08, 0.16],
@@ -1256,7 +1256,7 @@ export const PRESETS: Preset[] = [
     // preserves dry + wet cleanly.
     effects: ["tape", "wow", "comb", "cistern", "granular"],
     scale: "minor",
-    gain: 0.17,
+    gain: 0.06,
     motionProfile: motionProfile({
       climateXRange: [0.26, 0.4],
       climateYRange: [0.18, 0.32],
@@ -1433,7 +1433,7 @@ export const PRESETS: Preset[] = [
     // the fragmentary tape-loop quality.
     effects: ["tape", "wow", "hall", "granular"],
     scale: "minor",
-    gain: 0.4,
+    gain: 0.29,
     motionProfile: motionProfile({
       climateXRange: [0.28, 0.4],
       climateYRange: [0.18, 0.32],
@@ -1477,7 +1477,7 @@ export const PRESETS: Preset[] = [
     // a wide wet tail instead of being smeared through serial plate.
     parallelSends: { hall: 0.5 },
     scale: "minor",
-    gain: 1.59,
+    gain: 1.25,
     motionProfile: motionProfile({
       climateXRange: [0.5, 0.62],
       climateYRange: [0.18, 0.3],
@@ -1524,7 +1524,7 @@ export const PRESETS: Preset[] = [
     effects: ["tape", "plate", "hall", "cistern"],
     parallelSends: { cistern: 0.32, hall: 0.28 },
     scale: "minor",
-    gain: 0.35,
+    gain: 0.23,
     motionProfile: motionProfile({
       climateXRange: [0.32, 0.46],
       climateYRange: [0.16, 0.3],
@@ -2011,7 +2011,7 @@ export const PRESETS: Preset[] = [
     effects: ["formant", "sub", "tape"],
     parallelSends: { hall: 0.25 },
     scale: "drone",
-    gain: 1,
+    gain: 0.35,
     motionProfile: motionProfile({
       climateXRange: [0.2, 0.32],
       climateYRange: [0.1, 0.22],
@@ -2050,7 +2050,7 @@ export const PRESETS: Preset[] = [
     climateY: 0,
     effects: [],
     scale: "drone",
-    gain: 1.2,
+    gain: 1.6,
     motionProfile: motionProfile({
       climateXRange: [0.78, 0.82],
       climateYRange: [0, 0.02],
@@ -2090,7 +2090,7 @@ export const PRESETS: Preset[] = [
     effects: ["tape"],
     parallelSends: { hall: 0.35, cistern: 0.25 },
     scale: "minor",
-    gain: 1,
+    gain: 0.31,
     motionProfile: motionProfile({
       climateXRange: [0.08, 0.18],
       climateYRange: [0.06, 0.14],
@@ -2130,7 +2130,7 @@ export const PRESETS: Preset[] = [
     effects: ["formant"],
     parallelSends: { hall: 0.35 },
     scale: "drone",
-    gain: 1,
+    gain: 1.27,
     motionProfile: motionProfile({
       climateXRange: [0.4, 0.52],
       climateYRange: [0.08, 0.18],
@@ -2170,7 +2170,7 @@ export const PRESETS: Preset[] = [
     effects: ["shimmer", "plate"],
     parallelSends: { shimmer: 0.35, hall: 0.3 },
     scale: "harmonics",
-    gain: 1,
+    gain: 1.33,
     motionProfile: motionProfile({
       climateXRange: [0.48, 0.62],
       climateYRange: [0.06, 0.16],
@@ -2210,7 +2210,7 @@ export const PRESETS: Preset[] = [
     effects: ["comb", "plate"],
     parallelSends: { comb: 0.32, hall: 0.28 },
     scale: "drone",
-    gain: 1,
+    gain: 0.34,
     motionProfile: motionProfile({
       climateXRange: [0.4, 0.52],
       climateYRange: [0.14, 0.24],
