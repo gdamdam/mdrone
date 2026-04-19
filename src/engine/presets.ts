@@ -843,41 +843,43 @@ export const PRESETS: Preset[] = [
   {
     id: "coil-time-machines", group: "Sacred / Ritual",
     name: "Time Machines",
-    attribution: "Ceremonial single-note trance · suspended time",
-    hint: "A low single-note ritual drone with narcotic stillness. Reed body with a whisper of FM for the Coil synth character and tape-flange rotation for suspended time. Differentiation from Tired Eyes comes from the low [1,2] octave and sub depth, not timbral FM.",
+    attribution: "Ceremonial analog drone · detuned oscillator stack",
+    hint: "Coil's Time Machines: a low single-note drone from detuned analog-like oscillators. Reed (odd-partial clarinet/square color) + amp (tanh cabinet body) approximate a Moog-era analog pad; the beating between slightly-detuned partials IS the internal life. No FM, no bell, no shimmer. Tape + subtle wow for the analog warmth; parallel hall keeps the room distant. Hypnotic, narcotic, ceremonial.",
     tuningId: "equal", relationId: "unison",
-    voiceLayers: ["reed", "fm", "air"],
-    voiceLevels: { reed: 0.95, fm: 0.32, air: 0.18 },
+    voiceLayers: ["reed", "amp"],
+    voiceLevels: { reed: 1.0, amp: 0.35 },
+    reedShape: "odd",
     octaveRange: [1, 2],
-    drift: 0.08,
-    air: 0.38,
-    time: 0.04,
-    sub: 0.62,        // was 0.75 — still narcotic but no LF buildup under wow
-    bloom: 0.78,
-    glide: 0.48,
+    drift: 0.22,       // analog-oscillator detune between partials is the signature
+    air: 0.25,         // dry — Coil's studios were close
+    time: 0.03,        // near-static
+    sub: 0.55,         // felt, not dominant
+    bloom: 0.88,
+    glide: 0.7,        // very slow
     lfoShape: "sine",
-    lfoRate: 0.05,
-    lfoAmount: 0.03,
-    climateX: 0.16,
+    lfoRate: 0.03,     // ~33 s — glacial breath
+    lfoAmount: 0.05,
+    climateX: 0.18,    // dark/warm
     climateY: 0.06,
-    effects: ["hall", "tape", "wow"],
+    // Tape + wow serial = analog warmth + subtle pitch drift; parallel
+    // hall keeps the ritual-chamber distance quiet so the source stays
+    // in the foreground.
+    effects: ["tape", "wow"],
+    parallelSends: { hall: 0.28 },
     scale: "drone",
     gain: 1.1,
     motionProfile: motionProfile({
-      climateXRange: [0.12, 0.2],
-      climateYRange: [0.04, 0.09],
-      bloomRange: [0.68, 0.88],
-      timeRange: [0.02, 0.06],
-      driftRange: [0.05, 0.1],
-      // subRange walks around the new safer static value (0.62). No sub
-      // effect here, but wow modulates delays so high sub amplifies LF
-      // pumping under the flange.
-      subRange: [0.5, 0.68],
-      macroStep: 0.24,
+      climateXRange: [0.14, 0.22],
+      climateYRange: [0.04, 0.1],
+      bloomRange: [0.82, 0.94],
+      timeRange: [0.02, 0.05],
+      driftRange: [0.18, 0.28],
+      subRange: [0.48, 0.62],
+      macroStep: 0.22,
       tonicWalk: "none",
       tonicIntervals: [],
       tonicFloor: 1,
-      textureFloor: 0.94,
+      textureFloor: 0.92,
       texturePeriod: 8,
     }),
   },
