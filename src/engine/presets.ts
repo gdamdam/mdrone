@@ -81,6 +81,12 @@ export interface Preset {
    *  Higher values produce richer/grittier metallic timbres. */
   fmFeedback?: number;
 
+  /** Resonant-comb feedback coefficient (0..0.98). Default 0.68.
+   *  Lower values (0.3–0.45) tame self-amplification for presets
+   *  whose FX chain otherwise pins the limiter regardless of input
+   *  gain — Permafrost, Closed Doors, Sarangi. */
+  combFeedback?: number;
+
   /** Optional preferred octave range for random-scene selection.
    *  If set, createSafeRandomScene picks an octave in [lo, hi] inclusive.
    *  Defaults to whatever the caller passes in (usually [2, 3]). */
@@ -1126,9 +1132,10 @@ export const PRESETS: Preset[] = [
     climateY: 0.22,
     // granular adds Köner's time-stretched field-recording character
     // on top of the wind/comb/tape weather texture.
+    combFeedback: 0.4,
     effects: ["hall", "comb", "wow", "tape", "granular"],
     scale: "drone",
-    gain: 0.05,
+    gain: 0.5,
     motionProfile: motionProfile({
       climateXRange: [0.16, 0.3],
       climateYRange: [0.14, 0.32],
@@ -1254,9 +1261,10 @@ export const PRESETS: Preset[] = [
     // parallelSends.cistern was double-verb on top of the serial
     // insert. Removed — the additive serial cistern already
     // preserves dry + wet cleanly.
+    combFeedback: 0.4,
     effects: ["tape", "wow", "comb", "cistern", "granular"],
     scale: "minor",
-    gain: 0.06,
+    gain: 0.5,
     motionProfile: motionProfile({
       climateXRange: [0.26, 0.4],
       climateYRange: [0.18, 0.32],
@@ -2207,10 +2215,11 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.08,
     climateX: 0.45,
     climateY: 0.18,
+    combFeedback: 0.4,
     effects: ["comb", "plate"],
     parallelSends: { comb: 0.32, hall: 0.28 },
     scale: "drone",
-    gain: 0.34,
+    gain: 0.6,
     motionProfile: motionProfile({
       climateXRange: [0.4, 0.52],
       climateYRange: [0.14, 0.24],
@@ -2716,6 +2725,9 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     engine.setFmRatio?.(preset.fmRatio ?? 2.0);
     engine.setFmIndex?.(preset.fmIndex ?? 2.4);
     engine.setFmFeedback?.(preset.fmFeedback ?? 0);
+    // Resonant-comb feedback — reset each preset so a hot previous
+    // scene doesn't leak. Default 0.68 matches FxChain's initial value.
+    engine.setCombFeedback?.(preset.combFeedback ?? 0.68);
     // Parallel reverb send levels — reset every preset so stale sends
     // from a previous scene don't leak through.
     engine.setParallelSends(preset.parallelSends ?? {});

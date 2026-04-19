@@ -299,6 +299,14 @@ export class AudioEngine {
     this.fxChain.setParallelSends(sends);
   }
 
+  /** Resonant comb filter feedback (0..0.98). Presets with strong comb
+   *  character + high-feedback default (0.68) can self-amplify into the
+   *  limiter; per-preset override lets structural outliers like
+   *  Permafrost / Closed Doors / Sarangi run a tamer resonance. */
+  setCombFeedback(fb: number): void {
+    this.fxChain.setCombFeedback(fb);
+  }
+
   /** Serial effect-chain order. UI (FxBar) persists the user's
    *  reorder via localStorage and replays it on every engine spin-up
    *  so the saved chain order survives reloads. */
