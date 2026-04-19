@@ -19,6 +19,11 @@ const HelpModal = lazy(() =>
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 
+// Mirrors the check in MasterBus.ts so the Header can show a visible
+// confirmation pill when the diagnostic flag is active.
+const BYPASS_MASTER = typeof location !== "undefined"
+  && new URLSearchParams(location.search).has("bypassmaster");
+
 
 interface HeaderProps {
   viewMode: ViewMode;
@@ -257,6 +262,26 @@ export function Header({
           >
             beta
           </span>
+          {BYPASS_MASTER && (
+            <span
+              aria-label="Bypass master chain active"
+              title="?bypassmaster=1 — glue + drive disconnected for diagnostics"
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: 1,
+                color: "#fff",
+                background: "#7a3ad4",
+                padding: "1px 5px",
+                borderRadius: 3,
+                textTransform: "uppercase",
+                alignSelf: "flex-start",
+                marginTop: 2,
+              }}
+            >
+              bypass
+            </span>
+          )}
           <CpuWarning monitor={loadMonitor} />
         </div>
         <a
