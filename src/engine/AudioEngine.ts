@@ -47,6 +47,24 @@ export class AudioEngine {
     this.ctx = new AC({ latencyHint: "interactive" });
     this.loadMonitor = new AudioLoadMonitor(this.ctx);
 
+    // Diagnostic: `?nativetest=1` creates a plain OscillatorNode →
+    // ctx.destination, with no AudioWorkletNode in play at all. Final
+    // isolation for the Safari "frrrr" — if hiss persists here, the
+    // issue is Safari's output stage / AirPods codec, not any mdrone
+    // code. If clean, Safari's AudioWorkletNode path is at fault.
+    if (typeof location !== "undefined"
+        && new URLSearchParams(location.search).has("nativetest")) {
+      const osc = this.ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = 220;
+      const g = this.ctx.createGain();
+      g.gain.value = 0.15;
+      osc.connect(g).connect(this.ctx.destination);
+      osc.start();
+      // eslint-disable-next-line no-console
+      console.log("mdrone: ?nativetest=1 — native OscillatorNode direct to destination");
+    }
+
     this.fxChain = new FxChain(this.ctx);
     this.wetSend = this.ctx.createGain();
     this.wetSend.gain.value = 1;

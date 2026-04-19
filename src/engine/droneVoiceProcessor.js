@@ -188,6 +188,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     this.fmFeedbackOpt = opts.fmFeedback || 0;
     this.seed = opts.seed || 1;
     this.rng = makeRng(this.seed);
+    // Diagnostic: ?sinetest=1 replaces voice DSP with pure Math.sin.
+    this.sineTest = !!opts.sineTest;
+    this.sineTestPhase = 0;
 
     // Termination flag — main thread posts {type:"stop"} when the
     // voice is retired. process() returns false once set, so the
@@ -335,6 +338,18 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // voice at silence or subsonic DC forever; this is the single
     // cheapest place to reset it per block.
     this.sanitizeState();
+
+    if (this.sineTest) {
+      const inc = 2 * Math.PI * freq / sampleRate;
+      for (let i = 0; i < n; i++) {
+        const s = Math.sin(this.sineTestPhase) * 0.2 * amp;
+        L[i] = s;
+        if (R !== L) R[i] = s;
+        this.sineTestPhase += inc;
+        if (this.sineTestPhase > 2 * Math.PI) this.sineTestPhase -= 2 * Math.PI;
+      }
+      return true;
+    }
 
     switch (this.voiceType) {
       case "tanpura": this.tanpuraProcess(L, R, n, freq, drift, amp, pluckRate); break;

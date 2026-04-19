@@ -23,6 +23,12 @@ const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀
 // confirmation pill when the diagnostic flag is active.
 const BYPASS_MASTER = typeof location !== "undefined"
   && new URLSearchParams(location.search).has("bypassmaster");
+const SINE_TEST = typeof location !== "undefined"
+  && new URLSearchParams(location.search).has("sinetest");
+const VOICE_DIRECT = typeof location !== "undefined"
+  && new URLSearchParams(location.search).has("voicedirect");
+const NATIVE_TEST = typeof location !== "undefined"
+  && new URLSearchParams(location.search).has("nativetest");
 
 
 interface HeaderProps {
@@ -280,6 +286,66 @@ export function Header({
               }}
             >
               bypass
+            </span>
+          )}
+          {SINE_TEST && (
+            <span
+              aria-label="Sine test active"
+              title="?sinetest=1 — all voices replaced with pure Math.sin for diagnostics"
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: 1,
+                color: "#1a0f08",
+                background: "#4ad08a",
+                padding: "1px 5px",
+                borderRadius: 3,
+                textTransform: "uppercase",
+                alignSelf: "flex-start",
+                marginTop: 2,
+              }}
+            >
+              sine
+            </span>
+          )}
+          {VOICE_DIRECT && (
+            <span
+              aria-label="Voice direct active"
+              title="?voicedirect=1 — voices wired straight to ctx.destination"
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: 1,
+                color: "#fff",
+                background: "#d43a8a",
+                padding: "1px 5px",
+                borderRadius: 3,
+                textTransform: "uppercase",
+                alignSelf: "flex-start",
+                marginTop: 2,
+              }}
+            >
+              direct
+            </span>
+          )}
+          {NATIVE_TEST && (
+            <span
+              aria-label="Native test active"
+              title="?nativetest=1 — native OscillatorNode direct to destination (no worklets)"
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: 1,
+                color: "#1a0f08",
+                background: "#e8c043",
+                padding: "1px 5px",
+                borderRadius: 3,
+                textTransform: "uppercase",
+                alignSelf: "flex-start",
+                marginTop: 2,
+              }}
+            >
+              native
             </span>
           )}
           <CpuWarning monitor={loadMonitor} />

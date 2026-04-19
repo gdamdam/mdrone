@@ -95,6 +95,11 @@ export function buildVoice(
       fmIndex,
       fmFeedback,
       tanpuraTuning,
+      // Diagnostic flag: `?sinetest=1` replaces all voice DSP with a
+      // clean Math.sin tone so we can tell whether the "frrrr" is in
+      // the voice code or in Safari's AudioWorklet/node path itself.
+      sineTest: typeof location !== "undefined"
+        && new URLSearchParams(location.search).has("sinetest"),
     },
   });
 
@@ -110,7 +115,19 @@ export function buildVoice(
   // applies uniformly across all voices in the stack.
   ampParam.setValueAtTime(1, startAt);
 
-  node.connect(target);
+  // Diagnostic: `?voicedirect=1` routes the worklet output straight to
+  // ctx.destination, skipping every native node (voiceGain, droneFilter,
+  // presetTrim, fxChain inserts, master chain). Ultimate isolation test
+  // for the Safari "frrrr" — if hiss persists even with `sinetest=1` and
+  // `voicedirect=1`, the source is Safari's AudioWorkletNode or its
+  // output stage itself.
+  const voiceDirect = typeof location !== "undefined"
+    && new URLSearchParams(location.search).has("voicedirect");
+  if (voiceDirect) {
+    node.connect(ctx.destination);
+  } else {
+    node.connect(target);
+  }
 
   return {
     setFreq(hz, glideSec) {
