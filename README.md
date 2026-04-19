@@ -323,7 +323,7 @@ mdrone uses [GoatCounter](https://goatcounter.com) for anonymous, cookieless pag
 
 ### Hosting
 
-mdrone is hosted on [GitHub Pages](https://pages.github.com). Normal search crawlers are allowed via `robots.txt`; `GPTBot`, `Google-Extended`, and `ClaudeBot` are blocked. The sitemap advertises the public explainer at `/about.html`.
+mdrone is hosted on [GitHub Pages](https://pages.github.com). Normal search crawlers are allowed via `robots.txt`; known AI training crawlers are blocked (`GPTBot`, `Google-Extended`, `ClaudeBot`, `anthropic-ai`, `PerplexityBot`, `CCBot`, `Bytespider`, `Amazonbot`, `Applebot-Extended`, `cohere-ai`, `Meta-ExternalAgent`). The sitemap advertises the public explainer at `/about.html`.
 
 Your drone stays on your device. Always.
 
