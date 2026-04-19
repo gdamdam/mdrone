@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { APP_VERSION } from "../config";
+import { PrivacyModal } from "./PrivacyModal";
 
 /**
  * Footer — matches the mloop AppFooter layout: version, copyright,
@@ -6,6 +8,7 @@ import { APP_VERSION } from "../config";
  * Two rows, centered, dimmed text, ember accent on the ko-fi link.
  */
 export function Footer() {
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   return (
     <footer className="app-footer" style={{
       textAlign: "center",
@@ -64,10 +67,25 @@ export function Footer() {
           Try mloop →
         </a>
         {" · "}
-        <span style={{ textDecoration: "underline dotted" }} title="mdrone runs entirely in your browser. No cookies, no tracking, no account.">
+        <button
+          type="button"
+          onClick={() => setPrivacyOpen(true)}
+          title="Privacy"
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            margin: 0,
+            font: "inherit",
+            color: "var(--text-dim)",
+            textDecoration: "underline dotted",
+            cursor: "pointer",
+          }}
+        >
           No cookies · No personal data
-        </span>
+        </button>
       </div>
+      {privacyOpen && <PrivacyModal onClose={() => setPrivacyOpen(false)} />}
     </footer>
   );
 }
