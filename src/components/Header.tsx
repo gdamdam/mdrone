@@ -8,6 +8,8 @@ import { DropdownSelect } from "./DropdownSelect";
 import { MIDI_TARGETS, MIDI_TARGETS_BY_ID, MIDI_TARGET_GROUPS } from "../engine/midiMapping";
 import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } from "../themes";
 import { enableLinkBridge, onLinkState, getLinkState, type LinkState } from "../engine/linkBridge";
+import type { AudioLoadMonitor } from "../engine/AudioLoadMonitor";
+import { CpuWarning } from "./CpuWarning";
 import { STORAGE_KEYS } from "../config";
 import { showNotification } from "../notifications";
 
@@ -67,6 +69,7 @@ interface HeaderProps {
   motionRecEnabled: boolean;
   onToggleMotionRec: (on: boolean) => void;
   analyser: AnalyserNode | null;
+  loadMonitor: AudioLoadMonitor;
 }
 
 /**
@@ -114,6 +117,7 @@ export function Header({
   motionRecEnabled,
   onToggleMotionRec,
   analyser,
+  loadMonitor,
 }: HeaderProps) {
   // Drone logo vibration — rAF loop reads the master analyser's RMS
   // and writes a tiny translate transform on the title-art element.
@@ -253,6 +257,7 @@ export function Header({
           >
             beta
           </span>
+          <CpuWarning monitor={loadMonitor} />
         </div>
         <a
           className="title-sigil"

@@ -6,6 +6,7 @@
  * preserves the public API used by the UI/persistence layers.
  */
 
+import { AudioLoadMonitor } from "./AudioLoadMonitor";
 import { FxChain } from "./FxChain";
 import type { EffectId } from "./FxChain";
 import type { EngineSceneMutation } from "./EngineSceneMutation";
@@ -31,6 +32,7 @@ export class AudioEngine {
   private readonly motionEngine: MotionEngine;
   private readonly masterBus: MasterBus;
   private readonly masterRecorder: MasterRecorder;
+  private readonly loadMonitor: AudioLoadMonitor;
   private isWorkletReady = false;
   private pendingStart: { freq: number; intervalsCents: number[] } | null = null;
 
@@ -40,7 +42,10 @@ export class AudioEngine {
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     // Let the device pick its native rate. Forcing 44.1 kHz wasted headroom
     // on 48 k hardware and added unnecessary resampling aliasing.
-    this.ctx = new AC();
+    // `latencyHint: "interactive"` nudges the browser toward a smaller
+    // output buffer; mitigates crackle on Windows shared-mode drivers.
+    this.ctx = new AC({ latencyHint: "interactive" });
+    this.loadMonitor = new AudioLoadMonitor(this.ctx);
 
     this.fxChain = new FxChain(this.ctx);
     this.wetSend = this.ctx.createGain();
@@ -523,4 +528,6 @@ export class AudioEngine {
   onLoudnessUpdate(cb: (m: { lufsShort: number; peakDb: number }) => void): () => void {
     return this.masterBus.onLoudnessUpdate(cb);
   }
+
+  getLoadMonitor(): AudioLoadMonitor { return this.loadMonitor; }
 }

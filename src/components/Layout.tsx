@@ -450,6 +450,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         motionRecEnabled={motionRecEnabled}
         onToggleMotionRec={setMotionRecEnabled}
         analyser={engine.getAnalyser()}
+        loadMonitor={engine.getLoadMonitor()}
       />
 
       {updateAvailable && (
