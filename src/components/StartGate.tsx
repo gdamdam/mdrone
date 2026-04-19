@@ -123,7 +123,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
           </svg>
         </button>
 
-        <div className="start-gate-brand">
+        <div className="start-gate-brand" style={{ display: "flex", alignItems: "flex-start", gap: 8, justifyContent: "center" }}>
           <pre
             ref={logoRef}
             className="start-gate-title"
@@ -131,6 +131,22 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
           >
             {LOGO}
           </pre>
+          <span
+            aria-label="Beta"
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: 1.2,
+              color: "#1a0f08",
+              background: "var(--preview)",
+              padding: "2px 6px",
+              borderRadius: 3,
+              textTransform: "uppercase",
+              marginTop: 4,
+            }}
+          >
+            beta
+          </span>
         </div>
 
         <p className="start-gate-sub">

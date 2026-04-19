@@ -234,8 +234,25 @@ export function Header({
   return (
     <header className="header">
       <div className="header-row header-row-brand">
-        <div className="title">
+        <div className="title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
+          <span
+            aria-label="Beta"
+            style={{
+              fontSize: 9,
+              fontWeight: 800,
+              letterSpacing: 1,
+              color: "#1a0f08",
+              background: "var(--preview)",
+              padding: "1px 5px",
+              borderRadius: 3,
+              textTransform: "uppercase",
+              alignSelf: "flex-start",
+              marginTop: 2,
+            }}
+          >
+            beta
+          </span>
         </div>
         <a
           className="title-sigil"
