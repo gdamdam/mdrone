@@ -76,6 +76,17 @@ const HB_A1 = 0.54530488711;
 const HB_B0 = 0.28393847843;
 const HB_B1 = 0.86930964090;
 
+// Denormal flush threshold. JavaScriptCore (Safari/iOS) doesn't flush
+// subnormals; V8 (Chrome) effectively does. With ~8 per-sample IIR
+// feedback loops per voice × 7 voices, subnormal state accumulates on
+// iPhone and produces signal-correlated "frrrr" hash that's inaudible
+// on Chrome/Mac. Flushing values this tiny is far below any audible
+// threshold (-400 dBFS) so it never affects normal signal.
+const HB_DENORMAL = 1e-20;
+function flushDenormal(x) {
+  return x > HB_DENORMAL || x < -HB_DENORMAL ? x : 0;
+}
+
 class Halfband2x {
   constructor() {
     this.ua0x = 0; this.ua0y = 0;
@@ -90,24 +101,32 @@ class Halfband2x {
 
   process(x, fn) {
     let a = HB_A0 * x + this.ua0x - HB_A0 * this.ua0y;
+    a = flushDenormal(a);
     this.ua0x = x; this.ua0y = a;
-    const aOut = HB_A1 * a + this.ua1x - HB_A1 * this.ua1y;
+    let aOut = HB_A1 * a + this.ua1x - HB_A1 * this.ua1y;
+    aOut = flushDenormal(aOut);
     this.ua1x = a; this.ua1y = aOut;
     let b = HB_B0 * x + this.ub0x - HB_B0 * this.ub0y;
+    b = flushDenormal(b);
     this.ub0x = x; this.ub0y = b;
-    const bOut = HB_B1 * b + this.ub1x - HB_B1 * this.ub1y;
+    let bOut = HB_B1 * b + this.ub1x - HB_B1 * this.ub1y;
+    bOut = flushDenormal(bOut);
     this.ub1x = b; this.ub1y = bOut;
 
     const na = fn(aOut);
     const nb = fn(bOut);
 
     let da = HB_A0 * na + this.da0x - HB_A0 * this.da0y;
+    da = flushDenormal(da);
     this.da0x = na; this.da0y = da;
-    const daOut = HB_A1 * da + this.da1x - HB_A1 * this.da1y;
+    let daOut = HB_A1 * da + this.da1x - HB_A1 * this.da1y;
+    daOut = flushDenormal(daOut);
     this.da1x = da; this.da1y = daOut;
     let db = HB_B0 * nb + this.db0x - HB_B0 * this.db0y;
+    db = flushDenormal(db);
     this.db0x = nb; this.db0y = db;
-    const dbOut = HB_B1 * db + this.db1x - HB_B1 * this.db1y;
+    let dbOut = HB_B1 * db + this.db1x - HB_B1 * this.db1y;
+    dbOut = flushDenormal(dbOut);
     this.db1x = db; this.db1y = dbOut;
     return 0.5 * (daOut + dbOut);
   }
