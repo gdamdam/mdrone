@@ -147,44 +147,57 @@ export class MasterBus {
     // flag. Parallel connection; doesn't interrupt the main path.
     this.masterGain.connect(this.preLimiterAnalyser);
 
-    this.masterGain.connect(this.hpf);
-    this.hpf.connect(this.eqLow);
-    this.eqLow.connect(this.eqMid);
-    this.eqMid.connect(this.eqHigh);
-    // Diagnostic flag: `?bypassmaster=1` in the URL routes past the glue
-    // compressor + drive waveshaper to test whether iOS Safari's always-on
-    // DynamicsCompressor/WaveShaper noise is the source of the "frrrr"
-    // background hiss reported on iPhone. Remove once the suspect is
-    // confirmed and the fix lands.
-    const bypassMaster = typeof location !== "undefined"
-      && new URLSearchParams(location.search).has("bypassmaster");
-    if (bypassMaster) {
+    // Diagnostic flags for the iPhone "frrrr" hiss hunt:
+    //   ?bypassmaster=1    → skip glueComp + drive (HPF → EQ → limiter)
+    //   ?bypassmaster=hard → route masterGain directly to destination,
+    //                        skipping HPF, EQ, limiter, width, analyser.
+    // Remove once the suspect is confirmed and the fix lands.
+    const bypassParam = typeof location !== "undefined"
+      ? new URLSearchParams(location.search).get("bypassmaster")
+      : null;
+    const bypassHard = bypassParam === "hard";
+    const bypassMaster = bypassParam === "1" || bypassParam === "";
+
+    if (bypassHard) {
       // eslint-disable-next-line no-console
-      console.log("mdrone: ?bypassmaster=1 — skipping glueComp + drive");
-      this.eqHigh.connect(this.limiterIn);
+      console.log("mdrone: ?bypassmaster=hard — masterGain → destination direct");
     } else {
-      this.eqHigh.connect(this.glueComp);
-      this.glueComp.connect(this.glueMakeup);
-      this.glueMakeup.connect(this.drivePre);
-      this.drivePre.connect(this.drive);
-      this.drive.connect(this.drivePost);
-      this.drivePost.connect(this.limiterIn);
+      this.masterGain.connect(this.hpf);
+      this.hpf.connect(this.eqLow);
+      this.eqLow.connect(this.eqMid);
+      this.eqMid.connect(this.eqHigh);
+      if (bypassMaster) {
+        // eslint-disable-next-line no-console
+        console.log("mdrone: ?bypassmaster=1 — skipping glueComp + drive");
+        this.eqHigh.connect(this.limiterIn);
+      } else {
+        this.eqHigh.connect(this.glueComp);
+        this.glueComp.connect(this.glueMakeup);
+        this.glueMakeup.connect(this.drivePre);
+        this.drivePre.connect(this.drive);
+        this.drive.connect(this.drivePost);
+        this.drivePost.connect(this.limiterIn);
+      }
     }
-    // Passthrough until worklet ready.
-    this.limiterIn.connect(this.limiterOut);
-    this.limiterOut.connect(this.outputTrim);
-    // outputTrim → [ M/S width matrix ] → analyser → destination
-    this.outputTrim.connect(this.widthSplitter);
-    this.widthSplitter.connect(this.widthLL, 0);
-    this.widthSplitter.connect(this.widthLR, 1);
-    this.widthSplitter.connect(this.widthRL, 0);
-    this.widthSplitter.connect(this.widthRR, 1);
-    this.widthLL.connect(this.widthMerger, 0, 0);
-    this.widthLR.connect(this.widthMerger, 0, 0);
-    this.widthRL.connect(this.widthMerger, 0, 1);
-    this.widthRR.connect(this.widthMerger, 0, 1);
-    this.widthMerger.connect(this.analyser);
-    this.analyser.connect(this.ctx.destination);
+    if (bypassHard) {
+      this.masterGain.connect(this.ctx.destination);
+    } else {
+      // Passthrough until worklet ready.
+      this.limiterIn.connect(this.limiterOut);
+      this.limiterOut.connect(this.outputTrim);
+      // outputTrim → [ M/S width matrix ] → analyser → destination
+      this.outputTrim.connect(this.widthSplitter);
+      this.widthSplitter.connect(this.widthLL, 0);
+      this.widthSplitter.connect(this.widthLR, 1);
+      this.widthSplitter.connect(this.widthRL, 0);
+      this.widthSplitter.connect(this.widthRR, 1);
+      this.widthLL.connect(this.widthMerger, 0, 0);
+      this.widthLR.connect(this.widthMerger, 0, 0);
+      this.widthRL.connect(this.widthMerger, 0, 1);
+      this.widthRR.connect(this.widthMerger, 0, 1);
+      this.widthMerger.connect(this.analyser);
+      this.analyser.connect(this.ctx.destination);
+    }
   }
 
   /** Install the brickwall limiter worklet. Called by `AudioEngine`
