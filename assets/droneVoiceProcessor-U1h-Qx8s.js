@@ -423,6 +423,12 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
     const baseLen = sampleRate / Math.max(20, freq);
     const jawK = 1.1;
     const jawMix = 0.22;
+    // Hoisted jawari shaper — allocating it inside the per-sample,
+    // per-string inner loop created 8 closures per sample, which
+    // Safari/JSC doesn't escape-analyse. The GC churn inside the
+    // realtime audio callback produced the "frrrr" hash on Safari.
+    const jawShaper = (v) =>
+      v * 0.78 + (Math.tanh(jawK * v) + jawMix * fastSin(jawK * 2.1 * v)) * 0.22;
 
     // Pluck scheduling — round-robin, each string on its own timer
     const blockSec = n / sampleRate;
@@ -482,20 +488,14 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
         // Oversampled jawari — the tanh+sin compound is the alias-prone
         // part of the string tone; running it through a halfband kills
         // the audible imaging without changing the dry/wet mix (0.78/0.22).
-        y = this.jawHbL[s].process(
-          y,
-          (v) => v * 0.78 + (Math.tanh(jawK * v) + jawMix * fastSin(jawK * 2.1 * v)) * 0.22,
-        );
+        y = this.jawHbL[s].process(y, jawShaper);
 
         const curR = bufR[idxR];
         const nxtR = bufR[(idxR + 1) % dLenR];
         let yR = curR * (1 - fracsR[s]) + nxtR * fracsR[s] + 1e-25;
         this.ksLastsR[s] = this.ksLastsR[s] * 0.35 + yR * 0.65;
         yR = this.ksLastsR[s] * damp;
-        yR = this.jawHbR[s].process(
-          yR,
-          (v) => v * 0.78 + (Math.tanh(jawK * v) + jawMix * fastSin(jawK * 2.1 * v)) * 0.22,
-        );
+        yR = this.jawHbR[s].process(yR, jawShaper);
 
         buf[idx] = y;
         this.ksIdxs[s] = (idx + 1) % dLen;
@@ -835,6 +835,9 @@ DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp)
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const driftDepth = drift * 0.0024; // keep the bowl centered; max ~4 cents walk
+    // Hoisted to avoid per-sample closure allocation inside the
+    // AudioWorklet callback (Safari/JSC GC hash).
+    const metalShaper = (v) => Math.tanh(v * 0.9);
 
     for (let i = 0; i < n; i++) {
       // Every ~256 samples, pick new random walk targets.
@@ -887,8 +890,8 @@ DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp)
       // upper modes stay narrow instead of being driven into brightness.
       // 2× oversampled tanh kills harmonic folding from the 12-partial
       // inharmonic stack.
-      l = this.metalHbL.process(l, (v) => Math.tanh(v * 0.9));
-      r = this.metalHbR.process(r, (v) => Math.tanh(v * 0.9));
+      l = this.metalHbL.process(l, metalShaper);
+      r = this.metalHbR.process(r, metalShaper);
       L[i] = l * amp;
       R[i] = r * amp;
     }
@@ -1324,6 +1327,12 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
     // Final cabinet rolloff lowpass — raised to 5 kHz (was 2.8 kHz)
     // so the presence BPF peak at 3.5 kHz actually passes through.
     const cabCoef = Math.exp(-twoPi * 5000 * invSr);
+    // Hoisted shaper — allocating the arrow inside the sample loop
+    // created a closure per sample, which Safari's JSC doesn't escape-
+    // analyse away. The GC pressure inside the realtime audio callback
+    // produced the signal-correlated "frrrr" hash on Safari.
+    const bias = 0.12;
+    const ampShaper = (v) => Math.tanh((v + bias) * 3.8) * 0.72;
 
     for (let i = 0; i < n; i++) {
       this.ampLfoPhase += twoPi * this.ampLfoRate * invSr;
@@ -1353,9 +1362,8 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
       // this the voice has only odd-harmonic distortion character.
       // Wrapped in a 2× halfband oversampler so the harmonic content
       // generated above Nyquist doesn't fold back into the audible band.
-      const bias = 0.12;
-      l = this.ampHbL.process(l, (v) => Math.tanh((v + bias) * 3.8) * 0.72);
-      r = this.ampHbR.process(r, (v) => Math.tanh((v + bias) * 3.8) * 0.72);
+      l = this.ampHbL.process(l, ampShaper);
+      r = this.ampHbR.process(r, ampShaper);
       // DC blocker — removes the offset introduced by asymmetric clip
       const dcCoef = 0.995;
       const dcOutL = l - this.ampDcPrevInL + dcCoef * this.ampDcPrevOutL;
