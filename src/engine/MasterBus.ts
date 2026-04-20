@@ -10,15 +10,13 @@ export class MasterBus {
   private readonly drivePre: GainNode;
   private readonly drive: WaveShaperNode;
   private readonly drivePost: GainNode;
-  /** Bridge node — brickwall worklet is inserted between `limiterIn`
-   *  and `limiterOut` once the fx worklet module has loaded. Before
-   *  that, `limiterIn → limiterOut` is a direct connection (no
-   *  limiting, but audio still flows so the UI isn't silent during
-   *  the ~50 ms worklet load). */
+  /** Bridge nodes around the limiter. Previously an AudioWorkletNode
+   *  brick-wall limiter was spliced between these on worklet load;
+   *  now we use a native DynamicsCompressor for Safari parity (see
+   *  mpump AudioPort.ts — same pattern avoids Safari worklet hash). */
   private readonly limiterIn: GainNode;
   private readonly limiterOut: GainNode;
-  private limiterNode: AudioWorkletNode | null = null;
-  private passthroughConnected = true;
+  private readonly limiterComp: DynamicsCompressorNode;
   private readonly outputTrim: GainNode;
   private readonly analyser: AnalyserNode;
   /** Pre-limiter peak tap for the mixer CLIP LED. Reading post-limiter
@@ -104,14 +102,31 @@ export class MasterBus {
 
     this.drive = this.ctx.createWaveShaper();
     this.drive.curve = MasterBus.makeDriveCurve(1.1);
-    this.drive.oversample = "2x";
+    // "none" matches mpump's Safari-clean pattern — "2x" on Safari
+    // contributed signal-correlated hash. Gentle tanh is still smooth
+    // enough at unity without oversampling.
+    this.drive.oversample = "none";
 
     this.drivePost = this.ctx.createGain();
     this.drivePost.gain.value = 1 / Math.sqrt(1.1);
 
-    // Worklet-backed brickwall limiter is installed on `onWorkletReady`.
+    // Native DynamicsCompressor limiter — brick-wall-ish when enabled
+    // (ratio 20, hard knee, fast attack). Matches mpump's approach
+    // which is clean on Safari. Replaced the custom `fx-brickwall`
+    // AudioWorkletNode that contributed Safari output-stage hash.
     this.limiterIn = this.ctx.createGain();
     this.limiterOut = this.ctx.createGain();
+    this.limiterComp = this.ctx.createDynamicsCompressor();
+    this.limiterComp.threshold.value = this.limiterCeiling;
+    // mpump-style gentle peak catcher (ratio 4, soft knee 10) — not
+    // brick-wall. Ratio 20 + knee 0 crushed reverb tails into the
+    // dry signal, making plate/hall/shimmer inaudible on hot presets.
+    this.limiterComp.ratio.value = 4;
+    this.limiterComp.attack.value = 0.001;
+    this.limiterComp.release.value = this.limiterReleaseSec;
+    this.limiterComp.knee.value = 10;
+    this.limiterIn.connect(this.limiterComp);
+    this.limiterComp.connect(this.limiterOut);
 
     this.outputTrim = this.ctx.createGain();
     this.outputTrim.gain.value = 1;
@@ -147,83 +162,38 @@ export class MasterBus {
     // flag. Parallel connection; doesn't interrupt the main path.
     this.masterGain.connect(this.preLimiterAnalyser);
 
-    // Diagnostic flags for the iPhone "frrrr" hiss hunt:
-    //   ?bypassmaster=1    → skip glueComp + drive (HPF → EQ → limiter)
-    //   ?bypassmaster=hard → route masterGain directly to destination,
-    //                        skipping HPF, EQ, limiter, width, analyser.
-    // Remove once the suspect is confirmed and the fix lands.
-    const bypassParam = typeof location !== "undefined"
-      ? new URLSearchParams(location.search).get("bypassmaster")
-      : null;
-    const bypassHard = bypassParam === "hard";
-    const bypassMaster = bypassParam === "1" || bypassParam === "";
-
-    if (bypassHard) {
-      // eslint-disable-next-line no-console
-      console.log("mdrone: ?bypassmaster=hard — masterGain → destination direct");
-    } else {
-      this.masterGain.connect(this.hpf);
-      this.hpf.connect(this.eqLow);
-      this.eqLow.connect(this.eqMid);
-      this.eqMid.connect(this.eqHigh);
-      if (bypassMaster) {
-        // eslint-disable-next-line no-console
-        console.log("mdrone: ?bypassmaster=1 — skipping glueComp + drive");
-        this.eqHigh.connect(this.limiterIn);
-      } else {
-        this.eqHigh.connect(this.glueComp);
-        this.glueComp.connect(this.glueMakeup);
-        this.glueMakeup.connect(this.drivePre);
-        this.drivePre.connect(this.drive);
-        this.drive.connect(this.drivePost);
-        this.drivePost.connect(this.limiterIn);
-      }
-    }
-    if (bypassHard) {
-      this.masterGain.connect(this.ctx.destination);
-    } else {
-      // Passthrough until worklet ready.
-      this.limiterIn.connect(this.limiterOut);
-      this.limiterOut.connect(this.outputTrim);
-      // outputTrim → [ M/S width matrix ] → analyser → destination
-      this.outputTrim.connect(this.widthSplitter);
-      this.widthSplitter.connect(this.widthLL, 0);
-      this.widthSplitter.connect(this.widthLR, 1);
-      this.widthSplitter.connect(this.widthRL, 0);
-      this.widthSplitter.connect(this.widthRR, 1);
-      this.widthLL.connect(this.widthMerger, 0, 0);
-      this.widthLR.connect(this.widthMerger, 0, 0);
-      this.widthRL.connect(this.widthMerger, 0, 1);
-      this.widthRR.connect(this.widthMerger, 0, 1);
-      this.widthMerger.connect(this.analyser);
-      this.analyser.connect(this.ctx.destination);
-    }
+    this.masterGain.connect(this.hpf);
+    this.hpf.connect(this.eqLow);
+    this.eqLow.connect(this.eqMid);
+    this.eqMid.connect(this.eqHigh);
+    this.eqHigh.connect(this.glueComp);
+    this.glueComp.connect(this.glueMakeup);
+    this.glueMakeup.connect(this.drivePre);
+    this.drivePre.connect(this.drive);
+    this.drive.connect(this.drivePost);
+    this.drivePost.connect(this.limiterIn);
+    // limiterIn → limiterComp → limiterOut wiring done at construction.
+    this.limiterOut.connect(this.outputTrim);
+    // outputTrim → [ M/S width matrix ] → analyser → destination
+    this.outputTrim.connect(this.widthSplitter);
+    this.widthSplitter.connect(this.widthLL, 0);
+    this.widthSplitter.connect(this.widthLR, 1);
+    this.widthSplitter.connect(this.widthRL, 0);
+    this.widthSplitter.connect(this.widthRR, 1);
+    this.widthLL.connect(this.widthMerger, 0, 0);
+    this.widthLR.connect(this.widthMerger, 0, 0);
+    this.widthRL.connect(this.widthMerger, 0, 1);
+    this.widthRR.connect(this.widthMerger, 0, 1);
+    this.widthMerger.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
   }
 
-  /** Install the brickwall limiter worklet. Called by `AudioEngine`
-   *  after the fx worklet module has loaded. */
+  /** Install the loudness meter worklet. Limiter is now a native
+   *  DynamicsCompressor wired in the constructor; only the loudness
+   *  meter tap still needs the fx worklet module. Called by
+   *  `AudioEngine` after the fx worklet module has loaded. */
   onWorkletReady(): void {
-    if (this.limiterNode) return;
-    try {
-      this.limiterNode = new AudioWorkletNode(this.ctx, "fx-brickwall", {
-        numberOfInputs: 1,
-        numberOfOutputs: 1,
-        outputChannelCount: [2],
-      });
-    } catch {
-      // Registration not yet complete — leave passthrough in place.
-      return;
-    }
-    // Detach passthrough, insert worklet.
-    if (this.passthroughConnected) {
-      try { this.limiterIn.disconnect(this.limiterOut); } catch { /* noop */ }
-      this.passthroughConnected = false;
-    }
-    this.limiterIn.connect(this.limiterNode);
-    this.limiterNode.connect(this.limiterOut);
-    // Reapply current state.
-    this.applyLimiterParams();
-
+    if (this.loudnessMeter) return;
     // Loudness meter — tap off outputTrim so it reads what the user
     // actually hears (post-limiter, post-volume). The tap is parallel:
     // the signal continues to analyser / destination untouched.
@@ -248,14 +218,14 @@ export class MasterBus {
   }
 
   private applyLimiterParams(): void {
-    const node = this.limiterNode;
-    if (!node) return;
     const now = this.ctx.currentTime;
-    // Ceiling is linear in the worklet (dB → scalar).
-    const ceilingLin = this.limiterEnabled ? Math.pow(10, this.limiterCeiling / 20) : 1.0;
-    node.parameters.get("ceiling")?.setTargetAtTime(ceilingLin, now, 0.01);
-    node.parameters.get("releaseSec")?.setTargetAtTime(this.limiterReleaseSec, now, 0.01);
-    node.parameters.get("enabled")?.setTargetAtTime(this.limiterEnabled ? 1 : 0, now, 0.01);
+    // When enabled: threshold = ceiling, ratio 4 (gentle).
+    // When disabled: threshold 0, ratio 1 → effectively transparent.
+    const thresh = this.limiterEnabled ? this.limiterCeiling : 0;
+    const ratio = this.limiterEnabled ? 4 : 1;
+    this.limiterComp.threshold.setTargetAtTime(thresh, now, 0.01);
+    this.limiterComp.ratio.setTargetAtTime(ratio, now, 0.01);
+    this.limiterComp.release.setTargetAtTime(this.limiterReleaseSec, now, 0.01);
   }
 
   connectInput(node: AudioNode): void {
@@ -273,7 +243,9 @@ export class MasterBus {
    *  a null return to preserve the shape of AudioEngine's API surface
    *  for callers that only inspect state (there are none at present).
    */
-  getLimiter(): AudioWorkletNode | null { return this.limiterNode; }
+  /** @deprecated Limiter is a native DynamicsCompressor now; returns
+   *  null so legacy inspection callers don't crash. */
+  getLimiter(): AudioWorkletNode | null { return null; }
   getOutputTrim(): GainNode { return this.outputTrim; }
 
   setMasterVolume(v: number): void {

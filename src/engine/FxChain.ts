@@ -110,18 +110,27 @@ const XFADE_TC_BASE = 0.45;
 
 /** Per-effect wet trim when the insert is fully engaged. Tweakable
  *  via setEffectLevel() for the settings modal. */
+/** Per-effect wet-amplitude multiplier. User-facing AMOUNT is [0..1];
+ *  the internal wet target is `levels[id] × WET_GAIN[id]` so reverb
+ *  worklets (quiet output by nature) can still compete with the
+ *  full-level dry signal when additive. Non-reverbs stay at 1×. */
+const WET_GAIN: Record<EffectId, number> = {
+  tape: 1, wow: 1, sub: 1, comb: 1, delay: 1, ringmod: 1, formant: 1,
+  plate: 3.0, hall: 2.5, shimmer: 2.5, cistern: 2.5,
+  granular: 1, graincloud: 1, freeze: 1,
+};
+
 const ON_LEVELS: Record<EffectId, number> = {
   tape: 1.0,
   wow: 1.0,
   sub: 0.9,
   comb: 0.68,
   delay: 0.9,
-  // Reverb-family defaults halved now that plate/hall/shimmer/cistern
-  // are additive (dry + wet) rather than wet-only. Previous 1.0 values
-  // were calibrated for the old "replace dry with wet" behaviour —
-  // applying them on top of the preserved dry was double-loud and
-  // saturating any preset with reverb in the chain (Shruti Box,
-  // Sevenfold, Tibetan Bowl, etc.).
+  // Reverb-family defaults stay in the user-facing [0..1] AMOUNT range
+  // (clamped by setEffectLevel). Actual wet amplitude is scaled by
+  // WET_GAIN below so the wet contribution is audible over the dry
+  // signal — the worklets output around -28 dB RMS, so a 1.0 amount
+  // at unity wet gain was inaudible on top of full-level dry.
   plate: 0.55,
   hall: 0.55,
   shimmer: 0.5,
@@ -241,6 +250,10 @@ export class FxChain {
   private parallelCisternWet!: GainNode;
   private parallelPlateWorklet: AudioWorkletNode | null = null;
   private parallelPlateWet!: GainNode;
+
+  // (Removed lazy worklet graph management — broke wet paths. See
+  //  misc/2026-04-19-safari-hiss-report.md for history.)
+
   private levels: Record<EffectId, number> = { ...ON_LEVELS };
   private delayFeedback = 0.58;
   private combFeedback = 0.68;
@@ -426,7 +439,7 @@ export class FxChain {
     pre.gain.value = 1.3;
     const sat = ctx.createWaveShaper();
     sat.curve = FxChain.makeTapeCurve(2.2);
-    sat.oversample = "2x";
+    sat.oversample = "none";
     const headBump = ctx.createBiquadFilter();
     headBump.type = "peaking";
     headBump.frequency.value = 82;
@@ -506,7 +519,7 @@ export class FxChain {
     // maps y = |x|) then smooth with a ~10 Hz lowpass.
     const absShaper = ctx.createWaveShaper();
     absShaper.curve = FxChain.makeAbsCurve();
-    absShaper.oversample = "2x";
+    absShaper.oversample = "none";
     const envLp = ctx.createBiquadFilter();
     envLp.type = "lowpass";
     envLp.frequency.value = 10;
@@ -571,7 +584,7 @@ export class FxChain {
     // and compresses it smoothly.
     const fbClip = ctx.createWaveShaper();
     fbClip.curve = FxChain.makeTapeCurve(1.8);
-    fbClip.oversample = "2x";
+    fbClip.oversample = "none";
 
     const outFilter = ctx.createBiquadFilter();
     outFilter.type = "lowpass";
@@ -596,7 +609,7 @@ export class FxChain {
     fbFilter.frequency.value = 2600;
     const fbSat = ctx.createWaveShaper();
     fbSat.curve = FxChain.makeTapeCurve(1.5);
-    fbSat.oversample = "2x";
+    fbSat.oversample = "none";
     const dcBlock = ctx.createBiquadFilter();
     dcBlock.type = "highpass";
     dcBlock.frequency.value = 20;
@@ -687,15 +700,10 @@ export class FxChain {
   getGrainToPlateGain(): number { return this.grainToPlateGain; }
 
   /** HALL / CISTERN serial insert DSP is installed in `onWorkletReady`
-   *  (see below) using the Freeverb-style `fx-fdn-reverb` worklet. Here
-   *  we only reserve the insert's DSP slot as a silent passthrough
-   *  until the worklet module loads — the insert wet gain is 0 while
-   *  the effect is off, so nothing audible happens in the interim. */
+   *  using the Freeverb-style `fx-fdn-reverb` worklet. Here we reserve
+   *  the insert's DSP slot as a silent passthrough until the worklet
+   *  loads. */
   private wireHall(): void {
-    // insertIn ──(pending worklet)──▶ wetGain ──▶ insertOut
-    // wire the fallback dry passthrough so the insert graph is valid
-    // even before `onWorkletReady` (defensive — no preset should enable
-    // hall before worklets are ready, but this keeps state consistent).
     const ins = this.inserts.hall;
     ins.insertIn.connect(ins.wetGain);
     ins.wetGain.connect(ins.insertOut);
@@ -765,10 +773,7 @@ export class FxChain {
       type: "setSeed",
       seed: this.reverbSeed ^ 0x9C51,
     });
-    // Rebuild the serial FDN worklets to pick up the new seed. This is
-    // the simplest honest way — AudioWorkletNode takes processorOptions
-    // only at construction, so we replace the nodes. Disconnect first
-    // so we don't leak sources.
+    // Rebuild the serial FDN worklets to pick up the new seed.
     if (this.hallWorklet) {
       try { this.hallWorklet.disconnect(); } catch { /* noop */ }
       const ins = this.inserts.hall;
@@ -849,7 +854,7 @@ export class FxChain {
   onWorkletReady(): void {
     const ctx = this.ctx;
 
-    // HALL — Freeverb-style FDN, medium room (size ≈ 0.5)
+    // HALL — Freeverb-style FDN, medium room.
     this.hallWorklet = new AudioWorkletNode(ctx, "fx-fdn-reverb", {
       numberOfInputs: 1,
       numberOfOutputs: 1,
@@ -869,9 +874,7 @@ export class FxChain {
     this.hallSerialTrim.connect(hallIns.wetGain);
     this.hallWorklet.connect(this.hallSerialTrim);
 
-    // CISTERN — cathedral-scale FDN, large space (size ≈ 1.2) and
-    // darker damping for the long, low tail the Deep-Listening
-    // preset lineage asks for.
+    // CISTERN — cathedral-scale FDN.
     this.cisternWorklet = new AudioWorkletNode(ctx, "fx-fdn-reverb", {
       numberOfInputs: 1,
       numberOfOutputs: 1,
@@ -1098,6 +1101,7 @@ export class FxChain {
   // ── Public API ─────────────────────────────────────────────────────
 
   /** Toggle an effect on/off. Smooth-ramped via bypass/wet crossfade. */
+
   setEffect(id: EffectId, on: boolean): void {
     // No-op if already in the requested state — callers (applyPreset,
     // scene restore) iterate every effect id unconditionally, and
@@ -1148,10 +1152,13 @@ export class FxChain {
   }
 
   private wetTargetFor(id: EffectId): number {
-    const base = this.levels[id];
-    // AIR only rides the reverb-family inserts
+    // levels[id] is the user-facing AMOUNT [0..1]; WET_GAIN[id]
+    // scales reverb worklet output into an audible range over dry.
+    const base = this.levels[id] * WET_GAIN[id];
+    // AIR modulates plate/hall/shimmer wet level within an
+    // always-audible range. `airAmount` [0..1] → factor [0.4..1].
     if (id === "plate" || id === "hall" || id === "shimmer") {
-      return base * this.airAmount;
+      return base * (0.4 + 0.6 * this.airAmount);
     }
     return base;
   }
@@ -1253,6 +1260,40 @@ export class FxChain {
       ?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
   }
   getPlateMix(): number { return this.plateWorklet?.parameters.get("mix")?.value ?? 1; }
+
+  // HALL — fx-fdn-reverb worklet params
+  setHallSize(v: number): void {
+    this.hallWorklet?.parameters.get("size")
+      ?.setTargetAtTime(Math.max(0, Math.min(2, v)), this.ctx.currentTime, 0.1);
+  }
+  getHallSize(): number { return this.hallWorklet?.parameters.get("size")?.value ?? 0.45; }
+  setHallDamping(v: number): void {
+    this.hallWorklet?.parameters.get("damping")
+      ?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
+  }
+  getHallDamping(): number { return this.hallWorklet?.parameters.get("damping")?.value ?? 0.55; }
+  setHallDecay(v: number): void {
+    this.hallWorklet?.parameters.get("decay")
+      ?.setTargetAtTime(Math.max(0, Math.min(0.99, v)), this.ctx.currentTime, 0.1);
+  }
+  getHallDecay(): number { return this.hallWorklet?.parameters.get("decay")?.value ?? 0.84; }
+
+  // CISTERN — same worklet as hall, separate instance
+  setCisternSize(v: number): void {
+    this.cisternWorklet?.parameters.get("size")
+      ?.setTargetAtTime(Math.max(0, Math.min(2, v)), this.ctx.currentTime, 0.1);
+  }
+  getCisternSize(): number { return this.cisternWorklet?.parameters.get("size")?.value ?? 1.2; }
+  setCisternDamping(v: number): void {
+    this.cisternWorklet?.parameters.get("damping")
+      ?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
+  }
+  getCisternDamping(): number { return this.cisternWorklet?.parameters.get("damping")?.value ?? 0.7; }
+  setCisternDecay(v: number): void {
+    this.cisternWorklet?.parameters.get("decay")
+      ?.setTargetAtTime(Math.max(0, Math.min(0.99, v)), this.ctx.currentTime, 0.1);
+  }
+  getCisternDecay(): number { return this.cisternWorklet?.parameters.get("decay")?.value ?? 0.94; }
 
   // RINGMOD
   setRingmodFreq(hz: number): void {

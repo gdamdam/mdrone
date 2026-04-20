@@ -42,30 +42,13 @@ export class AudioEngine {
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     // Let the device pick its native rate. Forcing 44.1 kHz wasted headroom
     // on 48 k hardware and added unnecessary resampling aliasing.
-    // No latencyHint — Safari + AirPods produced signal-correlated hash
-    // under "interactive" because the forced-small output buffer is
-    // below what Bluetooth AAC can reliably deliver, causing constant
-    // under-run noise. Let each browser pick its own default buffer.
-    this.ctx = new AC();
+    // latencyHint "balanced" — matches mpump's Safari-clean pattern.
+    // Gives browsers a larger output buffer than the default/interactive,
+    // preventing crackling under heavy effect chains. "interactive" was
+    // tried and caused Safari + AirPods under-run hash. "playback" is
+    // even larger but adds user-perceived latency on controls.
+    this.ctx = new AC({ latencyHint: "balanced" });
     this.loadMonitor = new AudioLoadMonitor(this.ctx);
-
-    // Diagnostic: `?nativetest=1` creates a plain OscillatorNode →
-    // ctx.destination, with no AudioWorkletNode in play at all. Final
-    // isolation for the Safari "frrrr" — if hiss persists here, the
-    // issue is Safari's output stage / AirPods codec, not any mdrone
-    // code. If clean, Safari's AudioWorkletNode path is at fault.
-    if (typeof location !== "undefined"
-        && new URLSearchParams(location.search).has("nativetest")) {
-      const osc = this.ctx.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = 220;
-      const g = this.ctx.createGain();
-      g.gain.value = 0.15;
-      osc.connect(g).connect(this.ctx.destination);
-      osc.start();
-      // eslint-disable-next-line no-console
-      console.log("mdrone: ?nativetest=1 — native OscillatorNode direct to destination");
-    }
 
     this.fxChain = new FxChain(this.ctx);
     this.wetSend = this.ctx.createGain();

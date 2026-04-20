@@ -120,8 +120,9 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
     case "plate":
       return <PlateParams engine={engine} fx={fx} />;
     case "hall":
+      return <HallParams engine={engine} fx={fx} />;
     case "cistern":
-      return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={effectId === "hall" ? 0.5 : 0.6} />;
+      return <CisternParams engine={engine} fx={fx} />;
     case "shimmer":
       return <ShimmerParams engine={engine} fx={fx} />;
     case "granular":
@@ -230,7 +231,7 @@ function DelayParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLi
   );
 }
 
-function ShimmerParams({ fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+function ShimmerParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
   const [fb, setFb] = useState(() => fx?.getShimmerFeedback() ?? 0.55);
   const [decay, setDecay] = useState(() => fx?.getShimmerDecay() ?? 0.7);
   const [mix, setMix] = useState(() => fx?.getShimmerMix() ?? 0.5);
@@ -263,6 +264,41 @@ function ShimmerParams({ fx }: { engine: AudioEngine | null; fx: FxChainLike }) 
         unit=""
         onChange={(v) => { setMix(v); fx?.setShimmerMix(v); }}
       />
+      <AmountOnly engine={engine} effectId="shimmer" fx={fx} defaultValue={0.5} />
+    </>
+  );
+}
+
+function HallParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+  const [size, setSize] = useState(() => fx?.getHallSize() ?? 0.45);
+  const [damping, setDamping] = useState(() => fx?.getHallDamping() ?? 0.55);
+  const [decay, setDecay] = useState(() => fx?.getHallDecay() ?? 0.84);
+  return (
+    <>
+      <ParamSlider label="SIZE" value={size} min={0} max={2} step={0.01} unit=""
+        onChange={(v) => { setSize(v); fx?.setHallSize(v); }} />
+      <ParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
+        onChange={(v) => { setDamping(v); fx?.setHallDamping(v); }} />
+      <ParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
+        onChange={(v) => { setDecay(v); fx?.setHallDecay(v); }} />
+      <AmountOnly engine={engine} effectId="hall" fx={fx} defaultValue={0.5} />
+    </>
+  );
+}
+
+function CisternParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+  const [size, setSize] = useState(() => fx?.getCisternSize() ?? 1.2);
+  const [damping, setDamping] = useState(() => fx?.getCisternDamping() ?? 0.7);
+  const [decay, setDecay] = useState(() => fx?.getCisternDecay() ?? 0.94);
+  return (
+    <>
+      <ParamSlider label="SIZE" value={size} min={0} max={2} step={0.01} unit=""
+        onChange={(v) => { setSize(v); fx?.setCisternSize(v); }} />
+      <ParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
+        onChange={(v) => { setDamping(v); fx?.setCisternDamping(v); }} />
+      <ParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
+        onChange={(v) => { setDecay(v); fx?.setCisternDecay(v); }} />
+      <AmountOnly engine={engine} effectId="cistern" fx={fx} defaultValue={0.6} />
     </>
   );
 }
