@@ -58,6 +58,12 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
     // Final cabinet rolloff lowpass — raised to 5 kHz (was 2.8 kHz)
     // so the presence BPF peak at 3.5 kHz actually passes through.
     const cabCoef = Math.exp(-twoPi * 5000 * invSr);
+    // Hoisted shaper — allocating the arrow inside the sample loop
+    // created a closure per sample, which Safari's JSC doesn't escape-
+    // analyse away. The GC pressure inside the realtime audio callback
+    // produced the signal-correlated "frrrr" hash on Safari.
+    const bias = 0.12;
+    const ampShaper = (v) => Math.tanh((v + bias) * 3.8) * 0.72;
 
     for (let i = 0; i < n; i++) {
       this.ampLfoPhase += twoPi * this.ampLfoRate * invSr;
@@ -87,9 +93,8 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
       // this the voice has only odd-harmonic distortion character.
       // Wrapped in a 2× halfband oversampler so the harmonic content
       // generated above Nyquist doesn't fold back into the audible band.
-      const bias = 0.12;
-      l = this.ampHbL.process(l, (v) => Math.tanh((v + bias) * 3.8) * 0.72);
-      r = this.ampHbR.process(r, (v) => Math.tanh((v + bias) * 3.8) * 0.72);
+      l = this.ampHbL.process(l, ampShaper);
+      r = this.ampHbR.process(r, ampShaper);
       // DC blocker — removes the offset introduced by asymmetric clip
       const dcCoef = 0.995;
       const dcOutL = l - this.ampDcPrevInL + dcCoef * this.ampDcPrevOutL;

@@ -19,6 +19,7 @@ import type { PresetMaterialProfile, PresetMotionProfile } from "./presets";
 import droneWorkletUrl from "./droneVoiceProcessor.js?url";
 import fxWorkletUrl from "./fxChainProcessor.js?url";
 import { showNotification } from "../notifications";
+import { readAudioDebugFlags } from "./audioDebug";
 
 export type { EngineSceneMutation } from "./EngineSceneMutation";
 
@@ -59,7 +60,12 @@ export class AudioEngine {
 
     this.voiceEngine = new VoiceEngine(this.ctx, this.fxChain, this.wetSend);
     this.voiceEngine.getFilterOutput().connect(this.presetTrim);
-    this.presetTrim.connect(this.fxChain.input);
+    const debugFlags = readAudioDebugFlags();
+    const skipFx = debugFlags.has("no-fx");
+    const skipMaster = debugFlags.has("no-master");
+    if (!skipFx) {
+      this.presetTrim.connect(this.fxChain.input);
+    }
     // NOTE: fxChain.wetOut is intentionally unsourced (see FxChain.ts).
     // The parallel reverb bus drives dryOut directly; wetSend carries only
     // the air macro scaling path applied to reverb sends inside FxChain.
@@ -81,8 +87,25 @@ export class AudioEngine {
     });
 
     this.masterBus = new MasterBus(this.ctx);
-    this.masterBus.connectInput(this.fxChain.dryOut);
-    this.masterBus.connectInput(this.wetSend);
+    if (skipMaster) {
+      // Debug bypass: route whatever feeds the masterBus straight to
+      // the context destination, skipping HPF/EQ/glue/drive/limiter/
+      // width/analyser. Volume control is lost; keep system volume low.
+      const dest = this.ctx.destination;
+      if (skipFx) {
+        this.presetTrim.connect(dest);
+      } else {
+        this.fxChain.dryOut.connect(dest);
+        this.wetSend.connect(dest);
+      }
+    } else if (skipFx) {
+      // FX chain skipped but master still engaged — route presetTrim
+      // directly into masterBus input (masterGain).
+      this.masterBus.connectInput(this.presetTrim);
+    } else {
+      this.masterBus.connectInput(this.fxChain.dryOut);
+      this.masterBus.connectInput(this.wetSend);
+    }
 
     this.masterRecorder = new MasterRecorder(this.ctx, this.masterBus.getAnalyser());
 

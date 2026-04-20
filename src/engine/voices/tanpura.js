@@ -67,6 +67,12 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
     const baseLen = sampleRate / Math.max(20, freq);
     const jawK = 1.1;
     const jawMix = 0.22;
+    // Hoisted jawari shaper — allocating it inside the per-sample,
+    // per-string inner loop created 8 closures per sample, which
+    // Safari/JSC doesn't escape-analyse. The GC churn inside the
+    // realtime audio callback produced the "frrrr" hash on Safari.
+    const jawShaper = (v) =>
+      v * 0.78 + (Math.tanh(jawK * v) + jawMix * fastSin(jawK * 2.1 * v)) * 0.22;
 
     // Pluck scheduling — round-robin, each string on its own timer
     const blockSec = n / sampleRate;
@@ -126,20 +132,14 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
         // Oversampled jawari — the tanh+sin compound is the alias-prone
         // part of the string tone; running it through a halfband kills
         // the audible imaging without changing the dry/wet mix (0.78/0.22).
-        y = this.jawHbL[s].process(
-          y,
-          (v) => v * 0.78 + (Math.tanh(jawK * v) + jawMix * fastSin(jawK * 2.1 * v)) * 0.22,
-        );
+        y = this.jawHbL[s].process(y, jawShaper);
 
         const curR = bufR[idxR];
         const nxtR = bufR[(idxR + 1) % dLenR];
         let yR = curR * (1 - fracsR[s]) + nxtR * fracsR[s] + 1e-25;
         this.ksLastsR[s] = this.ksLastsR[s] * 0.35 + yR * 0.65;
         yR = this.ksLastsR[s] * damp;
-        yR = this.jawHbR[s].process(
-          yR,
-          (v) => v * 0.78 + (Math.tanh(jawK * v) + jawMix * fastSin(jawK * 2.1 * v)) * 0.22,
-        );
+        yR = this.jawHbR[s].process(yR, jawShaper);
 
         buf[idx] = y;
         this.ksIdxs[s] = (idx + 1) % dLen;

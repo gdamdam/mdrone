@@ -56,6 +56,9 @@ DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp)
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const driftDepth = drift * 0.0024; // keep the bowl centered; max ~4 cents walk
+    // Hoisted to avoid per-sample closure allocation inside the
+    // AudioWorklet callback (Safari/JSC GC hash).
+    const metalShaper = (v) => Math.tanh(v * 0.9);
 
     for (let i = 0; i < n; i++) {
       // Every ~256 samples, pick new random walk targets.
@@ -108,8 +111,8 @@ DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp)
       // upper modes stay narrow instead of being driven into brightness.
       // 2× oversampled tanh kills harmonic folding from the 12-partial
       // inharmonic stack.
-      l = this.metalHbL.process(l, (v) => Math.tanh(v * 0.9));
-      r = this.metalHbR.process(r, (v) => Math.tanh(v * 0.9));
+      l = this.metalHbL.process(l, metalShaper);
+      r = this.metalHbR.process(r, metalShaper);
       L[i] = l * amp;
       R[i] = r * amp;
     }

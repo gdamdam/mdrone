@@ -1,3 +1,5 @@
+import { readAudioDebugFlags } from "./audioDebug";
+
 export class MasterBus {
   private readonly ctx: AudioContext;
   private readonly masterGain: GainNode;
@@ -186,6 +188,78 @@ export class MasterBus {
     this.widthRR.connect(this.widthMerger, 0, 1);
     this.widthMerger.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
+
+    this.applyDebugBypasses();
+  }
+
+  /** Safari "frrrr" diagnostic surface — rewire the master chain to
+   *  skip specific stages based on `?audio-debug=` flags. All edits
+   *  happen after the default graph is fully wired so the fallback
+   *  stays intact if flags are absent. See audioDebug.ts. */
+  private applyDebugBypasses(): void {
+    const flags = readAudioDebugFlags();
+    if (flags.size === 0) return;
+    const skipGlue = flags.has("no-glue");
+    const skipLimiter = flags.has("no-limiter");
+    const skipDrive = flags.has("no-drive");
+    const skipHpf = flags.has("no-hpf");
+    const skipEq = flags.has("no-eq");
+    const skipWidth = flags.has("no-width");
+
+    if (flags.has("hpf40")) this.hpf.frequency.value = 40;
+
+    // Tear down the default chain from masterGain onward so we can
+    // rebuild it conditionally. The output side (outputTrim onward)
+    // is preserved; we re-plumb input→outputTrim only.
+    try { this.masterGain.disconnect(this.hpf); } catch { /* ok */ }
+    try { this.hpf.disconnect(this.eqLow); } catch { /* ok */ }
+    try { this.eqLow.disconnect(this.eqMid); } catch { /* ok */ }
+    try { this.eqMid.disconnect(this.eqHigh); } catch { /* ok */ }
+    try { this.eqHigh.disconnect(this.glueComp); } catch { /* ok */ }
+    try { this.glueComp.disconnect(this.glueMakeup); } catch { /* ok */ }
+    try { this.glueMakeup.disconnect(this.drivePre); } catch { /* ok */ }
+    try { this.drivePre.disconnect(this.drive); } catch { /* ok */ }
+    try { this.drive.disconnect(this.drivePost); } catch { /* ok */ }
+    try { this.drivePost.disconnect(this.limiterIn); } catch { /* ok */ }
+    try { this.limiterOut.disconnect(this.outputTrim); } catch { /* ok */ }
+
+    let cursor: AudioNode = this.masterGain;
+
+    if (!skipHpf) { cursor.connect(this.hpf); cursor = this.hpf; }
+
+    if (!skipEq) {
+      cursor.connect(this.eqLow);
+      this.eqLow.connect(this.eqMid);
+      this.eqMid.connect(this.eqHigh);
+      cursor = this.eqHigh;
+    }
+
+    if (!skipGlue) {
+      cursor.connect(this.glueComp);
+      this.glueComp.connect(this.glueMakeup);
+      cursor = this.glueMakeup;
+    }
+
+    if (!skipDrive) {
+      cursor.connect(this.drivePre);
+      this.drivePre.connect(this.drive);
+      this.drive.connect(this.drivePost);
+      cursor = this.drivePost;
+    }
+
+    if (!skipLimiter) {
+      cursor.connect(this.limiterIn);
+      // limiterIn → limiterComp → limiterOut already wired.
+      cursor = this.limiterOut;
+    }
+
+    if (skipWidth) {
+      try { this.outputTrim.disconnect(this.widthSplitter); } catch { /* ok */ }
+      cursor.connect(this.outputTrim);
+      this.outputTrim.connect(this.analyser);
+    } else {
+      cursor.connect(this.outputTrim);
+    }
   }
 
   /** Install the loudness meter worklet. Limiter is now a native
@@ -194,6 +268,8 @@ export class MasterBus {
    *  `AudioEngine` after the fx worklet module has loaded. */
   onWorkletReady(): void {
     if (this.loudnessMeter) return;
+    // Debug: `?audio-debug=no-loudness` skips wiring the meter tap.
+    if (readAudioDebugFlags().has("no-loudness")) return;
     // Loudness meter — tap off outputTrim so it reads what the user
     // actually hears (post-limiter, post-volume). The tap is parallel:
     // the signal continues to analyser / destination untouched.

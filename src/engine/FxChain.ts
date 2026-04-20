@@ -29,6 +29,8 @@
  * output lives on `dryOut`.
  */
 
+import { readAudioDebugFlags } from "./audioDebug";
+
 export type EffectId =
   | "tape"
   | "wow"
@@ -158,6 +160,13 @@ interface Insert {
   insertOut: GainNode;
   bypassGain: GainNode;
   wetGain: GainNode;
+  /** Input-side gate for worklet-backed inserts. Present only when the
+   *  insert's wet path ends in an always-running AudioWorkletNode. When
+   *  the effect is off we ramp this to 0 so the worklet sees silence
+   *  and its internal DSP can settle to silence too — Safari's JSC
+   *  produces signal-correlated low-level hash on zero-gain-output
+   *  worklets if the input keeps driving real signal through them. */
+  wetInGate?: GainNode;
 }
 
 export class FxChain {
@@ -250,6 +259,10 @@ export class FxChain {
   private parallelCisternWet!: GainNode;
   private parallelPlateWorklet: AudioWorkletNode | null = null;
   private parallelPlateWet!: GainNode;
+  /** Input-side gate for the parallel-plate worklet — mirrors the
+   *  `wetInGate` pattern on serial worklet inserts; follows
+   *  `parallelSendLevels.plate`. */
+  private parallelPlateInGate: GainNode | null = null;
 
   // (Removed lazy worklet graph management — broke wet paths. See
   //  misc/2026-04-19-safari-hiss-report.md for history.)
@@ -308,15 +321,25 @@ export class FxChain {
     // re-wires this same graph — the worklet instances stay alive.
     this.wireInsertChain(this.currentOrder);
 
-    this.wireTape();
-    this.wireWow();
-    this.wireSub();
-    this.wireComb();
-    this.wireDelay();
-    this.wireHall();
-    this.wireCistern();
-    this.wireRingmod();
-    this.wireFormant();
+    // Debug: `no-insert-dsp` skips ALL serial-insert wiring —
+    // inserts remain pure bypass passthroughs. `no-native-fx` and
+    // `no-worklet-fx` are finer (native-node vs worklet-backed).
+    const _fxDbg = readAudioDebugFlags();
+    const skipNative = _fxDbg.has("no-insert-dsp") || _fxDbg.has("no-native-fx");
+    const skipWorkletInserts = _fxDbg.has("no-insert-dsp") || _fxDbg.has("no-worklet-fx");
+    if (!skipNative) {
+      this.wireTape();
+      this.wireWow();
+      this.wireSub();
+      this.wireComb();
+      this.wireDelay();
+      this.wireRingmod();
+      this.wireFormant();
+    }
+    if (!skipWorkletInserts) {
+      this.wireHall();
+      this.wireCistern();
+    }
     this.wireParallelReverbBus();
     // plate / shimmer / freeze / granular DSP is created in onWorkletReady()
   }
@@ -405,28 +428,30 @@ export class FxChain {
     this.parallelBus.gain.value = 1;
     this.parallelBus.connect(this.dryOut);
 
-    // Parallel hall (native convolver, shares the hall IR generator)
     this.parallelHallVerb = ctx.createConvolver();
     this.parallelHallWet = ctx.createGain();
     this.parallelHallWet.gain.value = 0;
+    this.parallelCisternVerb = ctx.createConvolver();
+    this.parallelCisternWet = ctx.createGain();
+    this.parallelCisternWet.gain.value = 0;
+    this.parallelPlateWet = ctx.createGain();
+    this.parallelPlateWet.gain.value = 0;
+
+    // Debug: `?audio-debug=no-parallel` skips the feed from serial
+    // input into the parallel reverbs — the ConvolverNodes + gains
+    // still exist so API surface stays valid, they're just silent.
+    if (readAudioDebugFlags().has("no-parallel")) return;
+
     this.input
       .connect(this.parallelHallVerb)
       .connect(this.parallelHallWet)
       .connect(this.parallelBus);
-
-    // Parallel cistern (native convolver, shares the cistern IR)
-    this.parallelCisternVerb = ctx.createConvolver();
-    this.parallelCisternWet = ctx.createGain();
-    this.parallelCisternWet.gain.value = 0;
     this.input
       .connect(this.parallelCisternVerb)
       .connect(this.parallelCisternWet)
       .connect(this.parallelBus);
-
-    // Parallel plate wet gain exists now; the worklet is wired in
-    // onWorkletReady() once the fxChainProcessor module has registered.
-    this.parallelPlateWet = ctx.createGain();
-    this.parallelPlateWet.gain.value = 0;
+    // Parallel plate worklet is wired in onWorkletReady(); its wet
+    // gain already connects here regardless.
     this.parallelPlateWet.connect(this.parallelBus);
   }
 
@@ -853,6 +878,11 @@ export class FxChain {
    */
   onWorkletReady(): void {
     const ctx = this.ctx;
+    // Debug: skip all worklet-backed insert DSP — the inserts
+    // remain pure bypass passthroughs; parallel plate worklet is
+    // also skipped because this method wires it too.
+    const _dbg = readAudioDebugFlags();
+    if (_dbg.has("no-insert-dsp") || _dbg.has("no-worklet-fx")) return;
 
     // HALL — Freeverb-style FDN, medium room.
     this.hallWorklet = new AudioWorkletNode(ctx, "fx-fdn-reverb", {
@@ -870,7 +900,10 @@ export class FxChain {
     this.hallWorklet.parameters.get("mix")?.setValueAtTime(1, hallT);
     const hallIns = this.inserts.hall;
     try { hallIns.insertIn.disconnect(hallIns.wetGain); } catch { /* noop */ }
-    hallIns.insertIn.connect(this.hallWorklet);
+    hallIns.wetInGate = ctx.createGain();
+    hallIns.wetInGate.gain.value = 0;
+    hallIns.insertIn.connect(hallIns.wetInGate);
+    hallIns.wetInGate.connect(this.hallWorklet);
     this.hallSerialTrim.connect(hallIns.wetGain);
     this.hallWorklet.connect(this.hallSerialTrim);
 
@@ -890,7 +923,10 @@ export class FxChain {
     this.cisternWorklet.parameters.get("mix")?.setValueAtTime(1, cT);
     const cisternIns = this.inserts.cistern;
     try { cisternIns.insertIn.disconnect(cisternIns.wetGain); } catch { /* noop */ }
-    cisternIns.insertIn.connect(this.cisternWorklet);
+    cisternIns.wetInGate = ctx.createGain();
+    cisternIns.wetInGate.gain.value = 0;
+    cisternIns.insertIn.connect(cisternIns.wetInGate);
+    cisternIns.wetInGate.connect(this.cisternWorklet);
     this.cisternSerialTrim.connect(cisternIns.wetGain);
     this.cisternWorklet.connect(this.cisternSerialTrim);
 
@@ -901,7 +937,10 @@ export class FxChain {
       outputChannelCount: [2],
     });
     const plateIns = this.inserts.plate;
-    plateIns.insertIn
+    plateIns.wetInGate = ctx.createGain();
+    plateIns.wetInGate.gain.value = 0;
+    plateIns.insertIn.connect(plateIns.wetInGate);
+    plateIns.wetInGate
       .connect(this.plateWorklet)
       .connect(plateIns.wetGain)
       .connect(plateIns.insertOut);
@@ -913,7 +952,10 @@ export class FxChain {
       outputChannelCount: [2],
     });
     const shimmerIns = this.inserts.shimmer;
-    shimmerIns.insertIn
+    shimmerIns.wetInGate = ctx.createGain();
+    shimmerIns.wetInGate.gain.value = 0;
+    shimmerIns.insertIn.connect(shimmerIns.wetInGate);
+    shimmerIns.wetInGate
       .connect(this.shimmerWorklet)
       .connect(shimmerIns.wetGain)
       .connect(shimmerIns.insertOut);
@@ -927,7 +969,10 @@ export class FxChain {
     this.freezeWorklet.parameters.get("active")!.setValueAtTime(0, ctx.currentTime);
     this.freezeWorklet.parameters.get("mix")!.setValueAtTime(1, ctx.currentTime);
     const freezeIns = this.inserts.freeze;
-    freezeIns.insertIn
+    freezeIns.wetInGate = ctx.createGain();
+    freezeIns.wetInGate.gain.value = 0;
+    freezeIns.insertIn.connect(freezeIns.wetInGate);
+    freezeIns.wetInGate
       .connect(this.freezeWorklet)
       .connect(freezeIns.wetGain)
       .connect(freezeIns.insertOut);
@@ -948,7 +993,10 @@ export class FxChain {
     // amount" without double attenuation with the worklet's dry mix.
     this.granularWorklet.parameters.get("mix")!.setValueAtTime(1, ctx.currentTime);
     const granularIns = this.inserts.granular;
-    granularIns.insertIn
+    granularIns.wetInGate = ctx.createGain();
+    granularIns.wetInGate.gain.value = 0;
+    granularIns.insertIn.connect(granularIns.wetInGate);
+    granularIns.wetInGate
       .connect(this.granularWorklet)
       .connect(granularIns.wetGain)
       .connect(granularIns.insertOut);
@@ -996,7 +1044,10 @@ export class FxChain {
     // scattering random positions.
     this.grainCloudWorklet.parameters.get("spawnMode")!.setValueAtTime(1, t0);
     const grainCloudIns = this.inserts.graincloud;
-    grainCloudIns.insertIn
+    grainCloudIns.wetInGate = ctx.createGain();
+    grainCloudIns.wetInGate.gain.value = 0;
+    grainCloudIns.insertIn.connect(grainCloudIns.wetInGate);
+    grainCloudIns.wetInGate
       .connect(this.grainCloudWorklet)
       .connect(grainCloudIns.wetGain)
       .connect(grainCloudIns.insertOut);
@@ -1009,7 +1060,15 @@ export class FxChain {
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
-    this.input.connect(this.parallelPlateWorklet).connect(this.parallelPlateWet);
+    // Input-side gate for the same Safari-worklet-hash reason as the
+    // serial worklet inserts. parallelSendLevels.plate drives both
+    // this (input) and parallelPlateWet (output) together.
+    this.parallelPlateInGate = ctx.createGain();
+    this.parallelPlateInGate.gain.value = 0;
+    this.input.connect(this.parallelPlateInGate);
+    this.parallelPlateInGate
+      .connect(this.parallelPlateWorklet)
+      .connect(this.parallelPlateWet);
 
     // Grain → plate excitation — granular/graincloud outputs feed
     // into the parallel plate tank so grains excite the reverb body
@@ -1054,6 +1113,13 @@ export class FxChain {
     this.parallelHallWet.gain.setTargetAtTime(this.parallelSendLevels.hall, now, tc);
     this.parallelCisternWet.gain.setTargetAtTime(this.parallelSendLevels.cistern, now, tc);
     this.parallelPlateWet.gain.setTargetAtTime(this.parallelSendLevels.plate, now, tc);
+    if (this.parallelPlateInGate) {
+      // Input gate: binary (1 when any send, 0 otherwise) so worklet
+      // sees silence when the parallel plate is disengaged. Prevents
+      // Safari's always-running-worklet hash from leaking through.
+      const inTarget = this.parallelSendLevels.plate > 0 ? 1 : 0;
+      this.parallelPlateInGate.gain.setTargetAtTime(inTarget, now, tc);
+    }
   }
 
   /** Emergency silence — flush convolver buffers and worklet state so
@@ -1137,6 +1203,14 @@ export class FxChain {
     const bypassTarget = isAdditive ? 1 : (on ? 0 : 1);
     ins.bypassGain.gain.setTargetAtTime(bypassTarget, now, this.xfadeTC);
     ins.wetGain.gain.setTargetAtTime(wetTarget, now, this.xfadeTC);
+    // Input-side gate (worklet-backed inserts only) — silence the
+    // worklet's input when the effect is off so its internal DSP can
+    // settle to silence and Safari stops hashing low-level signal
+    // through it. Binary target; the output-side `wetGain` still
+    // carries the user-level amount.
+    if (ins.wetInGate) {
+      ins.wetInGate.gain.setTargetAtTime(on ? 1 : 0, now, this.xfadeTC);
+    }
 
     // Effects with persistent internal state need their feedback /
     // activity gates opened with the toggle so tails decay cleanly.
