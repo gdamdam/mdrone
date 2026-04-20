@@ -1378,7 +1378,11 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
     for (const c of this.combL) if (!Number.isFinite(c.lp)) c.lp = 0;
     for (const c of this.combR) if (!Number.isFinite(c.lp)) c.lp = 0;
 
-    const FIXED_GAIN = 0.015; // Freeverb input gain — keeps internal levels manageable
+    // Freeverb's original 0.015 was conservative and made hall/cistern
+    // ~-46 dB RMS — inaudible against a full-level dry drone. 0.1 (6.7x)
+    // brings the reverb tail to ~-28 dB RMS, matching plate, without
+    // pushing tank state near float overflow even at decay=0.94.
+    const FIXED_GAIN = 0.1;
 
     for (let i = 0; i < n; i++) {
       const drySum = (inL[i] + inR[i]) * 0.5 * FIXED_GAIN;
