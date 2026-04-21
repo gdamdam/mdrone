@@ -928,7 +928,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           <div className={shapeHintsOn ? "weather-controls shape-hints-on" : "weather-controls"}>
             <div className="shape-header">
               <span className="shape-title">SHAPE</span>
-              <span className="shape-hint">sculpt the body of the drone</span>
+              <span className="shape-hint">the evolution engine · the body it shapes</span>
               <button
                 type="button"
                 className={shapeHintsOn ? "shape-hints-toggle shape-hints-toggle-on" : "shape-hints-toggle"}
