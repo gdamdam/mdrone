@@ -3839,6 +3839,34 @@ input.share-modal-url:focus {
   min-width: 48px;
 }
 
+/* Mobile: shrink mixer strips so ~10 fit in a narrow viewport
+   without horizontal scroll. Slightly narrower slider wrap and
+   tighter gap; labels scale down. */
+@media (max-width: 720px) {
+  .mixer-strips {
+    gap: 6px;
+    padding: 12px 8px;
+    overflow-x: visible;
+  }
+  .mixer-strip {
+    min-width: 0;
+    flex: 1 1 0;
+    gap: 4px;
+  }
+  .mixer-strip-slider-wrap {
+    width: 20px;
+    height: 130px;
+  }
+  .mixer-strip-label {
+    font-size: 8px;
+    letter-spacing: 0.4px;
+  }
+  .mixer-strip-value {
+    font-size: 9px;
+    min-width: 0;
+  }
+}
+
 .mixer-strip-label {
   font-size: 9px;
   font-weight: 800;
