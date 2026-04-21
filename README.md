@@ -2,7 +2,7 @@
 <p align="center"><strong>Hold a note. Shape the air. Save the atmosphere.</strong><br><br>A browser drone instrument for long tones, harmonic beds, and slow-moving space.<br>Pick a tonic, build a timbre stack, drift it through weather and effects.<br>No install. No account. Free.</p>
 
 <p align="center">
-  <a href="https://mdrone.mpump.live/">https://mdrone.mpump.live/</a>
+  <a href="https://mdrone.org/">https://mdrone.org/</a>
 </p>
 
 <p align="center">

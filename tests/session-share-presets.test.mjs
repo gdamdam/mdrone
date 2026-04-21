@@ -145,7 +145,7 @@ test("share codec round-trips a portable scene payload", async () => {
   });
 
   const encoded = await encodeScenePayload(source);
-  const extracted = extractScenePayloadFromUrl(`https://mdrone.mpump.live/?${encoded.key}=${encoded.value}`);
+  const extracted = extractScenePayloadFromUrl(`https://mdrone.org/?${encoded.key}=${encoded.value}`);
   const decoded = await decodeScenePayload(extracted.payload, extracted.compressed);
 
   assert.equal(decoded.name, "Share Me");
