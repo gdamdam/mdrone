@@ -306,14 +306,17 @@ export function Header({
           {(["drone", "meditate", "mixer"] as const).map((m) => (
             <button
               key={m}
-              onClick={() => setViewMode(m)}
+              // MEDITATE is now a fullscreen overlay and MIXER a bottom
+              // drawer — both close by tapping the same button again.
+              // DRONE is the base layer, always available.
+              onClick={() => setViewMode(viewMode === m ? "drone" : m)}
               className={viewMode === m ? "view-btn view-btn-active" : "view-btn"}
               title={
                 m === "drone"
                   ? "DRONE — the instrument: tonic, mode, atmosphere"
                   : m === "meditate"
-                    ? "MEDITATE — visualizer that breathes with the drone"
-                    : "MIXER — master bus: HPF · 3-band EQ · glue · drive · limiter"
+                    ? "MEDITATE — fullscreen visualizer. Click again or press Esc to close."
+                    : "MIXER — bottom drawer with master bus (HPF · 3-band EQ · glue · drive · limiter). Click again or tap outside to close."
               }
             >
               {m.toUpperCase()}

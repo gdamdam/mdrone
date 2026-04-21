@@ -316,6 +316,19 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     return () => window.removeEventListener("keydown", globalHandler);
   }, [sceneManager]);
 
+  // Escape dismisses MEDITATE overlay or MIXER drawer back to DRONE.
+  // Skipped when viewMode is already "drone" so Esc remains available
+  // for modals (ShareModal, FxModal, etc.) that manage their own close.
+  useEffect(() => {
+    if (viewMode === "drone") return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "Escape") setViewMode("drone");
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [viewMode]);
+
   // QWERTY tonic keyboard (only when ⌨ enabled)
   useEffect(() => {
     if (!kbdActive) return;
@@ -469,10 +482,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       )}
 
       <main className={`view view-mode-${viewMode}`}>
-        <section
-          className={viewMode === "drone" ? "view-panel view-panel-active" : "view-panel"}
-          aria-hidden={viewMode !== "drone"}
-        >
+        {/* DRONE is the base layer — always mounted and interactive.
+            MEDITATE overlays it fullscreen; MIXER slides up as a
+            bottom drawer. Neither replaces the drone view anymore. */}
+        <section className="view-panel view-panel-active">
           <DroneView
             ref={droneViewRef}
             engine={engine}
@@ -494,7 +507,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           />
         </section>
         <section
-          className={viewMode === "meditate" ? "view-panel view-panel-active" : "view-panel"}
+          className={viewMode === "meditate" ? "view-overlay view-overlay-active" : "view-overlay"}
           aria-hidden={viewMode !== "meditate"}
         >
           <MeditateView
@@ -527,8 +540,12 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           />
         </section>
         <section
-          className={viewMode === "mixer" ? "view-panel view-panel-active" : "view-panel"}
+          className={viewMode === "mixer" ? "view-drawer view-drawer-active" : "view-drawer"}
           aria-hidden={viewMode !== "mixer"}
+          onClick={(e) => {
+            // Backdrop click (outside the inner drawer content) dismisses.
+            if (e.target === e.currentTarget) setViewMode("drone");
+          }}
         >
           <MixerView
             key={mixerSyncToken}
