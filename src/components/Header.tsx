@@ -170,6 +170,12 @@ export function Header({
   const [settingsTab, setSettingsTab] = useState<"session" | "midi" | "appearance" | "tempo" | "advanced">("session");
   const [helpOpen, setHelpOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"save" | "rename" | "reset" | null>(null);
+
+  // Marquee click arbitration: single-click opens the preset list,
+  // double-click opens the rename dialog. The click fires twice on a
+  // dblclick in every browser, so we defer the single-click action
+  // by ~250 ms and cancel it when dblclick arrives.
+  const marqueeClickTimerRef = useRef<number | null>(null);
   const [paletteId, setPaletteId] = useState<PaletteId>(() => loadPaletteId());
   const handlePickPalette = (id: PaletteId) => {
     const palette = PALETTES.find((p) => p.id === id);
@@ -319,10 +325,23 @@ export function Header({
         <button
           type="button"
           className="header-display"
-          title={`${displayText} — tap to browse presets`}
+          title={`${displayText} — tap to browse presets · double-tap to rename the session`}
           onClick={() => {
-            setViewMode("drone");
-            onOpenPresets?.();
+            if (marqueeClickTimerRef.current !== null) {
+              window.clearTimeout(marqueeClickTimerRef.current);
+            }
+            marqueeClickTimerRef.current = window.setTimeout(() => {
+              marqueeClickTimerRef.current = null;
+              setViewMode("drone");
+              onOpenPresets?.();
+            }, 250);
+          }}
+          onDoubleClick={() => {
+            if (marqueeClickTimerRef.current !== null) {
+              window.clearTimeout(marqueeClickTimerRef.current);
+              marqueeClickTimerRef.current = null;
+            }
+            setDialogMode("rename");
           }}
         >
           <div className="header-display-track">
