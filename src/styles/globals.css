@@ -2035,7 +2035,9 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 .lfo-col { min-width: 0; }
 
-/* MORPH/EVOLVE/SUB row in SHAPE column */
+/* Second tier in SHAPE column — body macros (DRIFT/AIR/SUB/BLOOM/GLIDE).
+   Sits below the scene-driver tier (MORPH/EVOLVE/TIME) in .macro-primary-col.
+   Class name kept for diff minimalism; the border-top is the tier divider. */
 .shape-morph-row {
   padding-top: 6px;
   border-top: 1px solid var(--border);

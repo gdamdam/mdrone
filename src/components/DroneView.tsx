@@ -942,6 +942,33 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
             <div className="macro-primary-col">
               <Macro
+                label="MORPH"
+                value={state.presetMorph}
+                onChange={(v) => { setPresetMorph(v); engine?.setPresetMorph(v); }}
+                icon={<IconBloom />}
+                title="MORPH (seconds) — time the drone takes to cross-fade when you load another preset. 0 = snap, 1 = ~20 s glacial fade."
+                hint="preset-change crossfade"
+              />
+              <Macro
+                label="EVOLVE"
+                value={state.evolve}
+                onChange={(v) => { setPresetEvolve(v); engine?.setEvolve(v); }}
+                icon={<IconDrift />}
+                title="EVOLVE (minutes) — how much the drone drifts on its own while a preset is held. 0 = dead-still, 1 = continuous slow change."
+                hint="autonomous slow drift"
+              />
+              <Macro
+                label="TIME"
+                value={state.time}
+                onChange={setTime}
+                icon={<IconTime />}
+                title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
+                hint="rate of weather motion"
+              />
+            </div>
+
+            <div className="shape-morph-row">
+              <Macro
                 label="DRIFT"
                 value={state.drift}
                 onChange={setDrift}
@@ -958,12 +985,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 hint="reverb / space send"
               />
               <Macro
-                label="TIME"
-                value={state.time}
-                onChange={setTime}
-                icon={<IconTime />}
-                title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
-                hint="rate of weather motion"
+                label="SUB"
+                value={state.sub}
+                onChange={setSub}
+                icon={<IconSub />}
+                title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
+                hint="sub-octave triangle layer"
               />
               <Macro
                 label="BLOOM"
@@ -982,33 +1009,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 displayValue={`${(0.05 * Math.pow(160, state.glide)).toFixed(2)}s`}
                 title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
                 hint="retune time between notes"
-              />
-            </div>
-
-            <div className="shape-morph-row">
-              <Macro
-                label="MORPH"
-                value={state.presetMorph}
-                onChange={(v) => { setPresetMorph(v); engine?.setPresetMorph(v); }}
-                icon={<IconBloom />}
-                title="MORPH (seconds) — time the drone takes to cross-fade when you load another preset. 0 = snap, 1 = ~20 s glacial fade."
-                hint="preset-change crossfade"
-              />
-              <Macro
-                label="EVOLVE"
-                value={state.evolve}
-                onChange={(v) => { setPresetEvolve(v); engine?.setEvolve(v); }}
-                icon={<IconDrift />}
-                title="EVOLVE (minutes) — how much the drone drifts on its own while a preset is held. 0 = dead-still, 1 = continuous slow change."
-                hint="autonomous slow drift"
-              />
-              <Macro
-                label="SUB"
-                value={state.sub}
-                onChange={setSub}
-                icon={<IconSub />}
-                title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
-                hint="sub-octave triangle layer"
               />
             </div>
 
