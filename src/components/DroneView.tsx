@@ -409,9 +409,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
   const DISCLOSURE_KEY = "mdrone-disclosure";
-  type Section = "presets" | "timbre" | "tuning" | "detune";
+  type Section = "presets" | "tuning" | "detune";
   const defaultDisclosure: Record<Section, boolean> = {
-    presets: false, timbre: false, tuning: false, detune: false,
+    presets: false, tuning: false, detune: false,
   };
   const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
     try {
@@ -1233,12 +1233,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </div>
         </div>
 
-        {/* ── Collapsible: TIMBRE + EFFECTS — two-column ───── */}
-        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("timbre")}>
-          <span className="disclosure-arrow">{disclosed.timbre ? "▾" : "▸"}</span>
-          TIMBRE + EFFECTS
-        </button>
-        {disclosed.timbre && (
+        {/* ── TIMBRE + EFFECTS — always visible. Part of the MAIN
+            tier (performance surface) alongside SHAPE and the preset
+            strip. ADVANCED tier (tuning + LFO) remains collapsible. */}
         <div className="timbre-fx-row">
           <div className="timbre-col">
             <div className="panel-hint">Voice models — combine for texture</div>
@@ -1285,12 +1282,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             />
           </div>
         </div>
-        )}
 
-        {/* ── Collapsible: TUNING — mode + tonic ───── */}
+        {/* ── ADVANCED — collapsible drawer holding tuning + LFO.
+            This is the one "programming" disclosure; everything else
+            above (preset, SHAPE, timbre, FX) is always-visible
+            performance surface. Matches hardware-synth separation of
+            performance from programming. */}
         <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("tuning")}>
           <span className="disclosure-arrow">{disclosed.tuning ? "▾" : "▸"}</span>
-          TUNING + LFO
+          ADVANCED
         </button>
         {disclosed.tuning && (
         <div className="tuning-lfo-row">
