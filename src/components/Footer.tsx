@@ -49,24 +49,6 @@ export function Footer() {
           AGPL-3.0
         </a>
         {" · "}
-        <a
-          href="https://mpump.live/app.html"
-          target="_blank"
-          rel="noopener"
-          style={{ color: "var(--preview)", textDecoration: "none", fontWeight: 700 }}
-        >
-          Try mpump →
-        </a>
-        {" · "}
-        <a
-          href="https://mloop.mpump.live"
-          target="_blank"
-          rel="noopener"
-          style={{ color: "var(--preview)", textDecoration: "none", fontWeight: 700 }}
-        >
-          Try mloop →
-        </a>
-        {" · "}
         <button
           type="button"
           onClick={() => setPrivacyOpen(true)}
