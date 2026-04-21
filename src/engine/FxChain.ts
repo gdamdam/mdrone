@@ -117,7 +117,7 @@ const XFADE_TC_BASE = 0.45;
  *  worklets (quiet output by nature) can still compete with the
  *  full-level dry signal when additive. Non-reverbs stay at 1×. */
 const WET_GAIN: Record<EffectId, number> = {
-  tape: 1, wow: 1, sub: 1, comb: 1, delay: 1, ringmod: 1, formant: 1,
+  tape: 1, wow: 1, sub: 1, comb: 1, delay: 1, ringmod: 1, formant: 1.5,
   plate: 3.0, hall: 2.5, shimmer: 2.5, cistern: 2.5,
   granular: 1, graincloud: 1, freeze: 1,
 };
@@ -141,7 +141,11 @@ const ON_LEVELS: Record<EffectId, number> = {
   granular: 0.8,
   graincloud: 0.8,
   ringmod: 0.7,
-  formant: 1.0,
+  // Default < max so the AMOUNT macro has audible headroom to push
+  // the vowel harder. Internal wet at default ≈ 0.6 × 1.5 = 0.9 (just
+  // below unity — natural vowel colour); at max ≈ 1.5 (noticeably
+  // louder, limiter catches any overshoot).
+  formant: 0.6,
 };
 
 /** Serial FDN hall/cistern trim. Previously 1.75 / 1.3 to compensate
