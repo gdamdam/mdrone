@@ -264,10 +264,22 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* Preset panel header — panel label on the left, MUTATE controls
  * on the right, sharing one flex row at the top of the panel. */
 /* Compact preset strip — shows active preset, click to expand grid */
+/* Preset strip — two-row grid on desktop:
+   ┌──────────────── identity ──────┬── scene-actions ──┐  row 1
+   │  preset icon · name · attr     │  ↔ morph  ▸ chev  │
+   ├────────────── perform ────────────────────────────┤
+   │  piano keys · tonic picker · octave · kbd · Hz    │  row 2
+   └────────────────────────────────────────────────────┘
+   On mobile (≤720px) the perform row is lifted to a fixed
+   footer-above-footer bar; see @media below. */
 .preset-strip {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "identity actions"
+    "perform  perform";
+  gap: 6px 10px;
   align-items: center;
-  gap: 10px;
   padding: 8px 12px;
   background: var(--bg-cell);
   border: 1px solid var(--border);
@@ -281,6 +293,30 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-bottom: 8px;
 }
 .preset-strip:hover { border-color: var(--preview); }
+
+.preset-strip-identity {
+  grid-area: identity;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.preset-strip-scene-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.preset-strip-perform {
+  grid-area: perform;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+}
 
 .preset-strip-icon {
   width: 28px;
@@ -477,30 +513,57 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-btn-record { order: 54; }
   .header-btn-share { order: 55; }
 
-  /* Tighter padding + gap on mobile so the strip doesn't eat a third
-     of the viewport height with its own chrome. */
-  .preset-strip { flex-wrap: wrap; padding: 6px 8px; gap: 6px; }
+  /* Tighter padding on mobile so the strip doesn't eat a third of
+     the viewport height with its own chrome. Grid collapses to a
+     single row here — perform row is lifted out (see below). */
+  .preset-strip {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "identity actions";
+    padding: 6px 8px;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
   /* Drop the subtitle on mobile — it wraps onto a second line and
      the preset name alone reads fine at this width. Desktop keeps it. */
   .preset-strip-attr { display: none; }
-  /* Keyboard, octave stepper, and the separate Hz readout are all
-     replaced by the single wide tonic dropdown on mobile. Dual-class
-     selectors bump specificity above the baseline `.tonic-keys` +
-     `.weather-octave` rules that set `display: flex` later in the
-     file — same-specificity ties would let those win. */
+  /* Piano keyboard and Hz readout vanish on mobile — screen real
+     estate goes to the persistent tonic dropdown in the footer bar. */
   .preset-strip-keys.tonic-keys,
-  .preset-strip-octave.weather-octave,
   .preset-strip .preset-strip-tonic { display: none; }
-  /* Picker shares the second row with the chevron instead of taking
-     it alone — `flex: 1 1 auto` lets the chevron sit at the right. */
+
+  /* PERFORM row — footer-above-footer. Lifted out of the preset
+     strip into a fixed bar pinned to the bottom of the viewport
+     so tonic+octave+kbd are always reachable while performing,
+     even after scrolling the main view. Sits above the app Footer;
+     safe-area padding handles iPhone home-indicator clearance. */
+  .preset-strip-perform {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    margin: 0;
+    padding: 8px 12px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-panel);
+    border: none;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: nowrap;
+  }
   .preset-strip-tonic-picker {
     display: block;
-    order: 4;
     flex: 1 1 auto;
     margin-top: 0;
   }
   .preset-strip-tonic-btn { width: 100%; max-width: none; }
-  .preset-strip-chevron { order: 5; margin-top: 0; }
+  /* Keep octave + kbd compact in the footer bar. */
+  .preset-strip-octave.weather-octave { flex-shrink: 0; }
+
+  /* Prevent the app's last-screen content from hiding behind the
+     fixed perform bar. ~64 px covers the bar + safe-area bottom. */
+  .layout { padding-bottom: 64px; }
 }
 
 /* TIMBRE + EFFECTS two-column layout */

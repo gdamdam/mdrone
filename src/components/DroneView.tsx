@@ -773,6 +773,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             <button> to a flex row so the inline keyboard can host its
             own clickable keys without nesting-button invariants. */}
         <div className="preset-strip">
+          {/* Row 1 — IDENTITY: what scene is loaded, + global scene
+              actions (morph, expand chevron). No tonic / no keys. */}
+          <div className="preset-strip-identity">
           <button
             type="button"
             className="preset-strip-meta-btn"
@@ -798,6 +801,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               );
             })()}
           </button>
+          </div>
+          {/* Row 2 — PERFORMANCE: what note is playing. Piano + octave
+              + kbd toggle + Hz readout. On mobile this row is lifted
+              to a persistent footer-above-footer via CSS (see
+              @media (max-width: 720px) .preset-strip-perform). */}
+          <div className="preset-strip-perform">
           {/* Inline piano keyboard — sits left of the tonic readout so
               the user can retune without scrolling. Relocated from the
               scene-actions area per the layout pass (P2.3). Hidden on
@@ -893,6 +902,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               return (440 * Math.pow(2, semi / 12)).toFixed(1);
             })()} Hz
           </span>
+          </div>
+          {/* Scene actions (morph + chevron) belong with row 1 IDENTITY
+              visually, so they sit in a trailing slot inside the
+              identity row. Absolute-positioned via flex so they stick
+              to the right edge without disturbing the meta-button
+              layout. */}
+          <div className="preset-strip-scene-actions">
           <button
             type="button"
             className={morphSeconds > 0 ? "preset-strip-morph preset-strip-morph-active" : "preset-strip-morph"}
@@ -913,6 +929,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           >
             {disclosed.presets ? "▾" : "▸"}
           </button>
+          </div>
         </div>
         {disclosed.presets && (
         <>
