@@ -1233,7 +1233,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               {/* Master-output WAV recording — moved here from the
                   header (too crowded up there). Sits with the other
                   capture/recording controls (MOTION) for semantic
-                  consistency. */}
+                  consistency. Wrap break above puts it on its own
+                  row so the big red REC doesn't crowd MOTION. */}
+              <span className="scene-actions-break" aria-hidden="true" />
               {onToggleRec && (
                 <button
                   type="button"
