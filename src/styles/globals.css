@@ -317,9 +317,12 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .preset-strip-tonic {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--preview);
+  /* Secondary readout — piano keyboard is the canonical tonic control;
+     this Hz number is a reference, not an action. Small and dim so the
+     eye doesn't treat it as a primary UI target. */
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-dim);
   white-space: nowrap;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;

@@ -360,6 +360,45 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   const recallSlotA = useCallback(() => { if (slotARef.current) applyAndSuppress(slotARef.current); }, [applyAndSuppress]);
   const recallSlotB = useCallback(() => { if (slotBRef.current) applyAndSuppress(slotBRef.current); }, [applyAndSuppress]);
 
+  // A/B slot gesture: tap = recall (saves on empty slot), hold = save
+  // (overwrites). Same 420 ms threshold the FxBar uses for its long-
+  // press → modal gesture, so the "press-and-hold to open/commit" idiom
+  // is consistent across the app.
+  const slotHoldTimerRef = useRef<number | null>(null);
+  const slotHoldFiredRef = useRef(false);
+  const slotHandlers = useCallback(
+    (hasSlot: boolean, save: () => void, recall: () => void) => {
+      const cancel = () => {
+        if (slotHoldTimerRef.current !== null) {
+          window.clearTimeout(slotHoldTimerRef.current);
+          slotHoldTimerRef.current = null;
+        }
+      };
+      return {
+        onPointerDown: () => {
+          slotHoldFiredRef.current = false;
+          cancel();
+          slotHoldTimerRef.current = window.setTimeout(() => {
+            slotHoldFiredRef.current = true;
+            save();
+          }, 420);
+        },
+        onPointerUp: cancel,
+        onPointerLeave: cancel,
+        onPointerCancel: cancel,
+        onClick: () => {
+          if (slotHoldFiredRef.current) {
+            slotHoldFiredRef.current = false;
+            return; // hold already fired save — don't also recall
+          }
+          if (hasSlot) recall();
+          else save();
+        },
+      };
+    },
+    [],
+  );
+
   const canUndo = historyIndexRef.current > 0;
   const canRedo = historyIndexRef.current < historyRef.current.length - 1;
   const hasSlotA = slotARef.current !== null;
@@ -1063,35 +1102,25 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <span className="history-divider" aria-hidden="true" />
               <button
                 type="button"
-                className="history-btn"
-                onClick={saveSlotA}
-                title="Save current scene to slot A (overwrites)"
-              >
-                SAVE A
-              </button>
-              <button
-                type="button"
                 className={hasSlotA ? "history-btn history-btn-armed" : "history-btn"}
-                onClick={recallSlotA}
-                disabled={!hasSlotA}
-                title={hasSlotA ? "Recall slot A — swap sound back to saved state" : "Slot A empty — SAVE A first"}
+                title={
+                  hasSlotA
+                    ? "Slot A: tap to recall · hold to overwrite with current scene"
+                    : "Slot A empty: tap or hold to save current scene"
+                }
+                {...slotHandlers(hasSlotA, saveSlotA, recallSlotA)}
               >
                 A
               </button>
               <button
                 type="button"
-                className="history-btn"
-                onClick={saveSlotB}
-                title="Save current scene to slot B (overwrites)"
-              >
-                SAVE B
-              </button>
-              <button
-                type="button"
                 className={hasSlotB ? "history-btn history-btn-armed" : "history-btn"}
-                onClick={recallSlotB}
-                disabled={!hasSlotB}
-                title={hasSlotB ? "Recall slot B — swap sound back to saved state" : "Slot B empty — SAVE B first"}
+                title={
+                  hasSlotB
+                    ? "Slot B: tap to recall · hold to overwrite with current scene"
+                    : "Slot B empty: tap or hold to save current scene"
+                }
+                {...slotHandlers(hasSlotB, saveSlotB, recallSlotB)}
               >
                 B
               </button>
