@@ -1378,7 +1378,7 @@ export const PRESETS: Preset[] = [
   {
     id: "frahm-solo", group: "Ambient / Cinematic",
     name: "Solo",
-    attribution: "Felt piano in vast space · Budd / Frahm lineage",
+    attribution: "Felt piano in vast space · sparse intimacy",
     hint: "Solo piano in a large reverberant room — notes dissolving into space, no other support. Sparse and intimate, in the Budd / Frahm territory.",
     tuningId: "equal", relationId: "minor-triad",
     voiceLayers: ["piano"],
@@ -1594,7 +1594,7 @@ export const PRESETS: Preset[] = [
   {
     id: "young-well-tuned", group: "Minimal / Just",
     name: "Well-Tuned",
-    attribution: "Young 7-limit WTP lattice · sympathetic sustain",
+    attribution: "7-limit just lattice · sympathetic sustain",
     hint: "7-limit just lattice with bright partial clouds and long sympathetic bloom. Characteristic 444-cent third — in the La Monte Young Well-Tuned-Piano lineage.",
     tuningId: "custom:young-wtp", relationId: "harmonic-stack",
     voiceLayers: ["piano", "reed"],
@@ -1876,7 +1876,7 @@ export const PRESETS: Preset[] = [
   {
     id: "conrad-bowed", group: "Minimal / Just",
     name: "Bowed Drone",
-    attribution: "Bowed violin · beating unisons · Theatre of Eternal Music",
+    attribution: "Bowed violin · beating unisons · minimalist sustain",
     hint: "Bowed-violin drone at high drift so close-tuned strings beat against each other. Harmonics tuning, minimal FX — in the Tony Conrad lineage.",
     tuningId: "harmonics", relationId: "harmonic-stack",
     voiceLayers: ["reed"],
@@ -2157,7 +2157,7 @@ export const PRESETS: Preset[] = [
   {
     id: "alice-coltrane-devotional", group: "Sacred / Ritual",
     name: "Devotional",
-    attribution: "Alice Coltrane · harp-organ ashram",
+    attribution: "Harp-organ ashram · ecstatic devotional",
     hint: "Warm ashram-organ reed with piano strikes, under a shimmer ceiling and plate chamber. Ecstatic but grounded — in the Alice Coltrane devotional-harp-organ lineage.",
     tuningId: "harmonics", relationId: "harmonic-stack",
     voiceLayers: ["reed", "piano"],
