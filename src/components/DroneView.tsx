@@ -989,6 +989,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 ?
               </button>
             </div>
+            <div className="shape-tier-label">MOTION</div>
             <div className="macro-primary-col">
               <Macro
                 label="MORPH"
@@ -1016,6 +1017,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               />
             </div>
 
+            <div className="shape-tier-label">BODY</div>
             <div className="shape-morph-row">
               <Macro
                 label="DRIFT"

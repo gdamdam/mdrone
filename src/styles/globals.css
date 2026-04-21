@@ -2178,12 +2178,12 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
    Sits below the scene-driver tier (MORPH/EVOLVE/TIME) in .macro-primary-col.
    Class name kept for diff minimalism; the border-top is the tier divider. */
 .shape-morph-row {
+  /* BODY tier — MOTION / BODY labels above each tier (set by
+     .shape-tier-label) provide the visual separation. No border
+     needed; labels are the dividers. */
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
-  margin-top: 6px;
 }
 
 /* ── Vertical macro fader (SHAPE tiers) ─────────────────────────────
@@ -2970,6 +2970,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   display: inline-block;
 }
 
+/* Surface the hint when the user points at or focuses a macro — no
+   toggle needed for the quick "what does this do?" question. Leaves
+   the ? button as the "show all hints, all the time" opt-in. */
+.macro-row:hover .macro-hint,
+.macro-row:focus-within .macro-hint {
+  display: inline-block;
+}
+
 .macro-slider {
   flex: 1;
   -webkit-appearance: none;
@@ -3216,9 +3224,23 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 /* SHAPE macro tiers — stacked rows of filled horizontal sliders.
-   Scene-driver tier (MORPH/EVOLVE/TIME) sits above; body tier
-   (DRIFT/AIR/SUB/BLOOM/GLIDE) sits below, separated by the
-   border-top on .shape-morph-row. Same layout desktop + mobile. */
+   MOTION tier (MORPH/EVOLVE/TIME) sits above; BODY tier
+   (DRIFT/AIR/SUB/BLOOM/GLIDE) sits below. Each tier prefaced by a
+   small-caps label so users see at a glance what the macros do
+   before having to decode the poetic names. Same layout desktop
+   + mobile. */
+.shape-tier-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin: 8px 0 2px;
+  padding-left: 2px;
+}
+.shape-tier-label:first-child {
+  margin-top: 2px;
+}
 .macro-primary-col {
   display: flex;
   flex-direction: column;
