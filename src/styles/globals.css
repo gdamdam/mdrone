@@ -2042,9 +2042,187 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
    Sits below the scene-driver tier (MORPH/EVOLVE/TIME) in .macro-primary-col.
    Class name kept for diff minimalism; the border-top is the tier divider. */
 .shape-morph-row {
-  padding-top: 6px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--border);
   margin-top: 6px;
+}
+
+/* ── Vertical macro fader (SHAPE tiers) ─────────────────────────────
+   Label → fader track (with tick marks) → value. Uses native
+   <input type="range"> with writing-mode: vertical-lr for the
+   actual vertical slider. Supported in Chrome 104+, Firefox 62+,
+   Safari 15.4+.  Mobile fallback collapses back to a horizontal
+   row-per-macro layout (see @media (max-width: 720px) below). */
+.macro-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 72px;
+}
+.macro-col-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.macro-col-hint {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.1;
+  max-width: 100%;
+  min-height: 10px;
+  /* .shape-hints-on ancestor controls whether hints are visible;
+     default state is hidden to keep the panel legible at distance. */
+  display: none;
+}
+.shape-hints-on .macro-col-hint { display: block; }
+.macro-col-fader {
+  position: relative;
+  width: 28px;
+  height: 110px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+/* Tick marks — 5 evenly-spaced horizontal rules (0, 25, 50, 75, 100 %).
+   Rendered behind the slider via ::before with a layered gradient so
+   the lines stay thin at any DPI. */
+.macro-col-fader::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    to top,
+    var(--border) 0 1px,
+    transparent 1px calc(25% - 0.5px),
+    var(--border) calc(25% - 0.5px) calc(25% + 0.5px),
+    transparent calc(25% + 0.5px) calc(50% - 0.5px),
+    var(--border) calc(50% - 0.5px) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px) calc(75% - 0.5px),
+    var(--border) calc(75% - 0.5px) calc(75% + 0.5px),
+    transparent calc(75% + 0.5px) calc(100% - 1px),
+    var(--border) calc(100% - 1px) 100%
+  );
+  opacity: 0.5;
+}
+.macro-col-slider {
+  /* Native vertical slider — `writing-mode: vertical-lr` + `direction: rtl`
+     flips the track so 0 sits at the bottom (as a fader should). */
+  writing-mode: vertical-lr;
+  direction: rtl;
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  width: 6px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-cell);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+.macro-col-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 10px;
+  background: var(--preview);
+  border-radius: 2px;
+  border: 1px solid color-mix(in srgb, var(--preview) 65%, #000);
+  cursor: pointer;
+}
+.macro-col-slider::-moz-range-thumb {
+  width: 22px;
+  height: 10px;
+  background: var(--preview);
+  border-radius: 2px;
+  border: 1px solid color-mix(in srgb, var(--preview) 65%, #000);
+  cursor: pointer;
+}
+.macro-col-value {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--preview);
+  font-variant-numeric: tabular-nums;
+  min-height: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Mobile fallback — vertical faders cramp on narrow viewports; revert
+   to one-macro-per-row so each fader gets full horizontal width. */
+@media (max-width: 720px) {
+  .macro-primary-col,
+  .shape-morph-row {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+  .macro-col {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    max-width: none;
+  }
+  .macro-col-label { flex: 0 0 56px; text-align: left; }
+  .macro-col-hint { display: none !important; }
+  .macro-col-fader {
+    flex: 1;
+    width: auto;
+    height: 20px;
+  }
+  .macro-col-fader::before {
+    background-image: linear-gradient(
+      to right,
+      var(--border) 0 1px,
+      transparent 1px calc(25% - 0.5px),
+      var(--border) calc(25% - 0.5px) calc(25% + 0.5px),
+      transparent calc(25% + 0.5px) calc(50% - 0.5px),
+      var(--border) calc(50% - 0.5px) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px) calc(75% - 0.5px),
+      var(--border) calc(75% - 0.5px) calc(75% + 0.5px),
+      transparent calc(75% + 0.5px) calc(100% - 1px),
+      var(--border) calc(100% - 1px) 100%
+    );
+  }
+  .macro-col-slider {
+    writing-mode: horizontal-tb;
+    direction: ltr;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+  }
+  .macro-col-slider::-webkit-slider-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+  }
+  .macro-col-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+  }
+  .macro-col-value {
+    flex: 0 0 44px;
+    text-align: right;
+    min-height: 0;
+  }
 }
 
 /* Row 3 — MORPH/EVOLVE/SUB · LFO (inside collapsible ADVANCED) */
@@ -2894,10 +3072,18 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   flex-shrink: 0;
 }
 
+/* SHAPE macro tiers — horizontal rows of vertical faders.
+   Scene-driver tier (MORPH/EVOLVE/TIME) sits above; body tier
+   (DRIFT/AIR/SUB/BLOOM/GLIDE) sits below, separated by the
+   border-top on .shape-morph-row. On mobile (<=720px) the tiers
+   collapse back to column-of-rows — see @media below. */
 .macro-primary-col {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 10px;
+  padding: 4px 0 10px;
 }
 
 /* ── Scene actions — secondary, below macros in right column ──── */
