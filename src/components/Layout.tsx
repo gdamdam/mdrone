@@ -433,16 +433,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onChangeOctave={(o) => droneViewRef.current?.setOctave(Math.max(1, Math.min(6, o)))}
         onToggleHold={handleToggleHold}
         holding={headerHolding}
-        onToggleRec={handleToggleRec}
         onOpenShare={() => setShareOpen(true)}
         onRandomScene={sceneManager.handleRandomScene}
         onOpenPresets={() => droneViewRef.current?.openPresets()}
         tuneOffsetHint={headerTuneHint}
-        isRec={isRec}
-        recTimeMs={recTimeMs}
-        recordingSupported={recordingSupport.supported}
-        recordingTitle={recordingTitle}
-        recordingBusy={recBusy}
         volume={headerVolume}
         onChangeVolume={(v) => {
           setHeaderVolume(v);
@@ -504,6 +498,12 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             weatherVisual={weatherVisual}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
+            isRec={isRec}
+            onToggleRec={handleToggleRec}
+            recTimeMs={recTimeMs}
+            recordingSupported={recordingSupport.supported}
+            recordingTitle={recordingTitle}
+            recordingBusy={recBusy}
           />
         </section>
         <section

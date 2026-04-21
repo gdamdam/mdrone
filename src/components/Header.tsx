@@ -38,7 +38,6 @@ interface HeaderProps {
   onChangeOctave: (octave: number) => void;
   onToggleHold: () => void;
   holding: boolean;
-  onToggleRec: () => void;
   onOpenShare: () => void;
   onRandomScene: () => void;
   /** Tapping the scene marquee (preset name display) expands the
@@ -48,11 +47,6 @@ interface HeaderProps {
   /** Pre-formatted "fine-tune active" hint string (e.g. "±7 ¢"),
    *  or null when no offsets are non-zero or microtuning isn't on. */
   tuneOffsetHint?: string | null;
-  isRec: boolean;
-  recTimeMs: number;
-  recordingSupported: boolean;
-  recordingTitle: string;
-  recordingBusy: boolean;
   volume: number;
   onChangeVolume: (v: number) => void;
   midiSupported: boolean;
@@ -92,15 +86,9 @@ export function Header({
   octave,
   onToggleHold,
   holding,
-  onToggleRec,
   onOpenShare,
   onRandomScene,
   onOpenPresets,
-  isRec,
-  recTimeMs,
-  recordingSupported,
-  recordingTitle,
-  recordingBusy,
   volume,
   onChangeVolume,
   midiSupported,
@@ -373,29 +361,10 @@ export function Header({
         </button>
         </div>
 
-        {/* Secondary — quieter controls */}
+        {/* Secondary — quieter controls. REC moved to the scene-
+            actions row inside DroneView (alongside MOTION capture)
+            to group all recording controls together. */}
         <div className="header-secondary">
-        <button
-          className={`header-btn header-btn-record${isRec ? " header-btn-rec" : ""}`}
-          onClick={onToggleRec}
-          title={recordingTitle}
-          disabled={!recordingSupported || recordingBusy}
-        >
-          <span className="header-btn-label-full">
-            {!recordingSupported
-              ? "REC N/A"
-              : recordingBusy
-                ? "REC..."
-                : isRec
-              ? `■ ${Math.floor(recTimeMs / 60000)}:${String(
-                  Math.floor((recTimeMs / 1000) % 60)
-                ).padStart(2, "0")}`
-              : "● REC"}
-          </span>
-          <span className="header-btn-label-glyph" aria-hidden="true">
-            {!recordingSupported ? "●" : recordingBusy ? "…" : isRec ? "■" : "●"}
-          </span>
-        </button>
         <button
           className="header-btn header-btn-volume"
           onClick={() => setVolumeOpen(true)}

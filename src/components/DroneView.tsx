@@ -218,6 +218,15 @@ interface DroneViewProps {
   weatherVisual?: import("../config").WeatherVisual;
   kbdActive: boolean;
   onToggleKbd: () => void;
+  /** Master-output WAV recording state + toggle. Hoisted from the
+   *  header into the scene-actions row so recording sits next to
+   *  scene-level controls (MUTATE, JOURNEY, REC MOTION). */
+  isRec?: boolean;
+  onToggleRec?: () => void;
+  recTimeMs?: number;
+  recordingSupported?: boolean;
+  recordingBusy?: boolean;
+  recordingTitle?: string;
 }
 
 export interface DroneViewHandle {
@@ -250,7 +259,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, isRec, onToggleRec, recTimeMs, recordingSupported, recordingBusy, recordingTitle }: DroneViewProps,
   ref,
 ) {
   const {
@@ -899,24 +908,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             })()} Hz
           </span>
           </div>
-          {/* Scene actions (morph + chevron) belong with row 1 IDENTITY
-              visually, so they sit in a trailing slot inside the
-              identity row. Absolute-positioned via flex so they stick
-              to the right edge without disturbing the meta-button
-              layout. */}
+          {/* Expand chevron in a trailing slot inside the identity
+              row — stays aligned right via the grid-area layout.
+              Preset crossfade (↔) moved to the scene-actions row
+              next to MUTATE, where the other preset-transition
+              controls live. */}
           <div className="preset-strip-scene-actions">
-          <button
-            type="button"
-            className={morphSeconds > 0 ? "preset-strip-morph preset-strip-morph-active" : "preset-strip-morph"}
-            onClick={cycleMorph}
-            title={
-              morphSeconds === 0
-                ? "Preset crossfade OFF — preset clicks swap instantly. Click to cycle through 10s / 30s / 2min crossfade."
-                : `Preset crossfade ON — clicks crossfade over ${morphLabel} (fade-out, snap, fade-in).`
-            }
-          >
-            ↔ {morphSeconds === 0 ? "OFF" : morphLabel}
-          </button>
           <button
             type="button"
             className="preset-strip-chevron"
@@ -1175,6 +1172,27 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 title="JOURNEY (~20 min) — authored 4-phase ritual: arrival → bloom → suspension → dissolve. While active, replaces EVOLVE's automatic drift with the scripted arc."
                 ariaLabel="Journey"
               />
+              {/* Preset crossfade (↔) — how preset clicks blend. Sits
+                  with the other scene-transition controls (JOURNEY,
+                  MUTATE) rather than in the preset-strip identity row
+                  where it was before. Still bound to cycleMorph. */}
+              <button
+                type="button"
+                className={morphSeconds > 0 ? "preset-mut-btn preset-mut-btn-armed" : "preset-mut-btn"}
+                onClick={cycleMorph}
+                title={
+                  morphSeconds === 0
+                    ? "Preset crossfade OFF — preset clicks swap instantly. Click to cycle through 10s / 30s / 2min crossfade."
+                    : `Preset crossfade ON — clicks crossfade over ${morphLabel} (fade-out, snap, fade-in).`
+                }
+              >
+                ↔ PRESET XFADE: {morphSeconds === 0 ? "OFF" : morphLabel}
+              </button>
+              {/* Force a wrap so MUTATE starts a new row — visually
+                  separates the "scene transitions" half (PARTNER ·
+                  JOURNEY · XFADE) from the "actions / capture" half
+                  (MUTATE · intensity · MOTION · REC). */}
+              <span className="scene-actions-break" aria-hidden="true" />
               <button
                 type="button"
                 className="preset-mut-btn"
@@ -1207,7 +1225,28 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                     ? "Stop REC MOTION — captured gestures travel with the next share URL and replay on load"
                     : "REC MOTION (60 s / 200 events) — capture your live slider moves into the next share URL so listeners hear your performance, not just the final state"}
                 >
-                  {isRecordingMotion ? "● REC" : "REC"}
+                  {isRecordingMotion ? "● MOTION" : "MOTION"}
+                </button>
+              )}
+              {/* Master-output WAV recording — moved here from the
+                  header (too crowded up there). Sits with the other
+                  capture/recording controls (MOTION) for semantic
+                  consistency. */}
+              {onToggleRec && (
+                <button
+                  type="button"
+                  className={isRec ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
+                  onClick={onToggleRec}
+                  disabled={!recordingSupported || recordingBusy}
+                  title={recordingTitle ?? "Record master output to WAV"}
+                >
+                  {!recordingSupported
+                    ? "REC N/A"
+                    : recordingBusy
+                      ? "REC…"
+                      : isRec
+                        ? `■ ${Math.floor((recTimeMs ?? 0) / 60000)}:${String(Math.floor(((recTimeMs ?? 0) / 1000) % 60)).padStart(2, "0")}`
+                        : "● REC"}
                 </button>
               )}
             </div>
