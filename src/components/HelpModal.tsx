@@ -99,7 +99,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">WEATHER · XY control</div>
           <p className="fx-modal-desc">
-            The signature expressive control. Drag to change the room:
+            The main tactile control — drag to change the room:
             X axis = <strong>DARK ↔ BRIGHT</strong> (filter + presence),
             Y axis = <strong>STILL ↔ MOVING</strong> (LFO depth + drift).
             Three visual modes (Settings): Waveform (circular oscilloscope),
@@ -176,9 +176,9 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </p>
 
           <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">JOURNEY · ritual phases</div>
+          <div className="fx-modal-section-label">JOURNEY · phased arc</div>
           <p className="fx-modal-desc">
-            <strong>JOURNEY</strong> picks an authored multi-phase walk:{" "}
+            <strong>JOURNEY</strong> picks an authored multi-phase arc:{" "}
             <em>arrival → bloom → suspension → dissolve</em>. Pick one
             from the dropdown above the preset grid (morning, evening,
             dusk, void). Each phase gently steers a small set of macros
