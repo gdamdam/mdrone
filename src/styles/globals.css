@@ -3839,31 +3839,60 @@ input.share-modal-url:focus {
   min-width: 48px;
 }
 
-/* Mobile: shrink mixer strips so ~10 fit in a narrow viewport
-   without horizontal scroll. Slightly narrower slider wrap and
-   tighter gap; labels scale down. */
+/* Mobile: the desktop single-row of 11 vertical strips doesn't fit
+   any narrow viewport. Re-flow into a 4-column grid so strips land
+   in 3 logical rows:
+     Row 1 — EQ:       HPF · LOW · MID · HIGH
+     Row 2 — DYNAMICS: GLUE · DRIVE · LIMITER · CEIL
+     Row 3 — OUTPUT:   VOL · WIDTH · FADE · SAFE
+   Dividers hide (the row grouping replaces them). Strips keep
+   their vertical-fader shape, just smaller — mixer metaphor
+   preserved, no horizontal scroll needed. */
 @media (max-width: 720px) {
+  .mixer-layout { max-width: none; gap: 10px; }
   .mixer-strips {
-    gap: 6px;
-    padding: 12px 8px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px 8px;
+    padding: 12px 10px;
     overflow-x: visible;
+    justify-content: stretch;
   }
+  .mixer-divider { display: none; }
   .mixer-strip {
     min-width: 0;
-    flex: 1 1 0;
     gap: 4px;
   }
   .mixer-strip-slider-wrap {
-    width: 20px;
-    height: 130px;
+    width: 100%;
+    max-width: 44px;
+    height: 110px;
   }
   .mixer-strip-label {
-    font-size: 8px;
-    letter-spacing: 0.4px;
+    font-size: 9px;
+    letter-spacing: 0.6px;
   }
   .mixer-strip-value {
     font-size: 9px;
     min-width: 0;
+  }
+  /* LIMITER / HPF / SAFE / FADE buttons get full cell width so they
+     don't look pinched next to neighbouring vertical strips. */
+  .mixer-limiter-btn {
+    width: 100%;
+    max-width: 56px;
+    padding: 8px 4px;
+    font-size: 10px;
+  }
+  /* FADE cell: IN/OUT buttons stack vertically so they fit the
+     narrow column without wrapping oddly. */
+  .mixer-strip .mixer-clip-row {
+    flex-direction: column;
+    gap: 3px !important;
+    width: 100%;
+  }
+  .mixer-strip .mixer-clip-row .mixer-limiter-btn {
+    max-width: 56px;
   }
 }
 
