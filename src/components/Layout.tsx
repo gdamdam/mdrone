@@ -475,6 +475,22 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         </div>
       )}
 
+      {/* Mobile close affordance for MEDITATE / MIXER — the header
+          button is covered by the fullscreen overlay / dim backdrop,
+          and there's no Esc key on phones. Desktop relies on Esc or
+          clicking the header button again (CSS hides this there). */}
+      {viewMode !== "drone" && (
+        <button
+          type="button"
+          className="view-close-mobile"
+          onClick={() => setViewMode("drone")}
+          aria-label={`Close ${viewMode} — back to DRONE`}
+          title={`Close ${viewMode}`}
+        >
+          ✕
+        </button>
+      )}
+
       <main className={`view view-mode-${viewMode}`}>
         {/* DRONE is the base layer — always mounted and interactive.
             MEDITATE overlays it fullscreen; MIXER slides up as a
