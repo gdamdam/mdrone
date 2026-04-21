@@ -430,10 +430,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // MUTATE intensity — local state, not persisted across reloads.
   // 0.25 is an audible but coherent default for typical drones.
   const [mutateIntensity, setMutateIntensity] = useState(0.25);
-  // Gestures menu (JOURNEY / MUTATE / MOTION-REC) is collapsed by default
-  // so the primary MORPH + EVOLVE controls stay dominant. See audit P2 —
-  // motion-surface consolidation.
-  const [gesturesOpen, setGesturesOpen] = useState(false);
   // Scale-editor modal — opens from the ✎ button beside the tuning
   // dropdown so users can author and save custom tuning tables
   // (degrees in cents above the root). See audit P2 — scale editor UI.
@@ -1163,28 +1159,22 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 title="PARTNER — sympathetic second drone layer at a fixed musical relation."
                 ariaLabel="Sympathetic partner"
               />
-              {/* GESTURES — collapses JOURNEY + MUTATE + MOTION-REC behind
-                  one disclosure so MORPH + EVOLVE stay the dominant
-                  motion vocabulary on the surface. Per audit P2. */}
-              <button
-                type="button"
-                className={gesturesOpen ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
-                onClick={() => setGesturesOpen((v) => !v)}
-                title="Show JOURNEY / MUTATE / REC MOTION gestures"
-                aria-expanded={gesturesOpen}
-              >
-                {gesturesOpen ? "▾ GESTURES" : "▸ GESTURES"}
-              </button>
-            </div>
-
-            {gesturesOpen && (
-            <>
-            <div className="scene-gestures-help">
-              MORPH/EVOLVE above shape the scene continuously. Gestures
-              below fire on demand or over long arcs.
-            </div>
-            <div className="scene-actions-row scene-gestures-row">
-              <span className="scene-gestures-group-label">INSTANT</span>
+              {/* Scene-motion controls inline — JOURNEY (authored arc),
+                  MUTATE (one-shot stochastic), REC MOTION (recorded
+                  gesture). Previously collapsed behind a GESTURES
+                  disclosure; surfacing them directly removes a click
+                  and drops the mis-labelled group name. */}
+              <DropdownSelect
+                value={state.journey ?? ""}
+                options={[
+                  { value: "", label: "JOURNEY: off" },
+                  ...JOURNEY_IDS.map((id) => ({ value: id, label: `JOURNEY: ${JOURNEYS[id].label}` })),
+                ]}
+                onChange={(v) => setJourney(v === "" ? null : (v as JourneyId))}
+                className="preset-journey-select"
+                title="JOURNEY (~20 min) — authored 4-phase ritual: arrival → bloom → suspension → dissolve. While active, replaces EVOLVE's automatic drift with the scripted arc."
+                ariaLabel="Journey"
+              />
               <button
                 type="button"
                 className="preset-mut-btn"
@@ -1201,26 +1191,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 value={mutateIntensity}
                 onChange={(e) => setMutateIntensity(parseFloat(e.target.value))}
                 className="preset-mut-intensity"
+                style={{ ["--fill" as string]: `${mutateIntensity * 100}%` } as React.CSSProperties}
                 title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
                 aria-label="Mutation intensity"
               />
               <span className="preset-mut-value" aria-hidden="true">
                 {Math.round(mutateIntensity * 100)}%
               </span>
-            </div>
-            <div className="scene-actions-row scene-gestures-row">
-              <span className="scene-gestures-group-label">LONG-FORM</span>
-              <DropdownSelect
-                value={state.journey ?? ""}
-                options={[
-                  { value: "", label: "JOURNEY: off" },
-                  ...JOURNEY_IDS.map((id) => ({ value: id, label: `JOURNEY: ${JOURNEYS[id].label}` })),
-                ]}
-                onChange={(v) => setJourney(v === "" ? null : (v as JourneyId))}
-                className="preset-journey-select"
-                title="JOURNEY (~20 min) — authored 4-phase ritual: arrival → bloom → suspension → dissolve. While active, replaces EVOLVE's automatic drift with the scripted arc."
-                ariaLabel="Journey"
-              />
               {motionRecEnabled && (
                 <button
                   type="button"
@@ -1230,12 +1207,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                     ? "Stop REC MOTION — captured gestures travel with the next share URL and replay on load"
                     : "REC MOTION (60 s / 200 events) — capture your live slider moves into the next share URL so listeners hear your performance, not just the final state"}
                 >
-                  {isRecordingMotion ? "● REC MOTION" : "REC MOTION"}
+                  {isRecordingMotion ? "● REC" : "REC"}
                 </button>
               )}
             </div>
-            </>
-            )}
 
             {/* Piano keyboard + octave — moved into the preset-strip
                 at the top of this view per layout pass (P2.3). */}

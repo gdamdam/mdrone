@@ -3839,60 +3839,93 @@ input.share-modal-url:focus {
   min-width: 48px;
 }
 
-/* Mobile: the desktop single-row of 11 vertical strips doesn't fit
-   any narrow viewport. Re-flow into a 4-column grid so strips land
-   in 3 logical rows:
-     Row 1 — EQ:       HPF · LOW · MID · HIGH
-     Row 2 — DYNAMICS: GLUE · DRIVE · LIMITER · CEIL
-     Row 3 — OUTPUT:   VOL · WIDTH · FADE · SAFE
-   Dividers hide (the row grouping replaces them). Strips keep
-   their vertical-fader shape, just smaller — mixer metaphor
-   preserved, no horizontal scroll needed. */
+/* Mobile: abandon the mixing-console vertical-strip metaphor — it
+   doesn't fit a phone. Each mixer control becomes a horizontal row
+   with [label · filled track · value], mirroring the SHAPE macros
+   pattern. Existing dividers become horizontal rules that separate
+   the logical groups (HPF / EQ / dynamics / limiter / output). */
 @media (max-width: 720px) {
-  .mixer-layout { max-width: none; gap: 10px; }
+  .mixer-layout { max-width: none; gap: 8px; }
   .mixer-strips {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px 8px;
-    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
     overflow-x: visible;
-    justify-content: stretch;
   }
-  .mixer-divider { display: none; }
+  .mixer-divider {
+    width: auto;
+    height: 1px;
+    margin: 4px 0;
+  }
   .mixer-strip {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
     min-width: 0;
-    gap: 4px;
-  }
-  .mixer-strip-slider-wrap {
     width: 100%;
-    max-width: 44px;
-    height: 110px;
   }
   .mixer-strip-label {
-    font-size: 9px;
-    letter-spacing: 0.6px;
+    flex: 0 0 56px;
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    text-align: left;
+  }
+  .mixer-strip-slider-wrap {
+    flex: 1;
+    width: auto;
+    height: 22px;
+    border-radius: 5px;
   }
   .mixer-strip-value {
-    font-size: 9px;
-    min-width: 0;
-  }
-  /* LIMITER / HPF / SAFE / FADE buttons get full cell width so they
-     don't look pinched next to neighbouring vertical strips. */
-  .mixer-limiter-btn {
-    width: 100%;
-    max-width: 56px;
-    padding: 8px 4px;
+    flex: 0 0 60px;
     font-size: 10px;
+    min-width: 0;
+    text-align: right;
   }
-  /* FADE cell: IN/OUT buttons stack vertically so they fit the
-     narrow column without wrapping oddly. */
+  /* Flip fill: bottom-up column → left-right row, filling from 0
+     to --fill set inline by the Strip component. */
+  .mixer-strip-fill {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: auto;
+    height: auto;
+    width: var(--fill, 0%);
+    opacity: 0.55;
+  }
+  /* Flip centre notch (EQ neutral marker) from horizontal line to
+     vertical tick at the --centre position. */
+  .mixer-strip-centre {
+    top: 0;
+    bottom: 0;
+    left: var(--centre, 50%);
+    right: auto;
+    width: 2px;
+    height: auto;
+  }
+  /* Native horizontal range input — undo the desktop vertical rules. */
+  .mixer-strip-slider {
+    writing-mode: horizontal-tb;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: ew-resize;
+  }
+  /* Button-type controls (HPF / LIMITER / SAFE / FADE) — the middle
+     slot holds the button(s), value slot holds the meta ("—", "CLIP",
+     duration, "HP"). Row naturally accommodates them via flex. */
+  .mixer-limiter-btn {
+    padding: 6px 12px;
+    font-size: 10px;
+    min-width: 56px;
+  }
+  /* FADE row: IN/OUT + duration all inline instead of stacked. */
   .mixer-strip .mixer-clip-row {
-    flex-direction: column;
-    gap: 3px !important;
-    width: 100%;
-  }
-  .mixer-strip .mixer-clip-row .mixer-limiter-btn {
-    max-width: 56px;
+    flex-direction: row;
+    gap: 6px !important;
+    margin-top: 0;
+    flex: 1;
+    justify-content: flex-start;
   }
 }
 
