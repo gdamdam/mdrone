@@ -34,4 +34,4 @@ Disallow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://mdrone.mpump.live/sitemap.xml
+Sitemap: https://mdrone.org/sitemap.xml
