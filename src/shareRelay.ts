@@ -1,9 +1,9 @@
 /**
  * Share relay client — URL shortener for scene share links.
- * Relay: sd.mpump.live (same Cloudflare Worker that serves OG cards).
+ * Relay: s.mdrone.org (same Cloudflare Worker that serves OG cards).
  */
 
-const RELAY = import.meta.env.DEV ? "http://localhost:8787" : "https://sd.mpump.live";
+const RELAY = import.meta.env.DEV ? "http://localhost:8787" : "https://s.mdrone.org";
 
 let healthCache: boolean | null = null;
 let healthCheckedAt = 0;

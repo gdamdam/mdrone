@@ -1,7 +1,7 @@
 /**
  * mdrone share-card Worker — per-scene OG tags + PNG card.
  *
- * Routes (host: sd.mpump.live):
+ * Routes (host: s.mdrone.org):
  *   GET /health           → { ok, v }
  *   GET /?z=<payload>     → OG HTML stub, then meta-redirect to the app
  *   GET /?b=<payload>     → same, plain-b64 fallback
@@ -28,7 +28,7 @@ import {
 } from "../src/shareCard/svgBuilder";
 import { normalizePortableScene, type PortableScene } from "../src/session";
 
-const APP_ORIGIN = "https://mdrone.mpump.live";
+const APP_ORIGIN = "https://mdrone.org";
 const VERSION = "1.8.0";
 
 interface Env {
@@ -427,7 +427,7 @@ async function handleDashboard(env: Env): Promise<Response> {
   const rows = data.rows.map((r) => {
     const total = r.shares + r.plays;
     return `<tr>
-      <td><a href="https://sd.mpump.live/${esc(r.id)}?nc" target="_blank" rel="noopener">${esc(r.id)}</a></td>
+      <td><a href="https://s.mdrone.org/${esc(r.id)}?nc" target="_blank" rel="noopener">${esc(r.id)}</a></td>
       <td data-val="${r.plays}">${r.plays}</td>
       <td data-val="${r.shares}">${r.shares}</td>
       <td data-val="${total}">${total}</td>
@@ -472,7 +472,7 @@ ${DASHBOARD_SCRIPT}
 
 /**
  * POST /shorten — create a short URL for a scene share link.
- * Dedupes by SHA-256 of the submitted URL. Scoped to sd.mpump.live so
+ * Dedupes by SHA-256 of the submitted URL. Scoped to s.mdrone.org so
  * short IDs can only redirect to our own share-card origin.
  */
 async function handleShorten(request: Request, env: Env): Promise<Response> {
@@ -490,7 +490,7 @@ async function handleShorten(request: Request, env: Env): Promise<Response> {
         status: 400, headers: { "Content-Type": "application/json", ...CORS },
       });
     }
-    if (parsed.host !== "sd.mpump.live") {
+    if (parsed.host !== "s.mdrone.org") {
       return new Response(JSON.stringify({ error: "Host not allowed" }), {
         status: 400, headers: { "Content-Type": "application/json", ...CORS },
       });
@@ -500,7 +500,7 @@ async function handleShorten(request: Request, env: Env): Promise<Response> {
     const existing = await env.SHORT.get(`h:${hashHex}`);
     if (existing) {
       return new Response(
-        JSON.stringify({ id: existing, short: `https://sd.mpump.live/${existing}` }),
+        JSON.stringify({ id: existing, short: `https://s.mdrone.org/${existing}` }),
         { headers: { "Content-Type": "application/json", ...CORS } },
       );
     }
@@ -522,7 +522,7 @@ async function handleShorten(request: Request, env: Env): Promise<Response> {
       env.SHORT.put(`h:${hashHex}`, id),
     ]);
     return new Response(
-      JSON.stringify({ id, short: `https://sd.mpump.live/${id}` }),
+      JSON.stringify({ id, short: `https://s.mdrone.org/${id}` }),
       { headers: { "Content-Type": "application/json", ...CORS } },
     );
   } catch {
@@ -626,9 +626,9 @@ async function handleRequest(
     const desc = `${metaTitle(scene)} · ${activeVoiceSummary(scene)} — a drone landscape from mdrone.`;
     const paramKey = z ? "z" : "b";
     const csParam = styleChoice !== "auto" ? `&cs=${resolvedStyle}` : "";
-    const shareUrl = `https://sd.mpump.live/?${paramKey}=${raw}${csParam}`;
+    const shareUrl = `https://s.mdrone.org/?${paramKey}=${raw}${csParam}`;
     const appUrl = `${APP_ORIGIN}/?${paramKey}=${raw}${csParam}`;
-    const imgUrl = `https://sd.mpump.live/img?${paramKey}=${raw}${csParam}`;
+    const imgUrl = `https://s.mdrone.org/img?${paramKey}=${raw}${csParam}`;
 
     const html = buildOgHtml({
       title,

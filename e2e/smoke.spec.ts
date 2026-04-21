@@ -34,7 +34,7 @@ const dismissStartGate = async (page: Page) => {
   await btn.click();
 };
 
-// Stub the share-relay worker (dev: localhost:8787, prod: sd.mpump.live) so
+// Stub the share-relay worker (dev: localhost:8787, prod: s.mdrone.org) so
 // tests don't depend on a running wrangler dev server or outbound network.
 const stubShareRelay = async (page: Page) => {
   const handler = async (route: import("@playwright/test").Route) => {
@@ -47,7 +47,7 @@ const stubShareRelay = async (page: Page) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ id: "test", short: "https://sd.mpump.live/s/test" }),
+        body: JSON.stringify({ id: "test", short: "https://s.mdrone.org/s/test" }),
       });
       return;
     }
@@ -58,7 +58,7 @@ const stubShareRelay = async (page: Page) => {
     await route.fulfill({ status: 404, body: "" });
   };
   await page.route("http://localhost:8787/**", handler);
-  await page.route("https://sd.mpump.live/**", handler);
+  await page.route("https://s.mdrone.org/**", handler);
 };
 
 test.beforeEach(async ({ context }) => {
@@ -184,7 +184,7 @@ test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, br
   const shareUrl = await shareUrlLocator.inputValue();
 
   // The share URL points at the production share-worker origin
-  // (e.g. sd.mpump.live). Rewrite it to the local dev server.
+  // (e.g. s.mdrone.org). Rewrite it to the local dev server.
   const parsed = new URL(shareUrl);
   const localShareUrl = `http://localhost:5173/${parsed.search}`;
 

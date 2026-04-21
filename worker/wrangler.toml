@@ -2,10 +2,10 @@ name = "mdrone-share"
 main = "worker.ts"
 compatibility_date = "2024-11-01"
 
-# Served at sd.mpump.live. Route configured via the Cloudflare dashboard
-# under the existing *.mpump.live zone (same account as s.mpump.live).
+# Served at s.mdrone.org. Route configured via the Cloudflare dashboard
+# under the mdrone.org zone.
 routes = [
-  { pattern = "sd.mpump.live/*", zone_name = "mpump.live" }
+  { pattern = "s.mdrone.org/*", zone_name = "mdrone.org" }
 ]
 
 # Bundle .wasm as CompiledWasm so @resvg/resvg-wasm/index_bg.wasm can be

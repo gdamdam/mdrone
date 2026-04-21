@@ -76,7 +76,7 @@ export async function encodeScenePayload(scene: PortableScene): Promise<{ key: "
 /** The share-card worker origin. Shared links route through it so
  *  social-platform unfurl bots see OG meta + card art. The worker
  *  then meta-redirects humans to the app origin. */
-const SHARE_WORKER_ORIGIN = "https://sd.mpump.live";
+const SHARE_WORKER_ORIGIN = "https://s.mdrone.org";
 
 export async function buildSceneShareUrl(scene: PortableScene): Promise<string> {
   const { key, value } = await encodeScenePayload(scene);
