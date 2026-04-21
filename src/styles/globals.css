@@ -2175,11 +2175,9 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
    Class name kept for diff minimalism; the border-top is the tier divider. */
 .shape-morph-row {
   display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  justify-content: space-around;
-  gap: 10px;
-  padding-top: 10px;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
   border-top: 1px solid var(--border);
   margin-top: 6px;
 }
@@ -2972,28 +2970,37 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   flex: 1;
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
-  background: var(--bg-cell);
-  border-radius: 2px;
+  height: 6px;
+  /* Filled track — accent from 0 up to --fill (set per-slider from JSX).
+     Fills on the left (played area), empty bg-cell on the right. Reads
+     at a glance as a level bar rather than "where is the thumb?" */
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--preview) 55%, transparent) 0%,
+    color-mix(in srgb, var(--preview) 55%, transparent) var(--fill, 0%),
+    var(--bg-cell) var(--fill, 0%),
+    var(--bg-cell) 100%
+  );
+  border-radius: 3px;
   outline: none;
 }
 
 .macro-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--preview);
   cursor: pointer;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--preview) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--preview) 75%, #000);
 }
 
 .macro-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--preview);
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--preview) 75%, #000);
   cursor: pointer;
 }
 
@@ -3204,18 +3211,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   flex-shrink: 0;
 }
 
-/* SHAPE macro tiers — horizontal rows of vertical faders.
+/* SHAPE macro tiers — stacked rows of filled horizontal sliders.
    Scene-driver tier (MORPH/EVOLVE/TIME) sits above; body tier
    (DRIFT/AIR/SUB/BLOOM/GLIDE) sits below, separated by the
-   border-top on .shape-morph-row. On mobile (<=720px) the tiers
-   collapse back to column-of-rows — see @media below. */
+   border-top on .shape-morph-row. Same layout desktop + mobile. */
 .macro-primary-col {
   display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  justify-content: space-around;
-  gap: 10px;
-  padding: 4px 0 10px;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* ── Scene actions — secondary, below macros in right column ──── */

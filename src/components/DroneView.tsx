@@ -998,7 +998,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
             <div className="macro-primary-col">
               <Macro
-                vertical
                 label="MORPH"
                 value={state.presetMorph}
                 onChange={(v) => { setPresetMorph(v); engine?.setPresetMorph(v); }}
@@ -1007,7 +1006,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 hint="preset-change crossfade"
               />
               <Macro
-                vertical
                 label="EVOLVE"
                 value={state.evolve}
                 onChange={(v) => { setPresetEvolve(v); engine?.setEvolve(v); }}
@@ -1016,7 +1014,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 hint="autonomous slow drift"
               />
               <Macro
-                vertical
                 label="TIME"
                 value={state.time}
                 onChange={setTime}
@@ -1028,7 +1025,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
             <div className="shape-morph-row">
               <Macro
-                vertical
                 label="DRIFT"
                 value={state.drift}
                 onChange={setDrift}
@@ -1037,7 +1033,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 hint="partials wander in pitch"
               />
               <Macro
-                vertical
                 label="AIR"
                 value={state.air}
                 onChange={setAir}
@@ -1046,7 +1041,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 hint="reverb / space send"
               />
               <Macro
-                vertical
                 label="SUB"
                 value={state.sub}
                 onChange={setSub}
@@ -1055,7 +1049,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 hint="sub-octave triangle layer"
               />
               <Macro
-                vertical
                 label="BLOOM"
                 value={state.bloom}
                 onChange={setBloom}
@@ -1065,7 +1058,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 hint="voice attack on next HOLD"
               />
               <Macro
-                vertical
                 label="GLIDE"
                 value={state.glide}
                 onChange={setGlide}
@@ -1612,6 +1604,7 @@ function Macro({
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="macro-slider"
+        style={{ ["--fill" as string]: `${value * 100}%` } as React.CSSProperties}
       />
       <span className="macro-value">
         {displayValue ?? Math.round(value * 100)}
