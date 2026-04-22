@@ -80,8 +80,8 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
       className={state.enabled ? "entrain-panel entrain-panel-on" : "entrain-panel"}
       aria-label="LFO 2 · FLICKER"
     >
+      <div className="entrain-title">LFO 2 · FLICKER</div>
       <div className="entrain-header">
-        <span className="entrain-title">LFO 2 · FLICKER</span>
         <button
           type="button"
           className={state.enabled ? "entrain-power entrain-power-on" : "entrain-power"}
@@ -152,13 +152,16 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
         </span>
       </div>
 
-      <div className={rateActive ? "entrain-lock-line" : "entrain-lock-line entrain-lock-line-inactive"}>
-        {rateActive
-          ? (lock.k > 0
-              ? <>locked ×{lock.k} → {lock.lockedHz.toFixed(2)} Hz (breathing {breathingHz.toFixed(2)} Hz)</>
-              : <>breathing stopped — entrain will free-run</>)
-          : <>rate parked — DICHOTIC mode is driven by SPREAD</>}
-      </div>
+      {!rateActive && (
+        <div className="entrain-lock-line entrain-lock-line-inactive">
+          rate parked — DICHOTIC mode is driven by SPREAD
+        </div>
+      )}
+      {rateActive && lock.k === 0 && (
+        <div className="entrain-lock-line">
+          breathing stopped — FLICKER will free-run
+        </div>
+      )}
 
       <div className="entrain-mode-row">
         {MODES.map((m) => (

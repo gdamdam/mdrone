@@ -4727,29 +4727,29 @@ input.share-modal-url:focus {
   border-color: var(--preview);
 }
 
-/* ── ENTRAIN panel (experimental, Settings → Advanced opt-in) ─── */
+/* ── LFO 2 · FLICKER — flush-nested under LFO · VOLUME SWELL ──── */
 .entrain-panel {
-  margin-top: 12px;
-  padding: 10px 12px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-cell);
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .entrain-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 8px;
 }
 .entrain-title {
   font-family: inherit;
-  font-size: 11px;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  letter-spacing: 0.14em;
   color: var(--text-dim);
+  text-transform: uppercase;
 }
-.entrain-panel-on { border-color: var(--preview); }
+.entrain-panel-on .entrain-title { color: var(--text); }
 .entrain-power {
   font-family: inherit;
   font-size: 11px;

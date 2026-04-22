@@ -158,7 +158,9 @@ export function describeEntrain(
   })();
   const dichoticText = `L/R detune ±${(s.dichoticCents / 2).toFixed(1)} ¢ — headphones`;
   const lock = phaseLockedRate(breathingHz, r);
-  const lockNote = lock.k > 0 ? ` · locked ×${lock.k} to breathing` : "";
+  const lockNote = lock.k > 0
+    ? ` · locked ×${lock.k} to ${breathingHz.toFixed(2)} Hz breathing`
+    : "";
   const core =
     s.mode === "dichotic" ? `${dichoticText}${lockNote}` :
     s.mode === "both"     ? `${rateText} · ${dichoticText}${lockNote}` :
