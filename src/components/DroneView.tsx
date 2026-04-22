@@ -171,7 +171,7 @@ const VOICES: VoiceDef[] = [
   },
   {
     id: "fm", label: "FM",
-    hint: "2-op FM synthesis — modulator frequency-modulates carrier, producing controllable inharmonic sidebands. Bell-like metal tones distinct from the modal METAL voice. Coil, DX7-era synth drones, Tangerine Dream.",
+    hint: "2-op FM synthesis — modulator frequency-modulates carrier, producing controllable inharmonic sidebands. Bell-like metal tones distinct from the modal METAL voice. DX7-era synth drones.",
     icon: (
       // Two small circles = carrier + modulator with a sine wave
       <svg {...V_SVG}>
@@ -183,7 +183,7 @@ const VOICES: VoiceDef[] = [
   },
   {
     id: "amp", label: "AMP",
-    hint: "Distorted amplifier voice — additive harmonic source pushed through hard tanh saturation and a cabinet low-pass. The sustained-guitar-feedback character of drone metal: Sunn O))), Earth, Boris.",
+    hint: "Distorted amplifier voice — additive harmonic source pushed through hard tanh saturation and a cabinet low-pass. The sustained-guitar-feedback character of drone metal.",
     icon: (
       // Amp cabinet with a speaker grille
       <svg {...V_SVG}>

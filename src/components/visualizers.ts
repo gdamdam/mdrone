@@ -105,17 +105,17 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   waveformRing: "WAVEFORM RING · circular oscilloscope",
   haloGlow: "HALO & RAYS",
   fractal: "JULIA FRACTAL · heavy",
-  rothko: "ROTHKO FIELD · Radigue",
-  tapeDecay: "TAPE DECAY · Basinski",
-  dreamHouse: "DREAM HOUSE MAGENTA · La Monte Young",
-  sigil: "SIGIL BLOOM · Coil",
-  starGate: "STAR GATE · Coil / 2001",
+  rothko: "ROTHKO FIELD",
+  tapeDecay: "TAPE DECAY",
+  dreamHouse: "DREAM HOUSE MAGENTA",
+  sigil: "SIGIL BLOOM",
+  starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
   waterfall: "SPECTRAL WATERFALL",
   waterfallAscii: "WATERFALL · ASCII gradient",
   waterfallHybrid: "WATERFALL · hybrid strata",
   waterfallRain: "WATERFALL · matrix rain",
-  feedbackTunnel: "FEEDBACK TUNNEL · Jarman",
+  feedbackTunnel: "FEEDBACK TUNNEL",
   inkBloom: "INK BLOOM",
   horizon: "HORIZON SUNRISE",
   aurora: "SPECTRAL AURORA",
@@ -716,8 +716,8 @@ export function drawFractal(
 
 // ─────────────────────────────────────────────────────────────────────
 // 9. ROTHKO FIELD — soft color blocks stacked like a Rothko canvas.
-//    Pure duration monument à la Radigue. Audio barely visible;
-//    time and palette drift are the real composition.
+//    Long-duration piece in the Radigue tradition: audio barely
+//    visible; time and palette drift are the composition.
 // ─────────────────────────────────────────────────────────────────────
 export function drawRothko(
   ctx: CanvasRenderingContext2D,
@@ -794,8 +794,8 @@ function drawRothkoBlock(
 // 10. TAPE DECAY — a horizontal band of magnetic tape scrolling
 //     right-to-left, slowly rotting with per-pixel dropouts. Persists
 //     across session reloads: the decay pattern is serialized to
-//     localStorage every few seconds, so you can come back to tape
-//     that has been eroding while you were away (Basinski).
+//     localStorage every few seconds, so the tape keeps eroding
+//     between sessions — Basinski-style disintegration loops.
 // ─────────────────────────────────────────────────────────────────────
 let tapeCanvas: HTMLCanvasElement | null = null;
 let tapeCtx: CanvasRenderingContext2D | null = null;
@@ -1043,7 +1043,7 @@ export function drawDreamHouse(
 // 12. SIGIL BLOOM — continuous-line ritual sigils drawn slowly from
 //     the center outward. Each sigil is generated from a seed (the
 //     current time). Old sigils fade to ghost as new ones replace
-//     them. Coil / Austin Osman Spare territory.
+//     them. Coil-style ritual-visual field.
 // ─────────────────────────────────────────────────────────────────────
 interface SigilPoint { x: number; y: number; }
 let sigilPoints: SigilPoint[] | null = null;
