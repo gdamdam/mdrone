@@ -248,7 +248,11 @@ export function MeditateView({
   }, [visualizer]);
 
   useEffect(() => {
-    if (!active) return;
+    // Keep the render loop running whenever MEDITATE is visible OR a
+    // pop-out window is open streaming the canvas. Without the
+    // pop-out gate, switching back to DRONE would freeze the
+    // detached window — defeating the point of ↗ POP OUT.
+    if (!active && !isPopOut) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -640,7 +644,7 @@ export function MeditateView({
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
     };
-  }, [engine, active]);
+  }, [engine, active, isPopOut]);
 
   const label = useMemo(() => VISUALIZER_LABELS[visualizer], [visualizer]);
 
