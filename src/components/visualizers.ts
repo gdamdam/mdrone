@@ -1948,14 +1948,14 @@ export function drawWaveformRing(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  // Motion-blur fade — dt-scaled so the fade rate is framerate-
-  // independent. At 60 fps (dtScale ≈ 1) each frame erases ~22%; at
-  // 30 fps (dtScale ≈ 2) ~40%; if rAF is throttled way down the
-  // fade still clears the canvas. Raises the baseline per-frame
-  // erase from the old 0.12 so RMS-varying rings don't stack into
-  // a solid ring when the waveform amplitude drifts.
-  const BASE_FADE = 0.22;
-  const fade = 1 - Math.pow(1 - BASE_FADE, p.dtScale ?? 1);
+  // Motion-blur fade — dt-scaled and aggressive enough that even a
+  // severely-throttled captureStream (pop-out fullscreen on a
+  // second monitor can push rAF down to ~1 Hz) clears accumulated
+  // strokes instead of piling them into a solid ring. At 60 fps
+  // (dtScale ≈ 1) ~45% erased per frame; at 30 fps ~70%; at 1 fps
+  // (dtScale clamped to 4.8) ~96% — effectively a full clear.
+  const BASE_FADE = 0.45;
+  const fade = Math.min(1, 1 - Math.pow(1 - BASE_FADE, p.dtScale ?? 1));
   ctx.globalCompositeOperation = "destination-out";
   ctx.globalAlpha = fade;
   ctx.fillStyle = "black";
