@@ -190,8 +190,6 @@ const VISUALIZERS: readonly Visualizer[] = [
   "flowField",
   "waterfall",
   "feedbackTunnel",
-  "waterfallAscii",
-  "waterfallHybrid",
   "saltDrift",
   "ironFilings",
   "sediment",

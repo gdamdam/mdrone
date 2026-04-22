@@ -36,8 +36,6 @@ export type Visualizer =
   | "flowField"
   | "waterfall"
   | "feedbackTunnel"
-  | "waterfallAscii"
-  | "waterfallHybrid"
   | "waveformRing"
   | "saltDrift"
   | "ironFilings"
@@ -71,8 +69,6 @@ export const VISUALIZER_GROUPS: readonly {
     items: [
       "aurora",
       "waterfall",
-      "waterfallAscii",
-      "waterfallHybrid",
       "sediment",
       "erosion",
     ],
@@ -120,8 +116,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
   waterfall: "SPECTRAL WATERFALL",
-  waterfallAscii: "WATERFALL · ASCII gradient",
-  waterfallHybrid: "WATERFALL · hybrid strata",
   feedbackTunnel: "FEEDBACK TUNNEL",
   saltDrift: "SALT DRIFT · particulate accretion",
   ironFilings: "IRON FILINGS · magnetic field",
@@ -306,6 +300,81 @@ export function drawMandala(
     ctx.beginPath();
     ctx.arc(cx, cy, maxR * breath * 1.04, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  // ── Accreted complexity — each tier lights up as growth advances ──
+  // Radial spokes behind all bands. Count doubles as growth rises,
+  // giving the mandala a skeletal sacred-geometry layer over minutes.
+  if (p.growth > 0.4) {
+    const spokeAlpha = 0.06 + (p.growth - 0.4) * 0.18;
+    const spokeCount = 12 + Math.round((p.growth - 0.4) * 36); // 12 → 48
+    ctx.strokeStyle = `hsla(${(p.hue + 180) % 360}, 40%, 60%, ${spokeAlpha})`;
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    for (let i = 0; i < spokeCount; i++) {
+      const ang = (i / spokeCount) * Math.PI * 2;
+      const r0 = maxR * 0.18;
+      const r1 = maxR * breath * 0.98;
+      ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0);
+      ctx.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+    }
+    ctx.stroke();
+  }
+
+  // Tick-marked halo ring just inside the frame. Count + density
+  // scale with growth, like a clock face gaining markers.
+  if (p.growth > 0.55) {
+    const g = (p.growth - 0.55) / 0.45;
+    const tickCount = 36 + Math.round(g * 72); // 36 → 108
+    const rh = maxR * breath * 1.09;
+    ctx.strokeStyle = `hsla(${(p.hue + 30) % 360}, 70%, 72%, ${0.18 + g * 0.22})`;
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    for (let i = 0; i < tickCount; i++) {
+      const ang = (i / tickCount) * Math.PI * 2;
+      const r0 = rh - 3;
+      const r1 = rh + 3;
+      ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0);
+      ctx.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+    }
+    ctx.stroke();
+  }
+
+  // Perimeter dot ring beyond all bands — the mandala's aureole.
+  if (p.growth > 0.72) {
+    const g = (p.growth - 0.72) / 0.28;
+    const dotCount = 48 + Math.round(g * 96); // 48 → 144
+    const rp = maxR * breath * 1.16;
+    const dr = 0.9 + g * 0.8;
+    ctx.fillStyle = `hsla(${(p.hue + 90) % 360}, 70%, 78%, ${0.25 + g * 0.35})`;
+    for (let i = 0; i < dotCount; i++) {
+      const ang = (i / dotCount) * Math.PI * 2 + p.t * 0.015;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(ang) * rp, cy + Math.sin(ang) * rp, dr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Tracery — a fine second frame ring with its own slow counter-rotation
+  // appears at deep growth as the final ornament.
+  if (p.growth > 0.85) {
+    const g = (p.growth - 0.85) / 0.15;
+    ctx.strokeStyle = `hsla(${(p.hue + 240) % 360}, 50%, 72%, ${0.14 + g * 0.18})`;
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.arc(cx, cy, maxR * breath * 1.22, 0, Math.PI * 2);
+    ctx.stroke();
+    // Fine cross-hairs across the outer ring, alternating direction
+    const crosses = 6 + Math.round(g * 12);
+    for (let i = 0; i < crosses; i++) {
+      const ang = (i / crosses) * Math.PI * 2 - p.t * 0.01;
+      const r0 = maxR * breath * 1.03;
+      const r1 = maxR * breath * 1.21;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0);
+      ctx.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
+      ctx.stroke();
+    }
   }
 }
 
@@ -659,13 +728,32 @@ export function drawFractal(
   const pix = juliaData!.data;
   const maxIter = Math.round(28 + p.growth * 50 + a.rms * 20);
 
-  // Julia c — traces a very slow Lissajous orbit, tugged a little by RMS
-  const cr = 0.7885 * Math.cos(p.t * 0.02);
-  const ci = 0.7885 * Math.sin(p.t * 0.017 + p.slow * 0.5) + a.rms * 0.05;
+  // Sum spectral energy into three bands — each deforms a different
+  // dimension of the Julia parameter / transform so the fractal
+  // *reacts* rather than just drifting. Low = cr nudge, high = ci
+  // nudge, mid = zoom pulse, all-over RMS = rotation speed.
+  const bins = a.spectrum.length;
+  let lowE = 0, midE = 0, highE = 0;
+  const thirdA = Math.floor(bins / 3);
+  const thirdB = Math.floor((bins * 2) / 3);
+  for (let i = 0; i < thirdA; i++) lowE += a.spectrum[i];
+  for (let i = thirdA; i < thirdB; i++) midE += a.spectrum[i];
+  for (let i = thirdB; i < bins; i++) highE += a.spectrum[i];
+  lowE /= Math.max(1, thirdA);
+  midE /= Math.max(1, thirdB - thirdA);
+  highE /= Math.max(1, bins - thirdB);
 
-  // Small zoom pulse with breath, rotation with growth
-  const zoom = 1.4 + p.slow * 0.15 + a.rms * 0.1;
-  const rot = p.t * 0.01 * p.growth;
+  // Julia c — slow Lissajous orbit pushed by spectral balance. Rich
+  // spectra push the parameter toward the rim of the Mandelbrot set
+  // where the shape changes dramatically; a pure tonic sits quietly
+  // near the classic 0.7885 radius.
+  const cr = 0.7885 * Math.cos(p.t * 0.02) + (lowE - 0.15) * 0.22;
+  const ci = 0.7885 * Math.sin(p.t * 0.017 + p.slow * 0.5) + (highE - 0.15) * 0.22;
+
+  // Zoom pulses with mid-band energy + breath + overall RMS.
+  const zoom = 1.3 + p.slow * 0.15 + a.rms * 0.35 + midE * 0.6;
+  // Rotation speed scales with RMS so loud moments spin a bit faster.
+  const rot = p.t * (0.01 + a.rms * 0.04) * (0.3 + p.growth * 0.7);
   const cosR = Math.cos(rot);
   const sinR = Math.sin(rot);
 
@@ -1362,8 +1450,6 @@ export const VISUALIZER_FNS: Record<
   waveformRing: drawWaveformRing,
   waterfall: drawWaterfall,
   feedbackTunnel: drawFeedbackTunnel,
-  waterfallAscii: drawWaterfallAscii,
-  waterfallHybrid: drawWaterfallHybrid,
   saltDrift: drawSaltDrift,
   ironFilings: drawIronFilings,
   sediment: drawSediment,
@@ -2058,180 +2144,6 @@ export function drawFeedbackTunnel(
   ctx.drawImage(feedbackCanvas, 0, 0);
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// 21. WATERFALL · ASCII — classic terminal spectrogram. A fixed
-//     grid of monospace cells, each showing one of 11 characters
-//     from a density-ordered gradient. Each frame the whole
-//     bitmap scrolls down by one cell-height and a fresh top row
-//     is drawn from the current spectrum. Drone harmonics appear
-//     as persistent vertical streaks of @ / # / % as they scroll.
-// ─────────────────────────────────────────────────────────────────────
-const ASCII_GRADIENT = " .·-:=+*%#@";
-let wfAsciiCanvas: HTMLCanvasElement | null = null;
-let wfAsciiLastScroll = 0;
-function pickGlyph(gradient: string, energy: number): string {
-  const n = gradient.length - 1;
-  const idx = Math.max(0, Math.min(n, Math.round(energy * n)));
-  return gradient[idx];
-}
-function ensureWaterfallCanvas(
-  existing: HTMLCanvasElement | null,
-  w: number,
-  h: number,
-): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D | null; fresh: boolean } {
-  if (existing && existing.width === w && existing.height === h) {
-    return { canvas: existing, ctx: existing.getContext("2d"), fresh: false };
-  }
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (ctx) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h); }
-  return { canvas, ctx, fresh: true };
-}
-export function drawWaterfallAscii(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  const cellH = 12;
-  const cellW = 8;
-  const { canvas, ctx: off, fresh } = ensureWaterfallCanvas(wfAsciiCanvas, w, h);
-  if (fresh) { wfAsciiCanvas = canvas; }
-  if (!off) return;
-
-  // Scroll one cell-row every ~0.13 s (≈ 7.5 rows/sec × 12 px =
-  // 90 px/sec) — a drone-paced drip, not a disco crawl.
-  if (p.t - wfAsciiLastScroll >= 0.13) {
-    wfAsciiLastScroll = p.t;
-    off.drawImage(canvas, 0, 0, w, h - cellH, 0, cellH, w, h - cellH);
-    off.fillStyle = "#000";
-    off.fillRect(0, 0, w, cellH);
-    off.font = `${cellH}px "SF Mono", "Menlo", "Consolas", monospace`;
-    off.textBaseline = "top";
-    const cols = Math.floor(w / cellW);
-    const bins = a.spectrum.length;
-    for (let c = 0; c < cols; c++) {
-      const binIdx = Math.floor((c / cols) * bins);
-      const energy = a.spectrum[binIdx];
-      if (energy < 0.02) continue;
-      const glyph = pickGlyph(ASCII_GRADIENT, energy);
-      const light = Math.round(35 + energy * 60);
-      off.fillStyle = `hsla(0, 0%, ${light}%, ${0.35 + energy * 0.65})`;
-      off.fillText(glyph, c * cellW, 0);
-    }
-    off.fillStyle = "rgba(0, 0, 0, 0.004)";
-    off.fillRect(0, 0, w, h);
-  }
-  ctx.drawImage(canvas, 0, 0);
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// 22. WATERFALL · BLOCKS — Unicode block-drawing characters. Same
-//     grid-and-scroll structure as the ASCII variant, but uses
-//     ▁▂▃▄▅▆▇█ which tile flush so the stacked cells merge into
-//     continuous ribbons that look like a real spectrogram.
-// ─────────────────────────────────────────────────────────────────────
-const BLOCK_GRADIENT = " ▁▂▃▄▅▆▇█";
-let wfBlockCanvas: HTMLCanvasElement | null = null;
-let wfBlockLastScroll = 0;
-export function drawWaterfallBlock(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  const cellH = 12;
-  const cellW = 8;
-  const { canvas, ctx: off, fresh } = ensureWaterfallCanvas(wfBlockCanvas, w, h);
-  if (fresh) { wfBlockCanvas = canvas; }
-  if (!off) return;
-
-  if (p.t - wfBlockLastScroll >= 0.13) {
-    wfBlockLastScroll = p.t;
-    off.drawImage(canvas, 0, 0, w, h - cellH, 0, cellH, w, h - cellH);
-    off.fillStyle = "#000";
-    off.fillRect(0, 0, w, cellH);
-    off.font = `${cellH}px "SF Mono", "Menlo", "Consolas", monospace`;
-    off.textBaseline = "top";
-    const cols = Math.floor(w / cellW);
-    const bins = a.spectrum.length;
-    for (let c = 0; c < cols; c++) {
-      const binIdx = Math.floor((c / cols) * bins);
-      const energy = a.spectrum[binIdx];
-      if (energy < 0.02) continue;
-      const glyph = pickGlyph(BLOCK_GRADIENT, energy);
-      const light = Math.round(45 + energy * 55);
-      off.fillStyle = `hsla(0, 0%, ${light}%, ${0.4 + energy * 0.6})`;
-      off.fillText(glyph, c * cellW, 0);
-    }
-    off.fillStyle = "rgba(0, 0, 0, 0.004)";
-    off.fillRect(0, 0, w, h);
-  }
-  ctx.drawImage(canvas, 0, 0);
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// WATERFALL · HYBRID — scrolling spectrogram whose *top row* uses
-//     a different glyph set every few seconds. As frames pile up,
-//     the waterfall develops horizontal bands of different "fonts"
-//     (blocks → ASCII → braille → back). Same grid-and-scroll as
-//     the other waterfalls so older bands keep their original
-//     character set and the whole image looks like geological
-//     strata of terminal fonts.
-// ─────────────────────────────────────────────────────────────────────
-const HYBRID_GRADIENTS: readonly string[] = [
-  " ▁▂▃▄▅▆▇█",         // blocks
-  " .·-:=+*%#@",       // ascii gradient
-  " ⠁⠃⠇⠏⠟⠿⣿",         // braille dots (partial fill)
-  " ░▒▓█",              // shade blocks
-];
-let wfHybridCanvas: HTMLCanvasElement | null = null;
-let wfHybridLastScroll = 0;
-export function drawWaterfallHybrid(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  const cellH = 12;
-  const cellW = 8;
-  const { canvas, ctx: off, fresh } = ensureWaterfallCanvas(wfHybridCanvas, w, h);
-  if (fresh) { wfHybridCanvas = canvas; }
-  if (!off) return;
-
-  if (p.t - wfHybridLastScroll >= 0.13) {
-    wfHybridLastScroll = p.t;
-    off.drawImage(canvas, 0, 0, w, h - cellH, 0, cellH, w, h - cellH);
-    off.fillStyle = "#000";
-    off.fillRect(0, 0, w, cellH);
-    off.font = `${cellH}px "SF Mono", "Menlo", "Consolas", monospace`;
-    off.textBaseline = "top";
-
-    // Rotate glyph set every ~9 s
-    const setIdx = Math.floor(p.t / 9) % HYBRID_GRADIENTS.length;
-    const gradient = HYBRID_GRADIENTS[setIdx];
-
-    const cols = Math.floor(w / cellW);
-    const bins = a.spectrum.length;
-    for (let c = 0; c < cols; c++) {
-      const binIdx = Math.floor((c / cols) * bins);
-      const energy = a.spectrum[binIdx];
-      if (energy < 0.02) continue;
-      const glyph = pickGlyph(gradient, energy);
-      const light = Math.round(40 + energy * 58);
-      off.fillStyle = `hsla(0, 0%, ${light}%, ${0.4 + energy * 0.6})`;
-      off.fillText(glyph, c * cellW, 0);
-    }
-    off.fillStyle = "rgba(0, 0, 0, 0.004)";
-    off.fillRect(0, 0, w, h);
-  }
-  ctx.drawImage(canvas, 0, 0);
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // ORIGINAL DRONE VISUALIZERS — accretive, matte, heavy. No glow, no
@@ -2411,9 +2323,11 @@ export function drawIronFilings(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// SEDIMENT STRATA — horizontal rock layers depositing from top
-// downwards over time. Each new stratum's colour and grain come from
-// the drone's current spectral balance, then freeze.
+// SEDIMENT STRATA — horizontal rock layers deposit at the BOTTOM and
+// the pile grows upward over time. Each new stratum's colour and
+// grain come from the drone's current spectral balance, then freeze.
+// Once the column fills the canvas, the oldest layers scroll off the
+// top — you are always looking at the most recent N minutes as rock.
 // ─────────────────────────────────────────────────────────────────────
 let sedimentCanvas: HTMLCanvasElement | null = null;
 let sedimentCtx: CanvasRenderingContext2D | null = null;
@@ -2441,13 +2355,16 @@ export function drawSediment(
   sedimentOffset += rate;
   const pxToScroll = Math.floor(sedimentOffset);
   sedimentOffset -= pxToScroll;
+  // Shift the existing pile UP by pxToScroll so new strata deposit
+  // at the bottom. The dark background gets pushed off the top first;
+  // once real strata reaches the top, the oldest layers drop off.
   if (pxToScroll > 0 && h - pxToScroll > 0) {
-    const img = off.getImageData(0, 0, w, h - pxToScroll);
-    off.putImageData(img, 0, pxToScroll);
+    const img = off.getImageData(0, pxToScroll, w, h - pxToScroll);
+    off.putImageData(img, 0, 0);
   }
 
   for (let row = 0; row < pxToScroll; row++) {
-    const y = row;
+    const y = h - pxToScroll + row; // draw at BOTTOM
     for (let x = 0; x < w; x += 2) {
       const bin = Math.floor((x / w) * a.spectrum.length);
       const e = a.spectrum[bin] ?? 0;
