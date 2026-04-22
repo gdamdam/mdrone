@@ -328,6 +328,27 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     return next;
   });
 
+  // Shape-panel collapse — on phones the SHAPE column (motion +
+  // body + voices + gestures + scale + A/B + LFO2) swamps the XY
+  // pad. Default to collapsed on narrow viewports; a header tap
+  // toggles it. Desktop never reads this (CSS no-ops the class).
+  const [shapeCollapsed, setShapeCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = window.localStorage?.getItem("mdrone.shapeCollapsed");
+      if (saved === "1") return true;
+      if (saved === "0") return false;
+    } catch { /* noop */ }
+    return typeof window !== "undefined"
+      && typeof window.matchMedia === "function"
+      && window.matchMedia("(max-width: 600px)").matches;
+  });
+  const toggleShapeCollapsed = () => setShapeCollapsed((v) => {
+    const next = !v;
+    try { window.localStorage?.setItem("mdrone.shapeCollapsed", next ? "1" : "0"); }
+    catch { /* noop */ }
+    return next;
+  });
+
   const bumpRev = useCallback(() => setHistoryRev((r) => r + 1), []);
 
   useEffect(() => {
@@ -977,8 +998,24 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             visual={weatherVisual ?? "flow"}
           />
 
-          <div className={shapeHintsOn ? "weather-controls shape-hints-on" : "weather-controls"}>
+          <div
+            className={[
+              "weather-controls",
+              shapeHintsOn ? "shape-hints-on" : "",
+              shapeCollapsed ? "shape-collapsed" : "",
+            ].filter(Boolean).join(" ")}
+          >
             <div className="shape-header">
+              <button
+                type="button"
+                className="shape-collapse-toggle"
+                onClick={toggleShapeCollapsed}
+                title={shapeCollapsed ? "Expand SHAPE" : "Collapse SHAPE"}
+                aria-label={shapeCollapsed ? "Expand SHAPE panel" : "Collapse SHAPE panel"}
+                aria-expanded={!shapeCollapsed}
+              >
+                {shapeCollapsed ? "▸" : "▾"}
+              </button>
               <span className="shape-title">SHAPE</span>
               <span className="shape-hint">the evolution engine · the body it shapes</span>
               <button

@@ -4958,3 +4958,152 @@ input.share-modal-url:focus {
 .entrain-tick:hover .entrain-tick-label {
   color: color-mix(in srgb, currentColor 15%, var(--text));
 }
+
+/* ──────────────────────────────────────────────────────────────────
+ * Mobile polish pass (2026-04-22)
+ *
+ * Consolidated ergonomics for phones + home-screen PWAs. Appended
+ * last so mobile overrides win the cascade regardless of which
+ * base rule they're refining. Covers:
+ *
+ *   1. Touch-target sizing (≥ 44 px where thumbable)
+ *   2. WEATHER pad dominance (uncap height on phone)
+ *   3. Shape-panel collapse toggle + collapsed layout
+ *   4. touch-action on remaining drag / tap surfaces
+ *   5. Safe-area insets on app-header
+ *   6. Header polish on very narrow widths
+ *   7. (long-press move-tolerance lives in FxBar.tsx)
+ *   8. Full-screen modals on phone
+ *   9. MIXER drawer bottom safe-area
+ *  10. Landscape phone layout
+ *  11. Hide desktop-only affordances (QWERTY kbd, MIDI-learn) on phone
+ * ────────────────────────────────────────────────────────────── */
+
+/* SHAPE-panel collapse caret — inline in shape-header. Hidden on
+ * desktop (the panel stays open). The visual affordance is subtle
+ * because it sits next to SHAPE / the hint text / the `?` button,
+ * which are already three items fighting for the row. */
+.shape-collapse-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 6px;
+  margin-right: -2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.shape-collapse-toggle:hover { color: var(--preview); }
+
+@media (max-width: 720px) {
+  /* 1. Touch targets. ------------------------------------------------ */
+  .preset-strip-tonic-btn { min-height: 44px; }
+  .fx-btn { min-height: 56px; padding: 12px 4px; }
+  .fx-btn-icon { width: 20px; height: 20px; }
+  .fx-btn-label { font-size: 10px; }
+  /* View-close X affordance gets a little bigger on touch. */
+  .view-close-mobile { width: 44px; height: 44px; font-size: 20px; }
+
+  /* 7 effects across a phone is too narrow to read; 4 columns over
+   * 4 rows (4 × 4 = 16 slots, 14 effects) is thumb-friendly. */
+  .fx-bar { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+
+  /* 2. WEATHER pad dominance — uncap the 340 px desktop ceiling so
+   * it fills phone width at 1:1, becomes the focal element. */
+  .weather-xy { max-height: none; }
+  .weather-macro-row { gap: 10px; }
+
+  /* 3. Shape-panel collapse. Reveal the caret; when collapsed,
+   * hide every sibling of shape-header so only the label remains. */
+  .shape-collapse-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    min-height: 32px;
+    font-size: 15px;
+  }
+  .weather-controls.shape-collapsed > :not(.shape-header) { display: none; }
+  .weather-controls.shape-collapsed { padding-bottom: 0; border-bottom: none; }
+  /* The "the evolution engine · the body it shapes" hint is long;
+   * on narrow the collapse caret + SHAPE label + `?` fight for
+   * the row. Drop the hint on phone. */
+  .weather-controls .shape-header .shape-hint { display: none; }
+
+  /* 4. touch-action — weather-xy already has `none`. Canvas overlay
+   * inherits pointer-events:none so irrelevant, but explicit is
+   * safer in case of future overlay interactions. Effect tiles
+   * get `manipulation` so double-tap-zoom is disabled but scroll
+   * isn't hijacked. */
+  .weather-canvas { touch-action: none; }
+  .fx-btn { touch-action: manipulation; }
+  .preset-strip-tonic-btn { touch-action: manipulation; }
+
+  /* 5. Safe-area inset on the sticky header so the notch doesn't
+   * eat the brand row in standalone PWA mode. */
+  .app-header,
+  header.app-header {
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  }
+
+  /* 8. Modals — phone gets a full-screen sheet rather than a
+   * hovering card. Easier to operate one-handed. */
+  .fx-modal,
+  .fx-modal.help-modal,
+  .fx-modal.scale-editor-modal {
+    width: 100%;
+    max-width: none;
+    max-height: 100dvh;
+    height: 100dvh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 9. MIXER drawer — home-indicator clearance. Respects existing
+   * horizontal padding. */
+  .mixer-strips {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 11. Desktop-only affordances hidden on phone. QWERTY toggle
+   * requires a physical keyboard; MIDI-learn requires an external
+   * controller (which also requires desktop Chrome for Web MIDI). */
+  .header-kbd-btn { display: none \!important; }
+}
+
+/* Very narrow — iPhone SE / galaxy A-class. 4-col fx-bar becomes
+ * 3-col so labels stay legible. */
+@media (max-width: 380px) {
+  .fx-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fx-btn { padding: 10px 2px; }
+}
+
+/* Landscape phone — height is the constraint, not width. The XY
+ * pad would otherwise demand a full-height square and push
+ * everything else off-screen. */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 540px) {
+  .app-header {
+    padding-top: calc(4px + env(safe-area-inset-top, 0px));
+    padding-bottom: 4px;
+  }
+  .weather-xy {
+    aspect-ratio: auto;
+    height: 50vh;
+    max-height: none;
+    min-height: 200px;
+  }
+  /* Put WEATHER and SHAPE side-by-side again — there's horizontal
+   * room and we want the pad + controls both visible. */
+  .weather-macro-row { grid-template-columns: 3fr 2fr; }
+  .timbre-fx-row { grid-template-columns: 1fr 1fr; }
+  /* Collapse the fixed perform bar vertically. */
+  .preset-strip-perform {
+    padding: 4px 10px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  .layout { padding-bottom: 56px; }
+}

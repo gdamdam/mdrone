@@ -131,9 +131,15 @@ export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps
   // swallow the subsequent click so the effect doesn't flip state.
   const longPressTimerRef = useRef<number | null>(null);
   const longPressFiredRef = useRef(false);
+  const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
+  // Move >8 px before the timer fires ⇒ treat as scroll/drag and
+  // cancel the long-press. Keeps effect-chain reorder (HTML5 drag)
+  // and page-scroll gestures from accidentally opening the modal.
+  const LONG_PRESS_MOVE_TOL = 8;
 
-  const handlePointerDown = useCallback((id: EffectId) => {
+  const handlePointerDown = useCallback((id: EffectId, e: React.PointerEvent) => {
     longPressFiredRef.current = false;
+    longPressStartRef.current = { x: e.clientX, y: e.clientY };
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
     }
@@ -143,11 +149,23 @@ export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps
     }, LONG_PRESS_MS);
   }, []);
 
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const start = longPressStartRef.current;
+    if (!start || longPressTimerRef.current === null) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (dx * dx + dy * dy > LONG_PRESS_MOVE_TOL * LONG_PRESS_MOVE_TOL) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
   const cancelLongPress = useCallback(() => {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+    longPressStartRef.current = null;
   }, []);
 
   const handleClick = useCallback((id: EffectId) => {
@@ -229,7 +247,8 @@ export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps
             <button
               key={id}
               onClick={() => handleClick(id)}
-              onPointerDown={() => handlePointerDown(id)}
+              onPointerDown={(e) => handlePointerDown(id, e)}
+              onPointerMove={handlePointerMove}
               onPointerUp={cancelLongPress}
               onPointerLeave={cancelLongPress}
               onPointerCancel={cancelLongPress}
