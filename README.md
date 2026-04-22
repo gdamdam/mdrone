@@ -66,7 +66,7 @@ No install. No account. No personal tracking. Session data stays in your browser
 All sound is synthesised in real time with the Web Audio API. No sample library is required.
 
 - **Voice engine** — AudioWorklet-backed drone voices. Each active layer spawns one worklet voice per interval in the selected mode, mixed through per-layer gains. Tonic changes glide; interval changes rebuild with a short crossfade; BLOOM controls stack fade-in.
-- **Climate** — the WEATHER XY pad drives brightness (filter cutoff) on X and motion (LFO depth + drift) on Y. TIME controls the weather LFO rate. A separate user LFO adds breathing/tremolo on voice gain.
+- **Climate** — the WEATHER XY pad drives brightness (filter cutoff) on X and motion (LFO depth + drift) on Y. TIME controls the weather LFO rate. A separate user LFO adds breathing/tremolo on voice gain. An optional second modulator — the **ENTRAIN** panel — reaches 0.5–45 Hz and phase-locks to the breathing LFO (see below).
 - **Atmosphere chain** — the dry signal and shimmer octave source feed a **14-effect chain before the master bus**. Effects can run serial (wet-insert) or parallel (send) per preset. The chain order is user-reorderable via drag.
 - **Master bus** — HPF, 3-band EQ, glue compression, drive, **worklet brickwall limiter** (post-P1, replaces the native DynamicsCompressor), trim, and analyser taps (pre-limiter for CLIP, post-limiter for LUFS/PEAK).
 - **Oversampling** — `tanh` nonlinearities in AMP, TANPURA jawari, METAL, and master drive are 2× oversampled to keep aliasing below the noise floor.
@@ -142,6 +142,21 @@ The instrument has five motion/evolution systems arranged by timescale. MORPH an
 **PARTNER** adds a sympathetic second voice layer at a fixed musical relation (fifth, octave-up, octave-down, +7 ¢ beat-detune). It's a voicing control, not a motion gesture — doubles voice count while active.
 
 **Undo / redo + A/B slots** (SHAPE panel): a 50-entry debounced history of scene state. `Cmd/Ctrl+Z` undoes, `Cmd/Ctrl+Shift+Z` redoes. Two A/B slots (SAVE A / A recall / SAVE B / B recall) for compare-and-return workflows.
+
+---
+
+## ENTRAIN
+
+A second amplitude modulator inside the ADVANCED disclosure, covering **0.5 Hz → 45 Hz**. Integer-phase-locked to the breathing LFO so the two modulators never drift against each other.
+
+- **● ENTRAIN** — power button. Off by default; the subtitle still describes the current state, prefixed `(off)`.
+- **Rate slider** — zone-coloured gradient (δ delta / θ theta / α alpha / β beta / γ gamma) with tappable landmark ticks at 2 / 6 / 10 / 20 / 40 Hz and a dashed 7.83 Hz "Schumann" marker, labelled as a cultural reference rather than a scientific claim.
+- **AM** — sums a second oscillator into the voice-gain param. Works on speakers. Slow rates sound like a swell, mid rates like tremolo, upper rates like metallic roughness.
+- **DICHOTIC** — splits L/R pitch per voice by the SPREAD cents (applied to reed / metal / piano / fm / amp / tanpura). Headphones required for the phantom beat to fuse in the head.
+- **BOTH** — both paths active.
+- The subtitle rewrites live: e.g. `alpha-band pulse at 10.00 Hz · locked ×25 to breathing` or `L/R detune ±4.0 ¢ — headphones · locked ×25 to breathing`.
+
+Not a therapeutic feature — published evidence for brainwave entrainment is weak and mixed. It's here as a compositional modulator (Scelsi, Niblock and Radigue built drone pieces on beating and slow AM) with honest framing.
 
 ---
 

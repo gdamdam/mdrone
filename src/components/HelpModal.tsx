@@ -107,6 +107,36 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </p>
 
           <div className="fx-modal-divider" />
+          <div className="fx-modal-section-label">ENTRAIN · second modulator</div>
+          <p className="fx-modal-desc">
+            A second amplitude modulator inside <em>ADVANCED</em>,
+            reaching from <strong>0.5 Hz</strong> (slow swell) to{" "}
+            <strong>45 Hz</strong> (gamma-band buzz). The rate slider
+            has coloured zones (δ delta / θ theta / α alpha / β beta /
+            γ gamma) and landmark ticks you can tap to snap — plus a
+            dashed <em>7.83 Hz</em> Schumann marker flagged as a
+            cultural reference, not a scientific claim.
+            Frequency is integer-locked to the breathing LFO so the
+            two modulators stay in constant relative phase.
+            <br />
+            <strong>● ENTRAIN</strong> is the power button.{" "}
+            <strong>AM</strong> modulates voice gain (works on speakers).
+            {" "}<strong>DICHOTIC</strong> splits L/R pitch by the SPREAD
+            cents (headphones required to hear the beat). <strong>BOTH</strong>
+            {" "}does both. The subtitle describes what the current setting
+            will sound like, prefixed <em>(off)</em> while the power
+            button is off.
+          </p>
+          <p className="fx-modal-desc">
+            Not a therapeutic feature — published evidence for
+            brainwave entrainment is weak and mixed. Use it as a
+            compositional tool: slow rates give slow swells,
+            mid-range gives tremolo / flutter, the top of the range
+            gives metallic roughness. Dichotic gives phantom L/R
+            beating that fuses inside the head.
+          </p>
+
+          <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">RANDOM &amp; MUTATE</div>
           <p className="fx-modal-desc">
             <strong>🎲 RND</strong> loads a gentle variation of a random
