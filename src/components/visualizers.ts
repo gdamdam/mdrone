@@ -2541,13 +2541,13 @@ export function drawAshTrail(
 
   const cx = w * 0.5;
   const cy = h * 0.5;
-  // Orbital extent — sources wander over most of the canvas even at
-  // silence so the piece isn't centre-bound. 50% at silence, up to
-  // ~95% with rich mid-band + RMS + slight slow breath. The
-  // secondary orbital adds another ~18% on top, so loud moments
-  // occasionally push sources slightly past the visible edges
-  // (intentional: trails end abruptly at the paper border).
-  const reach = 0.50 + 0.25 * midE + 0.18 * a.rms + 0.06 * p.slow;
+  // Orbital extent — sources wander over practically the whole
+  // canvas even at silence. 85% at silence, up to ~120% at loud
+  // rich passages so sources occasionally slip past the edges and
+  // the trails get a natural cropped framing (instead of being
+  // polite little orbits in the middle). The secondary orbital adds
+  // another ~18% on top.
+  const reach = 0.85 + 0.20 * midE + 0.15 * a.rms + 0.05 * p.slow;
   const ampX = w * reach;
   const ampY = h * reach;
   // Source motion speed — slow by default, visibly faster with loud
