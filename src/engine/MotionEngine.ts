@@ -340,7 +340,14 @@ export class MotionEngine {
   /** Applies the current entrainState to the ENTRAIN oscillator +
    *  depth gain. Depth is only non-zero when the panel is enabled
    *  AND the mode includes AM ("am" or "both"). "dichotic" on its
-   *  own routes through a different path (phase 3). */
+   *  own routes through a different path (phase 3).
+   *
+   *  Depth scales linearly with rate up to ~8 Hz, then stays at the
+   *  full base amount. Slow-rate rationale: at 2 Hz a 2.6 dB swing
+   *  (full base depth) reads as rhythmic pulsing that overrides the
+   *  drone bed; scaling depth down at slow rates keeps the drone
+   *  primary with a subliminal breath, while gamma-rate content
+   *  still gets the timbral roughness it needs. */
   private applyEntrain(): void {
     if (!this.entrainLfo) return;
     const now = this.ctx.currentTime;
@@ -350,7 +357,9 @@ export class MotionEngine {
     const amActive =
       this.entrainState.enabled &&
       (this.entrainState.mode === "am" || this.entrainState.mode === "both");
-    this.entrainLfoDepth.gain.setTargetAtTime(amActive ? this.entrainBaseDepth : 0, now, tc);
+    const depthScale = Math.min(1, Math.max(0, hz / 8));
+    const depth = amActive ? this.entrainBaseDepth * depthScale : 0;
+    this.entrainLfoDepth.gain.setTargetAtTime(depth, now, tc);
   }
 
   setLfoAmount(amt: number): void {
