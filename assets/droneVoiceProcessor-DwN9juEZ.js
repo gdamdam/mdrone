@@ -193,8 +193,18 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // voice is retired. process() returns false once set, so the
     // worklet processor is GC-eligible instead of running forever.
     this.stopped = false;
+    // ENTRAIN dichotic L/R spread, in cents on the R channel. Stored
+    // pre-computed as a ratio multiplier so the per-sample voice
+    // loops only pay one extra float multiply. 1 = no effect.
+    this.dichoticMulR = 1;
     this.port.onmessage = (e) => {
-      if (e.data && e.data.type === "stop") this.stopped = true;
+      const msg = e.data;
+      if (!msg) return;
+      if (msg.type === "stop") { this.stopped = true; return; }
+      if (msg.type === "dichotic") {
+        const cents = typeof msg.cents === "number" ? msg.cents : 0;
+        this.dichoticMulR = Math.pow(2, cents / 1200);
+      }
     };
 
     // Pink noise filter state (Paul Kellet) — shared by voices that need it
@@ -463,7 +473,10 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
       const exact = Math.min(this.ksMax - 2, Math.max(8, baseLen / dt));
       delayLens[s] = Math.floor(exact);
       fracsL[s] = exact - delayLens[s];
-      const exactR = Math.min(this.ksMax - 2, Math.max(8, baseLen / (dt * 1.003)));
+      // R-side dichotic spread — applied as an extra frequency ratio
+      // on the KS delay length (delay = sampleRate / freq, so divide
+      // by the ratio to raise the R pitch when dichoticMulR > 1).
+      const exactR = Math.min(this.ksMax - 2, Math.max(8, baseLen / (dt * 1.003 * this.dichoticMulR)));
       delayLensR[s] = Math.floor(exactR);
       fracsR[s] = exactR - delayLensR[s];
     }
@@ -704,7 +717,7 @@ DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) 
           const partialFreq = freq * (p + 1) * (1 + wobble);
           if (partialFreq > nyquist) continue;
           this.reedPhasesL[p] += twoPi * partialFreq * invSr;
-          this.reedPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.5);
+          this.reedPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.5) * this.dichoticMulR;
           if (this.reedPhasesL[p] > twoPi) this.reedPhasesL[p] -= twoPi;
           if (this.reedPhasesR[p] > twoPi) this.reedPhasesR[p] -= twoPi;
 
@@ -872,7 +885,7 @@ DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp)
 
         const partialFreq = freq * this.metalRatios[p] * (1 + this.metalDetuneWalks[p]);
         this.metalPhasesL[p] += twoPi * partialFreq * invSr;
-        this.metalPhasesR[p] += twoPi * partialFreq * invSr * 1.00018;
+        this.metalPhasesR[p] += twoPi * partialFreq * invSr * 1.00018 * this.dichoticMulR;
         if (this.metalPhasesL[p] > twoPi) this.metalPhasesL[p] -= twoPi;
         if (this.metalPhasesR[p] > twoPi) this.metalPhasesR[p] -= twoPi;
 
@@ -1129,7 +1142,7 @@ DroneVoiceProcessor.prototype.pianoProcess = function(L, R, n, freq, drift, amp)
         const partialFreq = freq * this.pianoRatios[p] * (1 + wobble);
         if (partialFreq > nyquist) continue;
         this.pianoPhasesL[p] += twoPi * partialFreq * invSr;
-        this.pianoPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.45);
+        this.pianoPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.45) * this.dichoticMulR;
         if (this.pianoPhasesL[p] > twoPi) this.pianoPhasesL[p] -= twoPi;
         if (this.pianoPhasesR[p] > twoPi) this.pianoPhasesR[p] -= twoPi;
 
@@ -1249,7 +1262,7 @@ DroneVoiceProcessor.prototype.fmProcess = function(L, R, n, freq, drift, amp) {
       // Carrier oscillators — frequency-modulated by the modulator
       const cFreq = freq + modOut;
       this.fmCarrierPhaseL += twoPi * cFreq * invSr;
-      this.fmCarrierPhaseR += twoPi * cFreq * invSr * (1 + depth * 0.6);
+      this.fmCarrierPhaseR += twoPi * cFreq * invSr * (1 + depth * 0.6) * this.dichoticMulR;
       while (this.fmCarrierPhaseL >  twoPi) this.fmCarrierPhaseL -= twoPi;
       while (this.fmCarrierPhaseL < -twoPi) this.fmCarrierPhaseL += twoPi;
       while (this.fmCarrierPhaseR >  twoPi) this.fmCarrierPhaseR -= twoPi;
@@ -1344,7 +1357,7 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
         const wobble = Math.sin(this.ampLfoPhase * (1 + p * 0.17)) * detuneDepth;
         const partialFreq = freq * (p + 1) * (1 + wobble);
         this.ampPhasesL[p] += twoPi * partialFreq * invSr;
-        this.ampPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.7);
+        this.ampPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.7) * this.dichoticMulR;
         if (this.ampPhasesL[p] > twoPi) this.ampPhasesL[p] -= twoPi;
         if (this.ampPhasesR[p] > twoPi) this.ampPhasesR[p] -= twoPi;
 

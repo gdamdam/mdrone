@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#000" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Dense vertical pulse bars — gamma buzz / perceptual binding.
+       Many narrow verticals at high density. -->
+  <path d="M3 7 L3 25"/>
+  <path d="M6 5 L6 27"/>
+  <path d="M9 8 L9 24"/>
+  <path d="M12 5 L12 27"/>
+  <path d="M15 7 L15 25"/>
+  <path d="M18 5 L18 27"/>
+  <path d="M21 8 L21 24"/>
+  <path d="M24 5 L24 27"/>
+  <path d="M27 7 L27 25"/>
+  <path d="M30 8 L30 24"/>
+  <!-- A horizontal band across the middle suggesting binding -->
+  <path d="M1 16 L31 16" stroke-width="0.8" opacity="0.5"/>
+</svg>
