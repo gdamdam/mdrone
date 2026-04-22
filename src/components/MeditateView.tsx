@@ -480,7 +480,6 @@ export function MeditateView({
     const FRAME_MS = 1000 / 30; // cap at 30 fps — visually identical, halves CPU
 
     const tick = (now: number) => {
-      raf = requestAnimationFrame(tick);
       // Skip work entirely when the tab is hidden — analyser reads,
       // spectrum bucketing, and canvas draws are pure waste offscreen.
       // EXCEPTION: if a pop-out is streaming the canvas to a detached
@@ -661,10 +660,30 @@ export function MeditateView({
       }
     };
     lastNow = performance.now();
-    tick(lastNow);
+    // rAF drives the normal path.
+    const rafTick = (now: number) => {
+      raf = requestAnimationFrame(rafTick);
+      tick(now);
+    };
+    raf = requestAnimationFrame(rafTick);
+
+    // Pop-out backup — setInterval at FRAME_MS. Browsers throttle rAF
+    // hard on background tabs (down to ~1 Hz once a popup goes
+    // fullscreen on another monitor). At 1 Hz, visualizers whose
+    // motion-blur fade is per-frame can't keep up with their own
+    // strokes and the captured stream accumulates into a bright
+    // smear. setInterval is throttled much less aggressively when
+    // the tab has an active AudioContext (mdrone always does), so
+    // the stream stays near 30 fps. The FRAME_MS gate inside tick()
+    // prevents double-drawing when both schedulers fire.
+    let popTickInterval: number | null = null;
+    if (isPopOut) {
+      popTickInterval = window.setInterval(() => tick(performance.now()), FRAME_MS);
+    }
 
     return () => {
       cancelAnimationFrame(raf);
+      if (popTickInterval !== null) window.clearInterval(popTickInterval);
       // Restore the smaller fftSize so Header/VuMeter don't pay for 2048.
       if (analyser) {
         try { analyser.fftSize = prevFftSize; } catch { /* ok */ }
