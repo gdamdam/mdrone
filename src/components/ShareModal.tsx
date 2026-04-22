@@ -50,7 +50,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
     () => typeof navigator !== "undefined" && typeof navigator.share === "function",
     [],
   );
-  const resolvedStyle = scene ? resolveSceneCardStyle(styleChoice, scene) : "fractal";
+  const resolvedStyle = scene ? resolveSceneCardStyle(styleChoice, scene) : "tessera";
 
   useEffect(() => {
     let cancelled = false;
@@ -254,14 +254,14 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
             aria-label={`Scene card preview in ${SCENE_CARD_STYLE_LABELS[resolvedStyle]} style`}
           />
           <div className="share-style-row" role="radiogroup" aria-label="Card style">
-            {(["auto", "sigil", "tarot", "fractal"] as SceneCardStyleChoice[]).map((style) => (
+            {(["sigil", "tarot", "tessera", "talisman"] as const).map((style) => (
               <button
                 type="button"
                 key={style}
                 role="radio"
-                aria-checked={styleChoice === style}
+                aria-checked={resolvedStyle === style}
                 className={
-                  styleChoice === style
+                  resolvedStyle === style
                     ? "share-style-btn share-style-btn-active"
                     : "share-style-btn"
                 }

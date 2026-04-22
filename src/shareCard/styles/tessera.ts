@@ -3,7 +3,7 @@ import type { PitchClass } from "../../types";
 import { rngPick, rngRange } from "../rng";
 
 /**
- * Minimal geometric fractal style.
+ * Tessera — nested-cell mosaic style. (Formerly "fractal".)
  *
  * Architecture:
  *  1. Pick a 2-colour mineral palette from the scene's tonic pitch class
@@ -170,7 +170,7 @@ function subdivide(
   }
 }
 
-export function buildFractalSvg(ctx: ShareCardContext): string {
+export function buildTesseraSvg(ctx: ShareCardContext): string {
   const { width, height, rng, scene, title } = ctx;
   const root = scene.drone.root as PitchClass;
   const palette = PALETTES[root] ?? PALETTES.A;

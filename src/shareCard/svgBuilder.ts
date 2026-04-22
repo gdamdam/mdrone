@@ -1,25 +1,39 @@
 import type { PortableScene } from "../session";
 import { fnv1a, mulberry32 } from "./rng";
-import { buildFractalSvg } from "./styles/fractal";
 import { buildSigilSvg } from "./styles/sigil";
+import { buildTalismanSvg } from "./styles/talisman";
 import { buildTarotSvg } from "./styles/tarot";
+import { buildTesseraSvg } from "./styles/tessera";
 
 /** Canvas dimensions — 1:1 square, matches og:image width/height meta. */
 export const SCENE_CARD_WIDTH = 800;
 export const SCENE_CARD_HEIGHT = 800;
 
-/** The three art styles authored as SVG. */
-export type SceneCardStyle = "sigil" | "tarot" | "fractal";
+/** The four art styles authored as SVG. */
+export type SceneCardStyle = "sigil" | "tarot" | "tessera" | "talisman";
 export type SceneCardStyleChoice = SceneCardStyle | "auto";
 
 export const SCENE_CARD_STYLE_LABELS: Record<SceneCardStyleChoice, string> = {
   auto: "AUTO",
   sigil: "SIGIL",
   tarot: "TAROT",
-  fractal: "FRACTAL",
+  tessera: "TESSERA",
+  talisman: "TALISMAN",
 };
 
-const STYLE_ORDER: readonly SceneCardStyle[] = ["sigil", "tarot", "fractal"];
+const STYLE_ORDER: readonly SceneCardStyle[] = ["sigil", "tarot", "tessera", "talisman"];
+
+/** Map legacy style names (from older share URLs / persisted choice) to the
+ *  current style they correspond to. Returns null if the value is unknown.
+ *  Callers should fall back to "auto" when null. */
+export function normaliseLegacyStyleChoice(raw: string | null | undefined): SceneCardStyleChoice | null {
+  if (!raw) return null;
+  if (raw === "fractal") return "tessera"; // renamed 2026-04
+  if (raw === "auto" || raw === "sigil" || raw === "tarot" || raw === "tessera" || raw === "talisman") {
+    return raw;
+  }
+  return null;
+}
 
 /**
  * Context handed to every style builder. Contains the RNG (already seeded
@@ -100,8 +114,11 @@ export function buildShareCardSvg(
     case "tarot":
       inner = buildTarotSvg(ctx);
       break;
-    case "fractal":
-      inner = buildFractalSvg(ctx);
+    case "tessera":
+      inner = buildTesseraSvg(ctx);
+      break;
+    case "talisman":
+      inner = buildTalismanSvg(ctx);
       break;
   }
 

@@ -198,11 +198,19 @@ function activeVoiceSummary(scene: PortableScene): string {
 
 /* ─── style choice compat shim ────────────────────────────────────────── */
 
-// Old style names from the legacy card codec. Map them all to "auto" so
-// previously shared URLs still render — just using the new art.
+// Old style names from the legacy card codec. Unknown → "auto". The legacy
+// "fractal" name was renamed to "tessera" (2026-04); URLs with ?cs=fractal
+// keep working and render tessera.
 function sanitiseStyleChoice(raw: string | null): SceneCardStyleChoice {
   if (!raw) return "auto";
-  if (raw === "auto" || raw === "sigil" || raw === "tarot" || raw === "fractal") {
+  if (raw === "fractal") return "tessera";
+  if (
+    raw === "auto" ||
+    raw === "sigil" ||
+    raw === "tarot" ||
+    raw === "tessera" ||
+    raw === "talisman"
+  ) {
     return raw;
   }
   return "auto";

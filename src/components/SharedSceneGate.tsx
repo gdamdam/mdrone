@@ -6,6 +6,7 @@ import {
   type SceneCardStyle,
   type SceneCardStyleChoice,
 } from "../shareCard";
+import { normaliseLegacyStyleChoice } from "../shareCard/svgBuilder";
 
 interface SharedSceneGateProps {
   scene: PortableScene;
@@ -24,13 +25,15 @@ export function SharedSceneGate({ scene, onStart }: SharedSceneGateProps) {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pick the card style from ?cs= if present, else auto.
-  const styleParam = (() => {
+  // Pick the card style from ?cs= if present, else auto. Legacy "fractal"
+  // URLs are mapped to "tessera" (renamed 2026-04) so old shared links
+  // continue to render with their intended style.
+  const styleParam: SceneCardStyleChoice = (() => {
     try {
       const sp = new URL(window.location.href).searchParams.get("cs");
-      return (sp as SceneCardStyleChoice) || "auto";
+      return normaliseLegacyStyleChoice(sp) ?? "auto";
     } catch {
-      return "auto" as SceneCardStyleChoice;
+      return "auto";
     }
   })();
   const resolvedStyle: SceneCardStyle = resolveSceneCardStyle(styleParam, scene);
