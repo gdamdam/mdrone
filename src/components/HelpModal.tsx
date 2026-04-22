@@ -127,14 +127,6 @@ export function HelpModal({ onClose }: HelpModalProps) {
             will sound like, prefixed <em>(off)</em> while the power
             button is off.
           </p>
-          <p className="fx-modal-desc">
-            Not a therapeutic feature — published evidence for
-            brainwave entrainment is weak and mixed. Use it as a
-            compositional tool: slow rates give slow swells,
-            mid-range gives tremolo / flutter, the top of the range
-            gives metallic roughness. Dichotic gives phantom L/R
-            beating that fuses inside the head.
-          </p>
 
           <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">RANDOM &amp; MUTATE</div>

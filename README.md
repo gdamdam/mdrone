@@ -156,7 +156,7 @@ A second amplitude modulator inside the ADVANCED disclosure, covering **0.5 Hz �
 - **BOTH** — both paths active.
 - The subtitle rewrites live: e.g. `alpha-band pulse at 10.00 Hz · locked ×25 to breathing` or `L/R detune ±4.0 ¢ — headphones · locked ×25 to breathing`.
 
-Not a therapeutic feature — published evidence for brainwave entrainment is weak and mixed. It's here as a compositional modulator (Scelsi, Niblock and Radigue built drone pieces on beating and slow AM) with honest framing.
+It's a second modulator in the tradition of Scelsi, Niblock and Radigue — drone pieces built on beating and slow amplitude changes.
 
 ---
 
