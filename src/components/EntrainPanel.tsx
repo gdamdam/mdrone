@@ -62,7 +62,13 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
   }, [state, onChange]);
 
   const lock = phaseLockedRate(breathingHz, state.rateHz);
-  const dichoticActive = state.enabled && (state.mode === "dichotic" || state.mode === "both");
+  // Whether dichotic is *playing* (lights the HEADPHONES badge).
+  // Gated on power so users don't see an "on" indicator when silent.
+  const dichoticPlaying = state.enabled && (state.mode === "dichotic" || state.mode === "both");
+  // Whether dichotic is the selected mode (shows the SPREAD slider).
+  // Not gated on power — same rationale as the live subtitle: show
+  // what the mode would do even when the power button is off.
+  const dichoticMode = state.mode === "dichotic" || state.mode === "both";
   // Rate slider + zone colours only drive anything audible in AM and
   // BOTH modes — dichotic-only is controlled entirely by the SPREAD
   // cents. Grey out the slider so the UI is honest about what's live.
@@ -85,8 +91,8 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
           {state.enabled ? "● ENTRAIN" : "ENTRAIN"}
         </button>
         <span
-          className={dichoticActive ? "entrain-hp entrain-hp-on" : "entrain-hp"}
-          title={dichoticActive
+          className={dichoticPlaying ? "entrain-hp entrain-hp-on" : "entrain-hp"}
+          title={dichoticPlaying
             ? "Dichotic mode active — use headphones for the L/R detune to fuse"
             : "Dichotic mode off or ENTRAIN disabled"}
         >
@@ -167,7 +173,7 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
         ))}
       </div>
 
-      {dichoticActive && (
+      {dichoticMode && (
         <div className="entrain-cents-row">
           <label className="entrain-cents-label" htmlFor="entrain-cents">SPREAD</label>
           <input
