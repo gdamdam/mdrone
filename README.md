@@ -66,7 +66,7 @@ No install. No account. No personal tracking. Session data stays in your browser
 All sound is synthesised in real time with the Web Audio API. No sample library is required.
 
 - **Voice engine** — AudioWorklet-backed drone voices. Each active layer spawns one worklet voice per interval in the selected mode, mixed through per-layer gains. Tonic changes glide; interval changes rebuild with a short crossfade; BLOOM controls stack fade-in.
-- **Climate** — the WEATHER XY pad drives brightness (filter cutoff) on X and motion (LFO depth + drift) on Y. TIME controls the weather LFO rate. A separate user LFO adds breathing/tremolo on voice gain. An optional second modulator — the **ENTRAIN** panel — reaches 0.5–45 Hz and phase-locks to the breathing LFO (see below).
+- **Climate** — the WEATHER XY pad drives brightness (filter cutoff) on X and motion (LFO depth + drift) on Y. TIME controls the weather LFO rate. A separate user LFO adds breathing/tremolo on voice gain. An optional second modulator — the **ENTRAIN** panel — reaches 0.5–45 Hz with AM and per-voice dichotic L/R detune, phase-locked to the breathing LFO (see below).
 - **Atmosphere chain** — the dry signal and shimmer octave source feed a **14-effect chain before the master bus**. Effects can run serial (wet-insert) or parallel (send) per preset. The chain order is user-reorderable via drag.
 - **Master bus** — HPF, 3-band EQ, glue compression, drive, **worklet brickwall limiter** (post-P1, replaces the native DynamicsCompressor), trim, and analyser taps (pre-limiter for CLIP, post-limiter for LUFS/PEAK).
 - **Oversampling** — `tanh` nonlinearities in AMP, TANPURA jawari, METAL, and master drive are 2× oversampled to keep aliasing below the noise floor.
@@ -150,7 +150,7 @@ The instrument has five motion/evolution systems arranged by timescale. MORPH an
 A second amplitude modulator inside the ADVANCED disclosure, covering **0.5 Hz → 45 Hz**. Integer-phase-locked to the breathing LFO so the two modulators never drift against each other.
 
 - **● ENTRAIN** — power button. Off by default; the subtitle still describes the current state, prefixed `(off)`.
-- **Rate slider** — zone-coloured gradient (δ delta / θ theta / α alpha / β beta / γ gamma) with tappable landmark ticks at 2 / 6 / 10 / 20 / 40 Hz and a dashed 7.83 Hz "Schumann" marker, labelled as a cultural reference rather than a scientific claim.
+- **Rate slider** — zone-coloured gradient (δ delta / θ theta / α alpha / β beta / γ gamma) with tappable landmark ticks at 2 / 6 / 10 / 20 / 40 Hz and a dashed 7.83 Hz "Schumann" marker.
 - **AM** — sums a second oscillator into the voice-gain param. Works on speakers. Slow rates sound like a swell, mid rates like tremolo, upper rates like metallic roughness.
 - **DICHOTIC** — splits L/R pitch per voice by the SPREAD cents (applied to reed / metal / piano / fm / amp / tanpura). Headphones required for the phantom beat to fuse in the head.
 - **BOTH** — both paths active.
@@ -195,7 +195,7 @@ Dropdown in the toolbar picks the active visualizer; **double-click the canvas**
 
 **Sessions** are named local saves in `localStorage`. Save / Load / Rename from the Settings modal.
 
-A saved session includes the active preset, tonic / octave / mode, microtuning + relation + fine detune offsets, voice layers + levels, macros, climate, LFO, effect toggles + per-effect levels, effect chain order, mixer, evolve seed, journey, partner, and the optional motion recording.
+A saved session includes the active preset, tonic / octave / mode, microtuning + relation + fine detune offsets, voice layers + levels, macros, climate, LFO, ENTRAIN state (power + rate + mode + dichotic spread), effect toggles + per-effect levels, effect chain order, mixer, evolve seed, journey, partner, and the optional motion recording.
 
 **Share URLs** build a compressed scene encoding of everything above. URLs are backward compatible — older URLs missing newer fields load with sensible defaults. Custom tunings travel with the URL so the receiver hears the authored tuning, not equal.
 

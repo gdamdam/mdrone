@@ -114,18 +114,23 @@ export function HelpModal({ onClose }: HelpModalProps) {
             <strong>45 Hz</strong> (gamma-band buzz). The rate slider
             has coloured zones (δ delta / θ theta / α alpha / β beta /
             γ gamma) and landmark ticks you can tap to snap — plus a
-            dashed <em>7.83 Hz</em> Schumann marker flagged as a
-            cultural reference, not a scientific claim.
+            dashed <em>7.83 Hz</em> Schumann marker.
             Frequency is integer-locked to the breathing LFO so the
             two modulators stay in constant relative phase.
             <br />
             <strong>● ENTRAIN</strong> is the power button.{" "}
             <strong>AM</strong> modulates voice gain (works on speakers).
-            {" "}<strong>DICHOTIC</strong> splits L/R pitch by the SPREAD
-            cents (headphones required to hear the beat). <strong>BOTH</strong>
-            {" "}does both. The subtitle describes what the current setting
-            will sound like, prefixed <em>(off)</em> while the power
-            button is off.
+            {" "}<strong>DICHOTIC</strong> splits L/R pitch per voice;
+            when it (or BOTH) is active a <strong>SPREAD</strong>{" "}
+            slider appears below the mode row and the{" "}
+            <strong>HEADPHONES</strong> badge at the top lights up.{" "}
+            <strong>BOTH</strong> does both. The subtitle describes
+            what the current setting will sound like, prefixed{" "}
+            <em>(off)</em> while the power button is off; the line
+            underneath reads{" "}
+            <code>locked ×k → N Hz (breathing N Hz)</code> — the
+            integer multiplier that keeps the two modulators in
+            constant relative phase.
           </p>
 
           <div className="fx-modal-divider" />

@@ -4883,36 +4883,44 @@ input.share-modal-url:focus {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   padding: 0 2px;
   background: transparent;
   border: 0;
   cursor: pointer;
   font-family: inherit;
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.05em;
   line-height: 1;
   color: inherit;
-  opacity: 0.85;
 }
-.entrain-tick:hover { opacity: 1; }
 .entrain-tick-mark {
   width: 1px;
-  height: 6px;
+  height: 7px;
   background: currentColor;
-  opacity: 0.6;
+  /* Lift the mark off the matte zone colour so it reads on a dark bg. */
+  filter: brightness(1.7);
 }
 .entrain-tick-cultural .entrain-tick-mark {
   background: none;
   border-left: 1px dashed currentColor;
-  height: 6px;
+  height: 7px;
   width: 0;
-  opacity: 0.5;
+  filter: brightness(1.7);
 }
 .entrain-tick-cultural .entrain-tick-label {
-  font-style: italic;
-  opacity: 0.7;
+  /* Schumann is flagged by the dashed mark alone; no label text to
+     avoid collision with θ/α and to keep the editorial neutral. */
+  display: none;
 }
 .entrain-tick-label {
   white-space: nowrap;
+  /* Brighten the zone colour toward the body text so labels are
+     legible on the dark background. currentColor = zone colour from
+     the inline style on the button. */
+  color: color-mix(in srgb, currentColor 35%, var(--text));
+}
+.entrain-tick:hover .entrain-tick-label {
+  color: color-mix(in srgb, currentColor 15%, var(--text));
 }
