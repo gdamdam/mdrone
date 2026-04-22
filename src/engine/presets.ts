@@ -26,13 +26,15 @@ import type { RelationId, ScaleId, TuningId } from "../types";
 import { resolveTuning } from "../microtuning";
 import type { DroneSessionSnapshot } from "../session";
 import { DEFAULT_PARTNER } from "../partner";
+import type { EntrainState } from "../entrain";
 
 export type PresetGroup =
   | "Sacred / Ritual"
   | "Minimal / Just"
   | "Organ / Chamber"
   | "Ambient / Cinematic"
-  | "Noise / Industrial";
+  | "Noise / Industrial"
+  | "Pulse / Studies";
 
 export interface Preset {
   id: string;
@@ -105,6 +107,12 @@ export interface Preset {
 
   /** Authored evolve behavior so each preset can feel alive in its own way. */
   motionProfile: PresetMotionProfile;
+
+  /** Optional ENTRAIN (LFO 2 · FLICKER) state. When present, applying
+   *  the preset enables / rates FLICKER to match the preset's band
+   *  target. Omitted on presets that don't care about FLICKER — they
+   *  leave the user's current FLICKER state alone. */
+  entrain?: EntrainState;
 }
 
 export interface PresetMaterialProfile {
@@ -2235,6 +2243,137 @@ export const PRESETS: Preset[] = [
       texturePeriod: 7,
     }),
   },
+
+  // ─── Pulse / Studies — FLICKER-driven pieces across the EEG bands ───
+  // Five compositional études, each pairing a drone bed with LFO 2 ·
+  // FLICKER set to a representative rate. Names describe the sonic
+  // character, not a prescribed mental state.
+
+  {
+    id: "pulse-surrender", group: "Pulse / Studies",
+    name: "Surrender",
+    attribution: "delta / 2 Hz FLICKER · long-breath drone",
+    hint: "Lone tanpura at A2, just-intonation fifth, 2 Hz amplitude pulse. One swell every half-second over a still room.",
+    voiceLayers: ["tanpura"],
+    voiceLevels: { tanpura: 1 },
+    octaveRange: [2, 2],
+    drift: 0.10, air: 0.60, time: 0.15, sub: 0, bloom: 0.30, glide: 0.20,
+    lfoShape: "sine", lfoRate: 0.12, lfoAmount: 0.15,
+    climateX: 0.40, climateY: 0.12,
+    effects: ["plate", "hall"],
+    scale: "drone",
+    tuningId: "just5", relationId: "tonic-fifth",
+    gain: 0.76,
+    entrain: { enabled: true, rateHz: 2, mode: "am", dichoticCents: 8 },
+    motionProfile: motionProfile({
+      climateXRange: [0.34, 0.46], climateYRange: [0.06, 0.18],
+      bloomRange: [0.24, 0.38], timeRange: [0.08, 0.20],
+      driftRange: [0.06, 0.14], subRange: [0, 0.02],
+      macroStep: 0.35, tonicWalk: "none", tonicIntervals: [],
+      tonicFloor: 1, textureFloor: 0.9, texturePeriod: 9,
+    }),
+  },
+
+  {
+    id: "pulse-float", group: "Pulse / Studies",
+    name: "Float",
+    attribution: "theta / 6 Hz FLICKER · harmonic bed",
+    hint: "Reed + air over spectral partials (harmonics 4–8), 6 Hz tremolo. Wet reverb tail, narrow detune, hypnagogic range.",
+    voiceLayers: ["reed", "air"],
+    voiceLevels: { reed: 0.7, air: 0.4 },
+    octaveRange: [3, 3],
+    drift: 0.28, air: 0.70, time: 0.28, sub: 0.10, bloom: 0.55, glide: 0.22,
+    lfoShape: "sine", lfoRate: 0.30, lfoAmount: 0.20,
+    climateX: 0.52, climateY: 0.35,
+    effects: ["plate", "hall", "shimmer"],
+    scale: "harmonics",
+    tuningId: "just5", relationId: "harmonic-stack",
+    gain: 0.70,
+    entrain: { enabled: true, rateHz: 6, mode: "am", dichoticCents: 10 },
+    motionProfile: motionProfile({
+      climateXRange: [0.44, 0.60], climateYRange: [0.28, 0.44],
+      bloomRange: [0.48, 0.62], timeRange: [0.22, 0.36],
+      driftRange: [0.22, 0.34], subRange: [0.06, 0.14],
+      macroStep: 0.42, tonicWalk: "rare", tonicIntervals: [0, 7],
+      tonicFloor: 1, textureFloor: 0.82, texturePeriod: 8,
+    }),
+  },
+
+  {
+    id: "pulse-calm-alert", group: "Pulse / Studies",
+    name: "Calm-Alert",
+    attribution: "alpha / 10 Hz FLICKER · dorian bed",
+    hint: "Reed + metal in dorian, 10 Hz pulse. Eyes-closed relaxed-wakeful range. Bright but not harsh.",
+    voiceLayers: ["reed", "metal"],
+    voiceLevels: { reed: 0.6, metal: 0.55 },
+    octaveRange: [3, 3],
+    drift: 0.32, air: 0.50, time: 0.42, sub: 0.05, bloom: 0.50, glide: 0.18,
+    lfoShape: "sine", lfoRate: 0.50, lfoAmount: 0.18,
+    climateX: 0.55, climateY: 0.38,
+    effects: ["plate", "hall"],
+    scale: "dorian",
+    tuningId: "just5", relationId: "tonic-fifth",
+    gain: 0.72,
+    entrain: { enabled: true, rateHz: 10, mode: "am", dichoticCents: 12 },
+    motionProfile: motionProfile({
+      climateXRange: [0.46, 0.62], climateYRange: [0.28, 0.46],
+      bloomRange: [0.42, 0.58], timeRange: [0.34, 0.48],
+      driftRange: [0.24, 0.38], subRange: [0.02, 0.10],
+      macroStep: 0.45, tonicWalk: "rare", tonicIntervals: [0, 3, 7],
+      tonicFloor: 1, textureFloor: 0.8, texturePeriod: 8,
+    }),
+  },
+
+  {
+    id: "pulse-focus", group: "Pulse / Studies",
+    name: "Focus",
+    attribution: "low-beta / 18 Hz FLICKER · phrygian bed",
+    hint: "Metal + FM in phrygian at D3. 18 Hz flutter, dry plate only, upper partials. Darker, narrower, task-lit.",
+    voiceLayers: ["metal", "fm"],
+    voiceLevels: { metal: 0.55, fm: 0.5 },
+    octaveRange: [3, 3],
+    drift: 0.20, air: 0.28, time: 0.35, sub: 0.02, bloom: 0.40, glide: 0.15,
+    lfoShape: "sine", lfoRate: 0.40, lfoAmount: 0.10,
+    climateX: 0.55, climateY: 0.20,
+    effects: ["plate"],
+    scale: "phrygian",
+    tuningId: "just5", relationId: "tonic-fifth",
+    fmRatio: 3.5, fmIndex: 2.0, fmFeedback: 0,
+    gain: 0.78,
+    entrain: { enabled: true, rateHz: 18, mode: "am", dichoticCents: 8 },
+    motionProfile: motionProfile({
+      climateXRange: [0.48, 0.62], climateYRange: [0.14, 0.28],
+      bloomRange: [0.34, 0.46], timeRange: [0.28, 0.42],
+      driftRange: [0.14, 0.26], subRange: [0, 0.06],
+      macroStep: 0.4, tonicWalk: "none", tonicIntervals: [],
+      tonicFloor: 1, textureFloor: 0.86, texturePeriod: 9,
+    }),
+  },
+
+  {
+    id: "pulse-bind", group: "Pulse / Studies",
+    name: "Bind",
+    attribution: "gamma / 40 Hz FLICKER · harmonic stack",
+    hint: "Reed + metal in harmonics 4–8 at A3. 40 Hz amplitude modulation — the gamma rate under active research. Metallic roughness, strong combination tones.",
+    voiceLayers: ["reed", "metal"],
+    voiceLevels: { reed: 0.5, metal: 0.5 },
+    octaveRange: [3, 3],
+    drift: 0.34, air: 0.45, time: 0.42, sub: 0.06, bloom: 0.60, glide: 0.20,
+    lfoShape: "sine", lfoRate: 0.40, lfoAmount: 0.15,
+    climateX: 0.58, climateY: 0.42,
+    effects: ["plate", "hall"],
+    scale: "harmonics",
+    tuningId: "just5", relationId: "harmonic-stack",
+    gain: 0.62,
+    entrain: { enabled: true, rateHz: 40, mode: "am", dichoticCents: 10 },
+    motionProfile: motionProfile({
+      climateXRange: [0.50, 0.66], climateYRange: [0.32, 0.52],
+      bloomRange: [0.48, 0.66], timeRange: [0.34, 0.50],
+      driftRange: [0.24, 0.40], subRange: [0.02, 0.10],
+      macroStep: 0.4, tonicWalk: "rare", tonicIntervals: [0, 7],
+      tonicFloor: 1, textureFloor: 0.82, texturePeriod: 8,
+    }),
+  },
 ];
 
 const PRESET_MATERIAL_PROFILES: Record<string, PresetMaterialProfile> = {
@@ -2639,6 +2778,9 @@ export interface PresetUiSetters {
   setRelation: (id: RelationId | null) => void;
   setFineTuneOffsets: (offsets: number[]) => void;
   setEffectEnabled: (id: EffectId, on: boolean) => void;
+  /** Optional ENTRAIN state setter. Called only when the preset
+   *  carries an `entrain` field. */
+  setEntrain?: (state: EntrainState) => void;
   /** Optional pre-resolved interval list for the engine build path.
    *  Lets callers preserve extra derived layers (e.g. partner drone)
    *  without forcing a second rebuild after preset apply. */
@@ -2698,6 +2840,10 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   ui.setLfoShape(preset.lfoShape);
   ui.setLfoRate(preset.lfoRate);
   ui.setLfoAmount(preset.lfoAmount);
+
+  // LFO 2 · FLICKER — only applied when the preset explicitly sets it
+  // so non-pulse presets don't stomp the user's current FLICKER state.
+  if (preset.entrain && ui.setEntrain) ui.setEntrain(preset.entrain);
 
   // Climate
   ui.setClimate(preset.climateX, preset.climateY);

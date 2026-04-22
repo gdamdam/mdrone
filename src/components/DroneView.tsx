@@ -24,7 +24,7 @@ import { EntrainPanel } from "./EntrainPanel";
 
 const PRESET_GROUPS: PresetGroup[] = [
   "Sacred / Ritual", "Minimal / Just", "Organ / Chamber",
-  "Ambient / Cinematic", "Noise / Industrial",
+  "Ambient / Cinematic", "Noise / Industrial", "Pulse / Studies",
 ];
 const SHORT_GROUP_LABELS: Partial<Record<PresetGroup, string>> = {
   "Sacred / Ritual": "SACRED",
@@ -32,6 +32,7 @@ const SHORT_GROUP_LABELS: Partial<Record<PresetGroup, string>> = {
   "Organ / Chamber": "ORGAN",
   "Ambient / Cinematic": "AMBIENT",
   "Noise / Industrial": "NOISE",
+  "Pulse / Studies": "PULSE",
 };
 
 import type { DroneSessionSnapshot } from "../session";

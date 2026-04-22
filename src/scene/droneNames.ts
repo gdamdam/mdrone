@@ -46,6 +46,10 @@ const WORDBANKS: Record<PresetGroup, Wordbank> = {
     adjectives: ["Iron", "Corroded", "Broken", "Shortwave", "Rusted", "Grey", "Salvaged", "Stripped"],
     nouns: ["Signal", "Dust", "Relay", "Foundry", "Lattice", "Coil", "Transmitter", "Machine"],
   },
+  "Pulse / Studies": {
+    adjectives: ["Slow", "Steady", "Locked", "Rhythmic", "Quiet", "Tidal", "Measured", "Patient"],
+    nouns: ["Pulse", "Flicker", "Cycle", "Band", "Phase", "Study", "Rhythm", "Interval"],
+  },
 };
 
 /** Small template rotation. `n1` and `n2` are two independent noun

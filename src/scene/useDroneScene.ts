@@ -407,6 +407,7 @@ export function useDroneScene({
       setRelation,
       setFineTuneOffsets,
       setEffectEnabled,
+      setEntrain,
       engineIntervals: withPartnerIntervals(
         resolveIntervals({
           scale: preset.scale,
