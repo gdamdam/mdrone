@@ -136,6 +136,19 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     opacity 0.42s cubic-bezier(0.3, 0.7, 0.25, 1),
     visibility 0s linear 0s;
 }
+/* Popping state — used when a MEDITATE pop-out window is streaming
+   the canvas while the user is back on DRONE. Keep the overlay
+   visibility:visible (so the browser keeps compositing the canvas
+   and captureStream frames stay fresh) but move it out of view with
+   a translate so the user doesn't see it. opacity:0 + pointer-events
+   off; no transition so there's no flicker on toggle. */
+.view-overlay-popping {
+  visibility: visible;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-100%);
+  transition: none;
+}
 .view-overlay > * { height: 100%; width: 100%; }
 
 /* ── MIXER drawer ────────────────────────────────────────────────

@@ -46,6 +46,11 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [headerVolume, setHeaderVolume] = useState<number>(() => engine.getMasterVolume());
   const [shareOpen, setShareOpen] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  // Lifted pop-out state so Layout can keep the MEDITATE overlay
+  // composited (visibility-visible) while DRONE is the active view
+  // — otherwise the main canvas isn't rendered by the compositor
+  // and captureStream feeding the popup goes stale.
+  const [meditatePopOutActive, setMeditatePopOutActive] = useState(false);
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
   const droneViewRef = useRef<DroneViewHandle | null>(null);
@@ -523,7 +528,17 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           />
         </section>
         <section
-          className={viewMode === "meditate" ? "view-overlay view-overlay-active" : "view-overlay"}
+          className={
+            viewMode === "meditate"
+              ? "view-overlay view-overlay-active"
+              // Pop-out needs the canvas to stay composited even while
+              // the overlay is "hidden"; otherwise captureStream
+              // captures a stale frame and paint ops keep accumulating
+              // without the destination-out fade being applied.
+              : (meditatePopOutActive
+                ? "view-overlay view-overlay-popping"
+                : "view-overlay")
+          }
           aria-hidden={viewMode !== "meditate"}
         >
           <MeditateView
@@ -532,6 +547,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             visualizer={sceneManager.meditateVisualizer}
             onChangeVisualizer={sceneManager.setMeditateVisualizer}
             onRandomScene={sceneManager.handleRandomScene}
+            onPopOutChange={setMeditatePopOutActive}
             onFullscreenClick={(x01, y01) => {
               // Single click → set WEATHER XY from click position
               droneViewRef.current?.applyLivePatch?.({ climateX: x01, climateY: y01 }, { record: true });

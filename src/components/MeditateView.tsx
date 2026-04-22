@@ -42,6 +42,10 @@ interface MeditateViewProps {
    *  of a random preset — same behaviour as the header 🎲 button, but
    *  reachable without leaving the fullscreen visualizer. */
   onRandomScene?: () => void;
+  /** Bubble pop-out state up so Layout can keep the MEDITATE overlay
+   *  composited while DRONE is active — otherwise the captured canvas
+   *  stream goes stale. */
+  onPopOutChange?: (isPopOut: boolean) => void;
 }
 
 export function MeditateView({
@@ -53,6 +57,7 @@ export function MeditateView({
   onFullscreenDoubleClick,
   onFullscreenDrag,
   onRandomScene,
+  onPopOutChange,
 }: MeditateViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -92,6 +97,9 @@ export function MeditateView({
   const popPollRef = useRef<number | null>(null);
   const popWakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [isPopOut, setIsPopOut] = useState(false);
+  const onPopOutChangeRef = useRef(onPopOutChange);
+  useEffect(() => { onPopOutChangeRef.current = onPopOutChange; }, [onPopOutChange]);
+  useEffect(() => { onPopOutChangeRef.current?.(isPopOut); }, [isPopOut]);
   const closePopOut = useCallback(() => {
     if (popPollRef.current !== null) {
       window.clearInterval(popPollRef.current);
