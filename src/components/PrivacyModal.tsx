@@ -57,6 +57,12 @@ export function PrivacyModal({ onClose }: Props) {
               Anonymous page counts via{" "}
               <a href="https://goatcounter.com" target="_blank" rel="noopener noreferrer" style={link}>GoatCounter</a>
             </li>
+            <li>
+              A handful of anonymous feature events (preset applied,
+              visualizer picked, share created, etc.) deduped once per
+              page-load. No IDs, no correlation, no timings. DNT
+              disables all counting.
+            </li>
           </ul>
 
           <div style={sectionLabel}>Stays on your device</div>
