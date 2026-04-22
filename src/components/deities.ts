@@ -275,6 +275,125 @@ export function drawHaloGlow(
     ctx.fill();
   }
 
+  // ── Growth-gated ornament tiers — the halo accrues layers as
+  //     the user sits with it. Each tier fades in over a 0.1-wide
+  //     growth range so transitions are not cliff-edges.
+
+  // Tier 1 (growth > 0.3): inner counter-rotating flame ring at
+  // ~0.75× the outer ring radius. Gives the halo a double-walled
+  // fire skeleton.
+  if (p.growth > 0.3) {
+    const g = Math.min(1, (p.growth - 0.3) / 0.1);
+    const innerRingR = side * 0.28;
+    const innerFlames = 60;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-p.t * 0.018);
+    for (let i = 0; i < innerFlames; i++) {
+      const ang = (i / innerFlames) * Math.PI * 2;
+      const binE = a.spectrum[Math.floor((i / innerFlames) * bins)] ?? 0;
+      const len = innerRingR * 0.94;
+      const lenTip = innerRingR * (1.08 + Math.sin(ang * 9 + p.t * 0.6) * 0.04 + binE * 0.25);
+      const x0 = Math.cos(ang) * len, y0 = Math.sin(ang) * len;
+      const x1 = Math.cos(ang) * lenTip, y1 = Math.sin(ang) * lenTip;
+      const ig = ctx.createLinearGradient(x0, y0, x1, y1);
+      ig.addColorStop(0, `hsla(${haloHue}, 95%, 82%, ${(0.4 + a.rms * 0.25) * g})`);
+      ig.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.strokeStyle = ig;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Tier 2 (growth > 0.5): three concentric dotted aureoles at 1.10 /
+  // 1.18 / 1.28× haloR — the mandala-style layered rings a meditation
+  // image gains with contemplation.
+  if (p.growth > 0.5) {
+    const g = Math.min(1, (p.growth - 0.5) / 0.12);
+    const aureoles = [
+      { r: haloR * 1.10, count: 48, hueOff: 30 },
+      { r: haloR * 1.18, count: 72, hueOff: 60 },
+      { r: haloR * 1.28, count: 96, hueOff: 90 },
+    ];
+    for (let t = 0; t < aureoles.length; t++) {
+      const layer = aureoles[t];
+      const spin = p.t * (0.01 + t * 0.004) * (t % 2 === 0 ? 1 : -1);
+      const dr = 0.9 + g * 0.5;
+      ctx.fillStyle = `hsla(${(haloHue + layer.hueOff) % 360}, 85%, 78%, ${(0.22 + g * 0.25) * (1 - t * 0.18)})`;
+      for (let i = 0; i < layer.count; i++) {
+        const ang = (i / layer.count) * Math.PI * 2 + spin;
+        const dx = cx + Math.cos(ang) * layer.r;
+        const dy = cy + Math.sin(ang) * layer.r;
+        ctx.beginPath();
+        ctx.arc(dx, dy, dr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Tier 3 (growth > 0.7): twelve additional finer god-rays slotted
+  // between the six original ones, so the whole sky is a fan of
+  // light. Narrower and dimmer than the primary rays.
+  if (p.growth > 0.7) {
+    const g = Math.min(1, (p.growth - 0.7) / 0.12);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-p.t * 0.015);
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2 + Math.PI / 12; // offset between the 6 primary rays
+      ctx.rotate(ang);
+      const gr = ctx.createLinearGradient(0, -side * 0.72, 0, 0);
+      gr.addColorStop(0, "rgba(0,0,0,0)");
+      gr.addColorStop(0.5, `hsla(${ringHue}, 80%, 86%, ${(0.04 + a.rms * 0.04) * g})`);
+      gr.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = gr;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-side * 0.18, -side * 0.72);
+      ctx.lineTo(side * 0.18, -side * 0.72);
+      ctx.closePath();
+      ctx.fill();
+      ctx.rotate(-ang);
+    }
+    ctx.restore();
+  }
+
+  // Tier 4 (growth > 0.85): lotus-petal corona around the central
+  // core. 16 pointed petals drawn as Bézier teardrops — the halo's
+  // last ornament, appearing only after ~3.5 min of viewing.
+  if (p.growth > 0.85) {
+    const g = Math.min(1, (p.growth - 0.85) / 0.15);
+    const petals = 16;
+    const petalInner = coreR * 1.4;
+    const petalOuter = coreR * (2.8 + a.rms * 0.6);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(p.t * 0.05);
+    for (let i = 0; i < petals; i++) {
+      const ang = (i / petals) * Math.PI * 2;
+      const half = (Math.PI / petals) * 0.58;
+      const tipX = Math.cos(ang) * petalOuter;
+      const tipY = Math.sin(ang) * petalOuter;
+      const bLx = Math.cos(ang - half) * petalInner;
+      const bLy = Math.sin(ang - half) * petalInner;
+      const bRx = Math.cos(ang + half) * petalInner;
+      const bRy = Math.sin(ang + half) * petalInner;
+      const pg = ctx.createLinearGradient(0, 0, tipX, tipY);
+      pg.addColorStop(0, `hsla(48, 100%, 75%, ${0.35 * g})`);
+      pg.addColorStop(0.7, `hsla(${(haloHue + 20) % 360}, 90%, 65%, ${0.25 * g})`);
+      pg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.moveTo(bLx, bLy);
+      ctx.quadraticCurveTo(tipX * 0.55 + bLx * 0.2, tipY * 0.55 + bLy * 0.2, tipX, tipY);
+      ctx.quadraticCurveTo(tipX * 0.55 + bRx * 0.2, tipY * 0.55 + bRy * 0.2, bRx, bRy);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // ── Foreground meditation rings — expand from center forever ──
   const rings = 9;
   for (let i = 0; i < rings; i++) {
