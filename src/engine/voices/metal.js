@@ -93,7 +93,7 @@ DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp)
 
         const partialFreq = freq * this.metalRatios[p] * (1 + this.metalDetuneWalks[p]);
         this.metalPhasesL[p] += twoPi * partialFreq * invSr;
-        this.metalPhasesR[p] += twoPi * partialFreq * invSr * 1.00018;
+        this.metalPhasesR[p] += twoPi * partialFreq * invSr * 1.00018 * this.dichoticMulR;
         if (this.metalPhasesL[p] > twoPi) this.metalPhasesL[p] -= twoPi;
         if (this.metalPhasesR[p] > twoPi) this.metalPhasesR[p] -= twoPi;
 

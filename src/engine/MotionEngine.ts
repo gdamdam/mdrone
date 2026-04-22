@@ -2,6 +2,12 @@ import { FxChain } from "./FxChain";
 import type { EngineSceneMutation } from "./EngineSceneMutation";
 import type { PresetMotionProfile } from "./presets";
 import { DEFAULT_PRESET_MOTION_PROFILE } from "./presets";
+import {
+  DEFAULT_ENTRAIN,
+  ENTRAIN_MAX_HZ,
+  ENTRAIN_MIN_HZ,
+  type EntrainState,
+} from "../entrain";
 
 interface MotionEngineOptions {
   ctx: AudioContext;
@@ -39,6 +45,16 @@ export class MotionEngine {
 
   private lfo: OscillatorNode | null = null;
   private userLfo: OscillatorNode | null = null;
+  /** ENTRAIN AM path — a second amplitude modulator that sums into
+   *  droneVoiceGain.gain alongside the breathing LFO. Frequency is
+   *  integer-locked to the breathing LFO (k = round(rate / breath))
+   *  so the two modulators stay in constant relative phase. */
+  private entrainLfo: OscillatorNode | null = null;
+  private readonly entrainLfoDepth: GainNode;
+  private entrainState: EntrainState = { ...DEFAULT_ENTRAIN };
+  /** Hardcoded AM depth contribution when ENTRAIN is on. Audible but
+   *  not violent — can be surfaced as a user control later. */
+  private readonly entrainBaseDepth = 0.15;
   private air = 0.6;
   private time = 0.5;
   private climateX = 0.5;
@@ -106,6 +122,20 @@ export class MotionEngine {
     this.userLfo.frequency.value = this.userLfoRate;
     this.userLfo.connect(this.userLfoDepth);
     this.userLfo.start();
+
+    // ENTRAIN AM — parallel oscillator whose output sums into the
+    // same voice-gain param. Depth stays at 0 until the user enables
+    // ENTRAIN via setEntrain(), so the added node is a no-op by
+    // default.
+    this.entrainLfoDepth = this.ctx.createGain();
+    this.entrainLfoDepth.gain.value = 0;
+    this.entrainLfoDepth.connect(options.droneVoiceGain.gain);
+
+    this.entrainLfo = this.ctx.createOscillator();
+    this.entrainLfo.type = "sine";
+    this.entrainLfo.frequency.value = this.computeEntrainHz();
+    this.entrainLfo.connect(this.entrainLfoDepth);
+    this.entrainLfo.start();
 
     this.fxChain.setAir(this.air);
   }
@@ -281,9 +311,47 @@ export class MotionEngine {
     if (this.userLfo) {
       this.userLfo.frequency.setTargetAtTime(this.userLfoRate, this.ctx.currentTime, 0.05);
     }
+    // ENTRAIN rate is a multiple of the breathing rate; recompute.
+    this.applyEntrain();
   }
 
   getLfoRate(): number { return this.userLfoRate; }
+
+  /** Push the full ENTRAIN state in one call. Keeps the engine-side
+   *  policy (when to modulate, how to quantize the rate) in one
+   *  place so useDroneScene only has to forward React state. */
+  setEntrain(state: EntrainState): void {
+    this.entrainState = { ...state };
+    this.applyEntrain();
+  }
+
+  getEntrain(): EntrainState { return { ...this.entrainState }; }
+
+  /** Integer-phase-locked entrain rate derived from the breathing
+   *  LFO rate. Returns a safe value when breathing is at or below 0. */
+  private computeEntrainHz(): number {
+    const target = Math.max(ENTRAIN_MIN_HZ, Math.min(ENTRAIN_MAX_HZ, this.entrainState.rateHz));
+    const breathing = this.userLfoRate;
+    if (!(breathing > 0)) return target;
+    const k = Math.max(1, Math.round(target / breathing));
+    return k * breathing;
+  }
+
+  /** Applies the current entrainState to the ENTRAIN oscillator +
+   *  depth gain. Depth is only non-zero when the panel is enabled
+   *  AND the mode includes AM ("am" or "both"). "dichotic" on its
+   *  own routes through a different path (phase 3). */
+  private applyEntrain(): void {
+    if (!this.entrainLfo) return;
+    const now = this.ctx.currentTime;
+    const tc = this.MACRO_TC;
+    const hz = this.computeEntrainHz();
+    this.entrainLfo.frequency.setTargetAtTime(hz, now, tc);
+    const amActive =
+      this.entrainState.enabled &&
+      (this.entrainState.mode === "am" || this.entrainState.mode === "both");
+    this.entrainLfoDepth.gain.setTargetAtTime(amActive ? this.entrainBaseDepth : 0, now, tc);
+  }
 
   setLfoAmount(amt: number): void {
     this.userLfoAmount = Math.max(0, Math.min(1, amt));

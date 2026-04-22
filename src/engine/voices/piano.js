@@ -85,7 +85,7 @@ DroneVoiceProcessor.prototype.pianoProcess = function(L, R, n, freq, drift, amp)
         const partialFreq = freq * this.pianoRatios[p] * (1 + wobble);
         if (partialFreq > nyquist) continue;
         this.pianoPhasesL[p] += twoPi * partialFreq * invSr;
-        this.pianoPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.45);
+        this.pianoPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.45) * this.dichoticMulR;
         if (this.pianoPhasesL[p] > twoPi) this.pianoPhasesL[p] -= twoPi;
         if (this.pianoPhasesR[p] > twoPi) this.pianoPhasesR[p] -= twoPi;
 

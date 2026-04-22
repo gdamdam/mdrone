@@ -428,6 +428,19 @@ export class AudioEngine {
 
   getLfoAmount(): number { return this.motionEngine.getLfoAmount(); }
 
+  setEntrain(state: import("../entrain").EntrainState): void {
+    this.motionEngine.setEntrain(state);
+    // Route dichotic cents to the voice engine. The panel stores the
+    // full spread; we apply it only when ENTRAIN is enabled AND the
+    // mode asks for dichotic behaviour. 0 otherwise so toggling the
+    // mode or the power button is an instant on/off.
+    const dichoticOn =
+      state.enabled && (state.mode === "dichotic" || state.mode === "both");
+    this.voiceEngine.setDichoticCents(dichoticOn ? state.dichoticCents : 0);
+  }
+
+  getEntrain(): import("../entrain").EntrainState { return this.motionEngine.getEntrain(); }
+
   setSub(v: number): void {
     this.voiceEngine.setSub(v);
   }

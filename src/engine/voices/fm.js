@@ -53,7 +53,7 @@ DroneVoiceProcessor.prototype.fmProcess = function(L, R, n, freq, drift, amp) {
       // Carrier oscillators — frequency-modulated by the modulator
       const cFreq = freq + modOut;
       this.fmCarrierPhaseL += twoPi * cFreq * invSr;
-      this.fmCarrierPhaseR += twoPi * cFreq * invSr * (1 + depth * 0.6);
+      this.fmCarrierPhaseR += twoPi * cFreq * invSr * (1 + depth * 0.6) * this.dichoticMulR;
       while (this.fmCarrierPhaseL >  twoPi) this.fmCarrierPhaseL -= twoPi;
       while (this.fmCarrierPhaseL < -twoPi) this.fmCarrierPhaseL += twoPi;
       while (this.fmCarrierPhaseR >  twoPi) this.fmCarrierPhaseR -= twoPi;

@@ -4726,3 +4726,193 @@ input.share-modal-url:focus {
   color: var(--text);
   border-color: var(--preview);
 }
+
+/* ── ENTRAIN panel (experimental, Settings → Advanced opt-in) ─── */
+.entrain-panel {
+  margin-top: 12px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-cell);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.entrain-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.entrain-title {
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+}
+.entrain-panel-on { border-color: var(--preview); }
+.entrain-power {
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: transparent;
+  cursor: pointer;
+}
+.entrain-power:hover { color: var(--text); }
+.entrain-power-on {
+  color: var(--text);
+  border-color: var(--preview);
+  background: color-mix(in srgb, var(--preview) 14%, transparent);
+}
+.entrain-hp {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: transparent;
+}
+.entrain-hp-on {
+  color: var(--text);
+  border-color: var(--preview);
+  background: color-mix(in srgb, var(--preview) 12%, transparent);
+}
+.entrain-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.entrain-rate-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 10px;
+  border-radius: 5px;
+  outline: none;
+  cursor: pointer;
+}
+.entrain-rate-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--entrain-thumb, var(--text));
+  border: 1px solid var(--text);
+}
+.entrain-rate-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--entrain-thumb, var(--text));
+  border: 1px solid var(--text);
+}
+.entrain-hz-readout {
+  min-width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.entrain-lock-line {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.entrain-mode-row {
+  display: flex;
+  gap: 6px;
+}
+.entrain-mode-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.entrain-mode-btn:hover { color: var(--text); }
+.entrain-mode-btn-on {
+  color: var(--text);
+  border-color: var(--preview);
+  background: color-mix(in srgb, var(--preview) 14%, transparent);
+}
+.entrain-cents-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.entrain-cents-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  min-width: 52px;
+}
+.entrain-cents-slider {
+  flex: 1;
+}
+.entrain-cents-readout {
+  min-width: 64px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.entrain-subtitle {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  margin-top: -4px;
+}
+.entrain-ticks {
+  position: relative;
+  height: 22px;
+  margin: 0 0 2px;
+}
+.entrain-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.85;
+}
+.entrain-tick:hover { opacity: 1; }
+.entrain-tick-mark {
+  width: 1px;
+  height: 6px;
+  background: currentColor;
+  opacity: 0.6;
+}
+.entrain-tick-cultural .entrain-tick-mark {
+  background: none;
+  border-left: 1px dashed currentColor;
+  height: 6px;
+  width: 0;
+  opacity: 0.5;
+}
+.entrain-tick-cultural .entrain-tick-label {
+  font-style: italic;
+  opacity: 0.7;
+}
+.entrain-tick-label {
+  white-space: nowrap;
+}

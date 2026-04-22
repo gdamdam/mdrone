@@ -75,7 +75,7 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
         const wobble = Math.sin(this.ampLfoPhase * (1 + p * 0.17)) * detuneDepth;
         const partialFreq = freq * (p + 1) * (1 + wobble);
         this.ampPhasesL[p] += twoPi * partialFreq * invSr;
-        this.ampPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.7);
+        this.ampPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.7) * this.dichoticMulR;
         if (this.ampPhasesL[p] > twoPi) this.ampPhasesL[p] -= twoPi;
         if (this.ampPhasesR[p] > twoPi) this.ampPhasesR[p] -= twoPi;
 

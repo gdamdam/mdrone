@@ -56,6 +56,11 @@ export interface Voice {
   setDrift(amount01: number): void;
   /** Tanpura re-pluck rate multiplier, 0.2..4. Ignored by other voice types. */
   setPluckRate(rate: number): void;
+  /** ENTRAIN dichotic L/R spread on the R channel, in cents. 0 = no
+   *  effect. Voices with L/R phase accumulators (reed, metal, piano,
+   *  fm, amp) + the tanpura KS delay respond; air/core-based voices
+   *  ignore the message. */
+  setDichoticCents(cents: number): void;
   stop(): void;
 }
 
@@ -127,6 +132,9 @@ export function buildVoice(
       if (!pluckRateParam) return;
       const clamped = Math.max(0, Math.min(4, rate));
       pluckRateParam.setTargetAtTime(clamped, ctx.currentTime, 0.1);
+    },
+    setDichoticCents(cents) {
+      try { node.port.postMessage({ type: "dichotic", cents }); } catch { /* ok */ }
     },
     stop() {
       // Ramp amp to 0 for a clean tail, then post a termination

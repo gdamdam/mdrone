@@ -107,7 +107,10 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
       const exact = Math.min(this.ksMax - 2, Math.max(8, baseLen / dt));
       delayLens[s] = Math.floor(exact);
       fracsL[s] = exact - delayLens[s];
-      const exactR = Math.min(this.ksMax - 2, Math.max(8, baseLen / (dt * 1.003)));
+      // R-side dichotic spread — applied as an extra frequency ratio
+      // on the KS delay length (delay = sampleRate / freq, so divide
+      // by the ratio to raise the R pitch when dichoticMulR > 1).
+      const exactR = Math.min(this.ksMax - 2, Math.max(8, baseLen / (dt * 1.003 * this.dichoticMulR)));
       delayLensR[s] = Math.floor(exactR);
       fracsR[s] = exactR - delayLensR[s];
     }

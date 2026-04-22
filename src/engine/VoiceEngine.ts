@@ -49,6 +49,10 @@ export class VoiceEngine {
   // at voice construction; setting it triggers a voice rebuild via
   // scheduleVoiceRebuild() so the KS delay lengths repick.
   private tanpuraTuning: TanpuraTuningId = "classic";
+  /** ENTRAIN dichotic spread on the R channel, in cents. 0 = no
+   *  effect. Broadcast to each active voice via its setDichoticCents
+   *  setter; newly-spawned voices inherit this value at build time. */
+  private dichoticCents = 0;
   /** Max active voice layers. Low-core devices (≤4 logical cores,
    *  typical mobile / small laptops) cap at 4 to prevent audio-thread
    *  overload when a preset asks for 6-7 simultaneous voices. Default
@@ -177,6 +181,7 @@ export class VoiceEngine {
         const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
+        voice.setDichoticCents(this.dichoticCents);
         voices.push(voice);
       }
       this.droneVoicesByLayer.set(type, voices);
@@ -566,6 +571,7 @@ export class VoiceEngine {
         const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         voice.setDrift(this.effectiveLayerDrift(type));
+        voice.setDichoticCents(this.dichoticCents);
         voices.push(voice);
       }
       this.droneVoicesByLayer.set(type, voices);
@@ -710,6 +716,26 @@ export class VoiceEngine {
     const rate = this.effectivePluckRate();
     for (const voice of tanpuraVoices) voice.setPluckRate(rate);
   }
+
+  /** Push the current ENTRAIN dichotic cents to every live voice.
+   *  Cheap — each voice forwards a single postMessage to its worklet. */
+  private applyDichoticTargets(): void {
+    for (const type of ALL_VOICE_TYPES) {
+      const voices = this.droneVoicesByLayer.get(type);
+      if (!voices) continue;
+      for (const voice of voices) voice.setDichoticCents(this.dichoticCents);
+    }
+  }
+
+  /** Set the dichotic L/R spread in cents. Broadcasts to live voices
+   *  and stores the value so newly-spawned voices inherit it. */
+  setDichoticCents(cents: number): void {
+    const clamped = Number.isFinite(cents) ? Math.max(0, Math.min(100, cents)) : 0;
+    this.dichoticCents = clamped;
+    this.applyDichoticTargets();
+  }
+
+  getDichoticCents(): number { return this.dichoticCents; }
 
   private applySecondaryVoiceTargets(): void {
     const now = this.ctx.currentTime;

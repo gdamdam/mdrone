@@ -147,7 +147,7 @@ DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) 
           const partialFreq = freq * (p + 1) * (1 + wobble);
           if (partialFreq > nyquist) continue;
           this.reedPhasesL[p] += twoPi * partialFreq * invSr;
-          this.reedPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.5);
+          this.reedPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.5) * this.dichoticMulR;
           if (this.reedPhasesL[p] > twoPi) this.reedPhasesL[p] -= twoPi;
           if (this.reedPhasesR[p] > twoPi) this.reedPhasesR[p] -= twoPi;
 

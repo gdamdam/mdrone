@@ -8,6 +8,7 @@ import type { PitchClass } from "../types";
 import type { RelationId, TuningId } from "../types";
 import type { JourneyId } from "../journey";
 import { withPartnerIntervals, type PartnerState } from "../partner";
+import type { EntrainState } from "../entrain";
 import { MOTION_PARAM_IDS, pitchClassToIndex, type MotionParamId } from "../sceneRecorder";
 import {
   createInitialDroneScene,
@@ -171,6 +172,11 @@ export function useDroneScene({
     dispatch({ type: "setPartner", partner });
   }, []);
 
+  const setEntrain = useCallback((entrain: EntrainState) => {
+    dispatch({ type: "setEntrain", entrain });
+    engine?.setEntrain(entrain);
+  }, [engine]);
+
   const setClimate = useCallback((x: number, y: number) => {
     dispatch({ type: "setClimate", x, y });
     engine?.setClimateX(x);
@@ -305,6 +311,7 @@ export function useDroneScene({
     engine.setLfoShape(snap.lfoShape);
     engine.setLfoRate(snap.lfoRate);
     engine.setLfoAmount(snap.lfoAmount);
+    if (snap.entrain) engine.setEntrain(snap.entrain);
     engine.setPresetMorph(snap.presetMorph);
     engine.setEvolve(snap.evolve);
     engine.setTanpuraPluckRate(snap.pluckRate);
@@ -585,6 +592,7 @@ export function useDroneScene({
     engine.setLfoShape(snapshot.lfoShape);
     engine.setLfoRate(snapshot.lfoRate);
     engine.setLfoAmount(snapshot.lfoAmount);
+    if (snapshot.entrain) engine.setEntrain(snapshot.entrain);
     engine.setPresetMorph(snapshot.presetMorph);
     engine.setEvolve(snapshot.evolve);
     engine.setTanpuraPluckRate(snapshot.pluckRate);
@@ -655,6 +663,7 @@ export function useDroneScene({
     setFineTuneOffsets,
     setJourney,
     setPartner,
+    setEntrain,
     setPresetMorph,
     setPresetEvolve,
     setPluckRate,

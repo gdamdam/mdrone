@@ -40,8 +40,18 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     // voice is retired. process() returns false once set, so the
     // worklet processor is GC-eligible instead of running forever.
     this.stopped = false;
+    // ENTRAIN dichotic L/R spread, in cents on the R channel. Stored
+    // pre-computed as a ratio multiplier so the per-sample voice
+    // loops only pay one extra float multiply. 1 = no effect.
+    this.dichoticMulR = 1;
     this.port.onmessage = (e) => {
-      if (e.data && e.data.type === "stop") this.stopped = true;
+      const msg = e.data;
+      if (!msg) return;
+      if (msg.type === "stop") { this.stopped = true; return; }
+      if (msg.type === "dichotic") {
+        const cents = typeof msg.cents === "number" ? msg.cents : 0;
+        this.dichoticMulR = Math.pow(2, cents / 1200);
+      }
     };
 
     // Pink noise filter state (Paul Kellet) — shared by voices that need it

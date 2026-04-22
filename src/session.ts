@@ -12,6 +12,11 @@ import { JOURNEY_IDS, type JourneyId } from "./journey";
 import { PARTNER_RELATIONS, DEFAULT_PARTNER, type PartnerRelation, type PartnerState } from "./partner";
 import { normalizeMotionEvents } from "./sceneRecorder";
 import { isValidTuningId } from "./microtuning";
+import {
+  DEFAULT_ENTRAIN,
+  normalizeEntrain,
+  type EntrainState,
+} from "./entrain";
 
 export interface DroneSessionSnapshot {
   activePresetId: string | null;
@@ -74,6 +79,11 @@ export interface DroneSessionSnapshot {
   /** Pitch-locked LFO division (rate = rootHz / N). 0 = off.
    *  Optional for backward-compat; legacy shares just use lfoRate. */
   lfoDivision?: number;
+  /** ENTRAIN modulation state — rate, mode, dichotic spread.
+   *  Optional for backward-compat; legacy shares fall back to the
+   *  DEFAULT_ENTRAIN values. Visible only when the user has opted
+   *  the panel in via Settings → Advanced. */
+  entrain?: EntrainState;
 }
 
 export interface MixerSessionSnapshot {
@@ -265,6 +275,7 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   seed: 0,
   journey: null,
   partner: DEFAULT_PARTNER,
+  entrain: { ...DEFAULT_ENTRAIN },
 };
 
 const DEFAULT_MIXER_SNAPSHOT: MixerSessionSnapshot = {
@@ -417,6 +428,7 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
       && value.lfoDivision >= 0 && value.lfoDivision <= 8192
       ? { lfoDivision: Math.floor(value.lfoDivision) }
       : {}),
+    entrain: normalizeEntrain(value.entrain),
   };
 }
 

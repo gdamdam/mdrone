@@ -20,6 +20,7 @@ import { PARTNER_RELATIONS, type PartnerRelation } from "../partner";
 import { VuMeter } from "./VuMeter";
 import { DropdownSelect } from "./DropdownSelect";
 import { WeatherPad } from "./WeatherPad";
+import { EntrainPanel } from "./EntrainPanel";
 
 const PRESET_GROUPS: PresetGroup[] = [
   "Sacred / Ritual", "Minimal / Just", "Organ / Chamber",
@@ -293,6 +294,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     startImmediate,
     setJourney,
     setPartner,
+    setEntrain,
   } = useDroneScene({
     engine,
     onTransportChange,
@@ -1537,6 +1539,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               onChange={setLfoAmount}
               icon={<IconDepth />}
               title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
+            />
+            <EntrainPanel
+              entrain={state.entrain}
+              onChange={setEntrain}
+              breathingHz={state.lfoRate}
             />
           </div>
         </div>
