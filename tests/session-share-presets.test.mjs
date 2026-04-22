@@ -264,6 +264,7 @@ test("applyPreset normalizes levels and clears unspecified effects", () => {
   }, preset, {
     setVoiceLayers: (value) => { uiState.voiceLayers = value; },
     setVoiceLevels: (value) => { uiState.voiceLevels = value; },
+    setNoiseColor: (value) => { uiState.noiseColor = value; },
     setDrift: (value) => { uiState.drift = value; },
     setAir: (value) => { uiState.air = value; },
     setTime: (value) => { uiState.time = value; },

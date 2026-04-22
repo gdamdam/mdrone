@@ -51,6 +51,7 @@ test("createInitialDroneScene reads engine-backed defaults", () => {
     getPresetMorph: () => 0.23,
     getEvolve: () => 0.34,
     getTanpuraPluckRate: () => 1.5,
+    getNoiseColor: () => 0.41,
     getPresetTrim: () => 0.91,
     getFmRatio: () => 3.5,
     getFmIndex: () => 4.5,
@@ -63,6 +64,7 @@ test("createInitialDroneScene reads engine-backed defaults", () => {
   assert.equal(scene.effects.delay, true);
   assert.equal(scene.climateX, 0.77);
   assert.equal(scene.lfoShape, "triangle");
+  assert.equal(scene.noiseColor, 0.41);
   assert.equal(scene.presetTrim, 0.91);
   assert.deepEqual(scene.fineTuneOffsets, []);
 });
