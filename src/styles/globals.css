@@ -4822,6 +4822,19 @@ input.share-modal-url:focus {
   color: var(--text-dim);
   letter-spacing: 0.04em;
 }
+.entrain-lock-line-inactive {
+  opacity: 0.55;
+  font-style: italic;
+}
+.entrain-rate-row-inactive .entrain-slider-col,
+.entrain-rate-row-inactive .entrain-hz-readout {
+  opacity: 0.35;
+  filter: saturate(0.25);
+  pointer-events: none;
+}
+.entrain-rate-row-inactive .entrain-rate-slider {
+  cursor: not-allowed;
+}
 .entrain-mode-row {
   display: flex;
   gap: 6px;

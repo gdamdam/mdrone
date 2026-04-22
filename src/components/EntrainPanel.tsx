@@ -63,6 +63,10 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
 
   const lock = phaseLockedRate(breathingHz, state.rateHz);
   const dichoticActive = state.enabled && (state.mode === "dichotic" || state.mode === "both");
+  // Rate slider + zone colours only drive anything audible in AM and
+  // BOTH modes — dichotic-only is controlled entirely by the SPREAD
+  // cents. Grey out the slider so the UI is honest about what's live.
+  const rateActive = state.mode !== "dichotic";
   const trackColor = zoneColorForHz(state.rateHz);
 
   return (
@@ -93,7 +97,7 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
         {describeEntrain(state, breathingHz)}
       </div>
 
-      <div className="entrain-rate-row">
+      <div className={rateActive ? "entrain-rate-row" : "entrain-rate-row entrain-rate-row-inactive"}>
         <div className="entrain-slider-col">
           <input
             type="range"
@@ -103,6 +107,7 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
             step={0.1}
             value={state.rateHz}
             onChange={(e) => setRate(Number(e.currentTarget.value))}
+            disabled={!rateActive}
             style={{
               // zone colors live on the track; the thumb picks up the
               // current-zone accent via the CSS variable below
@@ -110,7 +115,9 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
               // consumed by entrain-rate-slider::-webkit-slider-thumb
               ["--entrain-thumb" as string]: trackColor,
             }}
-            title={`Modulation rate: ${state.rateHz.toFixed(2)} Hz`}
+            title={rateActive
+              ? `Modulation rate: ${state.rateHz.toFixed(2)} Hz`
+              : "Rate is parked in DICHOTIC mode — use SPREAD instead, or switch to AM / BOTH"}
             aria-label="Entrain rate"
           />
           <div className="entrain-ticks" aria-label="Landmark rates">
@@ -123,6 +130,7 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
                   className={m.cultural ? "entrain-tick entrain-tick-cultural" : "entrain-tick"}
                   style={{ left: `${pct}%`, color: zoneColorForHz(m.hz) }}
                   onClick={() => setRate(m.hz)}
+                  disabled={!rateActive}
                   title={m.title}
                 >
                   <span className="entrain-tick-mark" />
@@ -137,10 +145,12 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
         </span>
       </div>
 
-      <div className="entrain-lock-line">
-        {lock.k > 0
-          ? <>locked ×{lock.k} → {lock.lockedHz.toFixed(2)} Hz (breathing {breathingHz.toFixed(2)} Hz)</>
-          : <>breathing stopped — entrain will free-run</>}
+      <div className={rateActive ? "entrain-lock-line" : "entrain-lock-line entrain-lock-line-inactive"}>
+        {rateActive
+          ? (lock.k > 0
+              ? <>locked ×{lock.k} → {lock.lockedHz.toFixed(2)} Hz (breathing {breathingHz.toFixed(2)} Hz)</>
+              : <>breathing stopped — entrain will free-run</>)
+          : <>rate parked — DICHOTIC mode is driven by SPREAD</>}
       </div>
 
       <div className="entrain-mode-row">
