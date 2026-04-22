@@ -3,7 +3,7 @@
  * Bump package.json on release and the banner in Layout will prompt
  * existing clients to reload once the new build is deployed. */
 declare const __APP_VERSION__: string;
-export const APP_VERSION = "1.13.0";
+export const APP_VERSION = "1.13.1";
 
 /** LocalStorage keys, namespaced so mpump/mloop don't collide. */
 export const STORAGE_KEYS = {
