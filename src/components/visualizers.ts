@@ -165,6 +165,12 @@ export interface PhaseClock {
    *  distinguish pitch classes at drone frequencies. All-zero when
    *  silent or engine isn't available. */
   activePitches: Float32Array;
+  /** Frame delta scale — 1.0 at 60 fps, 2.0 at 30 fps, larger when
+   *  the tab is throttled. Visualizers whose persistence fades are
+   *  per-frame (destination-out wash, alpha overlay) multiply by
+   *  this so the fade rate is framerate-independent. Falls back to
+   *  1 when the caller didn't populate it. */
+  dtScale?: number;
 }
 
 // ── Shared colour helpers (ember-leaning but drifting) ─────────────
@@ -1940,17 +1946,22 @@ export function drawWaveformRing(
   w: number,
   h: number,
   a: AudioFrame,
-  _p: PhaseClock,
+  p: PhaseClock,
 ): void {
-  // Motion blur
+  // Motion-blur fade — dt-scaled so the fade rate is framerate-
+  // independent. At 60 fps (dtScale ≈ 1) each frame erases ~22%; at
+  // 30 fps (dtScale ≈ 2) ~40%; if rAF is throttled way down the
+  // fade still clears the canvas. Raises the baseline per-frame
+  // erase from the old 0.12 so RMS-varying rings don't stack into
+  // a solid ring when the waveform amplitude drifts.
+  const BASE_FADE = 0.22;
+  const fade = 1 - Math.pow(1 - BASE_FADE, p.dtScale ?? 1);
   ctx.globalCompositeOperation = "destination-out";
-  ctx.globalAlpha = 0.12;
+  ctx.globalAlpha = fade;
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, w, h);
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
-
-  void _p;
   const cx = w / 2;
   const cy = h / 2;
   const rms = a.rms;
@@ -2530,9 +2541,13 @@ export function drawAshTrail(
 
   const cx = w * 0.5;
   const cy = h * 0.5;
-  // Orbital extent — reaches 30% of canvas at silence, up to 85%
-  // with rich mid-band + RMS + slight slow breath.
-  const reach = 0.30 + 0.32 * midE + 0.18 * a.rms + 0.05 * p.slow;
+  // Orbital extent — sources wander over most of the canvas even at
+  // silence so the piece isn't centre-bound. 50% at silence, up to
+  // ~95% with rich mid-band + RMS + slight slow breath. The
+  // secondary orbital adds another ~18% on top, so loud moments
+  // occasionally push sources slightly past the visible edges
+  // (intentional: trails end abruptly at the paper border).
+  const reach = 0.50 + 0.25 * midE + 0.18 * a.rms + 0.06 * p.slow;
   const ampX = w * reach;
   const ampY = h * reach;
   // Source motion speed — slow by default, visibly faster with loud

@@ -505,6 +505,7 @@ export function MeditateView({
         activeGrowthT += dtSec;
       }
       phase.t = activeT;
+      phase.dtScale = dtScale;
       phase.slow = 0.5 + 0.5 * Math.sin(phase.t * (Math.PI * 2) / 60);
       // Hue anchor is pulled by the mood so the palette of every
       // visualizer shifts with the playing drone (dark presets drift
