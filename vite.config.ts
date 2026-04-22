@@ -14,4 +14,22 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (
+            id.includes("/src/components/MeditateView.tsx")
+            || id.includes("/src/components/visualizers.ts")
+            || id.includes("/src/meditateState.ts")
+          ) {
+            return "meditate";
+          }
+          if (id.includes("/src/engine/presets.ts")) {
+            return "presets";
+          }
+        },
+      },
+    },
+  },
 });
