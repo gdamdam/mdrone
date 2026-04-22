@@ -49,6 +49,8 @@ export interface DroneSessionSnapshot {
   presetMorph: number;
   evolve: number;
   pluckRate: number;
+  /** NOISE voice COLOR (0..1): white → pink → brown → deep. */
+  noiseColor: number;
   presetTrim: number;
   /** PRNG seed captured the last time this scene was randomised or
    *  mutated. 0 = no explicit seed (initial default). Travels through
@@ -238,8 +240,8 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   tuningId: null,
   relationId: null,
   fineTuneOffsets: [],
-  voiceLayers: { tanpura: true, reed: false, metal: false, air: false, piano: false, fm: false, amp: false },
-  voiceLevels: { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 },
+  voiceLayers: { tanpura: true, reed: false, metal: false, air: false, piano: false, fm: false, amp: false, noise: false },
+  voiceLevels: { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1, noise: 1 },
   effects: {
     tape: false,
     wow: false,
@@ -270,6 +272,7 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
   presetMorph: 0.25,
   evolve: 0,
   pluckRate: 1,
+  noiseColor: 0.3,
   presetTrim: 1,
   fmRatio: 2.0,
   fmIndex: 2.4,
@@ -325,6 +328,7 @@ function normalizeVoiceLayers(value: unknown): Record<VoiceType, boolean> {
     piano: readBoolean(record.piano, DEFAULT_DRONE_SNAPSHOT.voiceLayers.piano),
     fm: readBoolean(record.fm, DEFAULT_DRONE_SNAPSHOT.voiceLayers.fm),
     amp: readBoolean(record.amp, DEFAULT_DRONE_SNAPSHOT.voiceLayers.amp),
+    noise: readBoolean(record.noise, DEFAULT_DRONE_SNAPSHOT.voiceLayers.noise),
   };
 }
 
@@ -338,6 +342,7 @@ function normalizeVoiceLevels(value: unknown): Record<VoiceType, number> {
     piano: readNumber(record.piano, DEFAULT_DRONE_SNAPSHOT.voiceLevels.piano, 0, 1),
     fm: readNumber(record.fm, DEFAULT_DRONE_SNAPSHOT.voiceLevels.fm, 0, 1),
     amp: readNumber(record.amp, DEFAULT_DRONE_SNAPSHOT.voiceLevels.amp, 0, 1),
+    noise: readNumber(record.noise, DEFAULT_DRONE_SNAPSHOT.voiceLevels.noise, 0, 1),
   };
 }
 
@@ -416,6 +421,7 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
     presetMorph: readNumber(value.presetMorph, DEFAULT_DRONE_SNAPSHOT.presetMorph, 0, 1),
     evolve: readNumber(value.evolve, DEFAULT_DRONE_SNAPSHOT.evolve, 0, 1),
     pluckRate: readNumber(value.pluckRate, DEFAULT_DRONE_SNAPSHOT.pluckRate, 0, 4),
+    noiseColor: readNumber(value.noiseColor, DEFAULT_DRONE_SNAPSHOT.noiseColor, 0, 1),
     presetTrim: readNumber(value.presetTrim, DEFAULT_DRONE_SNAPSHOT.presetTrim, 0.1, 4),
     fmRatio: readNumber(value.fmRatio, DEFAULT_DRONE_SNAPSHOT.fmRatio, 0.5, 12),
     fmIndex: readNumber(value.fmIndex, DEFAULT_DRONE_SNAPSHOT.fmIndex, 0.1, 12),

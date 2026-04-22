@@ -50,6 +50,7 @@ export interface DroneLivePatch {
   presetMorph?: number;
   evolve?: number;
   pluckRate?: number;
+  noiseColor?: number;
 }
 
 function sameIntervals(a: readonly number[], b: readonly number[]): boolean {
@@ -217,6 +218,13 @@ export function useDroneScene({
     recordParam(MOTION_PARAM_IDS.pluckRate, pluckRate);
   }, [recordParam]);
 
+  // NOISE voice COLOR — shape param, not a performance gesture; not
+  // routed through REC MOTION (drones don't script color transitions
+  // the way they script tonic / weather moves).
+  const setNoiseColor = useCallback((noiseColor: number) => {
+    dispatch({ type: "merge", patch: { noiseColor } });
+  }, []);
+
   const setPresetTrim = useCallback((presetTrim: number) => {
     dispatch({ type: "merge", patch: { presetTrim } });
   }, []);
@@ -320,6 +328,7 @@ export function useDroneScene({
     engine.setPresetMorph(snap.presetMorph);
     engine.setEvolve(snap.evolve);
     engine.setTanpuraPluckRate(snap.pluckRate);
+    engine.setNoiseColor(snap.noiseColor);
     engine.setPresetTrim(snap.presetTrim);
     engine.setFmRatio(snap.fmRatio);
     engine.setFmIndex(snap.fmIndex);
@@ -398,6 +407,7 @@ export function useDroneScene({
     applyPreset(engine, preset, {
       setVoiceLayers,
       setVoiceLevels,
+      setNoiseColor,
       setDrift,
       setAir,
       setTime,
@@ -430,6 +440,7 @@ export function useDroneScene({
     setPresetTrim,
     setVoiceLayers,
     setVoiceLevels,
+    setNoiseColor,
     setDrift,
     setAir,
     setTime,
@@ -514,6 +525,7 @@ export function useDroneScene({
     if (patch.presetMorph !== undefined) engine.setPresetMorph(patch.presetMorph);
     if (patch.evolve !== undefined) engine.setEvolve(patch.evolve);
     if (patch.pluckRate !== undefined) engine.setTanpuraPluckRate(patch.pluckRate);
+    if (patch.noiseColor !== undefined) engine.setNoiseColor(patch.noiseColor);
     if (current.playing && (patch.root !== undefined || patch.octave !== undefined)) {
       engine.setDroneFreq(pitchToFreq(nextRoot, nextOctave));
     }
@@ -603,6 +615,7 @@ export function useDroneScene({
     engine.setPresetMorph(snapshot.presetMorph);
     engine.setEvolve(snapshot.evolve);
     engine.setTanpuraPluckRate(snapshot.pluckRate);
+    engine.setNoiseColor(snapshot.noiseColor);
     engine.setPresetTrim(snapshot.presetTrim);
     // Seed the evolve PRNG from the scene so long-form evolve paths
     // reproduce across loads; apply the pitch-locked LFO division
@@ -674,6 +687,7 @@ export function useDroneScene({
     setPresetMorph,
     setPresetEvolve,
     setPluckRate,
+    setNoiseColor,
     toggleVoiceLayer,
     setVoiceLevel,
     setDrift,

@@ -61,6 +61,7 @@ const ORDER = [
   "piano.js",
   "fm.js",
   "amp.js",
+  "noise.js",
   "register.js",
 ];
 

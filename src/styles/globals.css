@@ -5171,3 +5171,16 @@ input.share-modal-url:focus {
   0%   { box-shadow: 0 0 0 color-mix(in srgb, var(--preview) 0%, transparent); }
   100% { box-shadow: 0 0 12px color-mix(in srgb, var(--preview) 35%, transparent); }
 }
+
+/* NOISE voice secondary row — the COLOR slider under the level
+ * slider. Visually quieter so users read it as a shape-of-this-voice
+ * control, not a sibling of the primary level. */
+.layer-level-row-sub {
+  opacity: 0.82;
+  margin-top: -4px;
+}
+.layer-level-label-sub {
+  opacity: 0.7;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}

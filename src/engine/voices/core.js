@@ -18,6 +18,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       // Tanpura re-pluck rate multiplier. 1 = default, 0 = hold
       // (infinite sustain, no repluck). Ignored by non-tanpura.
       { name: "pluckRate", defaultValue: 1, minValue: 0, maxValue: 4, automationRate: "k-rate" },
+      // NOISE voice COLOR: 0 = white, 0.3 = pink, 0.6 = brown,
+      // 1 = sub-rumble. Ignored by all other voice types.
+      { name: "color", defaultValue: 0.3, minValue: 0, maxValue: 1, automationRate: "k-rate" },
     ];
   }
 
@@ -66,6 +69,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       case "piano":   this.initPiano();   break;
       case "fm":      this.initFm();      break;
       case "amp":     this.initAmp();     break;
+      case "noise":   this.initNoise();   break;
       default:        this.initTanpura(); break;
     }
   }
@@ -179,6 +183,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     const drift = parameters.drift[0];
     const amp   = parameters.amp[0];
     const pluckRate = parameters.pluckRate ? parameters.pluckRate[0] : 1;
+    const color = parameters.color ? parameters.color[0] : 0.3;
 
     // If amp is 0 and we're silent, skip processing to save CPU.
     // (Voices ramp amp up/down externally, so brief silence is normal.)
@@ -201,6 +206,7 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
       case "piano":   this.pianoProcess(L, R, n, freq, drift, amp); break;
       case "fm":      this.fmProcess(L, R, n, freq, drift, amp); break;
       case "amp":     this.ampProcess(L, R, n, freq, drift, amp); break;
+      case "noise":   this.noiseProcess(L, R, n, freq, drift, amp, color); break;
     }
     return true;
   }

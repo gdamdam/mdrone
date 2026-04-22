@@ -23,7 +23,7 @@
  * one voice in its own sample loop.
  */
 
-export type VoiceType = "tanpura" | "reed" | "metal" | "air" | "piano" | "fm" | "amp";
+export type VoiceType = "tanpura" | "reed" | "metal" | "air" | "piano" | "fm" | "amp" | "noise";
 
 /** Harmonic-stack shape for the reed voice. Lets one voice processor
  *  cover several sustained-additive timbres without new AudioWorklets:
@@ -48,7 +48,7 @@ export const TANPURA_TUNING_LABELS: Record<TanpuraTuningId, string> = {
   "sa-ma-pa-ni": "Sa Ma Pa Ni (all four)",
 };
 
-export const ALL_VOICE_TYPES: readonly VoiceType[] = ["tanpura", "reed", "metal", "air", "piano", "fm", "amp"] as const;
+export const ALL_VOICE_TYPES: readonly VoiceType[] = ["tanpura", "reed", "metal", "air", "piano", "fm", "amp", "noise"] as const;
 
 export interface Voice {
   setFreq(hz: number, glideSec: number): void;
@@ -56,6 +56,9 @@ export interface Voice {
   setDrift(amount01: number): void;
   /** Tanpura re-pluck rate multiplier, 0.2..4. Ignored by other voice types. */
   setPluckRate(rate: number): void;
+  /** NOISE COLOR (0..1): white → pink → brown → deep. Ignored by
+   *  every voice except the noise voice. */
+  setColor(amount01: number): void;
   /** ENTRAIN dichotic L/R spread on the R channel, in cents. 0 = no
    *  effect. Voices with L/R phase accumulators (reed, metal, piano,
    *  fm, amp) + the tanpura KS delay respond; air/core-based voices
@@ -107,6 +110,7 @@ export function buildVoice(
   const driftParam = node.parameters.get("drift")!;
   const ampParam = node.parameters.get("amp")!;
   const pluckRateParam = node.parameters.get("pluckRate");
+  const colorParam = node.parameters.get("color");
 
   freqParam.setValueAtTime(targetFreq, startAt);
   driftParam.setValueAtTime(drift01, startAt);
@@ -132,6 +136,11 @@ export function buildVoice(
       if (!pluckRateParam) return;
       const clamped = Math.max(0, Math.min(4, rate));
       pluckRateParam.setTargetAtTime(clamped, ctx.currentTime, 0.1);
+    },
+    setColor(amount01) {
+      if (!colorParam) return;
+      const clamped = Math.max(0, Math.min(1, amount01));
+      colorParam.setTargetAtTime(clamped, ctx.currentTime, 0.08);
     },
     setDichoticCents(cents) {
       try { node.port.postMessage({ type: "dichotic", cents }); } catch { /* ok */ }

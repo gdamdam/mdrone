@@ -310,6 +310,12 @@ export class AudioEngine {
 
   getTanpuraPluckRate(): number { return this.voiceEngine.getTanpuraPluckRate(); }
 
+  setNoiseColor(v: number): void {
+    this.voiceEngine.setNoiseColor(v);
+  }
+
+  getNoiseColor(): number { return this.voiceEngine.getNoiseColor(); }
+
   setReedShape(shape: import("./VoiceBuilder").ReedShape): void {
     this.voiceEngine.setReedShape(shape);
   }

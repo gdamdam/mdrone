@@ -1,4 +1,5 @@
 import {
+  Fragment,
   Suspense,
   forwardRef,
   lazy,
@@ -194,6 +195,24 @@ const VOICES: VoiceDef[] = [
       </svg>
     ),
   },
+  {
+    id: "noise", label: "NOISE",
+    hint: "Untuned broadband bed — white to pink to brown to sub-rumble via COLOR. Tonic-independent; doesn't follow the scale. Hiss beds, wind washes, tape-floor, rain, ritual dust, industrial rumble. Passes through the full FX chain (FREEZE, GRANULAR, CISTERN become expressive here).",
+    icon: (
+      // Scattered dots — visual shorthand for noise / grain.
+      <svg {...V_SVG}>
+        <circle cx="4" cy="5" r="0.9" fill="currentColor" />
+        <circle cx="9" cy="4" r="0.7" fill="currentColor" />
+        <circle cx="14" cy="6" r="0.9" fill="currentColor" />
+        <circle cx="6" cy="9" r="0.7" fill="currentColor" />
+        <circle cx="11" cy="9.5" r="0.9" fill="currentColor" />
+        <circle cx="15" cy="11" r="0.7" fill="currentColor" />
+        <circle cx="4" cy="13" r="0.9" fill="currentColor" />
+        <circle cx="9" cy="14" r="0.7" fill="currentColor" />
+        <circle cx="13" cy="15" r="0.9" fill="currentColor" />
+      </svg>
+    ),
+  },
 ];
 
 interface DroneViewProps {
@@ -284,6 +303,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setPresetEvolve,
     toggleVoiceLayer,
     setVoiceLevel,
+    setNoiseColor,
     setDrift,
     setAir,
     setTime,
@@ -1425,17 +1445,35 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
             {/* Inline level sliders for active voices */}
             {VOICES.map((v) => state.voiceLayers[v.id] && (
-              <div key={v.id} className="layer-level-row">
-                <span className="layer-level-label">{v.label}</span>
-                <input
-                  type="range" min={0} max={1} step={0.01}
-                  value={state.voiceLevels[v.id]}
-                  onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
-                  className="macro-slider"
-                  title={`${v.label} mix level`}
-                />
-                <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
-              </div>
+              <Fragment key={v.id}>
+                <div className="layer-level-row">
+                  <span className="layer-level-label">{v.label}</span>
+                  <input
+                    type="range" min={0} max={1} step={0.01}
+                    value={state.voiceLevels[v.id]}
+                    onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
+                    className="macro-slider"
+                    title={`${v.label} mix level`}
+                  />
+                  <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
+                </div>
+                {/* NOISE — second row for the COLOR shape param.
+                    Only rendered for the noise voice; tonic-independent,
+                    picks the bed's spectral tilt (white → sub-rumble). */}
+                {v.id === "noise" && (
+                  <div className="layer-level-row layer-level-row-sub">
+                    <span className="layer-level-label layer-level-label-sub">COLOR</span>
+                    <input
+                      type="range" min={0} max={1} step={0.01}
+                      value={state.noiseColor}
+                      onChange={(e) => setNoiseColor(parseFloat(e.target.value))}
+                      className="macro-slider"
+                      title="NOISE COLOR — 0 white, 0.3 pink, 0.6 brown, 1 sub-rumble"
+                    />
+                    <span className="layer-level-value">{Math.round(state.noiseColor * 100)}</span>
+                  </div>
+                )}
+              </Fragment>
             ))}
           </div>
           <div className="fx-col">

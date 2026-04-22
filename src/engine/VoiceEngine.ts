@@ -26,10 +26,10 @@ export class VoiceEngine {
   private voiceUpdateDepth = 0;
   private voiceRebuildPending = false;
   private layerLevels: Record<VoiceType, number> = {
-    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1,
+    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1, noise: 1,
   };
   private voiceLayers: Record<VoiceType, boolean> = {
-    tanpura: true, reed: false, metal: false, air: false, piano: false, fm: false, amp: false,
+    tanpura: true, reed: false, metal: false, air: false, piano: false, fm: false, amp: false, noise: false,
   };
   private droneIntervalsCents: number[] = [0];
   private droneRootFreq = 220;
@@ -41,6 +41,10 @@ export class VoiceEngine {
   private glideAmount = 0.15;
   private morphAmount = 0.25;
   private tanpuraPluckRate = 1;
+  // NOISE voice COLOR (0..1): 0 = white, 0.3 = pink, 0.6 = brown,
+  // 1 = sub-rumble. Broadcast to live noise voices via setColor
+  // and picked up by newly-spawned voices at build time.
+  private noiseColor = 0.3;
   private reedShape: ReedShape = "odd";
   private fmRatio = 2.0;
   private fmIndex = 2.4;
@@ -71,7 +75,10 @@ export class VoiceEngine {
    *  cost of each voice at default settings (tanpura = 4 KS loops +
    *  jawari, metal = 12-partial modal stack, etc.). */
   private static readonly VOICE_COST_PRIORITY: readonly VoiceType[] = [
-    "tanpura", "air", "fm", "amp", "piano", "reed", "metal",
+    // NOISE is cheapest (one-pole LPF + tiny LFO, no per-partial
+    // loop) so it keeps highest priority — dropping noise mid-preset
+    // would change the drone's *kind*, not just its weight.
+    "tanpura", "noise", "air", "fm", "amp", "piano", "reed", "metal",
   ] as const;
   /** Apply the `maxVoiceLayers` cap — returns a copy of `layers` with
    *  the lowest-priority active layers turned off once the active
@@ -104,10 +111,10 @@ export class VoiceEngine {
   private materialInterval: number | null = null;
   private materialStep = 0;
   private materialLevelOffsets: Record<VoiceType, number> = {
-    tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0, fm: 0, amp: 0,
+    tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0, fm: 0, amp: 0, noise: 0,
   };
   private materialDriftScales: Record<VoiceType, number> = {
-    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1,
+    tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1, noise: 1,
   };
   private readonly materialPhaseOffsets: Record<VoiceType, number> = {
     tanpura: Math.random() * Math.PI * 2,
@@ -117,6 +124,7 @@ export class VoiceEngine {
     piano: Math.random() * Math.PI * 2,
     fm: Math.random() * Math.PI * 2,
     amp: Math.random() * Math.PI * 2,
+    noise: Math.random() * Math.PI * 2,
   };
   private materialPluckFactor = 1;
   private materialSubFactor = 1;
@@ -180,6 +188,7 @@ export class VoiceEngine {
       for (const c of intervals) {
         const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
+        if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
         voice.setDichoticCents(this.dichoticCents);
         voices.push(voice);
@@ -432,6 +441,15 @@ export class VoiceEngine {
 
   getTanpuraPluckRate(): number { return this.tanpuraPluckRate; }
 
+  setNoiseColor(v: number): void {
+    this.noiseColor = Math.max(0, Math.min(1, v));
+    const voices = this.droneVoicesByLayer.get("noise");
+    if (!voices) return;
+    for (const voice of voices) voice.setColor(this.noiseColor);
+  }
+
+  getNoiseColor(): number { return this.noiseColor; }
+
   /** Select the reed voice's harmonic-stack shape. Takes effect on the
    *  next voice rebuild (preset change / HOLD cycle) — live voices keep
    *  playing with the shape they were built with to avoid clicks. */
@@ -570,6 +588,7 @@ export class VoiceEngine {
       for (const c of intervals) {
         const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
+        if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
         voice.setDichoticCents(this.dichoticCents);
         voices.push(voice);
@@ -804,8 +823,8 @@ export class VoiceEngine {
   }
 
   private resetMaterialState(): void {
-    this.materialLevelOffsets = { tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0, fm: 0, amp: 0 };
-    this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 };
+    this.materialLevelOffsets = { tanpura: 0, reed: 0, metal: 0, air: 0, piano: 0, fm: 0, amp: 0, noise: 0 };
+    this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1, noise: 1 };
     this.materialPluckFactor = 1;
     this.materialSubFactor = 1;
   }

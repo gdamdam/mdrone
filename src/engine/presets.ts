@@ -47,6 +47,9 @@ export interface Preset {
 
   voiceLayers: VoiceType[];
   voiceLevels?: Partial<Record<VoiceType, number>>;
+  /** NOISE voice COLOR (0..1): white → pink → brown → deep. Defaults
+   *  to the neutral pink-ish midpoint when omitted. */
+  noiseColor?: number;
 
   drift: number;
   air: number;
@@ -2629,6 +2632,9 @@ export function mutateScene(
     presetMorph: j01(current.presetMorph),
     evolve: j01(current.evolve),
     pluckRate: jRange(current.pluckRate, 0.2, 4),
+    // NOISE COLOR — jitter gently within the same color family so
+    // mutated scenes don't jump from white to sub-rumble.
+    noiseColor: j01(current.noiseColor),
   };
 }
 
@@ -2646,6 +2652,7 @@ export function createPresetVariation(
     piano: false,
     fm: false,
     amp: false,
+    noise: false,
   };
   const voiceLevels: Record<VoiceType, number> = {
     tanpura: 1,
@@ -2655,6 +2662,7 @@ export function createPresetVariation(
     piano: 1,
     fm: 1,
     amp: 1,
+    noise: 1,
   };
 
   for (const type of preset.voiceLayers) {
@@ -2697,6 +2705,7 @@ export function createPresetVariation(
     presetMorph: 0.25,
     evolve: 0,
     pluckRate: 1,
+    noiseColor: 0.3,
     presetTrim: preset.gain ?? 1,
     fmRatio: preset.fmRatio ?? 2.0,
     fmIndex: preset.fmIndex ?? 2.4,
@@ -2763,6 +2772,7 @@ export function createStartupScene(
 export interface PresetUiSetters {
   setVoiceLayers: (map: Record<VoiceType, boolean>) => void;
   setVoiceLevels: (map: Record<VoiceType, number>) => void;
+  setNoiseColor: (v: number) => void;
   setDrift: (v: number) => void;
   setAir: (v: number) => void;
   setTime: (v: number) => void;
@@ -2794,8 +2804,8 @@ export interface PresetUiSetters {
  */
 export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: PresetUiSetters): void {
   // Voice layers — turn on the listed ones, off the rest.
-  const layers: Record<VoiceType, boolean> = { tanpura: false, reed: false, metal: false, air: false, piano: false, fm: false, amp: false };
-  const levels: Record<VoiceType, number> = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1 };
+  const layers: Record<VoiceType, boolean> = { tanpura: false, reed: false, metal: false, air: false, piano: false, fm: false, amp: false, noise: false };
+  const levels: Record<VoiceType, number> = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1, noise: 1 };
   for (const t of preset.voiceLayers) layers[t] = true;
   for (const t of ALL_VOICE_TYPES) {
     if (preset.voiceLevels && preset.voiceLevels[t] !== undefined) {
@@ -2827,6 +2837,7 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
 
   ui.setVoiceLayers(layers);
   ui.setVoiceLevels(levels);
+  ui.setNoiseColor(preset.noiseColor ?? 0.3);
 
   // Macros
   ui.setDrift(preset.drift);
