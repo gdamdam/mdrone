@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/build-worklet.mjs && node scripts/write-version-json.mjs",
+    "prebuild": "node scripts/build-worklet.mjs && node scripts/write-version-json.mjs && node scripts/build-icons.mjs",
     "pretest": "node scripts/build-worklet.mjs",
     "docs:params": "node scripts/build-parameters-doc.mjs",
     "build": "tsc -b && vite build",

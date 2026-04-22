@@ -19,6 +19,12 @@ const ShareModal = lazy(() =>
   import("./ShareModal").then((m) => ({ default: m.ShareModal })),
 );
 import { useSceneManager } from "../scene/useSceneManager";
+import { applyUpdateAndReload } from "../swRegister";
+import {
+  installMediaSession,
+  setMediaSessionMetadata,
+  setMediaSessionPlaying,
+} from "../mediaSession";
 
 interface LayoutProps {
   engine: AudioEngine;
@@ -116,8 +122,34 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     check();
     const id = window.setInterval(check, 5 * 60 * 1000);
-    return () => window.clearInterval(id);
+    const onSwUpdate = () => setUpdateAvailable(true);
+    window.addEventListener("mdrone:update-available", onSwUpdate);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("mdrone:update-available", onSwUpdate);
+    };
   }, []);
+
+  // MediaSession — OS lock-screen / notification play-pause maps to
+  // HOLD. Installed once; metadata + playbackState kept in sync with
+  // transport + tonic state below.
+  useEffect(() => {
+    installMediaSession({
+      onPlay: () => { if (!engine.isPlaying()) holdToggleRef.current?.(); },
+      onPause: () => { if (engine.isPlaying()) holdToggleRef.current?.(); },
+    });
+  }, [engine]);
+
+  useEffect(() => {
+    setMediaSessionMetadata({
+      title: "mdrone",
+      artist: `${headerTonic} · ${headerOctave}`,
+    });
+  }, [headerTonic, headerOctave]);
+
+  useEffect(() => {
+    setMediaSessionPlaying(headerHolding);
+  }, [headerHolding]);
 
   // Dev tool — iterate every preset, sample the loudness worklet,
   // emit a markdown audit table + download file. Exposed on window
@@ -475,7 +507,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
 
       {updateAvailable && (
         <div className="update-banner">
-          <span onClick={() => location.reload()}>
+          <span onClick={() => applyUpdateAndReload()}>
             New version available — tap to update
           </span>
           <button

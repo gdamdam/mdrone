@@ -44,3 +44,15 @@ if (fs.existsSync(landingPath)) {
   fs.writeFileSync(landingPath, landing);
   console.log("post-build: landing footer →", pkg.version);
 }
+
+// 3. Stamp version into sw.js — the placeholder `__MDRONE_VERSION__`
+// lives in public/sw.js and is substituted here so every deploy ships
+// a byte-different worker, which is what triggers the browser's
+// install/waiting flow and, in turn, the "update available" banner.
+const swPath = path.join(dist, "sw.js");
+if (fs.existsSync(swPath)) {
+  let sw = fs.readFileSync(swPath, "utf8");
+  sw = sw.replace(/__MDRONE_VERSION__/g, pkg.version);
+  fs.writeFileSync(swPath, sw);
+  console.log("post-build: sw.js stamped →", pkg.version);
+}
