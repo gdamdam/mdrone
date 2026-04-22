@@ -78,23 +78,24 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
   return (
     <div
       className={state.enabled ? "entrain-panel entrain-panel-on" : "entrain-panel"}
-      aria-label="Entrainment modulator"
+      aria-label="LFO 2 · FLICKER"
     >
       <div className="entrain-header">
+        <span className="entrain-title">LFO 2 · FLICKER</span>
         <button
           type="button"
           className={state.enabled ? "entrain-power entrain-power-on" : "entrain-power"}
           onClick={toggleEnabled}
           aria-pressed={state.enabled}
-          title={state.enabled ? "Turn ENTRAIN off" : "Turn ENTRAIN on"}
+          title={state.enabled ? "Turn FLICKER off" : "Turn FLICKER on"}
         >
-          {state.enabled ? "● ENTRAIN" : "ENTRAIN"}
+          {state.enabled ? "● ON" : "OFF"}
         </button>
         <span
           className={dichoticPlaying ? "entrain-hp entrain-hp-on" : "entrain-hp"}
           title={dichoticPlaying
             ? "Dichotic mode active — use headphones for the L/R detune to fuse"
-            : "Dichotic mode off or ENTRAIN disabled"}
+            : "Dichotic mode off or FLICKER disabled"}
         >
           HEADPHONES
         </span>

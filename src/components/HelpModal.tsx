@@ -107,7 +107,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </p>
 
           <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">ENTRAIN · second modulator</div>
+          <div className="fx-modal-section-label">LFO 2 · FLICKER</div>
           <p className="fx-modal-desc">
             A second amplitude modulator inside <em>ADVANCED</em>,
             reaching from <strong>0.5 Hz</strong> (slow swell) to{" "}
@@ -115,10 +115,10 @@ export function HelpModal({ onClose }: HelpModalProps) {
             has coloured zones (δ delta / θ theta / α alpha / β beta /
             γ gamma) and landmark ticks you can tap to snap — plus a
             dashed <em>7.83 Hz</em> Schumann marker.
-            Frequency is integer-locked to the breathing LFO so the
-            two modulators stay in constant relative phase.
+            Frequency is integer-locked to the breathing LFO (LFO 1)
+            so the two modulators stay in constant relative phase.
             <br />
-            <strong>● ENTRAIN</strong> is the power button.{" "}
+            <strong>● ON / OFF</strong> is the power button.{" "}
             <strong>AM</strong> modulates voice gain (works on speakers).
             {" "}<strong>DICHOTIC</strong> splits L/R pitch per voice;
             when it (or BOTH) is active a <strong>SPREAD</strong>{" "}
