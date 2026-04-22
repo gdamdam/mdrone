@@ -94,46 +94,47 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
       </div>
 
       <div className="entrain-rate-row">
-        <input
-          type="range"
-          className="entrain-rate-slider"
-          min={ENTRAIN_MIN_HZ}
-          max={ENTRAIN_MAX_HZ}
-          step={0.1}
-          value={state.rateHz}
-          onChange={(e) => setRate(Number(e.currentTarget.value))}
-          style={{
-            // zone colors live on the track; the thumb picks up the
-            // current-zone accent via the CSS variable below
-            background: zoneGradientCss(),
-            // consumed by entrain-rate-slider::-webkit-slider-thumb
-            ["--entrain-thumb" as string]: trackColor,
-          }}
-          title={`Modulation rate: ${state.rateHz.toFixed(2)} Hz`}
-          aria-label="Entrain rate"
-        />
+        <div className="entrain-slider-col">
+          <input
+            type="range"
+            className="entrain-rate-slider"
+            min={ENTRAIN_MIN_HZ}
+            max={ENTRAIN_MAX_HZ}
+            step={0.1}
+            value={state.rateHz}
+            onChange={(e) => setRate(Number(e.currentTarget.value))}
+            style={{
+              // zone colors live on the track; the thumb picks up the
+              // current-zone accent via the CSS variable below
+              background: zoneGradientCss(),
+              // consumed by entrain-rate-slider::-webkit-slider-thumb
+              ["--entrain-thumb" as string]: trackColor,
+            }}
+            title={`Modulation rate: ${state.rateHz.toFixed(2)} Hz`}
+            aria-label="Entrain rate"
+          />
+          <div className="entrain-ticks" aria-label="Landmark rates">
+            {ENTRAIN_LANDMARKS.map((m) => {
+              const pct = ((m.hz - ENTRAIN_MIN_HZ) / (ENTRAIN_MAX_HZ - ENTRAIN_MIN_HZ)) * 100;
+              return (
+                <button
+                  key={m.hz}
+                  type="button"
+                  className={m.cultural ? "entrain-tick entrain-tick-cultural" : "entrain-tick"}
+                  style={{ left: `${pct}%`, color: zoneColorForHz(m.hz) }}
+                  onClick={() => setRate(m.hz)}
+                  title={m.title}
+                >
+                  <span className="entrain-tick-mark" />
+                  <span className="entrain-tick-label">{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <span className="entrain-hz-readout" style={{ color: trackColor }}>
           {state.rateHz.toFixed(2)} Hz
         </span>
-      </div>
-
-      <div className="entrain-ticks" aria-label="Landmark rates">
-        {ENTRAIN_LANDMARKS.map((m) => {
-          const pct = ((m.hz - ENTRAIN_MIN_HZ) / (ENTRAIN_MAX_HZ - ENTRAIN_MIN_HZ)) * 100;
-          return (
-            <button
-              key={m.hz}
-              type="button"
-              className={m.cultural ? "entrain-tick entrain-tick-cultural" : "entrain-tick"}
-              style={{ left: `${pct}%`, color: zoneColorForHz(m.hz) }}
-              onClick={() => setRate(m.hz)}
-              title={m.title}
-            >
-              <span className="entrain-tick-mark" />
-              <span className="entrain-tick-label">{m.label}</span>
-            </button>
-          );
-        })}
       </div>
 
       <div className="entrain-lock-line">

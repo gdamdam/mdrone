@@ -4871,10 +4871,22 @@ input.share-modal-url:focus {
   letter-spacing: 0.02em;
   margin-top: -4px;
 }
+.entrain-slider-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .entrain-ticks {
+  /* Matches the slider's effective track inset. The range thumb is
+     14px wide, so its centre at value=min sits ~7px from the track's
+     CSS edge; without the padding the left/right ticks drift past
+     the thumb. */
   position: relative;
   height: 22px;
-  margin: 0 0 2px;
+  margin: 0;
+  padding: 0 7px;
 }
 .entrain-tick {
   position: absolute;
