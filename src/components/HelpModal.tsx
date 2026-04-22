@@ -48,11 +48,19 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <p className="fx-modal-desc">
             <strong>DRONE</strong> — the instrument: presets, tonic, mode,
             macros, effects, climate, history slots, scale editor.<br />
-            <strong>MEDITATE</strong> — 22 full-screen visualizers
+            <strong>MEDITATE</strong> — 24 full-screen visualizers
             in four groups (GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC).
             Dropdown picks one; double-click the canvas to cycle.
-            PITCH MANDALA is the drone-specific standout: pitch-class
-            arcs accrued over a long integrator.<br />
+            Most accrete detail over minutes rather than react per
+            frame — PITCH MANDALA, BREATHING MANDALA and HALO &amp;
+            RAYS gain ornament tiers at <em>growth &gt; 0.3 / 0.5 /
+            0.7 / 0.85</em>; SEDIMENT STRATA deposits rock layers at
+            the bottom and the pile grows upward; SALT DRIFT piles
+            dunes at the floor; TAPE DECAY scars its loop every pass
+            (freezes during silence). JULIA FRACTAL and HALO &amp;
+            RAYS react to the <em>kind</em> of drone — spectrum split
+            into low / mid / high bands, centroid-tilted palette.
+            Toolbar: ⛶ FULLSCREEN, ↗ POP OUT, 🎲 RND.<br />
             <strong>MIXER</strong> — master bus: HPF, 3-band EQ, glue
             compression, drive, brickwall limiter with ceiling, SAFE
             (headphone-safe) clamp, CLIP LED, LUFS-S + peak meter, trim.

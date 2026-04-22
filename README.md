@@ -56,7 +56,7 @@ No install. No account. No personal tracking. Session data stays in your browser
 | View | Purpose |
 |---|---|
 | **DRONE** | The instrument: header tonic / octave / HOLD transport, preset library, voice stack, macros, breathing LFO, climate XY pad, effect chain, undo/redo + A/B snapshot slots, SCALE editor, GESTURES panel |
-| **MEDITATE** | 22 full-screen visualizers grouped GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC, picked from a dropdown (double-click canvas to cycle). Includes a PITCH MANDALA that accrues pitch-class presence over a slow integrator, alongside Rothko fields, flow particles, cymatics, starGate, Radigue / Basinski / La Monte Young / Coil homages, and more. |
+| **MEDITATE** | 24 full-screen visualizers grouped GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC, picked from a dropdown (double-click canvas to cycle). Many accrete complexity over minutes rather than react per-frame: PITCH MANDALA, BREATHING MANDALA, HALO & RAYS, SEDIMENT STRATA, TAPE DECAY, and more. Also: a JULIA FRACTAL that reacts to low / mid / high spectral bands, and five original drone-native visualizers (SALT DRIFT, IRON FILINGS, SEDIMENT STRATA, EROSION CONTOURS, ASH TRAIL). |
 | **MIXER** | Master bus: HPF, 3-band EQ, glue compression, drive, brickwall limiter with ceiling, SAFE (headphone-safe) toggle, CLIP LED (pre-limiter peak), LUFS-S + PEAK metering, final output trim |
 
 ---
@@ -178,16 +178,20 @@ Master-bus controls matched to the mpump / mloop family vocabulary:
 
 ## MEDITATE view
 
-22 authored visualizers organised into four groups in the picker:
+24 authored visualizers organised into four groups in the picker:
 
 - **GEOMETRIC** — breathing mandala, pitch mandala, flow field, waveform ring, sigil bloom, cymatics
-- **SPECTRAL** — aurora, waterfall (plain / ascii / hybrid / matrix-rain)
-- **FIELD / PAINTERLY** — Rothko field, tape decay (Basinski), Dream House magenta (La Monte Young), ink bloom, halo & rays, horizon sunrise, resonant orb
-- **HYPNOTIC** — feedback tunnel (Jarman), star gate (Coil / 2001), Julia fractal, dream machine *(10 Hz flicker — warning shown; close eyes for the classic usage)*
+- **SPECTRAL** — aurora, spectral waterfall, sediment strata, erosion contours
+- **FIELD / PAINTERLY** — Rothko field, tape decay, Dream House magenta, ink bloom, halo & rays, horizon sunrise, resonant orb, salt drift, iron filings, ash trail
+- **HYPNOTIC** — feedback tunnel, star gate, Julia fractal, dream machine *(10 Hz flicker — warning shown; close eyes for the classic usage)*
 
-PITCH MANDALA is the standout for drone work: twelve radial arcs positioned by pitch class (C at top), arc width driven by a long integrator over the engine's active pitch-class energies (root + intervals + 8 harmonics per voice). Accrues rather than reacts.
+Most visualizers follow a drone-native ethos: slow time, heavy / matte material, no glow or hue-from-audio, no per-frame fast reactivity. They **accrete over minutes** rather than react per-frame — PITCH MANDALA accrues pitch-class presence through a long integrator, BREATHING MANDALA and HALO & RAYS add new ornament tiers at growth > 0.3 / 0.5 / 0.7 / 0.85, SEDIMENT STRATA deposits rock layers at the bottom and the pile grows upward, TAPE DECAY scars its loop every pass, SALT DRIFT piles dunes at the bottom of the frame.
 
-Dropdown in the toolbar picks the active visualizer; **double-click the canvas** to cycle through. Fullscreen via the ⛶ button.
+JULIA FRACTAL is the one deliberate exception — it reacts to the *kind* of drone: low-band energy warps the Julia cr parameter, high-band warps ci, mid-band pulses zoom, overall RMS scales rotation. Rich spectra push the fractal toward the Mandelbrot rim where the shape morphs dramatically; a pure tonic sits quietly.
+
+HALO & RAYS similarly reads the spectrum by thirds: low feeds the bass swell ring and background glow, mid feeds the flame ring radius and fire tongues, high drives spark density and ember count. Spectral centroid tilts the palette ±20° (bass-dominant → red, treble → gold).
+
+Dropdown in the toolbar picks the active visualizer; **double-click the canvas** to cycle through. Fullscreen via the ⛶ button, pop-out to a second window via ↗ POP OUT, random-scene without leaving the visualizer via 🎲 RND.
 
 ---
 
