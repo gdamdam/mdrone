@@ -12,6 +12,7 @@ import type { EffectId } from "./FxChain";
 import type { EngineSceneMutation } from "./EngineSceneMutation";
 import { MasterBus } from "./MasterBus";
 import { MasterRecorder, type RecordingSupport } from "./MasterRecorder";
+import { LoopBouncer, type BounceOptions, type BounceResult } from "./LoopBouncer";
 import { MotionEngine } from "./MotionEngine";
 import { VoiceEngine } from "./VoiceEngine";
 import type { VoiceType } from "./VoiceBuilder";
@@ -33,6 +34,7 @@ export class AudioEngine {
   private readonly motionEngine: MotionEngine;
   private readonly masterBus: MasterBus;
   private readonly masterRecorder: MasterRecorder;
+  private readonly loopBouncer: LoopBouncer;
   private readonly loadMonitor: AudioLoadMonitor;
   private isWorkletReady = false;
   private pendingStart: { freq: number; intervalsCents: number[] } | null = null;
@@ -108,6 +110,7 @@ export class AudioEngine {
     }
 
     this.masterRecorder = new MasterRecorder(this.ctx, this.masterBus.getAnalyser());
+    this.loopBouncer = new LoopBouncer(this.ctx, this.masterBus.getAnalyser());
 
     // Auto-resume after sleep/wake — browsers suspend the AudioContext
     // when the device sleeps or the tab is backgrounded for too long.
@@ -230,6 +233,13 @@ export class AudioEngine {
   }
 
   isRecording(): boolean { return this.masterRecorder.isRecording(); }
+
+  /** Bounce a seamless-loop WAV from the live master output. */
+  async bounceLoop(opts: BounceOptions): Promise<BounceResult> {
+    return this.loopBouncer.bounce(opts);
+  }
+
+  isBouncingLoop(): boolean { return this.loopBouncer.isBouncing(); }
 
   setVoiceLayer(type: VoiceType, on: boolean): void {
     this.voiceEngine.setVoiceLayer(type, on);

@@ -51,6 +51,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [isRec, setIsRec] = useState(false);
   const [recTimeMs, setRecTimeMs] = useState(0);
   const [recBusy, setRecBusy] = useState(false);
+  // Seamless-loop bounce — parallel to master record, separate state.
+  const [loopLengthSec, setLoopLengthSec] = useState(30);
+  const [loopBusy, setLoopBusy] = useState(false);
+  const [loopProgress, setLoopProgress] = useState<{ elapsedSec: number; totalSec: number } | null>(null);
   const [mixerSyncToken, setMixerSyncToken] = useState(0);
   const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
   const [headerOctave, setHeaderOctave] = useState(2);
@@ -446,6 +450,44 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     }
   };
 
+  const handleBounceLoop = async () => {
+    if (loopBusy) return;
+    setLoopBusy(true);
+    setLoopProgress({ elapsedSec: 0, totalSec: loopLengthSec + 1.5 });
+    try {
+      await engine.resume();
+      // Make sure the drone is actually playing — a silent bounce is
+      // a near-silent WAV which is never what the user wants.
+      if (!engine.isPlaying()) holdToggleRef.current?.();
+      const result = await engine.bounceLoop({
+        lengthSec: loopLengthSec,
+        onProgress: (p) => {
+          if (p.phase === "capturing" || p.phase === "encoding") {
+            setLoopProgress({ elapsedSec: p.elapsedSec, totalSec: p.totalSec });
+          }
+        },
+      });
+      trackEvent("recording/loop");
+      const blob = new Blob([result.wav], { type: "audio/wav" });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `mdrone-loop-${loopLengthSec}s-${ts}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      showNotification(`Loop saved (${loopLengthSec}s)`, "info");
+    } catch (error) {
+      console.error("mdrone: loop bounce failed", error);
+      const message = error instanceof Error ? error.message : "Unknown error.";
+      showNotification(`Loop bounce failed — ${message}`, "error");
+    } finally {
+      setLoopBusy(false);
+      setLoopProgress(null);
+    }
+  };
+
   /**
    * First pointerdown anywhere in the layout resumes the AudioContext.
    * Because the engine is always non-null now, descendant click
@@ -565,6 +607,11 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             recordingSupported={recordingSupport.supported}
             recordingTitle={recordingTitle}
             recordingBusy={recBusy}
+            loopLengthSec={loopLengthSec}
+            onLoopLengthChange={setLoopLengthSec}
+            onBounceLoop={handleBounceLoop}
+            loopBusy={loopBusy}
+            loopProgress={loopProgress}
           />
         </section>
         <section

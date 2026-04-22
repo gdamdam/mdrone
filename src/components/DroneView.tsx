@@ -229,6 +229,14 @@ interface DroneViewProps {
   recordingSupported?: boolean;
   recordingBusy?: boolean;
   recordingTitle?: string;
+  /** Seamless-loop bounce — short fixed-length WAV with a crossfade
+   *  seam and RIFF smpl loop points for samplers. Sits next to REC
+   *  as a sibling export action. */
+  loopLengthSec?: number;
+  onLoopLengthChange?: (sec: number) => void;
+  onBounceLoop?: () => void;
+  loopBusy?: boolean;
+  loopProgress?: { elapsedSec: number; totalSec: number } | null;
 }
 
 export interface DroneViewHandle {
@@ -261,7 +269,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, isRec, onToggleRec, recTimeMs, recordingSupported, recordingBusy, recordingTitle }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, isRec, onToggleRec, recTimeMs, recordingSupported, recordingBusy, recordingTitle, loopLengthSec, onLoopLengthChange, onBounceLoop, loopBusy, loopProgress }: DroneViewProps,
   ref,
 ) {
   const {
@@ -1336,7 +1344,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   type="button"
                   className={isRec ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
                   onClick={onToggleRec}
-                  disabled={!recordingSupported || recordingBusy}
+                  disabled={!recordingSupported || recordingBusy || loopBusy}
                   title={recordingTitle ?? "Record master output to WAV"}
                 >
                   {!recordingSupported
@@ -1347,6 +1355,42 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                         ? `■ ${Math.floor((recTimeMs ?? 0) / 60000)}:${String(Math.floor(((recTimeMs ?? 0) / 1000) % 60)).padStart(2, "0")}`
                         : "● REC"}
                 </button>
+              )}
+              {/* Seamless-loop bounce — short fixed-length WAV that
+                  loops end-to-head with a crossfade seam and carries
+                  a RIFF `smpl` chunk so samplers auto-detect the
+                  loop region. Drones are the ideal case: no
+                  transients, so a short crossfade is inaudible. */}
+              {onBounceLoop && (
+                <span className="loop-bounce-group">
+                  <select
+                    className="preset-mut-select loop-bounce-length"
+                    value={loopLengthSec ?? 30}
+                    onChange={(e) => onLoopLengthChange?.(parseInt(e.target.value, 10))}
+                    disabled={loopBusy || isRec || recordingBusy}
+                    title="Loop length — the output WAV's duration"
+                    aria-label="Loop length in seconds"
+                  >
+                    <option value={15}>15s</option>
+                    <option value={30}>30s</option>
+                    <option value={60}>60s</option>
+                  </select>
+                  <button
+                    type="button"
+                    className={loopBusy ? "preset-mut-btn preset-mut-btn-loop" : "preset-mut-btn"}
+                    onClick={onBounceLoop}
+                    disabled={loopBusy || isRec || recordingBusy || !recordingSupported}
+                    title={
+                      loopBusy
+                        ? "Bouncing a seamless loop — play stays live, just wait"
+                        : "◌ LOOP — bounce a seamless loop at the selected length (WAV with sampler loop points)"
+                    }
+                  >
+                    {loopBusy && loopProgress
+                      ? `LOOP ${Math.min(loopProgress.totalSec, Math.floor(loopProgress.elapsedSec))}/${Math.ceil(loopProgress.totalSec)}s`
+                      : "◌ LOOP"}
+                  </button>
+                </span>
               )}
             </div>
 

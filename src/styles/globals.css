@@ -5129,3 +5129,45 @@ input.share-modal-url:focus {
   }
   .layout { padding-bottom: 56px; }
 }
+
+/* ── Loop bounce ──────────────────────────────────────────────────
+ * Sibling export action next to ● REC in the scene-actions row.
+ * Shares the .preset-mut-btn chip styling so REC and LOOP read as
+ * a family. The length-picker <select> is styled to match so the
+ * pair looks like one compound control. */
+.loop-bounce-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.preset-mut-select {
+  background: var(--bg-cell);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.preset-mut-select:hover {
+  border-color: color-mix(in srgb, var(--preview) 35%, var(--border));
+  color: var(--preview);
+}
+.preset-mut-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.preset-mut-btn-loop {
+  background: color-mix(in srgb, var(--preview) 28%, var(--bg-cell));
+  border-color: color-mix(in srgb, var(--preview) 55%, var(--border));
+  color: var(--preview);
+  animation: loop-bounce-pulse 1.8s ease-in-out infinite alternate;
+}
+@keyframes loop-bounce-pulse {
+  0%   { box-shadow: 0 0 0 color-mix(in srgb, var(--preview) 0%, transparent); }
+  100% { box-shadow: 0 0 12px color-mix(in srgb, var(--preview) 35%, transparent); }
+}
