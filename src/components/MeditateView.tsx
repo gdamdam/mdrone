@@ -90,6 +90,7 @@ export function MeditateView({
   const popWinRef = useRef<Window | null>(null);
   const popStreamRef = useRef<MediaStream | null>(null);
   const popPollRef = useRef<number | null>(null);
+  const popWakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [isPopOut, setIsPopOut] = useState(false);
   const closePopOut = useCallback(() => {
     if (popPollRef.current !== null) {
@@ -100,6 +101,9 @@ export function MeditateView({
     popStreamRef.current = null;
     if (popWinRef.current && !popWinRef.current.closed) popWinRef.current.close();
     popWinRef.current = null;
+    // Release the screen wake lock if we hold one.
+    popWakeLockRef.current?.release().catch(() => { /* ok */ });
+    popWakeLockRef.current = null;
     setIsPopOut(false);
   }, []);
   const togglePopOut = useCallback(() => {
@@ -163,6 +167,22 @@ export function MeditateView({
     popPollRef.current = window.setInterval(() => {
       if (popWinRef.current?.closed) closePopOut();
     }, 500);
+
+    // Ask the OS for a screen wake lock while the pop-out is alive
+    // so the browser doesn't throttle rAF on the main tab (which
+    // would freeze the captured stream feeding the popup). Best-
+    // effort — silently ignored on browsers without Wake Lock API
+    // or when denied.
+    type WakeLockNav = Navigator & {
+      wakeLock?: { request: (t: "screen") => Promise<WakeLockSentinel> };
+    };
+    const wakeLockNav = navigator as WakeLockNav;
+    if (wakeLockNav.wakeLock?.request) {
+      wakeLockNav.wakeLock
+        .request("screen")
+        .then((sentinel) => { popWakeLockRef.current = sentinel; })
+        .catch(() => { /* denied / unsupported — ok */ });
+    }
 
     setIsPopOut(true);
   }, [closePopOut]);
@@ -455,7 +475,11 @@ export function MeditateView({
       raf = requestAnimationFrame(tick);
       // Skip work entirely when the tab is hidden — analyser reads,
       // spectrum bucketing, and canvas draws are pure waste offscreen.
-      if (document.hidden) return;
+      // EXCEPTION: if a pop-out is streaming the canvas to a detached
+      // window, we keep rendering even when the main tab is hidden so
+      // the popup doesn't freeze (a fullscreen popup on a second
+      // monitor can hide the main tab depending on OS/WM behaviour).
+      if (document.hidden && !isPopOut) return;
       if (now - lastPaint < FRAME_MS) return;
       lastPaint = now;
       // Frame delta, clamped so huge stalls (tab switch) don't warp
