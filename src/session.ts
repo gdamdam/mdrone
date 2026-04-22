@@ -191,8 +191,12 @@ const VISUALIZERS: readonly Visualizer[] = [
   "waterfall",
   "feedbackTunnel",
   "waterfallAscii",
-  "waterfallRain",
   "waterfallHybrid",
+  "saltDrift",
+  "ironFilings",
+  "sediment",
+  "erosion",
+  "ashTrail",
   "waveformRing",
 ] as const;
 

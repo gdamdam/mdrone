@@ -187,7 +187,6 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
    tappable on phones where the header button is covered and there
    is no Esc key. Hidden on desktop (Esc + header toggle suffice). */
 .view-close-mobile {
-  display: none;
   position: fixed;
   top: calc(10px + env(safe-area-inset-top, 0px));
   right: calc(10px + env(safe-area-inset-right, 0px));
@@ -201,7 +200,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(6px);
@@ -210,9 +209,6 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .view-close-mobile:active {
   transform: scale(0.95);
   background: color-mix(in srgb, var(--preview) 12%, var(--bg-panel));
-}
-@media (max-width: 720px) {
-  .view-close-mobile { display: flex; }
 }
 
 /* ── Meditate view ────────────────────────────────────────────────── */

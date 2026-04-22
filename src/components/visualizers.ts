@@ -37,9 +37,13 @@ export type Visualizer =
   | "waterfall"
   | "feedbackTunnel"
   | "waterfallAscii"
-  | "waterfallRain"
   | "waterfallHybrid"
-  | "waveformRing";
+  | "waveformRing"
+  | "saltDrift"
+  | "ironFilings"
+  | "sediment"
+  | "erosion"
+  | "ashTrail";
 
 /**
  * Visualizer categories — the meditate view dropdown renders these
@@ -69,7 +73,8 @@ export const VISUALIZER_GROUPS: readonly {
       "waterfall",
       "waterfallAscii",
       "waterfallHybrid",
-      "waterfallRain",
+      "sediment",
+      "erosion",
     ],
   },
   {
@@ -82,6 +87,9 @@ export const VISUALIZER_GROUPS: readonly {
       "haloGlow",
       "horizon",
       "orb",
+      "saltDrift",
+      "ironFilings",
+      "ashTrail",
     ],
   },
   {
@@ -114,8 +122,12 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   waterfall: "SPECTRAL WATERFALL",
   waterfallAscii: "WATERFALL · ASCII gradient",
   waterfallHybrid: "WATERFALL · hybrid strata",
-  waterfallRain: "WATERFALL · matrix rain",
   feedbackTunnel: "FEEDBACK TUNNEL",
+  saltDrift: "SALT DRIFT · particulate accretion",
+  ironFilings: "IRON FILINGS · magnetic field",
+  sediment: "SEDIMENT STRATA · spectral deposit",
+  erosion: "EROSION CONTOURS · spectral relief",
+  ashTrail: "ASH TRAIL · per-voice smoke",
   inkBloom: "INK BLOOM",
   horizon: "HORIZON SUNRISE",
   aurora: "SPECTRAL AURORA",
@@ -1351,8 +1363,12 @@ export const VISUALIZER_FNS: Record<
   waterfall: drawWaterfall,
   feedbackTunnel: drawFeedbackTunnel,
   waterfallAscii: drawWaterfallAscii,
-  waterfallRain: drawWaterfallRain,
   waterfallHybrid: drawWaterfallHybrid,
+  saltDrift: drawSaltDrift,
+  ironFilings: drawIronFilings,
+  sediment: drawSediment,
+  erosion: drawErosion,
+  ashTrail: drawAshTrail,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2159,88 +2175,7 @@ export function drawWaterfallBlock(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 23. WATERFALL · RAIN — Matrix-style falling glyph cascades. Each
-//     FFT column gets a vertical column of characters whose head
-//     drops at a speed proportional to its bin energy and leaves a
-//     fading trail behind. Drone harmonics become persistent
-//     glowing rivers running down the screen.
-// ─────────────────────────────────────────────────────────────────────
-interface RainCol {
-  y: number;      // head position in cell units (float so it advances smoothly)
-  salt: number;   // per-column random phase for glyph cycling
-}
-let rainCols: RainCol[] | null = null;
-let rainColsCount = 0;
-let rainCellH = 14;
-const RAIN_GLYPHS = "0123456789アカサタナハマヤラワABCDEFGHJKLMNPQRSTUVWXYZ.-=+*#@";
-export function drawWaterfallRain(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  const cellH = 14;
-  const cellW = 10;
-  rainCellH = cellH;
-  const cols = Math.floor(w / cellW);
-  const rows = Math.floor(h / cellH);
-
-  if (!rainCols || rainColsCount !== cols) {
-    rainCols = new Array(cols);
-    for (let c = 0; c < cols; c++) {
-      rainCols[c] = {
-        y: Math.random() * rows,
-        salt: Math.floor(Math.random() * 9973),
-      };
-    }
-    rainColsCount = cols;
-  }
-
-  // Low-alpha fill to fade the previous frame — this gives the
-  // glowing trail behind each falling head.
-  ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
-  ctx.fillRect(0, 0, w, h);
-
-  ctx.font = `${cellH}px "SF Mono", "Menlo", "Consolas", monospace`;
-  ctx.textBaseline = "top";
-
-  const bins = a.spectrum.length;
-  const glyphCount = RAIN_GLYPHS.length;
-  for (let c = 0; c < cols; c++) {
-    const col = rainCols[c];
-    const binIdx = Math.floor((c / cols) * bins);
-    const energy = a.spectrum[binIdx];
-    // Speed: slow drip pace suited to drone music — quiet columns
-    // barely move, hot columns fall meaningfully but not disco-fast.
-    // At 60 fps: 0.03..0.21 cells/frame ≈ 1.8..12.6 cells/sec, so
-    // a full column takes several seconds to scroll.
-    col.y += 0.12 + energy * 0.5;
-    if (col.y > rows + 4) {
-      col.y = -Math.random() * 10;
-    }
-    const headY = Math.floor(col.y);
-    if (headY < 0 || headY >= rows) continue;
-    const tickIdx = Math.floor(p.t * 6);
-    const chIdx = (col.salt + headY * 17 + tickIdx) % glyphCount;
-    const glyph = RAIN_GLYPHS[chIdx];
-    // Head is bright white
-    ctx.fillStyle = `hsla(0, 0%, 100%, ${0.85 + energy * 0.15})`;
-    ctx.fillText(glyph, c * cellW, headY * cellH);
-    // One dimmer glyph just behind the head for a brighter tail
-    // start — amplifies the wet-character glow.
-    if (headY > 0) {
-      const prevCh = RAIN_GLYPHS[(col.salt + (headY - 1) * 17 + tickIdx - 1 + glyphCount) % glyphCount];
-      ctx.fillStyle = `hsla(0, 0%, 80%, ${0.35 + energy * 0.35})`;
-      ctx.fillText(prevCh, c * cellW, (headY - 1) * cellH);
-    }
-  }
-  // `rainCellH` read suppresses the unused-var warning if ever needed
-  void rainCellH;
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// 24. WATERFALL · HYBRID — scrolling spectrogram whose *top row* uses
+// WATERFALL · HYBRID — scrolling spectrogram whose *top row* uses
 //     a different glyph set every few seconds. As frames pile up,
 //     the waterfall develops horizontal bands of different "fonts"
 //     (blocks → ASCII → braille → back). Same grid-and-scroll as
@@ -2296,4 +2231,375 @@ export function drawWaterfallHybrid(
     off.fillRect(0, 0, w, h);
   }
   ctx.drawImage(canvas, 0, 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ORIGINAL DRONE VISUALIZERS — accretive, matte, heavy. No glow, no
+// hue-from-audio, no per-frame fast reactivity. Each one accrues over
+// minutes of listening.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────
+// SALT DRIFT — fine particulate drifting left-to-right across the
+// frame under a gentle gravity, accumulating at the bottom as slowly-
+// growing dunes. The floor erodes very slightly so dunes reshape
+// rather than piling up forever.
+// ─────────────────────────────────────────────────────────────────────
+interface SaltGrain { x: number; y: number; vx: number; vy: number; bright: number; }
+let saltGrains: SaltGrain[] | null = null;
+let saltFloor: Float32Array | null = null;
+let saltCanvasW = 0;
+let saltCanvasH = 0;
+
+export function drawSaltDrift(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  a: AudioFrame, p: PhaseClock,
+): void {
+  const N = 1200;
+  const FLOOR_BINS = Math.max(128, Math.floor(w / 4));
+
+  if (!saltGrains || saltCanvasW !== w || saltCanvasH !== h || !saltFloor || saltFloor.length !== FLOOR_BINS) {
+    saltCanvasW = w;
+    saltCanvasH = h;
+    saltGrains = new Array(N);
+    for (let i = 0; i < N; i++) {
+      saltGrains[i] = {
+        x: Math.random() * w,
+        y: Math.random() * h * 0.6,
+        vx: 0.2 + Math.random() * 0.5,
+        vy: 0.05 + Math.random() * 0.15,
+        bright: 0.55 + Math.random() * 0.45,
+      };
+    }
+    saltFloor = new Float32Array(FLOOR_BINS);
+  }
+
+  ctx.fillStyle = "#1a1612";
+  ctx.fillRect(0, 0, w, h);
+
+  const gust = Math.sin(p.t * 0.05) * 0.25 + p.slow * 0.15;
+  const gravity = 0.02 + a.rms * 0.02;
+  const floor = saltFloor!;
+
+  ctx.fillStyle = `hsl(${p.mood.hue}, 12%, 82%)`;
+  for (let i = 0; i < N; i++) {
+    const g = saltGrains[i];
+    g.x += g.vx + gust;
+    g.y += g.vy + gravity;
+    if (g.x > w) g.x -= w;
+    if (g.x < 0) g.x += w;
+    const floorIdx = Math.min(FLOOR_BINS - 1, Math.max(0, Math.floor((g.x / w) * FLOOR_BINS)));
+    const floorY = h - floor[floorIdx];
+    if (g.y >= floorY) {
+      const spread = 1.5 + Math.random() * 0.8;
+      floor[floorIdx] += spread;
+      const nL = Math.max(0, floorIdx - 1);
+      const nR = Math.min(FLOOR_BINS - 1, floorIdx + 1);
+      floor[nL] += spread * 0.35;
+      floor[nR] += spread * 0.35;
+      g.x = Math.random() * w;
+      g.y = -Math.random() * 10;
+      g.vx = 0.2 + Math.random() * 0.5;
+      g.vy = 0.05 + Math.random() * 0.15;
+      continue;
+    }
+    const r = 0.6 + g.bright * 0.7;
+    ctx.globalAlpha = 0.55 + g.bright * 0.35;
+    ctx.fillRect(g.x, g.y, r, r);
+  }
+  ctx.globalAlpha = 1;
+
+  const erosion = 0.04 + a.rms * 0.04;
+  const maxH = h * 0.45;
+  const nextFloor = new Float32Array(FLOOR_BINS);
+  for (let i = 0; i < FLOOR_BINS; i++) {
+    const l = floor[Math.max(0, i - 1)];
+    const r = floor[Math.min(FLOOR_BINS - 1, i + 1)];
+    const diffused = (l + floor[i] * 2 + r) * 0.25;
+    nextFloor[i] = Math.max(0, Math.min(maxH, diffused - erosion));
+  }
+  saltFloor = nextFloor;
+
+  ctx.fillStyle = "#2a221c";
+  ctx.beginPath();
+  ctx.moveTo(0, h);
+  for (let i = 0; i < FLOOR_BINS; i++) {
+    const x = (i / (FLOOR_BINS - 1)) * w;
+    ctx.lineTo(x, h - nextFloor[i]);
+  }
+  ctx.lineTo(w, h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#3a2e24";
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(0, h - nextFloor[0]);
+  for (let i = 1; i < FLOOR_BINS; i++) {
+    ctx.lineTo((i / (FLOOR_BINS - 1)) * w, h - nextFloor[i]);
+  }
+  ctx.stroke();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// IRON FILINGS — a dense field of short filament strokes oriented to
+// an invisible magnetic field. Field angle at each point is a spiral
+// around the canvas centre plus a slow rotation + drone-influenced
+// warp. When the drone is stable the filings lock into radial
+// alignment; richer spectra induce swirl.
+// ─────────────────────────────────────────────────────────────────────
+interface FilingPos { x: number; y: number; }
+let filingsPositions: FilingPos[] | null = null;
+let filingsW = 0;
+let filingsH = 0;
+
+export function drawIronFilings(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  a: AudioFrame, p: PhaseClock,
+): void {
+  const SPACING = 14;
+  if (!filingsPositions || filingsW !== w || filingsH !== h) {
+    filingsPositions = [];
+    for (let y = SPACING * 0.5; y < h; y += SPACING) {
+      for (let x = SPACING * 0.5; x < w; x += SPACING) {
+        filingsPositions.push({
+          x: x + (Math.random() - 0.5) * SPACING * 0.5,
+          y: y + (Math.random() - 0.5) * SPACING * 0.5,
+        });
+      }
+    }
+    filingsW = w;
+    filingsH = h;
+  }
+
+  ctx.fillStyle = "#1a1a1a";
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w * 0.5;
+  const cy = h * 0.5;
+  const phi = p.t * 0.02 + p.slow * 1.6;
+  let active = 0;
+  for (let i = 0; i < a.spectrum.length; i++) if (a.spectrum[i] > 0.1) active++;
+  const spectrumWidth = active / a.spectrum.length;
+  const swirl = 0.15 + spectrumWidth * 1.1 + a.rms * 0.3;
+  const FILAMENT_LEN = 7;
+
+  ctx.strokeStyle = "#b8b3a8";
+  ctx.lineWidth = 0.8;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  const positions = filingsPositions;
+  for (let i = 0; i < positions.length; i++) {
+    const pos = positions[i];
+    const dx = pos.x - cx;
+    const dy = pos.y - cy;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const radial = Math.atan2(dy, dx);
+    const theta = radial + swirl * Math.sin(r * 0.012 - phi);
+    const hx = Math.cos(theta) * FILAMENT_LEN * 0.5;
+    const hy = Math.sin(theta) * FILAMENT_LEN * 0.5;
+    ctx.moveTo(pos.x - hx, pos.y - hy);
+    ctx.lineTo(pos.x + hx, pos.y + hy);
+  }
+  ctx.stroke();
+
+  ctx.fillStyle = "#d4cfc2";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 1.8 + a.rms * 0.8, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SEDIMENT STRATA — horizontal rock layers depositing from top
+// downwards over time. Each new stratum's colour and grain come from
+// the drone's current spectral balance, then freeze.
+// ─────────────────────────────────────────────────────────────────────
+let sedimentCanvas: HTMLCanvasElement | null = null;
+let sedimentCtx: CanvasRenderingContext2D | null = null;
+let sedimentOffset = 0;
+
+export function drawSediment(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  a: AudioFrame, p: PhaseClock,
+): void {
+  if (!sedimentCanvas || sedimentCanvas.width !== w || sedimentCanvas.height !== h) {
+    sedimentCanvas = document.createElement("canvas");
+    sedimentCanvas.width = w;
+    sedimentCanvas.height = h;
+    sedimentCtx = sedimentCanvas.getContext("2d");
+    if (sedimentCtx) {
+      sedimentCtx.fillStyle = "#18120e";
+      sedimentCtx.fillRect(0, 0, w, h);
+    }
+    sedimentOffset = 0;
+  }
+  const off = sedimentCtx!;
+
+  const rate = 0.12 + a.rms * 0.12;
+  sedimentOffset += rate;
+  const pxToScroll = Math.floor(sedimentOffset);
+  sedimentOffset -= pxToScroll;
+  if (pxToScroll > 0 && h - pxToScroll > 0) {
+    const img = off.getImageData(0, 0, w, h - pxToScroll);
+    off.putImageData(img, 0, pxToScroll);
+  }
+
+  for (let row = 0; row < pxToScroll; row++) {
+    const y = row;
+    for (let x = 0; x < w; x += 2) {
+      const bin = Math.floor((x / w) * a.spectrum.length);
+      const e = a.spectrum[bin] ?? 0;
+      const lig = 10 + e * 28 + (Math.random() - 0.5) * 4 + p.slow * 3;
+      const sat = 12 + e * 18;
+      const hue = 28 + (p.mood.warmth - 0.5) * 14;
+      off.fillStyle = `hsl(${hue}, ${sat}%, ${lig}%)`;
+      off.fillRect(x, y, 2, 1);
+    }
+  }
+
+  ctx.drawImage(sedimentCanvas, 0, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// EROSION CONTOURS — low-resolution heightmap quantised into discrete
+// elevation levels, rendered as flat shaded bands with darker seam
+// lines between levels — reads like a USGS topographic map whose
+// coastline breathes with the drone.
+// ─────────────────────────────────────────────────────────────────────
+const EROSION_GW = 96;
+const EROSION_GH = 64;
+const EROSION_LEVELS = 7;
+let erosionHeight: Float32Array | null = null;
+
+export function drawErosion(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  a: AudioFrame, p: PhaseClock,
+): void {
+  if (!erosionHeight) {
+    erosionHeight = new Float32Array(EROSION_GW * EROSION_GH);
+  }
+  const height = erosionHeight;
+
+  const bins = a.spectrum.length;
+  const lowpass = 0.04;
+  for (let gy = 0; gy < EROSION_GH; gy++) {
+    for (let gx = 0; gx < EROSION_GW; gx++) {
+      const bin = Math.floor(((gx + gy * 0.5) / (EROSION_GW + EROSION_GH * 0.5)) * bins) % bins;
+      const e = a.spectrum[bin] ?? 0;
+      const wave =
+        Math.sin(gx * 0.09 + p.t * 0.05) * 0.2 +
+        Math.cos(gy * 0.13 - p.t * 0.03) * 0.15 +
+        Math.sin((gx + gy) * 0.05 + p.slow * 3) * 0.1;
+      const target = e * 0.7 + wave + 0.4 + a.rms * 0.2;
+      const idx = gy * EROSION_GW + gx;
+      height[idx] += (target - height[idx]) * lowpass;
+    }
+  }
+
+  const cellW = w / EROSION_GW;
+  const cellH = h / EROSION_GH;
+  const baseHue = 28 + (p.mood.warmth - 0.5) * 14;
+  for (let gy = 0; gy < EROSION_GH; gy++) {
+    for (let gx = 0; gx < EROSION_GW; gx++) {
+      const val = height[gy * EROSION_GW + gx];
+      const level = Math.max(0, Math.min(EROSION_LEVELS - 1,
+        Math.floor(val * EROSION_LEVELS)));
+      const lig = 8 + level * 6;
+      ctx.fillStyle = `hsl(${baseHue}, 12%, ${lig}%)`;
+      ctx.fillRect(gx * cellW, gy * cellH, cellW + 1, cellH + 1);
+    }
+  }
+
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  for (let gy = 0; gy < EROSION_GH; gy++) {
+    for (let gx = 0; gx < EROSION_GW; gx++) {
+      const i = gy * EROSION_GW + gx;
+      const lvl = Math.floor(height[i] * EROSION_LEVELS);
+      if (gx < EROSION_GW - 1) {
+        const lvlR = Math.floor(height[i + 1] * EROSION_LEVELS);
+        if (lvlR !== lvl) {
+          const x = (gx + 1) * cellW;
+          ctx.moveTo(x, gy * cellH);
+          ctx.lineTo(x, (gy + 1) * cellH);
+        }
+      }
+      if (gy < EROSION_GH - 1) {
+        const lvlB = Math.floor(height[i + EROSION_GW] * EROSION_LEVELS);
+        if (lvlB !== lvl) {
+          const y = (gy + 1) * cellH;
+          ctx.moveTo(gx * cellW, y);
+          ctx.lineTo((gx + 1) * cellW, y);
+        }
+      }
+    }
+  }
+  ctx.stroke();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ASH TRAIL — three slowly-drifting point sources leave soft charcoal
+// ink trails on a persistent paper canvas. Trails fade very slowly so
+// after minutes of listening the canvas carries a timeline of the
+// piece as drifting smoke.
+// ─────────────────────────────────────────────────────────────────────
+let ashCanvas: HTMLCanvasElement | null = null;
+let ashCtx: CanvasRenderingContext2D | null = null;
+interface AshSource { ax: number; ay: number; bx: number; by: number; phase: number; }
+const ashSources: AshSource[] = [
+  { ax: 0.31, ay: 0.29, bx: 0.27, by: 0.22, phase: 0 },
+  { ax: 0.24, ay: 0.18, bx: 0.30, by: 0.26, phase: 2.1 },
+  { ax: 0.28, ay: 0.25, bx: 0.22, by: 0.31, phase: 4.3 },
+];
+
+export function drawAshTrail(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  a: AudioFrame, p: PhaseClock,
+): void {
+  if (!ashCanvas || ashCanvas.width !== w || ashCanvas.height !== h) {
+    ashCanvas = document.createElement("canvas");
+    ashCanvas.width = w;
+    ashCanvas.height = h;
+    ashCtx = ashCanvas.getContext("2d");
+    if (ashCtx) {
+      ashCtx.fillStyle = "#efe8dc";
+      ashCtx.fillRect(0, 0, w, h);
+    }
+  }
+  const off = ashCtx!;
+
+  off.fillStyle = "rgba(239, 232, 220, 0.006)";
+  off.fillRect(0, 0, w, h);
+
+  const cx = w * 0.5;
+  const cy = h * 0.5;
+  const spread = 1 + a.rms * 0.8;
+  const speed = 0.04 + a.rms * 0.06;
+  const soots = ["rgba(30, 25, 22, 0.08)", "rgba(40, 34, 28, 0.07)", "rgba(25, 28, 34, 0.07)"];
+  const halos = ["rgba(30, 25, 22, 0.02)", "rgba(40, 34, 28, 0.02)", "rgba(25, 28, 34, 0.02)"];
+
+  for (let s = 0; s < ashSources.length; s++) {
+    const src = ashSources[s];
+    src.phase += speed;
+    const angle = src.phase;
+    const x = cx + Math.cos(angle * src.ax * 10) * w * 0.35 * spread * src.ax +
+              Math.sin(angle * src.bx * 10) * w * 0.18 * src.bx;
+    const y = cy + Math.sin(angle * src.ay * 10) * h * 0.32 * spread * src.ay +
+              Math.cos(angle * src.by * 10) * h * 0.16 * src.by;
+    off.fillStyle = soots[s];
+    off.beginPath();
+    off.arc(x, y, 3 + p.slow * 1.5, 0, Math.PI * 2);
+    off.fill();
+    off.fillStyle = halos[s];
+    off.beginPath();
+    off.arc(x, y, 7, 0, Math.PI * 2);
+    off.fill();
+  }
+
+  ctx.drawImage(ashCanvas, 0, 0);
 }
