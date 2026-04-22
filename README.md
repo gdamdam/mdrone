@@ -324,6 +324,8 @@ mdrone does not use accounts, cookies, ads, or personal tracking.
 
 mdrone uses [GoatCounter](https://goatcounter.com) for anonymous, cookieless page-view counting. GoatCounter does not collect personal data, does not use cookies, and does not track across sites.
 
+Besides page-views, mdrone counts a handful of anonymous feature events (preset applied, visualizer picked, share created, etc.) deduped once per page-load. No IDs, no correlation, no timings. DNT disables all counting.
+
 ### What mdrone does not collect
 
 - **No accounts** — no sign-up, email, or profile
