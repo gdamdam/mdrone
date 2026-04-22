@@ -998,6 +998,61 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             visual={weatherVisual ?? "flow"}
           />
 
+          {/* Mobile tonic + octave — lives between the XY pad and the
+              SHAPE column on narrow viewports, so the performance
+              control sits next to the element it performs against
+              rather than pinned to the bottom of the viewport.
+              CSS-hidden on desktop; the perform strip inside the
+              preset panel remains authoritative there. */}
+          <div className="mobile-perform-row">
+            <div className="preset-strip-tonic-picker mobile-perform-tonic">
+              <DropdownSelect
+                value={`${state.root}|${state.octave}`}
+                groups={[1, 2, 3, 4, 5, 6].map((oct) => ({
+                  label: `OCTAVE ${oct}`,
+                  items: PITCH_CLASSES.map((pc) => {
+                    const idx = PITCH_CLASSES.indexOf(pc);
+                    const semi = idx - 9 + (oct - 4) * 12;
+                    const hz = 440 * Math.pow(2, semi / 12);
+                    return {
+                      value: `${pc}|${oct}`,
+                      label: `${pc.replace("#", "♯")}${oct} · ${hz.toFixed(1)} Hz`,
+                    };
+                  }),
+                }))}
+                onChange={(v) => {
+                  const [pc, oct] = v.split("|");
+                  setRoot(pc as PitchClass);
+                  setOctave(parseInt(oct, 10));
+                }}
+                className="preset-strip-tonic-btn"
+                ariaLabel="Tonic and octave"
+                title="Pick the tonic and octave"
+              />
+            </div>
+            <div className="weather-octave mobile-perform-octave">
+              <button
+                type="button"
+                className="header-octave-btn"
+                onClick={() => setOctave(Math.max(1, state.octave - 1))}
+                disabled={state.octave <= 1}
+                aria-label="Octave down"
+              >
+                −
+              </button>
+              <span className="header-octave-value">{state.octave}</span>
+              <button
+                type="button"
+                className="header-octave-btn"
+                onClick={() => setOctave(Math.min(6, state.octave + 1))}
+                disabled={state.octave >= 6}
+                aria-label="Octave up"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
           <div
             className={[
               "weather-controls",

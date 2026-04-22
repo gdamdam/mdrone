@@ -4979,6 +4979,12 @@ input.share-modal-url:focus {
  *  11. Hide desktop-only affordances (QWERTY kbd, MIDI-learn) on phone
  * ────────────────────────────────────────────────────────────── */
 
+/* Mobile tonic+octave row — rendered by DroneView between the XY
+ * pad and the SHAPE column on narrow viewports. Hidden on desktop
+ * (the original .preset-strip-perform strip keeps owning tonic +
+ * octave there). */
+.mobile-perform-row { display: none; }
+
 /* SHAPE-panel collapse caret — inline in shape-header. Hidden on
  * desktop (the panel stays open). The visual affordance is subtle
  * because it sits next to SHAPE / the hint text / the `?` button,
@@ -5072,7 +5078,23 @@ input.share-modal-url:focus {
   /* 11. Desktop-only affordances hidden on phone. QWERTY toggle
    * requires a physical keyboard; MIDI-learn requires an external
    * controller (which also requires desktop Chrome for Web MIDI). */
-  .header-kbd-btn { display: none \!important; }
+  .header-kbd-btn { display: none !important; }
+
+  /* Mobile tonic control — the new above-SHAPE row replaces the
+   * fixed-bottom perform bar. Reveal the inline row; hide the old
+   * fixed-bottom one; drop the layout's bottom padding that used
+   * to make room for it. */
+  .mobile-perform-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 2px 0 8px;
+  }
+  .mobile-perform-tonic { flex: 1 1 auto; min-width: 0; }
+  .mobile-perform-tonic .preset-strip-tonic-btn { width: 100%; max-width: none; }
+  .mobile-perform-octave { flex: 0 0 auto; gap: 6px; }
+  .preset-strip-perform { display: none; }
+  .layout { padding-bottom: 0; }
 }
 
 /* Very narrow — iPhone SE / galaxy A-class. 4-col fx-bar becomes
