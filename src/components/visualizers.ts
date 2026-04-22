@@ -2473,18 +2473,26 @@ export function drawErosion(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// ASH TRAIL — three slowly-drifting point sources leave soft charcoal
-// ink trails on a persistent paper canvas. Trails fade very slowly so
-// after minutes of listening the canvas carries a timeline of the
-// piece as drifting smoke.
+// ASH TRAIL — three slowly-drifting point sources leave charcoal ink
+// trails on a persistent paper canvas. Sources wander across 60-80%
+// of the canvas; speed, spread, blob size, and sparkle fleck density
+// all react to the drone's character:
+//   overall RMS → source speed + blob size + core opacity
+//   low band    → core blob radius (bass = fatter strokes)
+//   mid band    → orbital amplitude (mid = bigger travel)
+//   high band   → charcoal flecks spraying around each source
+// Trails fade very slowly so minutes of listening accrete into a
+// drifting smoke drawing.
 // ─────────────────────────────────────────────────────────────────────
 let ashCanvas: HTMLCanvasElement | null = null;
 let ashCtx: CanvasRenderingContext2D | null = null;
-interface AshSource { ax: number; ay: number; bx: number; by: number; phase: number; }
+interface AshSource { fx: number; fy: number; fbx: number; fby: number; offset: number; phase: number; }
 const ashSources: AshSource[] = [
-  { ax: 0.31, ay: 0.29, bx: 0.27, by: 0.22, phase: 0 },
-  { ax: 0.24, ay: 0.18, bx: 0.30, by: 0.26, phase: 2.1 },
-  { ax: 0.28, ay: 0.25, bx: 0.22, by: 0.31, phase: 4.3 },
+  // Lissajous frequency pairs (fx, fy) chosen so the curves don't
+  // repeat quickly; offset seeds each source at a different phase.
+  { fx: 1.7, fy: 2.3, fbx: 0.19, fby: 0.23, offset: 0.0, phase: 0 },
+  { fx: 2.1, fy: 1.9, fbx: 0.23, fby: 0.17, offset: 2.1, phase: 2.1 },
+  { fx: 1.3, fy: 2.7, fbx: 0.17, fby: 0.21, offset: 4.3, phase: 4.3 },
 ];
 
 export function drawAshTrail(
@@ -2504,32 +2512,85 @@ export function drawAshTrail(
   }
   const off = ashCtx!;
 
-  off.fillStyle = "rgba(239, 232, 220, 0.006)";
+  // Very slow fade toward paper colour so trails persist for minutes.
+  off.fillStyle = "rgba(239, 232, 220, 0.008)";
   off.fillRect(0, 0, w, h);
+
+  // Spectral bands
+  const bins = a.spectrum.length;
+  let lowE = 0, midE = 0, highE = 0;
+  const tA = Math.floor(bins / 3);
+  const tB = Math.floor((bins * 2) / 3);
+  for (let i = 0; i < tA; i++) lowE += a.spectrum[i];
+  for (let i = tA; i < tB; i++) midE += a.spectrum[i];
+  for (let i = tB; i < bins; i++) highE += a.spectrum[i];
+  lowE /= Math.max(1, tA);
+  midE /= Math.max(1, tB - tA);
+  highE /= Math.max(1, bins - tB);
 
   const cx = w * 0.5;
   const cy = h * 0.5;
-  const spread = 1 + a.rms * 0.8;
-  const speed = 0.04 + a.rms * 0.06;
-  const soots = ["rgba(30, 25, 22, 0.08)", "rgba(40, 34, 28, 0.07)", "rgba(25, 28, 34, 0.07)"];
-  const halos = ["rgba(30, 25, 22, 0.02)", "rgba(40, 34, 28, 0.02)", "rgba(25, 28, 34, 0.02)"];
+  // Orbital extent — reaches 30% of canvas at silence, up to 85%
+  // with rich mid-band + RMS + slight slow breath.
+  const reach = 0.30 + 0.32 * midE + 0.18 * a.rms + 0.05 * p.slow;
+  const ampX = w * reach;
+  const ampY = h * reach;
+  // Source motion speed — slow by default, visibly faster with loud
+  // drones. Base 0.02 matches the original pace; peak ~0.18.
+  const speed = 0.02 + a.rms * 0.16 + midE * 0.04;
+  // Core blob radius + opacity
+  const blobR = 3 + lowE * 22 + a.peak * 10 + a.rms * 6;
+  const blobAlpha = 0.06 + a.rms * 0.14 + lowE * 0.08;
+  // Three matte soot tones — warm, cool, neutral
+  const soots = [
+    `rgba(25, 22, 20, ${blobAlpha})`,
+    `rgba(40, 32, 26, ${blobAlpha * 0.9})`,
+    `rgba(22, 26, 32, ${blobAlpha * 0.9})`,
+  ];
+  const halos = [
+    `rgba(25, 22, 20, ${blobAlpha * 0.28})`,
+    `rgba(40, 32, 26, ${blobAlpha * 0.26})`,
+    `rgba(22, 26, 32, ${blobAlpha * 0.26})`,
+  ];
 
   for (let s = 0; s < ashSources.length; s++) {
     const src = ashSources[s];
     src.phase += speed;
-    const angle = src.phase;
-    const x = cx + Math.cos(angle * src.ax * 10) * w * 0.35 * spread * src.ax +
-              Math.sin(angle * src.bx * 10) * w * 0.18 * src.bx;
-    const y = cy + Math.sin(angle * src.ay * 10) * h * 0.32 * spread * src.ay +
-              Math.cos(angle * src.by * 10) * h * 0.16 * src.by;
+    const th = src.phase + src.offset;
+    // Primary Lissajous: fx/fy are incommensurate so the curve never
+    // closes exactly — the source wanders indefinitely.
+    const x = cx + Math.cos(th * src.fx) * ampX +
+              Math.sin(th * src.fbx) * ampX * 0.18;
+    const y = cy + Math.sin(th * src.fy) * ampY +
+              Math.cos(th * src.fby) * ampY * 0.18;
+
+    // Core soft blob
     off.fillStyle = soots[s];
     off.beginPath();
-    off.arc(x, y, 3 + p.slow * 1.5, 0, Math.PI * 2);
+    off.arc(x, y, blobR, 0, Math.PI * 2);
     off.fill();
+
+    // Outer halo — softer, wider
     off.fillStyle = halos[s];
     off.beginPath();
-    off.arc(x, y, 7, 0, Math.PI * 2);
+    off.arc(x, y, blobR * 2.5, 0, Math.PI * 2);
     off.fill();
+
+    // High-band charcoal flecks — little specks sprayed around the
+    // source on treble-rich drones. Silent / bass-only drones have
+    // zero flecks, which keeps the quiet image clean.
+    const flecks = Math.round(highE * 10);
+    if (flecks > 0) {
+      off.fillStyle = `rgba(25, 22, 20, ${0.15 + highE * 0.25})`;
+      for (let i = 0; i < flecks; i++) {
+        const fa = th * 0.8 + i * 1.7 + s * 0.9;
+        const fr = blobR + 6 + (i * 3);
+        const fx2 = x + Math.cos(fa) * fr + (Math.random() - 0.5) * 2;
+        const fy2 = y + Math.sin(fa) * fr + (Math.random() - 0.5) * 2;
+        const sz = 0.8 + Math.random() * 0.9;
+        off.fillRect(fx2, fy2, sz, sz);
+      }
+    }
   }
 
   ctx.drawImage(ashCanvas, 0, 0);
