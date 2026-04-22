@@ -531,6 +531,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             active={viewMode === "meditate"}
             visualizer={sceneManager.meditateVisualizer}
             onChangeVisualizer={sceneManager.setMeditateVisualizer}
+            onRandomScene={sceneManager.handleRandomScene}
             onFullscreenClick={(x01, y01) => {
               // Single click → set WEATHER XY from click position
               droneViewRef.current?.applyLivePatch?.({ climateX: x01, climateY: y01 }, { record: true });

@@ -37,6 +37,11 @@ interface MeditateViewProps {
   /** Called on every pointermove while pointerdown in fullscreen
    *  (drag). Same XY mapping as click. */
   onFullscreenDrag?: (x01: number, y01: number) => void;
+  /** Optional random-scene trigger. When provided the toolbar grows
+   *  an RND button (right of POP OUT) that loads a gentle variation
+   *  of a random preset — same behaviour as the header 🎲 button, but
+   *  reachable without leaving the fullscreen visualizer. */
+  onRandomScene?: () => void;
 }
 
 export function MeditateView({
@@ -47,6 +52,7 @@ export function MeditateView({
   onFullscreenClick,
   onFullscreenDoubleClick,
   onFullscreenDrag,
+  onRandomScene,
 }: MeditateViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -671,6 +677,15 @@ export function MeditateView({
         >
           {isPopOut ? "✕ POP IN" : "↗ POP OUT"}
         </button>
+        {onRandomScene && (
+          <button
+            className="header-btn"
+            onClick={onRandomScene}
+            title="Load a gentle variation of a random scene (same as the header 🎲)"
+          >
+            🎲 RND
+          </button>
+        )}
         <span className="meditate-toolbar-hint">· double-click to cycle ·</span>
       </div>
       {visualizer === "dreamMachine" && (

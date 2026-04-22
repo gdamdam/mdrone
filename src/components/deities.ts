@@ -21,11 +21,34 @@ export function drawHaloGlow(
   w: number, h: number,
   a: AudioFrame, p: PhaseClock,
 ): void {
-  // Mood-aware palette — every element hues off phase.mood.hue so
-  // the palette shifts with the playing preset.
+  // ── Spectral character — split the spectrum into low / mid / high
+  // thirds and compute a spectral centroid (0..1). Each of the halo's
+  // visual layers reacts to a specific band so the halo responds to
+  // the *kind* of drone, not just its loudness:
+  //   low   → bass swell ring + background depth
+  //   mid   → flame ring intensity (core + tongues)
+  //   high  → sparkle density + treble-ward hue shift
+  //   centroid → global hue tilt (bass-heavy leans red, treble leans white/gold)
+  const bins = a.spectrum.length;
+  let lowE = 0, midE = 0, highE = 0, wSum = 0, wIdx = 0;
+  const thirdA = Math.floor(bins / 3);
+  const thirdB = Math.floor((bins * 2) / 3);
+  for (let i = 0; i < thirdA; i++) lowE += a.spectrum[i];
+  for (let i = thirdA; i < thirdB; i++) midE += a.spectrum[i];
+  for (let i = thirdB; i < bins; i++) highE += a.spectrum[i];
+  for (let i = 0; i < bins; i++) { wSum += a.spectrum[i] * i; wIdx += a.spectrum[i]; }
+  lowE /= Math.max(1, thirdA);
+  midE /= Math.max(1, thirdB - thirdA);
+  highE /= Math.max(1, bins - thirdB);
+  const centroid = wIdx > 0.01 ? (wSum / wIdx) / bins : 0.5; // 0..1
+
+  // Mood-aware palette tilted by spectral character. Centroid near 0
+  // (bass-dominant) pulls the palette toward deep red; centroid near
+  // 1 (treble-rich) pulls it toward gold/white.
   const baseHue = p.mood.hue;
-  const haloHue = (baseHue + 5) % 360;
-  const ringHue = (baseHue + 20) % 360;
+  const centroidTilt = (centroid - 0.5) * 40; // ±20°
+  const haloHue = (baseHue + 5 + centroidTilt + 360) % 360;
+  const ringHue = (baseHue + 20 + centroidTilt * 0.8 + 360) % 360;
 
   // Warm dark persistence wash so trails linger
   ctx.fillStyle = "rgba(8, 5, 2, 0.3)";
@@ -35,25 +58,44 @@ export function drawHaloGlow(
   const cy = h / 2;
   const side = Math.min(w, h);
 
-  // ── Background radial glow (huge, slow breath) ─────────────────
-  const bgR = side * 0.82;
+  // ── Background radial glow — deepened by low-band energy so
+  // bass-heavy drones fill the whole frame with halo light.
+  const bgR = side * (0.82 + lowE * 0.15);
   const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, bgR);
-  bgGrad.addColorStop(0, `hsla(${haloHue}, 75%, 55%, ${0.28 + a.rms * 0.2})`);
-  bgGrad.addColorStop(0.5, `hsla(${haloHue}, 65%, 30%, 0.14)`);
+  bgGrad.addColorStop(0, `hsla(${haloHue}, 75%, ${55 + lowE * 10}%, ${0.28 + a.rms * 0.2 + lowE * 0.15})`);
+  bgGrad.addColorStop(0.5, `hsla(${haloHue}, 65%, 30%, ${0.14 + lowE * 0.1})`);
   bgGrad.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, w, h);
 
-  // ── Outer flame-ray ring (Nataraja-style) ─────────────────────
-  const ringR = side * (0.38 + p.slow * 0.04);
+  // Low-band bass swell ring — a thick soft ring that inflates and
+  // contracts with low-band energy. Sits just outside the halo.
+  if (lowE > 0.05) {
+    const swellR = side * (0.35 + lowE * 0.25);
+    const swellW = side * (0.04 + lowE * 0.08);
+    const sg = ctx.createRadialGradient(cx, cy, swellR - swellW, cx, cy, swellR + swellW);
+    sg.addColorStop(0, "rgba(0,0,0,0)");
+    sg.addColorStop(0.5, `hsla(${(haloHue - 10 + 360) % 360}, 70%, 45%, ${Math.min(0.35, lowE * 0.7)})`);
+    sg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.arc(cx, cy, swellR + swellW, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ── Outer flame-ray ring — each ray's tip is modulated by the
+  //     matching spectrum bin, so harmonics push individual flames
+  //     outward. Rich drones get a spiky halo; pure tones sit quiet.
+  const ringR = side * (0.38 + p.slow * 0.04 + midE * 0.06);
   const flameCount = 84;
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(p.t * 0.012);
+  ctx.rotate(p.t * 0.012 + centroid * 0.4);
   for (let i = 0; i < flameCount; i++) {
     const ang = (i / flameCount) * Math.PI * 2;
+    const binE = a.spectrum[Math.floor((i / flameCount) * bins)] ?? 0;
     const len = ringR * (0.9 + Math.sin(ang * 7 + p.t * 0.5) * 0.05 + a.rms * 0.07);
-    const lenTip = ringR * (1.22 + Math.sin(ang * 5 + p.t * 0.7 + i) * 0.08 + a.peak * 0.12);
+    const lenTip = ringR * (1.22 + Math.sin(ang * 5 + p.t * 0.7 + i) * 0.08 + a.peak * 0.12 + binE * 0.45);
     const x0 = Math.cos(ang) * len;
     const y0 = Math.sin(ang) * len;
     const x1 = Math.cos(ang) * lenTip;
@@ -171,10 +213,10 @@ export function drawHaloGlow(
   ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
   ctx.fill();
 
-  // Flame tongues — 360° around the core, every direction. Each
-  // tongue has its own phase, sways independently, and audio-
-  // reacts in height. Slow global rotation on top so the fire is
-  // never still.
+  // Flame tongues — 360° around the core. Per-tongue height now
+  // reacts to its matching spectrum bin so tongues individually
+  // lick out where the drone has energy. Mid-band + RMS set the
+  // global vigour of the fire.
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(p.t * 0.12);
@@ -183,7 +225,8 @@ export function drawHaloGlow(
     const phaseI = p.t * 3 + i * 1.3;
     const sway = Math.sin(phaseI) * 0.12 + Math.sin(phaseI * 0.7) * 0.06;
     const baseAng = (i / tongueCount) * Math.PI * 2 + sway;
-    const height = coreR * (2.3 + Math.sin(phaseI * 0.9 + i) * 0.5 + a.rms * 1.6);
+    const binE = a.spectrum[Math.floor((i / tongueCount) * bins)] ?? 0;
+    const height = coreR * (1.8 + Math.sin(phaseI * 0.9 + i) * 0.5 + a.rms * 1.2 + midE * 1.1 + binE * 1.3);
     const width = coreR * (0.4 + Math.sin(phaseI * 1.3 + i * 0.6) * 0.1);
     // Perpendicular unit for the tongue's width base
     const perpX = -Math.sin(baseAng);
@@ -216,8 +259,10 @@ export function drawHaloGlow(
   }
   ctx.restore();
 
-  // Occasional bright sparks popping out of the fire
-  const sparkCount = 6 + Math.round(a.peak * 8);
+  // Bright sparks popping out of the fire — density scales with
+  // high-band energy (treble/partials) so rich timbres shower sparks,
+  // pure fundamentals show few. Peak still tugs them up.
+  const sparkCount = 4 + Math.round(a.peak * 8 + highE * 28);
   for (let i = 0; i < sparkCount; i++) {
     const sSeed = (p.t * 1.7 + i * 0.61) % 1;
     const ang = (i * 0.917 + p.t * 0.4) % (Math.PI * 2) - Math.PI / 2;
@@ -242,15 +287,16 @@ export function drawHaloGlow(
     ctx.stroke();
   }
 
-  // ── Floating embers drifting around the halo ──────────────────
-  const emberCount = 28 + Math.round(p.growth * 24);
+  // ── Floating embers drifting around the halo — high-band energy
+  //     adds more embers and pulls them outward (treble = flying).
+  const emberCount = 28 + Math.round(p.growth * 24 + highE * 48);
   for (let i = 0; i < emberCount; i++) {
     const seed = (p.t * 0.25 + i * 37) % 1;
     const ang = (i / emberCount) * Math.PI * 2 + p.t * 0.06;
-    const rr = side * (0.18 + seed * 0.42);
+    const rr = side * (0.18 + seed * 0.42 + highE * 0.12);
     const ex = cx + Math.cos(ang) * rr;
     const ey = cy + Math.sin(ang) * rr - seed * side * 0.12;
-    const emberAlpha = (1 - seed) * 0.5 + a.peak * 0.22;
+    const emberAlpha = (1 - seed) * 0.5 + a.peak * 0.22 + highE * 0.2;
     ctx.fillStyle = `hsla(${ringHue}, 95%, 78%, ${emberAlpha})`;
     ctx.beginPath();
     ctx.arc(ex, ey, 1.2 + (1 - seed) * 1.5, 0, Math.PI * 2);
