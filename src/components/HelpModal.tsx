@@ -29,8 +29,8 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </button>
         </div>
         <p className="fx-modal-desc">
-          A browser drone instrument. Pick a scene, let it breathe, and
-          shape it with the tonic wheel, macros, and the serial FX chain.
+          A serious browser-native drone instrument. Pick a scene, let it
+          breathe, and shape it with tonic, tuning, motion, and the FX chain.
         </p>
 
         <div className="fx-modal-params help-modal-body">

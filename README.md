@@ -1,5 +1,5 @@
 <h1 align="center">mdrone</h1>
-<p align="center"><strong>Hold a note. Shape the air. Save the atmosphere.</strong><br><br>A browser drone instrument for long tones, harmonic beds, and slow-moving space.<br>Pick a tonic, build a timbre stack, drift it through weather and effects.<br>No install. No account. Free.</p>
+<p align="center"><strong>Hold a note. Shape the air. Save the atmosphere.</strong><br><br>A serious drone instrument, microtonal and browser-native.<br>Pick a tonic, stack authored voices, and drift through weather, tuning, and long-form motion.<br>No install. No account. Free.</p>
 
 <p align="center">
   <a href="https://mdrone.org/">https://mdrone.org/</a>
