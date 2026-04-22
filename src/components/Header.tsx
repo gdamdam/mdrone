@@ -12,6 +12,7 @@ import type { AudioLoadMonitor } from "../engine/AudioLoadMonitor";
 import { CpuWarning } from "./CpuWarning";
 import { STORAGE_KEYS } from "../config";
 import { showNotification } from "../notifications";
+import { trackEvent } from "../analytics";
 
 const HelpModal = lazy(() =>
   import("./HelpModal").then((m) => ({ default: m.HelpModal })),
@@ -666,7 +667,10 @@ export function Header({
               <div className="fx-modal-actions">
                 <button
                   className={linkEnabled ? "header-btn header-btn-midi-on" : "header-btn"}
-                  onClick={() => setLinkEnabled((v) => !v)}
+                  onClick={() => setLinkEnabled((v) => {
+                    if (!v) trackEvent("feature/link");
+                    return !v;
+                  })}
                   title={linkEnabled
                     ? "Disable Ableton Link — stops retrying the bridge connection"
                     : "Enable Ableton Link — retries every 5 s until the bridge is running"}

@@ -9,6 +9,7 @@ import type { RelationId, TuningId } from "../types";
 import type { JourneyId } from "../journey";
 import { withPartnerIntervals, type PartnerState } from "../partner";
 import type { EntrainState } from "../entrain";
+import { flickerZone, trackEvent } from "../analytics";
 import { MOTION_PARAM_IDS, pitchClassToIndex, type MotionParamId } from "../sceneRecorder";
 import {
   createInitialDroneScene,
@@ -118,6 +119,7 @@ export function useDroneScene({
 
   const setTuning = useCallback((tuningId: TuningId | null) => {
     dispatch({ type: "setTuning", tuningId });
+    if (tuningId) trackEvent("feature/microtuning");
   }, []);
 
   const setRelation = useCallback((relationId: RelationId | null) => {
@@ -166,15 +168,18 @@ export function useDroneScene({
 
   const setJourney = useCallback((journey: JourneyId | null) => {
     dispatch({ type: "setJourney", journey });
+    if (journey) trackEvent(`feature/journey/${journey}`);
   }, []);
 
   const setPartner = useCallback((partner: PartnerState) => {
     dispatch({ type: "setPartner", partner });
+    if (partner.enabled) trackEvent("feature/partner");
   }, []);
 
   const setEntrain = useCallback((entrain: EntrainState) => {
     dispatch({ type: "setEntrain", entrain });
     engine?.setEntrain(entrain);
+    if (entrain.enabled) trackEvent(`feature/flicker-${flickerZone(entrain.rateHz)}`);
   }, [engine]);
 
   const setClimate = useCallback((x: number, y: number) => {
@@ -380,6 +385,7 @@ export function useDroneScene({
   const handlePreset = useCallback((presetId: string) => {
     const preset = PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
+    trackEvent(`preset/${presetId}`, preset.name);
     setActivePresetId(presetId);
     setPresetTrim(preset.gain ?? 1);
     // Persist FM params into snapshot state so they round-trip through

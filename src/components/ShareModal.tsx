@@ -10,6 +10,7 @@ import {
   withSceneCardStyleParam,
 } from "../shareCard";
 import { shortenSceneUrl, trackShare } from "../shareRelay";
+import { trackEvent } from "../analytics";
 
 interface ShareModalProps {
   initialName: string;
@@ -59,6 +60,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
       try {
         const next = await onBuildShareData(name.trim() || initialName, resolvedStyle);
         if (!cancelled) {
+          trackEvent("share/created");
           setScene(next.scene);
           setBaseUrl(next.url);
         }

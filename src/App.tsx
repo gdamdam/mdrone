@@ -6,6 +6,7 @@ import { SharedSceneGate } from "./components/SharedSceneGate";
 import { applyPalette, loadPaletteId, PALETTES } from "./themes";
 import { loadAutosavedScene, type AutosavedScene, type PortableScene } from "./session";
 import { loadSceneFromCurrentUrlOnce } from "./shareCodec";
+import { trackEvent } from "./analytics";
 
 /**
  * Module-level singleton. React StrictMode double-mounts App in dev,
@@ -68,6 +69,7 @@ export function App() {
         <SharedSceneGate
           scene={sharedState.scene}
           onStart={async () => {
+            trackEvent("share/loaded");
             const engine = getEngine();
             await engine.resume();
             setStarted(true);

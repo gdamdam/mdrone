@@ -13,6 +13,7 @@ import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 import { MeditateView } from "./MeditateView";
 import { VISUALIZER_ORDER } from "./visualizers";
+import { trackEvent } from "../analytics";
 
 const ShareModal = lazy(() =>
   import("./ShareModal").then((m) => ({ default: m.ShareModal })),
@@ -34,7 +35,13 @@ interface LayoutProps {
  * (e.g. HOLD button) get a live engine immediately.
  */
 export function Layout({ engine, startupMode }: LayoutProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("drone");
+  const [viewMode, setViewModeRaw] = useState<ViewMode>("drone");
+  const setViewMode = useCallback((mode: ViewMode) => {
+    // Track non-default mode switches — gives a sense of how many
+    // sessions actually reach MEDITATE / MIXER vs never leave DRONE.
+    if (mode !== "drone") trackEvent(`view/${mode}`);
+    setViewModeRaw(mode);
+  }, []);
   const [isRec, setIsRec] = useState(false);
   const [recTimeMs, setRecTimeMs] = useState(0);
   const [recBusy, setRecBusy] = useState(false);
@@ -391,6 +398,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     try {
       if (!isRec) {
         await engine.startMasterRecording();
+        trackEvent("recording/wav");
         setIsRec(true);
       } else {
         await engine.stopMasterRecording();
@@ -545,7 +553,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             engine={engine}
             active={viewMode === "meditate"}
             visualizer={sceneManager.meditateVisualizer}
-            onChangeVisualizer={sceneManager.setMeditateVisualizer}
+            onChangeVisualizer={(v) => {
+              trackEvent(`visualizer/${v}`);
+              sceneManager.setMeditateVisualizer(v);
+            }}
             onRandomScene={sceneManager.handleRandomScene}
             onPopOutChange={setMeditatePopOutActive}
             onFullscreenClick={(x01, y01) => {

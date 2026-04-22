@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import { showNotification } from "../notifications";
+import { trackEvent } from "../analytics";
 import { PRESETS, createSafeRandomScene, createStartupScene, mutateScene, mulberry32 } from "../engine/presets";
 import { applyJourneyTick } from "../journey";
 import {
@@ -396,6 +397,7 @@ export function useSceneManager({
   }, [captureSession, persistSessions, savedSessions]);
 
   const handleSaveSession = useCallback((name: string) => {
+    trackEvent("session/saved");
     if (currentSessionId) {
       // Existing session — overwrite with current state.
       storeSession(currentSessionId, currentSessionName);
