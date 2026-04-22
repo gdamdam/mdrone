@@ -906,6 +906,10 @@ let tapeLastSave = 0;
 let tapePersistDisabled = false;
 let tapeOffset = 0;     // scroll position (px)
 let tapeLoopIndex = 0;  // which playback pass we're on
+let tapeLastT = 0;      // p.t at the previous frame — drives scroll via
+                        // active-time delta so the loop advances only
+                        // while the drone is audible and is framerate-
+                        // independent (MeditateView caps at 30 fps).
 function paintBaseTape() {
   const t = tapeCtx!;
   const grad = t.createLinearGradient(0, 0, 0, TAPE_H);
@@ -953,7 +957,11 @@ function ensureTape(): void {
           lum += sample[i] + sample[i + 1] + sample[i + 2];
         }
         const avg = lum / (sample.length / 4) / 3;
-        if (avg < 28) {
+        // Reset freshness threshold — catches tapes that are flat
+        // (no dynamic variation) even if not pitch-black. Avg ≤ 42
+        // roughly corresponds to "uniformly dark brown smear with
+        // no contrast left".
+        if (avg < 42) {
           localStorage.removeItem(TAPE_STORAGE_KEY);
           paintBaseTape();
           tapeLoopIndex = 0;
@@ -998,10 +1006,16 @@ export function drawTapeDecay(
   ctx.fillStyle = "#0a0604";
   ctx.fillRect(0, 0, w, h);
 
-  // Advance the loop — 40 px/s base, modulated a little by RMS
+  // Advance the loop in active time — 40 px/s base, modulated a
+  // little by RMS. p.t only ticks while the drone is audible, so the
+  // tape freezes during silence and resumes exactly where it left
+  // off. Delta is clamped to avoid a huge jump on first frame or
+  // after a long tab pause.
   const scrollSpeed = 40 + a.rms * 20;
-  tapeOffset += scrollSpeed * (1 / 60);
-  if (tapeOffset >= TAPE_W) {
+  const dt = Math.max(0, Math.min(0.2, p.t - tapeLastT));
+  tapeLastT = p.t;
+  tapeOffset += scrollSpeed * dt;
+  while (tapeOffset >= TAPE_W) {
     tapeOffset -= TAPE_W;
     tapeLoopIndex += 1;
     // On every loop wrap, introduce new permanent scars
