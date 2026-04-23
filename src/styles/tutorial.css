@@ -225,6 +225,100 @@
   margin-top: 10px;
 }
 
+/* ── HelpModal tab strip — sticky so it never scrolls away ────── */
+.help-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  margin: 0 0 14px;
+  padding: 6px 0;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.help-tab {
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.help-tab:hover { color: var(--text); }
+.help-tab-active {
+  color: var(--preview);
+  border-bottom-color: var(--preview);
+}
+
+/* ── HelpModal content styles — condensed reference layout ──────── */
+.help-lede {
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  border-left: 2px solid var(--preview);
+  background: color-mix(in srgb, var(--bg-cell) 40%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+
+.help-list {
+  list-style: none;
+  margin: 2px 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.help-list li {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--bg-cell) 35%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--preview) 50%, transparent);
+  border-radius: 0 3px 3px 0;
+  color: var(--text);
+}
+
+.help-list-compact li {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.help-list strong {
+  color: var(--preview);
+  font-weight: 700;
+}
+
+.help-list a,
+.help-modal-body .fx-modal-desc a {
+  color: var(--preview);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.help-modal-body kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  line-height: 1.3;
+}
+
 /* ── IntroPrompt — persistent first-load pill under HOLD ──────────
    Stays until the user opts in (click body → start tour) or opts
    out (click × → mark intro done). Nothing else dismisses it. */

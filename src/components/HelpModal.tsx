@@ -1,14 +1,18 @@
 /**
- * HelpModal — a compact reference card for the instrument.
+ * HelpModal — three-tab reference: Play · Reference · Concepts.
  *
- * Opened from the ? button inside the Settings modal header. Reuses
- * the fx-modal-* classes for visual consistency with every other
- * modal (settings, volume, effects). Content is static prose grouped
- * into short topical sections — the goal is orientation, not an
- * exhaustive manual.
+ * Play (default) is tuned for the casual visitor: tutorial replays,
+ * a 30-second getting-started card, keyboard shortcuts. Reference
+ * holds the condensed feature list grouped by surface. Concepts is
+ * one paragraph per domain concept (microtonality, cents, modes,
+ * LFO, entrainment, drone music, Ableton Link) with a single
+ * Wikipedia link each — no link spam elsewhere in the modal.
+ *
+ * Reuses the fx-modal-* classes for consistency with Settings / FX
+ * modals and the settings-tabs class for the tab strip.
  */
 
-import { APP_VERSION } from "../config";
+import { useState } from "react";
 import {
   type FlowId,
   requestCloseSettings,
@@ -22,16 +26,30 @@ import { FLOWS, FLOW_LABELS } from "../tutorial/flows";
 interface HelpModalProps {
   onClose: () => void;
   /** Optional — closes any parent chrome (Settings modal) before the
-   *  tutorial / hint overlays render, so they aren't occluded. */
+   *  tutorial overlays render, so they aren't occluded. */
   onBeforeTutorialReveal?: () => void;
 }
 
+type Tab = "play" | "reference" | "concepts";
+
+/** Wikipedia link helper — all external links from this modal go to
+ *  Wikipedia, target=_blank, noopener noreferrer, never tracked. */
+function W({ slug, children }: { slug: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={`https://en.wikipedia.org/wiki/${slug}`}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {children}
+    </a>
+  );
+}
+
 export function HelpModal({ onClose, onBeforeTutorialReveal }: HelpModalProps) {
+  const [tab, setTab] = useState<Tab>("play");
+
   const replayFlow = (id: FlowId) => {
-    // Explicit replay — clear the done flag so the renderer accepts
-    // the request. Close any Settings chrome so the spotlight hits
-    // real UI, not modal backdrop. For the advanced flow, also ask
-    // DroneView to expand its ADVANCED disclosure.
     resetFlow(id);
     onClose();
     onBeforeTutorialReveal?.();
@@ -39,351 +57,265 @@ export function HelpModal({ onClose, onBeforeTutorialReveal }: HelpModalProps) {
     if (id === "advanced") requestExpandAdvanced();
     window.setTimeout(() => requestFlow(id), 80);
   };
+
   return (
     <div className="fx-modal-backdrop" onClick={onClose}>
       <div className="fx-modal help-modal" onClick={(e) => e.stopPropagation()}>
         <div className="fx-modal-header">
-          <div className="fx-modal-title">Help · mdrone v{APP_VERSION}</div>
-          <button
-            className="fx-modal-close"
-            onClick={onClose}
-            title="Close (Esc)"
-          >
-            ×
-          </button>
+          <div className="fx-modal-title">Help</div>
+          <button className="fx-modal-close" onClick={onClose} title="Close (Esc)">×</button>
         </div>
-        <p className="fx-modal-desc">
-          A serious microtonal drone instrument in your browser. Pick a scene,
-          let it breathe, and shape it with tonic, tuning, motion, and the FX chain.
-        </p>
 
         <div className="fx-modal-params help-modal-body">
-          <div className="fx-modal-section-label">TUTORIALS</div>
-          <p className="fx-modal-desc">
-            Three short guided tours. Each is 3–4 steps and can be
-            replayed any time.
-          </p>
-          <div className="tutorial-help-row">
-            {(Object.keys(FLOWS) as FlowId[]).map((id) => (
+          <div className="help-tabs" role="tablist" aria-label="Help sections">
+            {([
+              ["play", "PLAY"],
+              ["reference", "REFERENCE"],
+              ["concepts", "CONCEPTS"],
+            ] as const).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
-                className="header-btn"
-                onClick={() => replayFlow(id)}
-                title={`Replay the ${FLOW_LABELS[id].toLowerCase()} tour (${FLOWS[id].steps.length} steps)`}
+                role="tab"
+                aria-selected={tab === id}
+                className={tab === id ? "help-tab help-tab-active" : "help-tab"}
+                onClick={() => setTab(id)}
               >
-                {FLOW_LABELS[id].toUpperCase()}
+                {label}
               </button>
             ))}
           </div>
-          <div className="tutorial-help-row" style={{ marginTop: 6 }}>
-            <button
-              type="button"
-              className="header-btn"
-              onClick={resetAllFlows}
-              title="Clear all tutorial completion flags so every flow is re-eligible to auto-trigger"
-            >
-              RESET ALL TUTORIALS
-            </button>
-          </div>
 
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">GETTING STARTED</div>
-          <p className="fx-modal-desc">
-            First fresh launch opens the <strong>Welcome</strong> preset
-            — drag WEATHER, and the room opens. After that, tap any{" "}
-            <strong>preset</strong> in the panel at the top to load a
-            scene. Hit <strong>▶ HOLD</strong> (or spacebar) to start and
-            stop the drone. Everything — tonic, mode, macros, effects —
-            can be tweaked while the drone is sounding.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">VIEWS</div>
-          <p className="fx-modal-desc">
-            <strong>DRONE</strong> — the instrument: presets, tonic,
-            mode, macros, effects, climate, history slots, scale editor.
-            <br />
-            <strong>MEDITATE</strong> — 24 full-screen visualizers in
-            four groups (GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC).
-            Dropdown picks one; double-click the canvas to cycle.
-            Toolbar: ⛶ FULLSCREEN, ↗ POP OUT, 🎲 RND. Most accrete
-            detail over minutes rather than react per frame; the README
-            has the per-visualizer breakdown.
-            <br />
-            <strong>MIXER</strong> — master bus: HPF, 3-band EQ, glue
-            compression, drive, brickwall limiter with ceiling, SAFE
-            (headphone-safe) clamp, CLIP LED, LUFS-S + peak meter, trim.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">TONIC &amp; MODE</div>
-          <p className="fx-modal-desc">
-            The tonic wheel sets the root pitch. MODE picks which scale
-            intervals stack on the root. Toggle to <strong>MICROTONAL</strong>
-            {" "}and the mode tab swaps for a tuning + relation pair
-            (e.g. Just 5-limit / Drone Triad) — 6 built-in tuning tables
-            plus 16 curated authored ones (Pythagorean, Kirnberger III,
-            31-TET, Yaman, Bayati, the house <strong>mdrone Signature</strong>
-            {" "}hybrid, and more). The DETUNE sliders below fine-tune
-            individual resolved intervals in cents; the panel auto-
-            surfaces whenever a preset or share URL arrives with active
-            offsets. Fine-tune updates retune voices smoothly in real time.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">MACROS</div>
-          <p className="fx-modal-desc">
-            <strong>DRIFT</strong> — per-voice pitch wander.{" "}
-            <strong>AIR</strong> — reverb wet amount (PLATE/HALL/SHIMMER).{" "}
-            <strong>TIME</strong> — climate LFO rate.{" "}
-            <strong>SUB</strong> — voice sub layer weight (separate from
-            the SUB effect, which is a true octave-down subharmonic).{" "}
-            <strong>BLOOM</strong> — attack time for new voices.{" "}
-            <strong>GLIDE</strong> — pitch slide when the tonic changes.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">EFFECTS CHAIN</div>
-          <p className="fx-modal-desc">
-            A 14-effect chain. The active-chain preview above the button
-            grid shows enabled effects in their actual processing order,
-            numbered 1..N. Each button is a toggle —{" "}
-            <strong>click</strong> to flip, <strong>long-press</strong>{" "}
-            to open parameters (every effect has at least an AMOUNT
-            knob). <strong>Drag</strong> a button onto another to
-            reorder the chain. Two granular slots:{" "}
-            <strong>GRAIN</strong> is the drone-smooth cloud,{" "}
-            <strong>CLOUD</strong> is the classic grain stutter with
-            pitches snapped to the drone scale.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">WEATHER · XY control</div>
-          <p className="fx-modal-desc">
-            The main tactile control — drag to change the room:
-            X axis = <strong>DARK ↔ BRIGHT</strong> (filter + presence),
-            Y axis = <strong>STILL ↔ MOVING</strong> (LFO depth + drift).
-            Three visual modes (Settings): Waveform (circular oscilloscope),
-            Flow Field (particle streams), Minimal (cursor only).
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">LFO 2 · FLICKER</div>
-          <p className="fx-modal-desc">
-            A second amplitude modulator inside <em>ADVANCED</em>,
-            reaching from <strong>0.5 Hz</strong> (slow swell) to{" "}
-            <strong>45 Hz</strong> (gamma-band buzz). The rate slider
-            has coloured zones (δ delta / θ theta / α alpha / β beta /
-            γ gamma) and landmark ticks you can tap to snap — plus a
-            dashed <em>7.83 Hz</em> Schumann marker.
-            Frequency is integer-locked to the breathing LFO (LFO 1)
-            so the two modulators stay in constant relative phase.
-            <br />
-            <strong>● ON / OFF</strong> is the power button.{" "}
-            <strong>AM</strong> modulates voice gain (works on speakers).
-            {" "}<strong>DICHOTIC</strong> splits L/R pitch per voice;
-            when it (or BOTH) is active a <strong>SPREAD</strong>{" "}
-            slider appears below the mode row and the{" "}
-            <strong>HEADPHONES</strong> badge at the top lights up.{" "}
-            <strong>BOTH</strong> does both. The subtitle describes
-            what the current setting will sound like, prefixed{" "}
-            <em>(off)</em> while the power button is off; the line
-            underneath reads{" "}
-            <code>locked ×k → N Hz (breathing N Hz)</code> — the
-            integer multiplier that keeps the two modulators in
-            constant relative phase.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">RANDOM · GOOD DRONE · MUTATE</div>
-          <p className="fx-modal-desc">
-            <strong>🎲 RND</strong> loads a random scene. The first
-            three RND clicks per session draw from a curated{" "}
-            <em>arrival</em> pool (immediate beauty); after that it
-            opens up to the full safe-random library.
-            <br />
-            <strong>GOOD DRONE</strong> (scene-actions row, next to
-            MUTATE) is a guided randomize for the tuning layer only —
-            picks a tuning + relation from a drone-friendly pool and
-            adds ±2–5 ¢ detune on every non-root interval. Preset
-            voicing is preserved. One click, instantly beautiful
-            microtonal state.
-            <br />
-            <strong>MUTATE</strong> perturbs the current scene's
-            macros, voice mix, and effect levels by the intensity
-            slider — small intensity for a nudge, large for a hard
-            shake. RND and MUTATE both reset the URL-deterministic
-            evolve seed so reloads play back the same drift. Undo is
-            global.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">UNDO / REDO + A/B</div>
-          <p className="fx-modal-desc">
-            The SHAPE panel carries a 50-entry history of scene state,
-            debounced at 400 ms so a slider drag doesn't push 60 frames
-            per second. <strong>↺</strong> /{" "}
-            <strong>↻</strong> (or <strong>Cmd/Ctrl+Z</strong> /{" "}
-            <strong>Cmd/Ctrl+Shift+Z</strong>) move through it.
-            Two comparison slots — <strong>SAVE A</strong> /{" "}
-            <strong>A</strong> and <strong>SAVE B</strong> /{" "}
-            <strong>B</strong> — snap the current scene into a named
-            slot and recall it later so you can tweak freely, swap to
-            compare, and return without loss.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">SCALE EDITOR</div>
-          <p className="fx-modal-desc">
-            The <strong>✎</strong> button next to the tuning dropdown
-            (visible in MICROTONAL mode) opens the Scale Editor. You
-            author a 13-degree tuning table in cents (P1 through P8),
-            save it by name, and apply it as active. Shared URLs bundle
-            the full cents array under the scene's explicit tuning id,
-            so recipients reproduce the authored pitch grid exactly —
-            even on older app versions that don't yet ship the authored
-            tuning locally.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">TANPURA TUNINGS</div>
-          <p className="fx-modal-desc">
-            When the TANPURA voice is active, the SHAPE panel exposes a
-            <em> tuning</em> dropdown for the four plucked strings:
-            <strong> Unison</strong> (all strings on the tonic),
-            <strong> Sa Pa</strong> (tonic + fifth — the classical Hindustani default),
-            <strong> Sa Ma</strong> (tonic + fourth), or
-            <strong> Sa Ni</strong> (tonic + major seventh, for ragas that
-            want a rising sense of motion). Changing the tuning rebuilds
-            the tanpura voices smoothly over a short crossfade.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">MIXER &amp; LOUDNESS</div>
-          <p className="fx-modal-desc">
-            The master bus has a <strong>worklet brickwall limiter</strong>{" "}
-            with ceiling and release — it holds the ceiling without
-            pumping. <strong>SAFE</strong> clamps the output trim to
-            −6 dBFS for headphone listening. The <strong>CLIP LED</strong>{" "}
-            taps the <em>pre-limiter</em> signal, so it lights on input
-            overshoot (you're driving too hot), not on the brickwall
-            doing its job. <strong>LUFS-S</strong> is EBU R128
-            K-weighted short-term loudness (3 s window); <strong>PEAK</strong>{" "}
-            is sample peak. Both refresh at ~30 Hz.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">JOURNEY · phased arc</div>
-          <p className="fx-modal-desc">
-            <strong>JOURNEY</strong> picks an authored multi-phase arc:{" "}
-            <em>arrival → bloom → suspension → dissolve</em>. Pick one
-            from the dropdown above the preset grid (morning, evening,
-            dusk, void). Each phase gently steers a small set of macros
-            toward authored targets over a few minutes; past the
-            dissolve the scene rests on the final settings. Journey is
-            deterministic from the share URL — two visitors hear the
-            same sequence from phase 0.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">PARTNER · sympathetic drone</div>
-          <p className="fx-modal-desc">
-            <strong>PARTNER</strong> adds an optional second voice layer
-            at a fixed musical relation to the main drone:{" "}
-            <em>fifth</em> (+702 ¢), <em>octave-up</em> (+1200 ¢),{" "}
-            <em>octave-down</em> (-1200 ¢), or <em>beat-detune</em>{" "}
-            (+7 ¢ for slow audible beating). The partner doubles the
-            voice count while it's on — keep an eye on CPU on lower-end
-            devices.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">RECORD &amp; SHARE</div>
-          <p className="fx-modal-desc">
-            <strong>● REC</strong> (header) captures the full master
-            output to a <strong>24-bit stereo WAV</strong> via a
-            dedicated AudioWorklet tap — samples are bit-identical to
-            what the engine produced, no intermediate codec. <strong>REC MOTION</strong> is{" "}
-            <em>opt-in</em> — enable it in Settings → Advanced to
-            reveal the button in the preset panel. When on, it records
-            meaningful gestures — tonic / octave / macro / climate /
-            lfo changes — into the next share URL, capped at 60 s and
-            200 events. Loading a share URL with a recording replays
-            those gestures deterministically against the starting
-            scene. <strong>⤴ SHARE</strong> builds a link that encodes
-            the current scene plus any motion recording — open it
-            anywhere to reconstruct the exact sound. Sessions can be
-            saved, renamed, and loaded from the Settings modal (⚙).
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">KEYBOARD &amp; MIDI</div>
-          <p className="fx-modal-desc">
-            <strong>QWERTY tonic:</strong> A=C, W=C#, S=D, E=D#, D=E,
-            F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B. Z/X = octave down/up.
-            Spacebar = HOLD toggle. <strong>Cmd/Ctrl+Z</strong> undoes,
-            <strong> Cmd/Ctrl+Shift+Z</strong> redoes.
-            <br /><br />
-            <strong>&lt; / &gt;</strong> = previous / next preset in the
-            current group.
-            <br /><br />
-            <strong>MIDI:</strong> Enable in Settings. Note-on → tonic +
-            octave. CC mapping covers ~46 targets grouped by{" "}
-            <em>Macros / Weather / Mixer / Voices / Effects / Triggers
-            / Presets</em>. Click a target, move a knob to learn.
-            Triggers (PANIC, RND, MUTATE, PRESET ◀ / ▶, GROUP ◀ / ▶)
-            fire once when the CC crosses ≥ 64; HOLD follows sustain-
-            pedal state. Defaults: CC1 → WEATHER Y, CC2 → WEATHER X,
-            CC64 → HOLD, CC71-76 → macros — every other target is
-            unassigned until you bind it.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">PALETTE</div>
-          <p className="fx-modal-desc">
-            Four palettes under <em>Settings → PALETTE</em>: three
-            warm dark themes (<strong>Ember</strong>,{" "}
-            <strong>Copper</strong>, <strong>Dusk</strong>) and one
-            light (<strong>Parchment</strong>) for bright rooms and
-            stages where dark themes wash out.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">TEMPO SYNC · Ableton Link</div>
-          <p className="fx-modal-desc">
-            The breathing LFO RATE can lock to Ableton Link tempo. A
-            chip next to RATE cycles <em>FREE / 1/1 / 1/2 / 1/4 / 1/8
-            / 1/16</em>; any non-FREE mode runs one LFO cycle per note
-            at the Link session tempo. Enable Link in{" "}
-            <em>Settings → ABLETON LINK</em> and run the bridge
-            companion (reused from mpump, one download covers both):{" "}
-            <a
-              href="https://github.com/gdamdam/mpump/releases"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              github.com/gdamdam/mpump/releases
-            </a>.
-          </p>
-
-          <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">ABOUT</div>
-          <p className="fx-modal-desc">
-            mdrone is free and open source under AGPL-3.0. Source and
-            issues:{" "}
-            <a
-              href="https://github.com/gdamdam/mdrone"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              github.com/gdamdam/mdrone
-            </a>
-            . Session state lives only in your browser's localStorage —
-            nothing is uploaded anywhere.
-          </p>
+          {tab === "play" && <PlayTab onReplay={replayFlow} />}
+          {tab === "reference" && <ReferenceTab />}
+          {tab === "concepts" && <ConceptsTab />}
         </div>
       </div>
     </div>
+  );
+}
+
+/* ─────────── Play tab ─────────── */
+
+function PlayTab({ onReplay }: { onReplay: (id: FlowId) => void }) {
+  return (
+    <>
+      <p className="fx-modal-desc help-lede">
+        A browser drone instrument — no install, no account. Tap <strong>HOLD</strong>,
+        drag <strong>WEATHER</strong>, pick a preset. Everything else is optional.
+      </p>
+
+      <div className="fx-modal-section-label">GUIDED TOURS</div>
+      <p className="fx-modal-desc">
+        Each tour is 2–6 short steps — tap to start, × to dismiss.
+      </p>
+      <div className="tutorial-help-row">
+        {(Object.keys(FLOWS) as FlowId[]).map((id) => (
+          <button
+            key={id}
+            type="button"
+            className="header-btn"
+            onClick={() => onReplay(id)}
+            title={`Replay the ${FLOW_LABELS[id].toLowerCase()} tour (${FLOWS[id].steps.length} steps)`}
+          >
+            {FLOW_LABELS[id].toUpperCase()}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="header-btn"
+          onClick={resetAllFlows}
+          title="Clear every tutorial's completion flag so offer pills re-appear"
+        >
+          RESET ALL
+        </button>
+      </div>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">30-SECOND START</div>
+      <ul className="help-list">
+        <li><strong>HOLD</strong> (or <kbd>Space</kbd>) starts the drone.</li>
+        <li><strong>WEATHER</strong> pad — drag to change brightness (X) and motion (Y).</li>
+        <li><strong>Presets</strong> — tap the scene name at the top to browse, or <strong>RND</strong> for a safe random scene.</li>
+        <li><strong>MEDITATE</strong> / <strong>MIXER</strong> — optional fullscreen visualizer / master bus.</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">KEYBOARD</div>
+      <ul className="help-list help-list-compact">
+        <li><kbd>Space</kbd> — HOLD toggle</li>
+        <li><kbd>&lt;</kbd> / <kbd>&gt;</kbd> — previous / next preset in group</li>
+        <li><kbd>⌘/Ctrl</kbd>+<kbd>Z</kbd> — undo · <kbd>⌘/Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> — redo</li>
+        <li>QWERTY tonic: A=C, W=C♯, S=D, E=D♯… (toggle the ⌨ button). <kbd>Z</kbd>/<kbd>X</kbd> shift octave.</li>
+      </ul>
+    </>
+  );
+}
+
+/* ─────────── Reference tab ─────────── */
+
+function ReferenceTab() {
+  return (
+    <>
+      <div className="fx-modal-section-label">SURFACES</div>
+      <ul className="help-list">
+        <li><strong>DRONE</strong> — the instrument. Presets, tonic/mode, SHAPE macros, FX chain, ADVANCED (tuning + LFO).</li>
+        <li><strong>MEDITATE</strong> — 24 fullscreen visualizers in 4 groups. ⛶ fullscreen · ↗ pop out · 🎲 random. Double-click to cycle.</li>
+        <li><strong>MIXER</strong> — master bus: HPF, 3-band EQ, glue compressor, drive, brickwall limiter + ceiling. <strong>SAFE</strong> clamps to −6 dBFS for headphones.</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">SOUND</div>
+      <ul className="help-list">
+        <li><strong>Tonic</strong> — the root pitch everything colours.</li>
+        <li><strong>MODE</strong> — SCALE stacks a diatonic mode; MICROTONAL swaps the whole tuning system (Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, Signature, …).</li>
+        <li><strong>SHAPE macros</strong> — MOTION (MORPH · EVOLVE · TIME), BODY (DRIFT · AIR · SUB · BLOOM · GLIDE). The ? in the SHAPE header toggles inline hints.</li>
+        <li><strong>Voices</strong> — TANPURA · REED · METAL · AIR · PIANO · FM · AMP · NOISE. Level sliders plus per-voice colour where it matters (e.g. NOISE COLOR).</li>
+        <li><strong>Tanpura tuning</strong> — when TANPURA is active: Unison · Sa Pa · Sa Ma · Sa Ni. Rebuilds smoothly over a short crossfade.</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">MOTION</div>
+      <ul className="help-list">
+        <li><strong>LFO</strong> (ADVANCED) — breathing volume swell. Pick a waveform, set RATE, DEPTH. SYNC chip locks to Ableton Link tempo; ÷N chip locks rate to tonic Hz.</li>
+        <li><strong>LFO 2 · FLICKER</strong> — second modulator from 0.5 Hz (swell) to 45 Hz (gamma buzz). AM / DICHOTIC / BOTH modes. Integer-locked to LFO 1 for constant relative phase.</li>
+        <li><strong>WEATHER</strong> pad — X = DARK ↔ BRIGHT, Y = STILL ↔ MOVING. Three visual styles (Waveform · Flow Field · Minimal) in Settings → APPEARANCE.</li>
+        <li><strong>JOURNEY</strong> — authored multi-phase arc (arrival → bloom → suspension → dissolve). Deterministic from share URL.</li>
+        <li><strong>PARTNER</strong> — sympathetic second voice layer at fixed interval (fifth / octave-up / octave-down / beat-detune). Doubles voice count.</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">EFFECTS</div>
+      <ul className="help-list">
+        <li>14-effect chain. <strong>Click</strong> to toggle, <strong>long-press</strong> for parameters, <strong>drag</strong> to reorder.</li>
+        <li>Active-chain preview above the grid shows enabled effects in processing order.</li>
+        <li>Two granulars: <strong>GRAIN</strong> (drone-smooth cloud) vs <strong>CLOUD</strong> (stutter, pitches snapped to the scale).</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">DISCOVERY</div>
+      <ul className="help-list">
+        <li><strong>🎲 RND</strong> — safe random. First three per session are from a curated <em>arrival</em> pool; afterwards the full library.</li>
+        <li><strong>GOOD DRONE</strong> — guided randomize of the tuning layer only. Preserves preset voicing. Instantly beautiful microtonal state.</li>
+        <li><strong>MUTATE</strong> — nudges current macros / voice mix / FX levels by the intensity slider. Small = nudge, large = shake.</li>
+        <li><strong>Undo / Redo + A/B</strong> — 50-entry history (debounced 400 ms). Two comparison slots (SAVE A / A, SAVE B / B) snap & recall.</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">SAVE &amp; SHARE</div>
+      <ul className="help-list">
+        <li><strong>⤴ SHARE</strong> — encodes the full scene + optional motion recording into a link.</li>
+        <li><strong>● REC</strong> — 24-bit stereo WAV of master output via AudioWorklet tap. Bit-identical to the engine.</li>
+        <li><strong>REC MOTION</strong> (opt-in in Settings → Advanced) — captures gestures (60 s / 200 events) into the next share URL. Recipients hear the sweep you made.</li>
+        <li><strong>Sessions</strong> — Settings → SESSION: name, save, load, rename. Local-only, never uploaded.</li>
+        <li><strong>Scale editor</strong> — ✎ next to the tuning dropdown opens a 13-degree cents table editor. Authored tunings travel in the share URL.</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">CONTROL</div>
+      <ul className="help-list">
+        <li><strong>MIDI</strong> — enable in Settings. Note-on → tonic/octave. ~46 CC targets (Macros / Weather / Mixer / Voices / Effects / Triggers / Presets) with learn-on-click. Defaults: CC1 WEATHER Y, CC2 WEATHER X, CC64 HOLD, CC71-76 macros.</li>
+        <li><strong>Ableton Link</strong> — sync the LFO RATE to Link tempo. Needs the{" "}
+          <a href="https://github.com/gdamdam/mpump/releases" target="_blank" rel="noopener noreferrer">
+            mpump bridge
+          </a>{" "}(tiny local helper).
+        </li>
+        <li><strong>Palette</strong> — Settings → APPEARANCE. Three warm dark themes (Ember · Copper · Dusk) + one light (Parchment) for bright rooms.</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">ABOUT</div>
+      <p className="fx-modal-desc">
+        Free and open source under AGPL-3.0.{" "}
+        <a href="https://github.com/gdamdam/mdrone" target="_blank" rel="noopener noreferrer">
+          github.com/gdamdam/mdrone
+        </a>
+        . All state lives in your browser's localStorage — nothing is uploaded.
+      </p>
+    </>
+  );
+}
+
+/* ─────────── Concepts tab ─────────── */
+
+function ConceptsTab() {
+  return (
+    <>
+      <p className="fx-modal-desc help-lede">
+        Short explanations of the ideas mdrone is built on. One link
+        per topic, all to Wikipedia. Optional reading.
+      </p>
+
+      <div className="fx-modal-section-label">MICROTONALITY</div>
+      <p className="fx-modal-desc">
+        Most Western music uses 12 equal-tempered pitches per octave. Microtonal
+        music uses intervals that fall <em>between</em> those pitches — the
+        subtle differences you can hear when you switch from SCALE to MICROTONAL
+        mode and try Pythagorean, Kirnberger III, or 31-TET.{" "}
+        <W slug="Microtonal_music">Wikipedia · Microtonal music</W>
+      </p>
+
+      <div className="fx-modal-section-label">CENTS</div>
+      <p className="fx-modal-desc">
+        The unit used throughout the tuning UI and the share URL. 1200 cents =
+        one octave; 100 cents = one equal-tempered semitone. The DETUNE sliders
+        let you nudge individual intervals by ±25 ¢ — barely audible on a single
+        note, clearly audible against the tonic.{" "}
+        <W slug="Cent_(music)">Wikipedia · Cent (music)</W>
+      </p>
+
+      <div className="fx-modal-section-label">JUST INTONATION &amp; PYTHAGOREAN</div>
+      <p className="fx-modal-desc">
+        Tuning systems that derive every interval from small whole-number
+        frequency ratios (3:2 for the fifth, 5:4 for the major third, etc.)
+        rather than from 12-tone equal temperament. They sound startlingly
+        consonant on a sustained drone.{" "}
+        <W slug="Just_intonation">Wikipedia · Just intonation</W>
+      </p>
+
+      <div className="fx-modal-section-label">MUSICAL MODES</div>
+      <p className="fx-modal-desc">
+        Different ways to stack the seven notes of a diatonic scale on a chosen
+        root — Major / Ionian, Minor / Aeolian, Dorian, Phrygian, Lydian,
+        Mixolydian, Locrian. mdrone's SCALE mode lets you pick one; each has a
+        distinct emotional colour.{" "}
+        <W slug="Mode_(music)">Wikipedia · Mode (music)</W>
+      </p>
+
+      <div className="fx-modal-section-label">LFO — LOW-FREQUENCY OSCILLATION</div>
+      <p className="fx-modal-desc">
+        A slow oscillator (below the range of hearing) used to modulate another
+        parameter — in mdrone, primarily the master volume so the drone breathes.
+        Shape and rate set the character; depth sets how strongly.{" "}
+        <W slug="Low-frequency_oscillation">Wikipedia · Low-frequency oscillation</W>
+      </p>
+
+      <div className="fx-modal-section-label">BRAINWAVE ENTRAINMENT</div>
+      <p className="fx-modal-desc">
+        The idea that rhythmic audio (or light) nudges neural oscillations
+        toward matching frequencies — delta / theta / alpha / beta / gamma
+        bands. The LFO 2 FLICKER rate slider exposes these bands with coloured
+        zones. Scientific evidence is mixed; Wikipedia has a useful summary.{" "}
+        <W slug="Brainwave_entrainment">Wikipedia · Brainwave entrainment</W>
+      </p>
+
+      <div className="fx-modal-section-label">DRONE MUSIC</div>
+      <p className="fx-modal-desc">
+        The genre: sustained tones and harmonic fields — La Monte Young, Pauline
+        Oliveros, Éliane Radigue, Catherine Christer Hennix, Stars of the Lid, and
+        many non-Western traditions (Indian tanpura, Tibetan ritual, Scottish
+        pipes). mdrone is an instrument for this lineage, not just an effect.{" "}
+        <W slug="Drone_music">Wikipedia · Drone music</W>
+      </p>
+
+      <div className="fx-modal-section-label">ABLETON LINK</div>
+      <p className="fx-modal-desc">
+        A networked clock that keeps DAWs and apps on the same local network in
+        tempo sync. mdrone uses it (via the mpump bridge) to lock the LFO rate
+        to a Live / Logic / Bitwig session so the drone breathes in time with
+        whatever else is playing.{" "}
+        <W slug="Ableton_Link">Wikipedia · Ableton Link</W>
+      </p>
+    </>
   );
 }
