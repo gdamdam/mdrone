@@ -989,8 +989,12 @@ export const PRESETS: Preset[] = [
     attribution: "Feedback hum · no clear source",
     hint: "Air and metal drifting through comb, tape and hall. Pure spectral texture, no pitched source.",
     tuningId: "equal", relationId: "unison",
-    voiceLayers: ["air", "metal"],
-    voiceLevels: { air: 1, metal: 0.24 },
+    voiceLayers: ["air", "metal", "noise"],
+    voiceLevels: { air: 1, metal: 0.24, noise: 0.18 },
+    // Brown-leaning noise bed — adds the sub-audible hiss of a
+    // room mic picking up the feedback chain; stays under comb's
+    // safe threshold (see drift/sub caps below).
+    noiseColor: 0.6,
     // drift 0.26 — sits just under the 0.28 "safe comb" threshold. At
     // 0.34 the metal partial walks were still close enough to drive the
     // comb's 0.85 feedback into clipping peaks. Historically the author
@@ -1076,8 +1080,12 @@ export const PRESETS: Preset[] = [
     attribution: "Ambient-noise pressure · abrasive weather",
     hint: "Dense air with inharmonic metal crackle. Spectral weather, tape wear, comb glare.",
     tuningId: "equal", relationId: "unison",
-    voiceLayers: ["air", "metal"],
-    voiceLevels: { air: 1, metal: 0.55 },
+    voiceLayers: ["air", "metal", "noise"],
+    voiceLevels: { air: 1, metal: 0.55, noise: 0.26 },
+    // Pink-ish noise with a brown tilt — pressure and body, not
+    // hiss. Kept moderate so the ringmod + comb chain doesn't
+    // glare (sub/drift are already capped for the same reason).
+    noiseColor: 0.45,
     drift: 0.38,      // lower — less Q-walk wobble
     air: 0.58,
     time: 0.14,       // slower motion
@@ -1252,8 +1260,12 @@ export const PRESETS: Preset[] = [
     attribution: "Tape-warped reed + metal · deep chamber · unheimlich drift",
     hint: "Tape-warped reed, metal and air with heavy wow and granular cloud. Tonal but unheimlich.",
     tuningId: "just5", relationId: "tonic-fifth",
-    voiceLayers: ["reed", "metal", "air"],
-    voiceLevels: { reed: 1, metal: 0.32, air: 0.3 },
+    voiceLayers: ["reed", "metal", "air", "noise"],
+    voiceLevels: { reed: 1, metal: 0.32, air: 0.3, noise: 0.2 },
+    // Deep-brown floor — reads as cistern air under the reed,
+    // reinforcing the closed-chamber dread without competing
+    // with the granular cloud up top.
+    noiseColor: 0.78,
     reedShape: "odd",
     octaveRange: [2, 3],
     drift: 0.38,       // tape warp + metal partial wander
