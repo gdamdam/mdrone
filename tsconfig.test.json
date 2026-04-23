@@ -22,6 +22,7 @@
     "src/shareCodec.ts",
     "src/engine/presets.ts",
     "src/scene/droneSceneModel.ts",
-    "src/scene/sceneSnapshots.ts"
+    "src/scene/sceneSnapshots.ts",
+    "src/goodDrone.ts"
   ]
 }

@@ -48,6 +48,7 @@ import {
 } from "../engine/VoiceBuilder";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
 import { relationLabels, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
+import { sampleGoodDrone } from "../goodDrone";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
 import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from "../engine/linkBridge";
 
@@ -1545,6 +1546,21 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             {modeIsMicro && (
               <>
                 <div className="panel-hint">Tuning system + interval relation</div>
+                <button
+                  type="button"
+                  className="intonation-edit-btn intonation-good-drone-btn"
+                  style={{ display: "block", width: "100%", marginTop: 6, marginBottom: 2 }}
+                  onClick={() => {
+                    const g = sampleGoodDrone();
+                    setTuning(g.tuningId);
+                    setRelation(g.relationId);
+                    setFineTuneOffsets(g.fineTuneOffsets);
+                  }}
+                  title="Good drone — sample a beautiful tuning + subtle detune"
+                  aria-label="Generate a good drone tuning"
+                >
+                  ⚄ Good drone
+                </button>
                 <div className="intonation-row">
                   <DropdownSelect
                     value={state.tuningId ?? ""}
