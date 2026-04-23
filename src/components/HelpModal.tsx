@@ -36,31 +36,27 @@ export function HelpModal({ onClose }: HelpModalProps) {
         <div className="fx-modal-params help-modal-body">
           <div className="fx-modal-section-label">GETTING STARTED</div>
           <p className="fx-modal-desc">
-            Tap any <strong>preset</strong> in the panel at the top to load
-            a scene. Hit <strong>▶ HOLD</strong> (or the spacebar-equivalent
-            in the header) to start and stop the drone. Everything else —
-            tonic, mode, macros, effects — can be tweaked while the drone
-            is sounding.
+            First fresh launch opens the <strong>Welcome</strong> preset
+            — drag WEATHER, and the room opens. After that, tap any{" "}
+            <strong>preset</strong> in the panel at the top to load a
+            scene. Hit <strong>▶ HOLD</strong> (or spacebar) to start and
+            stop the drone. Everything — tonic, mode, macros, effects —
+            can be tweaked while the drone is sounding.
           </p>
 
           <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">VIEWS</div>
           <p className="fx-modal-desc">
-            <strong>DRONE</strong> — the instrument: presets, tonic, mode,
-            macros, effects, climate, history slots, scale editor.<br />
-            <strong>MEDITATE</strong> — 24 full-screen visualizers
-            in four groups (GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC).
+            <strong>DRONE</strong> — the instrument: presets, tonic,
+            mode, macros, effects, climate, history slots, scale editor.
+            <br />
+            <strong>MEDITATE</strong> — 24 full-screen visualizers in
+            four groups (GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC).
             Dropdown picks one; double-click the canvas to cycle.
-            Most accrete detail over minutes rather than react per
-            frame — PITCH MANDALA, BREATHING MANDALA and HALO &amp;
-            RAYS gain ornament tiers at <em>growth &gt; 0.3 / 0.5 /
-            0.7 / 0.85</em>; SEDIMENT STRATA deposits rock layers at
-            the bottom and the pile grows upward; SALT DRIFT piles
-            dunes at the floor; TAPE DECAY scars its loop every pass
-            (freezes during silence). JULIA FRACTAL and HALO &amp;
-            RAYS react to the <em>kind</em> of drone — spectrum split
-            into low / mid / high bands, centroid-tilted palette.
-            Toolbar: ⛶ FULLSCREEN, ↗ POP OUT, 🎲 RND.<br />
+            Toolbar: ⛶ FULLSCREEN, ↗ POP OUT, 🎲 RND. Most accrete
+            detail over minutes rather than react per frame; the README
+            has the per-visualizer breakdown.
+            <br />
             <strong>MIXER</strong> — master bus: HPF, 3-band EQ, glue
             compression, drive, brickwall limiter with ceiling, SAFE
             (headphone-safe) clamp, CLIP LED, LUFS-S + peak meter, trim.
@@ -70,11 +66,15 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <div className="fx-modal-section-label">TONIC &amp; MODE</div>
           <p className="fx-modal-desc">
             The tonic wheel sets the root pitch. MODE picks which scale
-            intervals stack on the root. For microtonal work, the tuning
-            and relation selects (e.g. Just 5-limit / Just Triad) replace
-            the scale with a set of tuned intervals; the DETUNE sliders
-            below fine-tune individual intervals in cents. Fine-tune
-            updates retune voices smoothly in real time.
+            intervals stack on the root. Toggle to <strong>MICROTONAL</strong>
+            {" "}and the mode tab swaps for a tuning + relation pair
+            (e.g. Just 5-limit / Drone Triad) — 6 built-in tuning tables
+            plus 16 curated authored ones (Pythagorean, Kirnberger III,
+            31-TET, Yaman, Bayati, the house <strong>mdrone Signature</strong>
+            {" "}hybrid, and more). The DETUNE sliders below fine-tune
+            individual resolved intervals in cents; the panel auto-
+            surfaces whenever a preset or share URL arrives with active
+            offsets. Fine-tune updates retune voices smoothly in real time.
           </p>
 
           <div className="fx-modal-divider" />
@@ -142,16 +142,26 @@ export function HelpModal({ onClose }: HelpModalProps) {
           </p>
 
           <div className="fx-modal-divider" />
-          <div className="fx-modal-section-label">RANDOM &amp; MUTATE</div>
+          <div className="fx-modal-section-label">RANDOM · GOOD DRONE · MUTATE</div>
           <p className="fx-modal-desc">
-            <strong>🎲 RND</strong> loads a gentle variation of a random
-            scene. <strong>MUTATE</strong> (in the GESTURES panel)
-            perturbs the current scene's macros, voice mix and effect
-            levels by the intensity slider next to it — small intensity
-            for a nudge, large for a hard shake. Both reset the
-            URL-deterministic evolve seed so reloads play back the same
-            drift. Undo is global and recovers whatever state came
-            before (see UNDO / REDO + A/B below).
+            <strong>🎲 RND</strong> loads a random scene. The first
+            three RND clicks per session draw from a curated{" "}
+            <em>arrival</em> pool (immediate beauty); after that it
+            opens up to the full safe-random library.
+            <br />
+            <strong>GOOD DRONE</strong> (scene-actions row, next to
+            MUTATE) is a guided randomize for the tuning layer only —
+            picks a tuning + relation from a drone-friendly pool and
+            adds ±2–5 ¢ detune on every non-root interval. Preset
+            voicing is preserved. One click, instantly beautiful
+            microtonal state.
+            <br />
+            <strong>MUTATE</strong> perturbs the current scene's
+            macros, voice mix, and effect levels by the intensity
+            slider — small intensity for a nudge, large for a hard
+            shake. RND and MUTATE both reset the URL-deterministic
+            evolve seed so reloads play back the same drift. Undo is
+            global.
           </p>
 
           <div className="fx-modal-divider" />
@@ -173,14 +183,13 @@ export function HelpModal({ onClose }: HelpModalProps) {
           <div className="fx-modal-section-label">SCALE EDITOR</div>
           <p className="fx-modal-desc">
             The <strong>✎</strong> button next to the tuning dropdown
-            (visible when microtuning mode is active — a tuning and a
-            relation are both selected) opens the Scale Editor. Six
-            builtin tunings (equal, just 5-limit, meantone, harmonics,
-            maqam rast, slendro) and six relations ship by default; the
-            editor lets you author a 13-degree tuning table in cents
-            (P1 through P8), save it by name, and apply it as active.
-            Custom tunings travel with share URLs — recipients hear
-            your authored pitch grid, not a silent fallback to equal.
+            (visible in MICROTONAL mode) opens the Scale Editor. You
+            author a 13-degree tuning table in cents (P1 through P8),
+            save it by name, and apply it as active. Shared URLs bundle
+            the full cents array under the scene's explicit tuning id,
+            so recipients reproduce the authored pitch grid exactly —
+            even on older app versions that don't yet ship the authored
+            tuning locally.
           </p>
 
           <div className="fx-modal-divider" />
@@ -266,7 +275,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
             current group.
             <br /><br />
             <strong>MIDI:</strong> Enable in Settings. Note-on → tonic +
-            octave. CC mapping covers ~50 targets grouped by{" "}
+            octave. CC mapping covers ~46 targets grouped by{" "}
             <em>Macros / Weather / Mixer / Voices / Effects / Triggers
             / Presets</em>. Click a target, move a knob to learn.
             Triggers (PANIC, RND, MUTATE, PRESET ◀ / ▶, GROUP ◀ / ▶)

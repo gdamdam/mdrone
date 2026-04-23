@@ -20,14 +20,12 @@
 
 ## What it does
 
-- **Holds a drone in the browser** — tonic, mode, timbre layers, climate, and master bus are ready immediately.
-- **Shapes sound slowly** — macros, a breathing LFO, and a large XY climate pad for brightness and motion.
-- **Builds real texture** — seven authored voice models and a 14-effect chain with worklet-based plate, shimmer, freeze, FDN hall/cistern, and two granular engines.
+- **Holds a drone in the browser** — tonic, mode, timbre layers, climate, and master bus are ready immediately. First fresh launch lands on a dedicated **Welcome** preset; the next two handfuls of RND clicks draw from a curated arrival pool before opening the full library.
+- **Shapes sound slowly** — macros, a breathing LFO, and a large XY WEATHER pad for brightness and motion.
+- **Builds real texture** — eight authored voice models (TANPURA / REED / METAL / AIR / PIANO / FM / AMP / NOISE with colour control) and a 14-effect chain with worklet-based plate, shimmer, freeze, FDN hall/cistern, and two granular engines.
 - **Evolves on its own** — preset morphing, URL-deterministic self-evolution, MUTATE, authored JOURNEYs, sympathetic PARTNER, and recorded gesture replay.
-- **Tunes microtonally** — six builtin tunings, a Scale Editor for custom tables, per-interval ±25 ¢ fine detune that retunes voices live.
-- **Saves + shares** — named local sessions, share-URL encoding of the full scene + optional recorded gestures + custom tuning, WAV master recording.
-
-No install. No account. No personal tracking. Session data stays in your browser.
+- **Tunes microtonally** — 6 built-in tuning tables plus 16 curated authored tunings (Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, the house **mdrone Signature** hybrid, …), 6 relation presets, a Scale Editor for your own 13-degree tables, per-interval ±25 ¢ fine detune that retunes voices live, and a **GOOD DRONE** one-click guided-randomize for beautiful tuning states.
+- **Saves + shares** — named local sessions, share-URL encoding of the full scene + optional recorded gestures + custom tuning cents, WAV master recording.
 
 ---
 
@@ -78,7 +76,7 @@ All sound is synthesised in real time with the Web Audio API. No sample library 
 
 ## Voices
 
-Seven authored voice models with per-voice physicality (jawari nonlinearity, soundboard coupling, bellows AM, modal bowls, cabinet shaping).
+Eight authored voice models with per-voice physicality (jawari nonlinearity, soundboard coupling, bellows AM, modal bowls, cabinet shaping, noise colour).
 
 | Voice | Character |
 |---|---|
@@ -89,6 +87,7 @@ Seven authored voice models with per-voice physicality (jawari nonlinearity, sou
 | **PIANO** | Long-decay felted sustain layer for soft tonal beds. |
 | **FM** | Dual-operator FM voice for metallic drones and bell-like overtones. Slow index LFO (±55% over 30–50 s) keeps DX7-style bells alive. |
 | **AMP** | Sustained amp / cabinet drone source with harmonic body. `tanh` drive runs at 2× oversample. |
+| **NOISE** | Coloured noise bed — `noiseColor` ranges 0 (white) → 1 (deep brown). Used as tape hiss, cistern air, feedback weather, or a rumbling chamber floor under the tonal voices. |
 
 ---
 
@@ -119,10 +118,16 @@ AIR controls the reverb-family wet return. Both HALL and CISTERN can be routed s
 
 ## Microtuning
 
-- **6 builtin tuning tables**: equal (12-TET), just 5-limit, ¼-comma meantone, harmonic series, maqam rast, slendro.
+- **6 built-in tuning tables**: equal (12-TET), just 5-limit, ¼-comma meantone, harmonic series, maqam rast, slendro.
+- **16 curated authored tunings** shipped alongside the built-ins:
+  - *Historical / Western*: Pythagorean (3-limit), Kirnberger III, Werckmeister III, Young 7-limit WTP lattice, Just 7-limit, Partch 11-limit subset.
+  - *Xenharmonic EDOs*: 15-TET (Catler), 17-TET, 19-TET, 22-EDO (Erlich), 31-TET (Huygens).
+  - *World*: Yaman (Hindustani), Pelog (Javanese), Bayati (Arabic maqam).
+  - *Concept / house*: Otonal 16:32 zero-beat reference, Spectral Primes, Skewed Pythagorean, Cluster 22-Sruti, Hollow (open-fifth), and the house **mdrone Signature** — a just × 31-TET hybrid tuned so every built-in relation resolves to pure just intervals, with 31-TET meantone pitches in the interstitial slots.
 - **6 relation presets**: unison, tonic-fifth, tonic-fourth, minor triad, drone triad, harmonic stack.
-- **Per-interval ±25 ¢ fine detune** that retunes voices live.
-- **Scale Editor** (✎ next to the tuning picker in the SHAPE panel) — author a 13-degree tuning table in cents, save to `localStorage`, apply as active. Custom tunings travel with share URLs so recipients hear the authored pitch grid, not a silent fallback to equal.
+- **Per-interval ±25 ¢ fine detune** that retunes voices live. The DETUNE panel auto-surfaces whenever a scene arrives with non-zero offsets.
+- **GOOD DRONE** (in the scene-actions row next to MUTATE) — one-click guided randomize: pulls a tuning + relation from a drone-friendly pool and applies ±2–5 ¢ detune on every non-root interval so the result is immediately beautiful and alive.
+- **Scale Editor** (✎ next to the tuning picker, visible in MICROTONAL mode) — author a 13-degree table in cents, save to `localStorage`, apply as active. Shared URLs bundle the full cents array under the scene's explicit tuning id so recipients reproduce authored microtonality exactly — even for authored tunings not yet present in older app versions.
 - **11 mode scales** (when not in microtonal mode): drone, major, minor, dorian, phrygian, just 5-limit, pentatonic, meantone, harmonics, maqam-rast, slendro.
 
 ---
@@ -201,7 +206,7 @@ Dropdown in the toolbar picks the active visualizer; **double-click the canvas**
 
 A saved session includes the active preset, tonic / octave / mode, microtuning + relation + fine detune offsets, voice layers + levels, macros, climate, LFO, LFO 2 / FLICKER state (power + rate + mode + dichotic spread), effect toggles + per-effect levels, effect chain order, mixer, evolve seed, journey, partner, and the optional motion recording.
 
-**Share URLs** build a compressed scene encoding of everything above. URLs are backward compatible — older URLs missing newer fields load with sensible defaults. Custom tunings travel with the URL so the receiver hears the authored tuning, not equal.
+**Share URLs** build a compressed scene encoding of everything above. URLs are backward compatible — older URLs missing newer fields load with sensible defaults. Custom and authored tuning cents travel with the URL (see *Microtuning*).
 
 **Recording** captures the final master output to a **24-bit stereo WAV** via a dedicated AudioWorklet tap. Samples are bit-identical to what the engine produced — no intermediate codec. Memory cost is ~44 MB per 10 minutes at 48 kHz, so render long sessions in shorter passes.
 
