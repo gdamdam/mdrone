@@ -607,11 +607,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     return () => clearTimeout(timer);
   }, [weatherIntro]);
 
-  // Auto-open the DETUNE disclosure once when fine-tune offsets
-  // become non-zero (e.g. when loading a preset or share URL with
-  // authored detune). Only opens — never auto-closes — so a user
-  // who manually collapses it stays collapsed until the next time
-  // offsets transition from all-zero to non-zero.
+  // Auto-open the DETUNE disclosure when fine-tune offsets become
+  // non-zero (e.g. loading a preset or share URL with authored
+  // detune). Kept transient — only the manual toggle persists to
+  // localStorage, so the next load without offsets falls back to
+  // the user's explicit preference rather than sticking open.
   //
   // This is a deliberate set-state-in-effect: the trigger is an
   // external source-of-truth change (state.fineTuneOffsets, mutated
@@ -622,11 +622,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     if (disclosed.detune) return;
     if (!state.fineTuneOffsets.some((o) => o !== 0)) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDisclosed((prev) => {
-      const next = { ...prev, detune: true };
-      try { localStorage.setItem(DISCLOSURE_KEY, JSON.stringify(next)); } catch { /* noop */ }
-      return next;
-    });
+    setDisclosed((prev) => ({ ...prev, detune: true }));
   }, [state.fineTuneOffsets, disclosed.detune]);
 
   // Push a short "fine-tune active" hint to the header. The hint is
