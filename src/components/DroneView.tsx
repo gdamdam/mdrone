@@ -1313,8 +1313,26 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               {/* Force a wrap so MUTATE starts a new row — visually
                   separates the "scene transitions" half (PARTNER ·
                   JOURNEY · XFADE) from the "actions / capture" half
-                  (MUTATE · intensity · MOTION · REC). */}
+                  (GOOD DRONE · MUTATE · intensity · MOTION · REC). */}
               <span className="scene-actions-break" aria-hidden="true" />
+              <button
+                type="button"
+                className="preset-mut-btn"
+                onClick={() => {
+                  // Guided randomize — pulls a tuning + relation from the
+                  // curated drone-friendly pool and adds a ±2-5¢ detune on
+                  // every non-root resolved interval. Touches only the
+                  // tuning layer; preset voicing/FX/motion are preserved.
+                  const g = sampleGoodDrone();
+                  setTuning(g.tuningId);
+                  setRelation(g.relationId);
+                  setFineTuneOffsets(g.fineTuneOffsets);
+                }}
+                title="Good drone — guided randomize: sample a beautiful tuning + subtle detune. Tuning layer only, keeps the current preset's voicing."
+                aria-label="Good drone — generate a beautiful tuning"
+              >
+                GOOD DRONE
+              </button>
               <button
                 type="button"
                 className="preset-mut-btn"
@@ -1546,21 +1564,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             {modeIsMicro && (
               <>
                 <div className="panel-hint">Tuning system + interval relation</div>
-                <button
-                  type="button"
-                  className="intonation-edit-btn intonation-good-drone-btn"
-                  style={{ display: "block", width: "100%", marginTop: 6, marginBottom: 2 }}
-                  onClick={() => {
-                    const g = sampleGoodDrone();
-                    setTuning(g.tuningId);
-                    setRelation(g.relationId);
-                    setFineTuneOffsets(g.fineTuneOffsets);
-                  }}
-                  title="Good drone — sample a beautiful tuning + subtle detune"
-                  aria-label="Generate a good drone tuning"
-                >
-                  ⚄ Good drone
-                </button>
                 <div className="intonation-row">
                   <DropdownSelect
                     value={state.tuningId ?? ""}
