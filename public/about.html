@@ -206,21 +206,24 @@
       0%, 100% {
         box-shadow:
           0 0 0 0 rgba(184,83,42,0),
-          0 0 12px rgba(184,83,42,0.18);
+          0 0 18px rgba(184,83,42,0.25),
+          0 0 36px rgba(184,83,42,0.10);
         background: rgba(184,83,42,0.08);
       }
       50% {
         box-shadow:
-          0 0 0 3px rgba(184,83,42,0.10),
-          0 0 32px rgba(240,164,91,0.36);
-        background: rgba(184,83,42,0.14);
+          0 0 0 6px rgba(184,83,42,0.22),
+          0 0 48px rgba(240,164,91,0.62),
+          0 0 96px rgba(240,164,91,0.28);
+        background: rgba(184,83,42,0.18);
       }
     }
     @keyframes rite-vibrate {
       0%,  100% { transform: translate(0, 0); }
-      25%       { transform: translate(0.35px, -0.25px); }
-      50%       { transform: translate(-0.25px, 0.35px); }
-      75%       { transform: translate(0.2px, 0.15px); }
+      20%       { transform: translate(0.9px, -0.6px); }
+      40%       { transform: translate(-0.7px, 0.9px); }
+      60%       { transform: translate(0.8px, 0.4px); }
+      80%       { transform: translate(-0.5px, -0.7px); }
     }
     @media (prefers-reduced-motion: reduce) {
       .rite.primary { animation: rite-breathe 6s ease-in-out infinite; }

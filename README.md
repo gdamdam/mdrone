@@ -349,7 +349,7 @@ Besides page-views, mdrone counts a handful of anonymous feature events (preset 
 
 ### Hosting
 
-mdrone is hosted on [GitHub Pages](https://pages.github.com). Normal search crawlers are allowed via `robots.txt`; known AI training crawlers are blocked (`GPTBot`, `Google-Extended`, `ClaudeBot`, `anthropic-ai`, `PerplexityBot`, `CCBot`, `Bytespider`, `Amazonbot`, `Applebot-Extended`, `cohere-ai`, `Meta-ExternalAgent`). The sitemap advertises the public explainer at `/about.html`.
+mdrone is hosted on [GitHub Pages](https://pages.github.com). Normal search crawlers are allowed via `robots.txt`. The sitemap advertises the public explainer at `/about.html`.
 
 Your drone stays on your device. Always.
 
