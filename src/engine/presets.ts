@@ -44,6 +44,11 @@ export interface Preset {
   attribution: string;
   /** Genre/lineage group for the preset grid UI. */
   group: PresetGroup;
+  /** When true, the preset is still a real library entry (applicable
+   *  by id, included in the material/motion tables) but is hidden
+   *  from user-facing selection UI: grid, group cycle, library cycle.
+   *  Used for the Welcome preset which serves only on first launch. */
+  hidden?: boolean;
 
   voiceLayers: VoiceType[];
   voiceLevels?: Partial<Record<VoiceType, number>>;
@@ -2433,6 +2438,7 @@ export const PRESETS: Preset[] = [
     id: "welcome", group: "Minimal / Just",
     name: "Welcome",
     attribution: "First-launch drone · instant arrival",
+    hidden: true,
     hint: "A clean just-intonation triad on tanpura and air. Drag WEATHER to feel the room open.",
     voiceLayers: ["tanpura", "air"],
     voiceLevels: { tanpura: 1, air: 0.35 },

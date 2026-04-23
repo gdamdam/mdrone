@@ -522,10 +522,14 @@ export function useSceneManager({
     const now = Date.now();
     if (now - lastSceneMutationTsRef.current < SCENE_MUTATION_MIN_GAP_MS) return;
     lastSceneMutationTsRef.current = now;
+    // Skip hidden presets (Welcome etc.) — they're applicable by id
+    // but not reachable via user-facing navigation.
+    const visible = PRESETS.filter((pr) => !pr.hidden);
+    if (visible.length === 0) return;
     const currentId = droneViewRef.current?.getSnapshot().activePresetId ?? null;
-    const currentIdx = currentId ? PRESETS.findIndex((pr) => pr.id === currentId) : -1;
-    const nextIdx = (currentIdx + direction + PRESETS.length) % PRESETS.length;
-    droneViewRef.current?.applyPresetById(PRESETS[nextIdx].id);
+    const currentIdx = currentId ? visible.findIndex((pr) => pr.id === currentId) : -1;
+    const nextIdx = (currentIdx + direction + visible.length) % visible.length;
+    droneViewRef.current?.applyPresetById(visible[nextIdx].id);
   }, [droneViewRef]);
 
   const handleCyclePresetInGroup = useCallback((direction: 1 | -1 = 1) => {
@@ -539,7 +543,7 @@ export function useSceneManager({
       : null;
     const group = currentPreset?.group ?? PRESETS[0]?.group;
     if (!group) return;
-    const groupPresets = PRESETS.filter((pr) => pr.group === group);
+    const groupPresets = PRESETS.filter((pr) => pr.group === group && !pr.hidden);
     if (groupPresets.length === 0) return;
     const currentIdx = currentPreset
       ? groupPresets.findIndex((pr) => pr.id === currentPreset.id)
