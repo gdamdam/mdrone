@@ -4464,18 +4464,17 @@ input.share-modal-url:focus {
 }
 
 .start-gate-pill {
-  padding: 6px 12px;
-  border-radius: 0;
-  border: 1px solid color-mix(in srgb, var(--preview) 30%, transparent);
-  background: transparent;
-  color: color-mix(in srgb, var(--text-dim) 60%, var(--preview));
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--preview) 35%, transparent);
+  background: color-mix(in srgb, var(--preview) 6%, transparent);
+  color: color-mix(in srgb, var(--text-dim) 55%, var(--preview));
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
-.start-gate-pill + .start-gate-pill { border-left: 0; }
 
 .start-gate-meta {
   font-family: "Baskerville", "Big Caslon", "Palatino Linotype", serif;

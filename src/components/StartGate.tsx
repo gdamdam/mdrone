@@ -162,8 +162,8 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         </p>
         <div className="start-gate-pills" aria-hidden="true">
           <span className="start-gate-pill">microtonal</span>
-          <span className="start-gate-pill">long-form</span>
-          <span className="start-gate-pill">privacy-first</span>
+          <span className="start-gate-pill">shareable</span>
+          <span className="start-gate-pill">open-source</span>
         </div>
 
         <div className="start-gate-actions">
