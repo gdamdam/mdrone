@@ -203,21 +203,33 @@ const SCALE_INTERVALS: Record<ScaleId, number[]> = {
 };
 
 /**
- * Startup pool — a small curated set of presets that reliably create
- * a beautiful, warm first impression. Used only by "Start New".
- * Biased toward beauty, atmosphere, and clarity over edge variety.
+ * Arrival pool — presets that sound beautiful within 3 seconds at
+ * the default tonic/octave. Curated for first-impression quality:
+ * immediate consonance, no muddy onsets, no slow reverb build-up.
+ *
+ * Used by:
+ *   - "Start New"   → every time
+ *   - RND button    → first 3 calls per session, then falls through
+ *                     to SAFE_RANDOM_PRESET_IDS for full variety
+ *
+ * Differences from the prior STARTUP pool: frahm-solo (too sparse
+ * in 3s) and deep-listening (cistern tail needs seconds to fill)
+ * were dropped in favour of marconi-weightless (instant float),
+ * young-well-tuned (Young WTP lattice settles immediately), and
+ * lamb-prisma (harmonic-stack triad reads as beauty on onset).
  */
-export const STARTUP_PRESET_IDS = [
+export const ARRIVAL_PRESET_IDS = [
   "tanpura-drone",
   "shruti-box",
-  "deep-listening",
   "eno-airport",
-  "frahm-solo",
   "malone-organ",
   "stars-of-the-lid",
   "ritual-tanpura-shruti",
   "fm-glass-bell",
   "oliveros-accordion",
+  "marconi-weightless",
+  "young-well-tuned",
+  "lamb-prisma",
 ] as const;
 
 export const SAFE_RANDOM_PRESET_IDS = [
@@ -2899,21 +2911,26 @@ export function createSafeRandomScene(
 }
 
 /**
- * Startup-curated scene — uses the smaller STARTUP_PRESET_IDS pool
- * for "Start New" so the first impression is reliably beautiful.
- * Falls back to the broader safe-random pool if the startup pool
+ * Arrival-curated scene — picks from ARRIVAL_PRESET_IDS so the first
+ * impression is reliably beautiful within ~3 seconds at the default
+ * tonic/octave. Used by "Start New" every time, and by RND for the
+ * first three calls of a session (the useSceneManager hook tracks
+ * the count). After that, RND falls through to createSafeRandomScene
+ * so users reach the full library variety.
+ *
+ * Falls back to the broader safe-random pool if the arrival pool
  * resolves empty (defensive).
  */
-export function createStartupScene(
+export function createArrivalScene(
   root: DroneSessionSnapshot["root"],
   fallbackOctaveRange: readonly [number, number],
   random = Math.random,
 ): { preset: Preset; snapshot: DroneSessionSnapshot } {
-  const startupPresets = STARTUP_PRESET_IDS
+  const arrivalPresets = ARRIVAL_PRESET_IDS
     .map((id) => PRESETS.find((preset) => preset.id === id) ?? null)
     .filter((preset): preset is Preset => preset !== null);
-  if (startupPresets.length > 0) {
-    const preset = startupPresets[Math.floor(random() * startupPresets.length)];
+  if (arrivalPresets.length > 0) {
+    const preset = arrivalPresets[Math.floor(random() * arrivalPresets.length)];
     const range = preset.octaveRange ?? fallbackOctaveRange;
     const [lo, hi] = range;
     const octave = lo + Math.floor(random() * (hi - lo + 1));

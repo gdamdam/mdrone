@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type { AudioEngine } from "../engine/AudioEngine";
 import { showNotification } from "../notifications";
 import { trackEvent } from "../analytics";
-import { PRESETS, createSafeRandomScene, createStartupScene, mutateScene, mulberry32 } from "../engine/presets";
+import { PRESETS, createArrivalScene, createSafeRandomScene, mutateScene, mulberry32 } from "../engine/presets";
 import { applyJourneyTick } from "../journey";
 import {
   SceneRecorder,
@@ -130,6 +130,11 @@ export function useSceneManager({
   // imperceptible as latency at drone pacing. Shared across every
   // entry point that swaps the current scene wholesale.
   const lastSceneMutationTsRef = useRef(0);
+  // RND call counter (per-session). First ARRIVAL_RND_COUNT calls pull
+  // from the arrival-quality pool so the session opens with strong
+  // first impressions; subsequent calls fall through to the broader
+  // safe-random pool for full library variety.
+  const rndCallCountRef = useRef(0);
   const SCENE_MUTATION_MIN_GAP_MS = 1500;
 
   // Tick-count for the URL-deterministic evolve loop. Reset whenever
@@ -163,7 +168,7 @@ export function useSceneManager({
     // same applySnapshot path. Octave comes from the preset's authored
     // range; only fall back if the preset has no range.
     const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
-    const { preset, snapshot } = createStartupScene(randomTonic, FALLBACK_OCTAVE_RANGE);
+    const { preset, snapshot } = createArrivalScene(randomTonic, FALLBACK_OCTAVE_RANGE);
     // See handleRandomScene — guard against handlePresetNameChange
     // stomping on the generated name when applySnapshot fires the
     // onPresetChange effect.
@@ -450,7 +455,16 @@ export function useSceneManager({
     // URLs via normalizeDroneSnapshot).
     const seed = Math.floor(Math.random() * 0x100000000);
     const rng = mulberry32(seed);
-    const { preset, snapshot } = createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE, rng);
+    // First 3 RND clicks of the session draw from the arrival pool
+    // (beautiful in 3s at default tonic/octave). Count increments on
+    // EVERY RND, so once past the threshold the user reaches the full
+    // library variety via createSafeRandomScene.
+    const ARRIVAL_RND_COUNT = 3;
+    const useArrival = rndCallCountRef.current < ARRIVAL_RND_COUNT;
+    rndCallCountRef.current += 1;
+    const { preset, snapshot } = useArrival
+      ? createArrivalScene(randomTonic, FALLBACK_OCTAVE_RANGE, rng)
+      : createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE, rng);
     const seeded = { ...snapshot, seed };
     // Suppress the handlePresetNameChange fire that applySnapshot
     // would otherwise trigger — it would overwrite our generated
