@@ -351,9 +351,10 @@ test("migrated preset tuning assignments match musical intent", () => {
   check("eno-airport", "just5", "drone-triad");
   check("lamb-prisma", "harmonics", "harmonic-stack");
   check("stars-of-the-lid", "just5", "minor-triad");
-  // Meantone presets
+  // Meantone presets — malone kept on legacy meantone; arkbro-chords
+  // migrated to 31-TET which IS meantone at higher precision.
   check("malone-organ", "meantone", "drone-triad");
-  check("arkbro-chords", "meantone", "drone-triad");
+  check("arkbro-chords", "custom:31-tet", "drone-triad");
   // Harmonic series presets
   check("radigue-drift", "harmonics", "harmonic-stack");
   // young-well-tuned now points at the actual Young 7-limit WTP
@@ -361,11 +362,16 @@ test("migrated preset tuning assignments match musical intent", () => {
   // table, so the preset name and the underlying tuning agree.
   check("young-well-tuned", "custom:young-wtp", "harmonic-stack");
   check("tibetan-bowl", "harmonics", "unison");
-  // Equal temperament / noise
-  check("deep-listening", "equal", "unison");
+  // Tuning-aware migrations — each preset's tuning now reveals its
+  // character rather than sitting on a neutral fallback:
+  //   deep-listening → Pythagorean (Oliveros / pipe-organ lineage)
+  //   frahm-solo → Kirnberger III (felted piano, well-tempered)
+  check("deep-listening", "custom:pythagorean", "unison");
+  check("frahm-solo", "custom:kirnberger-iii", "minor-triad");
+  // Equal temperament — noise / industrial kept on flat 12-TET
+  // (merzbient, doom-bloom, windscape, hecker-ravedeath).
   check("merzbient", "equal", "unison");
   check("doom-bloom", "equal", "tonic-fifth");
   check("windscape", "equal", "tonic-fourth");
   check("hecker-ravedeath", "equal", "minor-triad");
-  check("frahm-solo", "equal", "minor-triad");
 });

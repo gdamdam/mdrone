@@ -424,7 +424,9 @@ export const PRESETS: Preset[] = [
     name: "Deep Listening",
     attribution: "Cistern reverb · attentive breathing",
     hint: "Reed and air through a long cistern tail. One breath fills the whole space.",
-    tuningId: "equal", relationId: "unison",
+    // Pythagorean reveals Oliveros's pipe-organ lineage: the single
+    // breath through the cistern sits on pure 3-limit air.
+    tuningId: "custom:pythagorean", relationId: "unison",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 0.9, air: 0.5 },
     reedShape: "balanced",
@@ -862,7 +864,8 @@ export const PRESETS: Preset[] = [
     name: "Time Machines",
     attribution: "Ceremonial analog drone · detuned oscillator stack",
     hint: "Detuned analog-style drone, cabinet body, tape warmth. Hypnotic, narcotic.",
-    tuningId: "equal", relationId: "unison",
+    // Kirnberger III: well-tempered keyboard warmth inside the tape hiss.
+    tuningId: "custom:kirnberger-iii", relationId: "unison",
     voiceLayers: ["reed", "amp"],
     voiceLevels: { reed: 1.0, amp: 0.35 },
     reedShape: "odd",
@@ -988,7 +991,9 @@ export const PRESETS: Preset[] = [
     name: "Lilith Drift",
     attribution: "Feedback hum · no clear source",
     hint: "Air and metal drifting through comb, tape and hall. Pure spectral texture, no pitched source.",
-    tuningId: "equal", relationId: "unison",
+    // Skewed Pythagorean: seeded detune turns the "no clear source"
+    // feedback hum into living, slowly-beating partials.
+    tuningId: "custom:skewed-pythagorean", relationId: "unison",
     voiceLayers: ["air", "metal", "noise"],
     voiceLevels: { air: 1, metal: 0.24, noise: 0.18 },
     // Brown-leaning noise bed — adds the sub-audible hiss of a
@@ -1311,7 +1316,9 @@ export const PRESETS: Preset[] = [
     name: "Endless Summer",
     attribution: "Warm continuous guitar smear · golden haze",
     hint: "Guitar-like reed with an air halo, long bloom through tape and graincloud. Warm melodic smear under grain shimmer.",
-    tuningId: "equal", relationId: "drone-triad",
+    // Kirnberger III warms the held triad — tempered key colour
+    // rather than flat 12-TET equal.
+    tuningId: "custom:kirnberger-iii", relationId: "drone-triad",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.3 },
     reedShape: "even",
@@ -1359,7 +1366,9 @@ export const PRESETS: Preset[] = [
     name: "Disintegration",
     attribution: "Decaying tape loop · oxide crumble",
     hint: "Reed and amp hum as the source; tape, wow and graincloud as the crumbling medium. Dry, close-miked.",
-    tuningId: "equal", relationId: "drone-triad",
+    // Skewed Pythagorean IS tape decay: the seeded detune reads as
+    // oxide crumble on what would otherwise be a stable triad.
+    tuningId: "custom:skewed-pythagorean", relationId: "drone-triad",
     voiceLayers: ["reed", "amp"],
     voiceLevels: { reed: 0.5, amp: 0.15 },
     reedShape: "balanced",
@@ -1403,7 +1412,9 @@ export const PRESETS: Preset[] = [
     name: "Solo",
     attribution: "Felt piano in vast space · sparse intimacy",
     hint: "Solo piano in a large reverberant room. Sparse and intimate, notes dissolving into space.",
-    tuningId: "equal", relationId: "minor-triad",
+    // Kirnberger III: felted piano sits naturally on Bach-era
+    // well-temperament rather than flat 12-TET.
+    tuningId: "custom:kirnberger-iii", relationId: "minor-triad",
     voiceLayers: ["piano"],
     voiceLevels: { piano: 1 },
     parallelSends: { hall: 0.45, plate: 0.2 },
@@ -1578,7 +1589,9 @@ export const PRESETS: Preset[] = [
     name: "For Organ",
     attribution: "Meantone organ + brass · church stillness",
     hint: "Austere meantone chords with a pale brass-air edge. Drier and more vertical than Kali Organ.",
-    tuningId: "meantone", relationId: "drone-triad",
+    // 31-TET is effectively 1/4-comma meantone extended — Arkbro's
+    // pipe organs live here with more precision than legacy "meantone".
+    tuningId: "custom:31-tet", relationId: "drone-triad",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.18 },
     reedShape: "balanced",
@@ -1797,7 +1810,9 @@ export const PRESETS: Preset[] = [
     effects: ["formant", "hall"],
     parallelSends: { hall: 0.4 },
     scale: "drone",
-    tuningId: "maqam-rast", relationId: "tonic-fourth",
+    // Bayati's neutral 2nd (~150¢) distinguishes the Sufi devotional
+    // register from the Rast(Oud) sibling — same lineage, darker mode.
+    tuningId: "custom:bayati", relationId: "tonic-fourth",
     gain: 1.6,
     motionProfile: motionProfile({
       climateXRange: [0.32, 0.46],
@@ -1861,7 +1876,8 @@ export const PRESETS: Preset[] = [
     name: "Accordion Room",
     attribution: "Accordion drone · practice room breath",
     hint: "Close-miked accordion — fast breath, little room, no halo. Bellows moving air in front of you.",
-    tuningId: "just5", relationId: "unison",
+    // Pythagorean suits Oliveros — pure 3/2 air, no 5-limit sweetness.
+    tuningId: "custom:pythagorean", relationId: "unison",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.18 },
     reedShape: "odd",
@@ -2023,7 +2039,9 @@ export const PRESETS: Preset[] = [
     name: "Didgeridoo",
     attribution: "Aboriginal breath drone · formant overtones",
     hint: "Low fundamental through continuous breath cycles and a vocal-tract formant. Deep, bodily, continuous.",
-    tuningId: "equal", relationId: "unison",
+    // Otonal 16:32 — the didgeridoo IS a harmonic-series instrument;
+    // zero-beat partials reveal what's already there.
+    tuningId: "custom:otonal-16-32", relationId: "unison",
     voiceLayers: ["air", "reed"],
     voiceLevels: { air: 1, reed: 0.6 },
     reedShape: "odd",
@@ -2142,7 +2160,9 @@ export const PRESETS: Preset[] = [
     name: "Khöömei",
     attribution: "Tuvan throat singing · whistle overtone",
     hint: "Reed fundamental with a high metal-whistle partial above. Brighter and more melodic than Tibetan chant.",
-    tuningId: "equal", relationId: "tonic-fifth",
+    // Otonal 16:32 — khoomei overtone singing lives on pure partials;
+    // the metal-whistle sits on a true harmonic above the reed.
+    tuningId: "custom:otonal-16-32", relationId: "tonic-fifth",
     voiceLayers: ["reed", "metal", "air"],
     voiceLevels: { reed: 1, metal: 0.4, air: 0.25 },
     reedShape: "balanced",
@@ -2387,6 +2407,133 @@ export const PRESETS: Preset[] = [
       driftRange: [0.24, 0.40], subRange: [0.02, 0.10],
       macroStep: 0.4, tonicWalk: "rare", tonicIntervals: [0, 7],
       tonicFloor: 1, textureFloor: 0.82, texturePeriod: 8,
+    }),
+  },
+
+  // ─── Tuning-showcase variants ──────────────────────────────────────
+  // Three presets whose identity IS the tuning. Kept intentionally
+  // simple so the microtonal structure is what the ear tracks.
+
+  {
+    id: "mdrone-house", group: "Minimal / Just",
+    name: "House Drone",
+    attribution: "mdrone signature · just × 31-TET",
+    hint: "Pure-just drone on the house tuning. Tanpura body, reed shimmer, air halo. Warm, rooted, still.",
+    voiceLayers: ["tanpura", "reed", "air"],
+    voiceLevels: { tanpura: 1, reed: 0.4, air: 0.22 },
+    reedShape: "balanced",
+    octaveRange: [2, 3],
+    drift: 0.14,
+    air: 0.36,
+    time: 0.05,
+    sub: 0.18,
+    bloom: 0.52,
+    glide: 0.18,
+    lfoShape: "sine",
+    lfoRate: 0.16,
+    lfoAmount: 0.05,
+    climateX: 0.44,
+    climateY: 0.2,
+    effects: ["plate", "hall"],
+    scale: "drone",
+    tuningId: "custom:mdrone-signature", relationId: "harmonic-stack",
+    gain: 0.68,
+    motionProfile: motionProfile({
+      climateXRange: [0.38, 0.5],
+      climateYRange: [0.14, 0.26],
+      bloomRange: [0.44, 0.6],
+      timeRange: [0.03, 0.08],
+      driftRange: [0.1, 0.2],
+      subRange: [0.12, 0.24],
+      macroStep: 0.5,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5, 7],
+      tonicFloor: 0.78,
+      textureFloor: 0.86,
+      texturePeriod: 6,
+    }),
+  },
+  {
+    id: "cluster-shimmer", group: "Noise / Industrial",
+    name: "Cluster Shimmer",
+    attribution: "22-sruti dense cluster · spectral weather",
+    hint: "Air and metal held on a dense quarter-tone cluster. Beats everywhere, shimmer without chord.",
+    voiceLayers: ["air", "metal"],
+    voiceLevels: { air: 1, metal: 0.28 },
+    octaveRange: [3, 4],
+    drift: 0.22,
+    air: 0.52,
+    time: 0.1,
+    sub: 0.1,
+    bloom: 0.58,
+    glide: 0.3,
+    lfoShape: "sine",
+    lfoRate: 0.08,
+    lfoAmount: 0.06,
+    climateX: 0.5,
+    climateY: 0.4,
+    effects: ["tape", "hall"],
+    scale: "drone",
+    // drone-triad picks slots 0/4/7 — with the cluster tuning that
+    // resolves to three pitches packed inside ~160¢ (a beating field
+    // around the root), then silence up to the octave.
+    tuningId: "custom:cluster-sruti", relationId: "drone-triad",
+    gain: 0.46,
+    motionProfile: motionProfile({
+      climateXRange: [0.42, 0.6],
+      climateYRange: [0.3, 0.52],
+      bloomRange: [0.5, 0.7],
+      timeRange: [0.06, 0.16],
+      driftRange: [0.16, 0.3],
+      subRange: [0.06, 0.16],
+      macroStep: 0.7,
+      tonicWalk: "gentle",
+      tonicIntervals: [-2, 2, -5, 5],
+      tonicFloor: 0.6,
+      textureFloor: 0.7,
+      texturePeriod: 5,
+    }),
+  },
+  {
+    id: "hollow-drone", group: "Minimal / Just",
+    name: "Hollow",
+    attribution: "Open-fifth power drone · archetypal empty space",
+    hint: "Amp sustain and tanpura locked on a near-unison field around root and fifth. Power chord as meditation.",
+    voiceLayers: ["amp", "tanpura"],
+    voiceLevels: { amp: 1, tanpura: 0.38 },
+    octaveRange: [1, 2],
+    drift: 0.18,
+    air: 0.22,
+    time: 0.04,
+    sub: 0.48,
+    bloom: 0.5,
+    glide: 0.12,
+    lfoShape: "sine",
+    lfoRate: 0.12,
+    lfoAmount: 0.04,
+    climateX: 0.32,
+    climateY: 0.18,
+    effects: ["tape", "hall"],
+    scale: "drone",
+    // Hollow tuning: interior slots cluster within sub-10¢ of P1/P5/P8.
+    // harmonic-stack resolves to {0, 8, 704, 1196, 1200} — a fan of
+    // near-unisons at root, fifth, and octave. The tuning itself
+    // imposes the power-chord identity regardless of relation.
+    tuningId: "custom:hollow-fifth", relationId: "harmonic-stack",
+    gain: 0.64,
+    motionProfile: motionProfile({
+      climateXRange: [0.26, 0.4],
+      climateYRange: [0.12, 0.26],
+      bloomRange: [0.4, 0.6],
+      timeRange: [0.02, 0.08],
+      driftRange: [0.12, 0.26],
+      subRange: [0.38, 0.58],
+      macroStep: 0.45,
+      tonicWalk: "none",
+      tonicIntervals: [],
+      tonicFloor: 1,
+      textureFloor: 0.88,
+      texturePeriod: 7,
     }),
   },
 ];
