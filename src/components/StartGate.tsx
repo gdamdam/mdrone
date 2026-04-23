@@ -71,7 +71,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         <span className="start-gate-corner start-gate-corner-bl" aria-hidden="true" />
         <span className="start-gate-corner start-gate-corner-br" aria-hidden="true" />
 
-        <div className="start-gate-supra">serious drone instrument · microtonal · open web</div>
+        <div className="start-gate-supra">serious drone instrument · microtonal · browser-native</div>
 
         <button
           type="button"
@@ -150,7 +150,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         </div>
 
         <p className="start-gate-sub">
-          <em>A serious drone instrument, in your browser.</em>
+          <em>A serious microtonal drone instrument in your browser.</em>
           <br />
           Hold a tone.
           <br />
@@ -158,7 +158,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         </p>
 
         <p className="start-gate-intro">
-          Hand-authored voices, slow ritual motion, and tunings that travel with the link.
+          Hand-authored voices, long-form motion, and shareable tunings.
         </p>
         <div className="start-gate-pills" aria-hidden="true">
           <span className="start-gate-pill">microtonal</span>
