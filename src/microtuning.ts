@@ -146,6 +146,194 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // octave at P8.
     degrees: [0, 80, 240, 320, 400, 480, 560, 640, 720, 800, 880, 960, 1200],
   },
+
+  // ── Curated additions: drone-forward scales from the wider canon ──
+  // Each is annotated with a suggested relation + voicing so the picker
+  // (or a future "apply suggested relation" affordance) can land the
+  // user in a musically idiomatic starting place rather than unison.
+
+  {
+    id: "custom:pythagorean" as CustomTuningId,
+    label: "Pythagorean (3-limit)",
+    // Pure 3/2 stack, the Western-ancient drone tuning. Ratios:
+    // 1/1, 256/243, 9/8, 32/27, 81/64, 4/3, 729/512, 3/2, 128/81,
+    // 27/16, 16/9, 243/128, 2/1. Glassy fifths, bright ditone 3rd.
+    // Suggested relation: tonic-fifth. Voicing: tanpura + metal —
+    // the ringing 3/2 is the whole point.
+    degrees: [0, 90.2, 203.9, 294.1, 407.8, 498.0, 611.7, 702.0, 792.2, 905.9, 996.1, 1109.8, 1200],
+  },
+  {
+    id: "custom:kirnberger-iii" as CustomTuningId,
+    label: "Kirnberger III (well-temp)",
+    // Bach-era well-temperament (J.P. Kirnberger, 1779). Key colours
+    // preserved, C major cleanest; drones in remote keys breathe.
+    // Suggested relation: drone-triad. Voicing: piano + reed for the
+    // harpsichord / clavichord reading.
+    degrees: [0, 90.2, 193.2, 294.1, 386.3, 498.0, 590.2, 696.6, 792.2, 889.7, 996.1, 1088.3, 1200],
+  },
+  {
+    id: "custom:werckmeister-iii" as CustomTuningId,
+    label: "Werckmeister III (well-temp)",
+    // Andreas Werckmeister, 1691. Slightly sharper triad colour than
+    // Kirnberger III, the likeliest temperament behind WTC Book I.
+    // Suggested relation: drone-triad. Voicing: piano + air.
+    degrees: [0, 90.2, 192.2, 294.1, 390.2, 498.0, 588.3, 696.1, 792.2, 888.3, 996.1, 1092.2, 1200],
+  },
+  {
+    id: "custom:17-tet" as CustomTuningId,
+    label: "17-TET",
+    // 17-tone equal temperament — clean 5ths, very sharp 3rds,
+    // neutral-ish seconds. Natural host for Turkish/Arab flavours.
+    // Suggested relation: tonic-fifth (the 3rds are too hot for a
+    // drone triad). Voicing: reed + metal.
+    degrees: [0, 70.6, 211.8, 282.4, 352.9, 494.1, 564.7, 705.9, 776.5, 917.6, 988.2, 1129.4, 1200],
+  },
+  {
+    id: "custom:19-tet" as CustomTuningId,
+    label: "19-TET",
+    // 19-tone equal temperament — meantone's close cousin; the
+    // minor 3rd is its purest interval (6/5-adjacent).
+    // Suggested relation: minor-triad. Voicing: reed + air.
+    degrees: [0, 126.3, 189.5, 315.8, 378.9, 505.3, 631.6, 694.7, 821.1, 884.2, 1010.5, 1073.7, 1200],
+  },
+  {
+    id: "custom:22-edo" as CustomTuningId,
+    label: "22-EDO (Paul Erlich)",
+    // 22-tone equal division — xenharmonic home of Pajara / Porcupine.
+    // Approximates 5-limit triads with a characteristic "wolf" edge.
+    // Suggested relation: drone-triad. Voicing: metal + noise for
+    // the bright xen character.
+    degrees: [0, 109.1, 218.2, 272.7, 381.8, 490.9, 600, 709.1, 818.2, 927.3, 1036.4, 1090.9, 1200],
+  },
+  {
+    id: "custom:31-tet" as CustomTuningId,
+    label: "31-TET (Huygens)",
+    // 31-tone equal temperament — extraordinarily close to 1/4-comma
+    // meantone across 5-limit, famous from Fokker's organ.
+    // Suggested relation: drone-triad. Voicing: tanpura + reed —
+    // silky, near-pure triad.
+    degrees: [0, 116.1, 193.5, 309.7, 387.1, 503.2, 580.6, 696.8, 812.9, 890.3, 1006.5, 1083.9, 1200],
+  },
+  {
+    id: "custom:yaman" as CustomTuningId,
+    label: "Yaman (Hindustani)",
+    // Evening raga, Ionian with raised 4th (Ma teevra). Sa–Ga–Pa is
+    // the harmonic skeleton. Ratios at the characteristic slots:
+    // 1/1, 9/8 (re), 5/4 (ga), 45/32 (ma teevra), 3/2 (pa),
+    // 27/16 (dha), 15/8 (ni). Filler slots use just-5 defaults so
+    // all relations resolve to real Yaman tones.
+    // Suggested relation: drone-triad. Voicing: tanpura + reed.
+    degrees: [0, 111.7, 203.9, 315.6, 386.3, 498.0, 590.2, 702.0, 813.7, 905.9, 996.1, 1088.3, 1200],
+  },
+  {
+    id: "custom:pelog" as CustomTuningId,
+    label: "Pelog (Javanese)",
+    // Javanese gamelan 7-tone, companion to Slendro. Cents from
+    // Barlow's 1980s measurements (pathet nem). Characteristic
+    // anchors: 120, 258, 538, 675, 785, 942. Filler slots
+    // monotonically interpolated so every degree slot yields a
+    // distinct pitch.
+    // Suggested relation: unison — gamelan drones are single-tone.
+    // Voicing: metal + air.
+    degrees: [0, 120, 194, 258, 398, 538, 607, 675, 785, 864, 942, 1070, 1200],
+  },
+  {
+    id: "custom:bayati" as CustomTuningId,
+    label: "Bayati (Arabic maqam)",
+    // Arabic maqam with neutral 2nd (~150¢) — melancholy, devotional.
+    // Anchors: P1=0, m2=150 (sikah neutral), m3=32/27 (294.1),
+    // P4=4/3, P5=3/2, m6=128/81 (792.2), m7=16/9 (996.1). Other
+    // slots fall to just-5 defaults.
+    // Suggested relation: tonic-fifth (sa–pa drone; neutral 2nd
+    // sings in melody, not chord). Voicing: reed + air.
+    degrees: [0, 150, 203.9, 294.1, 386.3, 498.0, 582.5, 702.0, 792.2, 884.4, 996.1, 1088.3, 1200],
+  },
+
+  // ── Concept tunings: reference, spectral, broken, cluster, sparse, house ──
+  // Not historical scales — designed to cover specific drone-aesthetic
+  // territory that the canon tunings above don't reach. Each was picked
+  // to sound distinctly different from the others.
+
+  {
+    id: "custom:otonal-16-32" as CustomTuningId,
+    label: "Otonal 16:32 (zero-beat reference)",
+    // Partials 16 through 32 of one fundamental, picked 13-wide:
+    // 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 28, 30, 32. Every
+    // pitch is an exact integer multiple of the root — phases lock,
+    // beats vanish. The purest reference the app can produce.
+    // Suggested relation: harmonic-stack. Voicing: reed + air +
+    // metal — spectral richness without interfering beats.
+    degrees: [0, 105.0, 203.9, 297.5, 386.3, 470.8, 551.3, 628.3, 702.0, 840.5, 968.8, 1088.3, 1200],
+  },
+  {
+    id: "custom:spectral-primes" as CustomTuningId,
+    label: "Spectral Primes",
+    // Extended harmonic series leaning on upper primes (19, 23, 25,
+    // 27) instead of the safe 17/18/20/24 partials. Partials:
+    // 16, 17, 18, 19, 20, 21, 23, 24, 25, 27, 28, 30, 32. Same
+    // fundamental logic as Otonal 16:32 but with a weirder
+    // spectral fingerprint — Sethares-adjacent territory.
+    // Suggested relation: harmonic-stack. Voicing: metal + fm —
+    // lets the upper-prime colour ring against bright partials.
+    degrees: [0, 105.0, 203.9, 297.5, 386.3, 470.8, 628.3, 702.0, 772.6, 905.9, 968.8, 1088.3, 1200],
+  },
+  {
+    id: "custom:skewed-pythagorean" as CustomTuningId,
+    label: "Skewed (Pythagorean drift)",
+    // Pythagorean base with a seeded detune per degree (±5–25¢).
+    // Pure-looking intervals beat slowly and irregularly; the
+    // tonic–fifth drifts by ~13¢ so even the house relation has
+    // motion baked in. Productive unease rather than error.
+    // Suggested relation: tonic-fifth. Voicing: reed + noise —
+    // the persistent beating reads as living texture.
+    degrees: [0, 82.2, 217.9, 283.1, 426.8, 492.0, 633.7, 689.0, 784.2, 922.9, 987.1, 1124.8, 1200],
+  },
+  {
+    id: "custom:cluster-sruti" as CustomTuningId,
+    label: "Cluster (22-Sruti dense)",
+    // First 12 sruti of the 22-sruti Indian system packed into the
+    // lower quarter-octave (0–249¢), then a hard jump to the octave
+    // at P8. Any relation touching the low degrees yields a beating
+    // cluster; tonic-fifth/tonic-fourth still resolve but on tightly
+    // spaced pitches.
+    // Suggested relation: unison — cluster relations easily overload.
+    // Voicing: air + metal — quiet dense weather, not chordal mass.
+    degrees: [0, 22.5, 45.1, 70.7, 92.2, 111.7, 133.2, 158.8, 182.4, 203.9, 223.5, 249.1, 1200],
+  },
+  {
+    id: "custom:hollow-fifth" as CustomTuningId,
+    label: "Hollow (open-fifth)",
+    // Only three harmonically real anchors: P1, P5 (pure 3/2 ≈ 702),
+    // and P8. Interior slots cluster around each anchor with
+    // sub-10¢ offsets so the picker stays strictly monotonic but
+    // any relation collapses to near-unisons around {0, 702, 1200}.
+    // The tuning itself imposes a power-chord identity regardless
+    // of the chosen relation.
+    // Suggested relation: tonic-fifth. Voicing: amp + tanpura —
+    // the archetypal open-5th drone.
+    degrees: [0, 2, 4, 6, 8, 700, 702, 704, 706, 1194, 1196, 1198, 1200],
+  },
+  {
+    id: "custom:mdrone-signature" as CustomTuningId,
+    label: "mdrone Signature (just × 31-TET)",
+    // House tuning, built for this app's relation system rather than
+    // borrowed from a tradition. The six relations (unison,
+    // tonic-fourth, tonic-fifth, minor-triad, drone-triad,
+    // harmonic-stack) collectively pick slots {0, 3, 4, 5, 7, 10, 12}
+    // — those slots are locked to PURE JUST ratios so every
+    // relation resolves beat-free:
+    //   P1=1/1, m3=6/5, M3=5/4, P4=4/3, P5=3/2, m7=7/4, P8=2/1.
+    // The remaining slots {1, 2, 6, 8, 9, 11} — only reachable via
+    // custom relations or direct degree picking — carry 31-TET
+    // meantone pitches (steps 2, 5, 16, 20, 23, 29):
+    //   m2=77.4, M2=193.5, TT=619.4, m6=774.2, M6=890.3, M7=1122.6.
+    // The result: just drones at every built-in relation, meantone
+    // colour in the interstitial degrees. Hybrid by construction,
+    // tuned to the app rather than to history.
+    // Suggested relation: harmonic-stack (shows off the full just
+    // skeleton). Voicing: tanpura + reed + air.
+    degrees: [0, 77.42, 193.55, 315.64, 386.31, 498.04, 619.35, 701.96, 774.19, 890.32, 968.83, 1122.58, 1200],
+  },
 ];
 
 // ── Relation presets ─────────────────────────────────────────────────
