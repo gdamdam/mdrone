@@ -441,6 +441,33 @@ export function subscribeToTunings(fn: () => void): () => void {
   return () => { subscribers.delete(fn); };
 }
 
+/** Save or replace a custom tuning at an EXPLICIT `custom:*` id.
+ *  Used when applying a shared scene so the bundled cents land at
+ *  the exact id the scene's `drone.tuningId` references, even when
+ *  the label's slug doesn't match the id (authored tunings often
+ *  have mismatched slugs, e.g. id `custom:31-tet` / label
+ *  "31-TET (Huygens)"). Returns the stored table, or null if the id
+ *  isn't a valid `custom:*` id or degrees aren't a 13-slot array. */
+export function saveCustomTuningAtId(
+  id: string,
+  label: string,
+  degrees: readonly number[],
+): TuningTable | null {
+  if (typeof id !== "string" || !id.startsWith("custom:")) return null;
+  if (!Array.isArray(degrees) || degrees.length !== 13) return null;
+  const customId = id as CustomTuningId;
+  const cleanLabel = (typeof label === "string" && label.trim()) || "Untitled";
+  const cleanDegrees = degrees.map((d) => (typeof d === "number" && Number.isFinite(d) ? d : 0));
+  const table: TuningTable = { id: customId, label: cleanLabel, degrees: cleanDegrees };
+  const existingIdx = customTunings.findIndex((t) => t.id === customId);
+  if (existingIdx >= 0) customTunings[existingIdx] = table;
+  else customTunings.push(table);
+  rebuildTuningMap();
+  persistCustomTunings();
+  notifySubscribers();
+  return table;
+}
+
 /** Save or replace a custom tuning. The supplied `name` becomes both
  *  the display label and (after slugification) the ID suffix. Returns
  *  the stored table. */

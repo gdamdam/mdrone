@@ -7,7 +7,7 @@ import type {
 } from "../session";
 import { loadPaletteId } from "../themes";
 import type { Visualizer } from "../components/visualizers";
-import { getCustomTunings } from "../microtuning";
+import { getAllTunings } from "../microtuning";
 
 export function captureMixerSnapshot(engine: AudioEngine): MixerSessionSnapshot {
   return {
@@ -102,8 +102,12 @@ export function capturePortableScene(
   };
   // Embed the referenced custom tuning table so recipients reproduce
   // authored microtuning instead of silently falling back to equal.
+  // Look in ALL tunings (builtin + authored + user) so AUTHORED ones
+  // (shipped with newer app versions, e.g. custom:pythagorean) also
+  // travel — an older client that doesn't yet have the table in its
+  // registry can still reproduce the scene exactly.
   if (typeof drone.tuningId === "string" && drone.tuningId.startsWith("custom:")) {
-    const match = getCustomTunings().find((t) => t.id === drone.tuningId);
+    const match = getAllTunings().find((t) => t.id === drone.tuningId);
     if (match) {
       scene.customTuning = {
         id: match.id,

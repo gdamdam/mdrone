@@ -11,6 +11,7 @@ const {
   extractScenePayloadFromUrl,
 } = await import("../.test-dist/shareCodec.js");
 const { PRESETS, applyPreset, getPresetMaterialProfile } = await import("../.test-dist/engine/presets.js");
+const { saveCustomTuningAtId, tuningById, resolveTuning } = await import("../.test-dist/microtuning.js");
 
 test("normalizePortableScene clamps and sanitizes decoded scene data", () => {
   const scene = normalizePortableScene({
@@ -154,6 +155,85 @@ test("share codec round-trips a portable scene payload", async () => {
   assert.equal(decoded.drone.relationId, "tonic-fifth");
   assert.deepEqual(decoded.drone.fineTuneOffsets, [0, 4.5]);
   assert.equal(decoded.ui.visualizer, "mandala");
+});
+
+test("share codec round-trips a scene carrying a custom tuning table", async () => {
+  // Simulate a recipient who has NEVER seen "custom:foreign-scale":
+  // the scene's bundled customTuning must travel intact through the
+  // codec and, when upserted at the scene's explicit id, resolve to
+  // exactly the bundled cents. Non-standard label-slug / id mismatch
+  // is deliberate — that's the authored-tuning case in the wild.
+  const bundledDegrees = [0, 133.5, 218.8, 301.1, 392.4, 507.6, 612.9, 719.2, 805.1, 891.4, 997.7, 1104.0, 1200];
+  const source = normalizePortableScene({
+    name: "Xen Scene",
+    drone: {
+      root: "D",
+      octave: 3,
+      scale: "drone",
+      tuningId: "custom:foreign-scale",
+      relationId: "drone-triad",
+      fineTuneOffsets: [0, 0, 0, 0, -3.2, 0, 0, 2.1],
+      voiceLayers: { reed: true },
+      voiceLevels: { reed: 1 },
+      effects: { hall: true },
+      drift: 0.2, air: 0.4, time: 0.1, sub: 0.2, bloom: 0.5, glide: 0.2,
+      climateX: 0.5, climateY: 0.5,
+      lfoShape: "sine", lfoRate: 0.2, lfoAmount: 0.05,
+      presetMorph: 0.25, evolve: 0, pluckRate: 1, noiseColor: 0.3,
+      presetTrim: 1, fmRatio: 2, fmIndex: 2.4, fmFeedback: 0, seed: 1,
+    },
+    mixer: {
+      hpfHz: 30, low: 0, mid: 0, high: 0, glue: 0, drive: 0,
+      limiterOn: true, ceiling: -1, volume: 0, headphoneSafe: false, width: 0,
+    },
+    fx: {
+      enabled: { hall: true }, levels: { hall: 0.5 }, freezeOn: false,
+      freezeMix: 0, freezeBlur: 0,
+    },
+    ui: { paletteId: "ember", visualizer: "mandala" },
+    customTuning: {
+      id: "custom:foreign-scale",
+      label: "Foreign Scale (14-limit pentatonic)",
+      degrees: bundledDegrees,
+    },
+  });
+
+  assert.ok(source.customTuning, "normalizer preserves customTuning");
+
+  const encoded = await encodeScenePayload(source);
+  const extracted = extractScenePayloadFromUrl(`https://mdrone.org/?${encoded.key}=${encoded.value}`);
+  const decoded = await decodeScenePayload(extracted.payload, extracted.compressed);
+
+  assert.equal(decoded.drone.tuningId, "custom:foreign-scale");
+  assert.equal(decoded.drone.relationId, "drone-triad");
+  assert.deepEqual(decoded.drone.fineTuneOffsets, [0, 0, 0, 0, -3.2, 0, 0, 2.1]);
+  assert.equal(decoded.customTuning.id, "custom:foreign-scale");
+  assert.equal(decoded.customTuning.label, "Foreign Scale (14-limit pentatonic)");
+  assert.deepEqual(decoded.customTuning.degrees, bundledDegrees);
+
+  // Apply-path: saveCustomTuningAtId upserts at the EXACT id so
+  // drone.tuningId resolves to the bundled cents, not a label-slug.
+  globalThis.localStorage = {
+    _m: new Map(),
+    getItem(k) { return this._m.has(k) ? this._m.get(k) : null; },
+    setItem(k, v) { this._m.set(k, v); },
+    removeItem(k) { this._m.delete(k); },
+  };
+  const stored = saveCustomTuningAtId(
+    decoded.customTuning.id,
+    decoded.customTuning.label,
+    decoded.customTuning.degrees,
+  );
+  assert.ok(stored, "saveCustomTuningAtId accepts a valid custom: id");
+  assert.equal(stored.id, "custom:foreign-scale");
+
+  const looked = tuningById("custom:foreign-scale");
+  assert.equal(looked.id, "custom:foreign-scale");
+  assert.deepEqual(looked.degrees, bundledDegrees);
+
+  // Scene's drone-triad relation picks slots [0,4,7] = 0, bundled[4], bundled[7]
+  const resolved = resolveTuning("custom:foreign-scale", "drone-triad");
+  assert.deepEqual(resolved, [bundledDegrees[0], bundledDegrees[4], bundledDegrees[7]]);
 });
 
 test("autosaved scene round-trips through localStorage", () => {

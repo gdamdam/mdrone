@@ -87,7 +87,7 @@ import { requestSigilRefresh, type Visualizer } from "../components/visualizers"
 import type { PitchClass } from "../types";
 import type { DroneViewHandle } from "../components/DroneView";
 import { applyFxSnapshot, applyMixerSnapshot, capturePortableScene } from "./sceneSnapshots";
-import { saveCustomTuning } from "../microtuning";
+import { saveCustomTuningAtId } from "../microtuning";
 
 export interface ShareSceneBuildResult {
   scene: PortableScene;
@@ -204,17 +204,15 @@ export function useSceneManager({
       savePaletteId(palette.id);
     }
     // If the scene travels with a custom tuning, upsert it into the
-    // local registry BEFORE applying drone state so the tuning is
-    // resolvable when the engine reads drone.tuningId.
+    // local registry at the EXPLICIT id BEFORE applying drone state
+    // so the tuning is resolvable when the engine reads drone.tuningId.
+    // Uses saveCustomTuningAtId (not saveCustomTuning) because the
+    // label's slug may not match the bundled id — authored tunings
+    // routinely have mismatched slugs (id "custom:31-tet" / label
+    // "31-TET (Huygens)").
     if (scene.customTuning) {
       const ct = scene.customTuning;
-      if (
-        typeof ct.id === "string" && ct.id.startsWith("custom:") &&
-        typeof ct.label === "string" &&
-        Array.isArray(ct.degrees) && ct.degrees.length === 13
-      ) {
-        saveCustomTuning(ct.label, ct.degrees);
-      }
+      saveCustomTuningAtId(ct.id, ct.label, ct.degrees);
     }
     setMeditateVisualizer(scene.ui.visualizer);
     requestSigilRefresh();
