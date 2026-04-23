@@ -26,7 +26,7 @@ import type { RelationId, ScaleId, TuningId } from "../types";
 import { resolveTuning } from "../microtuning";
 import type { DroneSessionSnapshot } from "../session";
 import { DEFAULT_PARTNER } from "../partner";
-import type { EntrainState } from "../entrain";
+import { DEFAULT_ENTRAIN, type EntrainState } from "../entrain";
 
 export type PresetGroup =
   | "Sacred / Ritual"
@@ -2852,9 +2852,9 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   ui.setLfoRate(preset.lfoRate);
   ui.setLfoAmount(preset.lfoAmount);
 
-  // LFO 2 · FLICKER — only applied when the preset explicitly sets it
-  // so non-pulse presets don't stomp the user's current FLICKER state.
-  if (preset.entrain && ui.setEntrain) ui.setEntrain(preset.entrain);
+  // LFO 2 · FLICKER — PULSE presets carry an `entrain` field; others
+  // must reset to disabled so flicker doesn't leak across categories.
+  if (ui.setEntrain) ui.setEntrain(preset.entrain ?? { ...DEFAULT_ENTRAIN, enabled: false });
 
   // Climate
   ui.setClimate(preset.climateX, preset.climateY);
