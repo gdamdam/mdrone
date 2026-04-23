@@ -194,7 +194,37 @@
       position: relative;
     }
     .rite:hover { border-color: var(--blood); color: var(--blood); letter-spacing: 0.32em; }
-    .rite.primary { border-color: var(--blood); color: #ffd3b4; background: rgba(184,83,42,0.08); }
+    .rite.primary {
+      border-color: var(--blood);
+      color: #ffd3b4;
+      background: rgba(184,83,42,0.08);
+      animation: rite-breathe 4.8s ease-in-out infinite, rite-vibrate 3.4s ease-in-out infinite;
+    }
+    .rite.primary:hover { animation-play-state: paused; }
+
+    @keyframes rite-breathe {
+      0%, 100% {
+        box-shadow:
+          0 0 0 0 rgba(184,83,42,0),
+          0 0 12px rgba(184,83,42,0.18);
+        background: rgba(184,83,42,0.08);
+      }
+      50% {
+        box-shadow:
+          0 0 0 3px rgba(184,83,42,0.10),
+          0 0 32px rgba(240,164,91,0.36);
+        background: rgba(184,83,42,0.14);
+      }
+    }
+    @keyframes rite-vibrate {
+      0%,  100% { transform: translate(0, 0); }
+      25%       { transform: translate(0.35px, -0.25px); }
+      50%       { transform: translate(-0.25px, 0.35px); }
+      75%       { transform: translate(0.2px, 0.15px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rite.primary { animation: rite-breathe 6s ease-in-out infinite; }
+    }
 
     .aside-note {
       text-align: center;
@@ -305,16 +335,17 @@
       padding-bottom: 12px;
       border-bottom: 1px solid var(--ink-faint);
     }
-    .glossary dl { font-size: 17px; line-height: 1.8; }
+    .glossary dl { font-size: 17px; line-height: 1.7; }
     .glossary dt {
       font-family: var(--mono);
       font-size: 12px;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: var(--ink-faint);
-      margin-top: 14px;
+      color: var(--blood);
+      margin-top: 18px;
+      margin-bottom: 4px;
     }
-    .glossary dd { color: var(--ink-soft); font-style: italic; }
+    .glossary dd { color: var(--ink); font-style: normal; font-weight: 300; }
 
     /* COLOPHON */
     .colophon {
@@ -343,7 +374,7 @@
     <section class="compass">
       <div class="quadrant q-nw">
         <div class="q-label">Play</div>
-        <p class="q-text"><strong>Hold a tone.</strong> Eight authored voices blend into one sustained bed — tanpura, reed, metal, air, piano, FM, amp, noise.</p>
+        <p class="q-text"><strong>Hold a tone.</strong> Eight authored voices blend into one sustained bed: tanpura, reed, metal, air, piano, FM, amp, noise.</p>
       </div>
 
       <div class="quadrant q-ne">
@@ -412,7 +443,7 @@
 
       <div class="quadrant q-sw">
         <div class="q-label">Drift</div>
-        <p class="q-text">Scenes evolve on their own — <strong>breathing LFO</strong>, second-modulator flicker, authored journeys. Walk away, come back, still changing.</p>
+        <p class="q-text">Scenes evolve on their own. <strong>Breathing LFO</strong>, second-modulator flicker, authored journeys. Walk away, come back, still changing.</p>
       </div>
 
       <div class="quadrant q-se">
@@ -440,7 +471,7 @@
 
     <section class="rubric">
       <div class="supra" style="margin-bottom: 22px;">What it is</div>
-      <p><em>A serious instrument built around one sustained tone.</em> Layered voices, slow weather, microtonal tuning, a long reverb tail, and two slow modulators — so a held note stays interesting for hours. No clock, no beats, no quantize.</p>
+      <p><em>A serious instrument built around one sustained tone.</em> Layered voices, slow weather, microtonal tuning, a long reverb tail, and two slow modulators, so a held note stays interesting for hours. No clock, no beats, no quantize.</p>
       <div class="proof">
         <span>works on iPhone, iPad, Android, desktop</span>
         <span>Free &amp; Open Source</span>
@@ -453,15 +484,15 @@
         <h3>Sound</h3>
         <dl>
           <dt>Voices</dt>
-          <dd>tanpura, reed, metal, air, piano, FM, amp, noise — 8 authored timbres</dd>
+          <dd>tanpura, reed, metal, air, piano, FM, amp, noise. 8 authored timbres.</dd>
           <dt>Effects</dt>
           <dd>14-effect chain: tape, wow, sub, comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular, graincloud</dd>
           <dt>Macros</dt>
-          <dd>drift, air, time, sub, bloom, glide — plus a large XY weather pad</dd>
+          <dd>drift, air, time, sub, bloom, glide. Plus a large XY weather pad.</dd>
           <dt>Tuning</dt>
           <dd>6 built-in + 16 authored tuning systems · 6 interval relations · per-interval fine detune · a scale editor for your own 13-degree tables</dd>
           <dt>Presets</dt>
-          <dd>56 authored scenes across 6 groups — sacred, minimal, organ, ambient, pulse, noise · one-click GOOD DRONE for guided microtonal states</dd>
+          <dd>56 authored scenes across 6 groups: sacred, minimal, organ, ambient, pulse, noise. One-click GOOD DRONE for guided microtonal states.</dd>
         </dl>
       </div>
       <div>
