@@ -39,6 +39,7 @@ const SHORT_GROUP_LABELS: Partial<Record<PresetGroup, string>> = {
 import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
 import { FxBar } from "./FxBar";
+import { TouchSlider } from "./TouchSlider";
 import { EFFECT_ORDER, type EffectId } from "../engine/FxChain";
 import { STORAGE_KEYS } from "../config";
 import {
@@ -51,6 +52,11 @@ import { relationLabels, resolveTuning, TUNINGS, RELATIONS } from "../microtunin
 import { sampleGoodDrone } from "../goodDrone";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
 import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from "../engine/linkBridge";
+import {
+  isFlowDone,
+  onExpandAdvancedRequested,
+  requestOfferFlow,
+} from "../tutorial/state";
 
 /** LFO sync modes. "free" runs the user's manual rate; every other
  *  option locks the LFO period to a note-value at the current Link
@@ -626,6 +632,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setDisclosed((prev) => ({ ...prev, detune: true }));
   }, [state.fineTuneOffsets, disclosed.detune]);
 
+  // Tutorial — when the advanced flow is triggered from Settings,
+  // the DroneView ADVANCED section needs to be open so the spotlight
+  // can land on MICROTONAL + the tuning picker underneath.
+  useEffect(() => {
+    return onExpandAdvancedRequested(() => {
+      setDisclosed((prev) => prev.tuning ? prev : { ...prev, tuning: true });
+    });
+  }, []);
+
   // Push a short "fine-tune active" hint to the header. The hint is
   // `±N ¢` where N is the largest absolute offset, only when both
   // tuningId + relationId are set and at least one finite, non-zero
@@ -832,6 +847,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           <div className="preset-strip-identity">
           <button
             type="button"
+            data-tutor="presets"
             className="preset-strip-meta-btn"
             onClick={() => toggle("presets" as Section)}
             title="Click to browse presets"
@@ -1093,11 +1109,17 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           </div>
 
           <div
+            data-tutor="shape"
             className={[
               "weather-controls",
               shapeHintsOn ? "shape-hints-on" : "",
               shapeCollapsed ? "shape-collapsed" : "",
             ].filter(Boolean).join(" ")}
+            onPointerDownCapture={() => {
+              // First time the user touches the SHAPE panel, offer
+              // the tour. Offer-bus already no-ops when done.
+              if (!isFlowDone("shape")) requestOfferFlow("shape");
+            }}
           >
             <div className="shape-header">
               <button
@@ -1331,6 +1353,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <span className="scene-actions-break" aria-hidden="true" />
               <button
                 type="button"
+                data-tutor="good-drone"
                 className="preset-mut-btn"
                 onClick={() => {
                   // Guided randomize — pulls a tuning + relation from the
@@ -1391,6 +1414,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               {onToggleRec && (
                 <button
                   type="button"
+                  data-tutor="rec"
                   className={isRec ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
                   onClick={onToggleRec}
                   disabled={!recordingSupported || recordingBusy || loopBusy}
@@ -1505,7 +1529,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               </Fragment>
             ))}
           </div>
-          <div className="fx-col">
+          <div
+            className="fx-col"
+            data-tutor="fx-bar"
+            onPointerDownCapture={() => {
+              // First interaction with the FX strip surfaces the
+              // effects tour as a pill. Subsequent clicks no-op via
+              // the flow-done flag.
+              if (!isFlowDone("effects")) requestOfferFlow("effects");
+            }}
+          >
             <FxBar
               engine={engine}
               states={state.effects}
@@ -1521,7 +1554,19 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             above (preset, SHAPE, timbre, FX) is always-visible
             performance surface. Matches hardware-synth separation of
             performance from programming. */}
-        <button className="disclosure-toggle disclosure-toggle-wide" onClick={() => toggle("tuning")}>
+        <button
+          data-tutor="advanced-toggle"
+          className="disclosure-toggle disclosure-toggle-wide"
+          onClick={() => {
+            const willOpen = !disclosed.tuning;
+            toggle("tuning");
+            // First-time expansion offers the advanced tour as a
+            // dismissible pill — never auto-starts the spotlight.
+            if (willOpen && !isFlowDone("advanced")) {
+              window.setTimeout(() => requestOfferFlow("advanced"), 120);
+            }
+          }}
+        >
           <span className="disclosure-arrow">{disclosed.tuning ? "▾" : "▸"}</span>
           ADVANCED
         </button>
@@ -1529,7 +1574,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <div className="tuning-lfo-row">
           <div className="preset-mode-col">
             <div className="panel-label">MODE</div>
-            <div className="mode-tabs" role="tablist">
+            <div className="mode-tabs" role="tablist" data-tutor="mode-tabs">
               <button
                 role="tab"
                 aria-selected={!modeIsMicro}
@@ -1546,6 +1591,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               </button>
               <button
                 role="tab"
+                data-tutor="microtonal-tab"
                 aria-selected={modeIsMicro}
                 className={modeIsMicro ? "mode-tab mode-tab-active" : "mode-tab"}
                 onClick={() => {
@@ -1561,7 +1607,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             {!modeIsMicro && (
               <>
                 <div className="panel-hint">Scale intervals stacked on the root</div>
-                <div className="scale-grid scale-grid-compact">
+                <div className="scale-grid scale-grid-compact" data-tutor="scale-grid">
                   {SCALES.map((s) => (
                     <button
                       key={s.id}
@@ -1578,7 +1624,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             {modeIsMicro && (
               <>
                 <div className="panel-hint">Tuning system + interval relation</div>
-                <div className="intonation-row">
+                <div className="intonation-row" data-tutor="tuning-picker">
                   <DropdownSelect
                     value={state.tuningId ?? ""}
                     options={TUNINGS.map((t) => ({ value: t.id, label: t.label }))}
@@ -1668,7 +1714,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             )}
           </div>
 
-          <div className="lfo-col">
+          <div className="lfo-col" data-tutor="lfo">
             <div className="panel-label">LFO · VOLUME SWELL</div>
             <div className="panel-hint">Modulates master gain — the drone breathes in and out</div>
             <div className="lfo-shape-row">
@@ -1744,11 +1790,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               icon={<IconDepth />}
               title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
             />
-            <EntrainPanel
-              entrain={state.entrain}
-              onChange={setEntrain}
-              breathingHz={state.lfoRate}
-            />
+            <div data-tutor="entrain">
+              <EntrainPanel
+                entrain={state.entrain}
+                onChange={setEntrain}
+                breathingHz={state.lfoRate}
+              />
+            </div>
           </div>
         </div>
         )}
@@ -1819,25 +1867,27 @@ function Macro({
     );
   }
   return (
-    <div className="macro-row" title={title}>
-      {icon && <span className="macro-icon">{icon}</span>}
-      <span className="macro-label-col">
-        <span className="macro-label">{label}</span>
-        {hint && <span className="macro-hint">{hint}</span>}
-      </span>
-      <input
-        type="range"
-        min={0}
-        max={1}
-        step={0.001}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="macro-slider"
-        style={{ ["--fill" as string]: `${value * 100}%` } as React.CSSProperties}
-      />
-      <span className="macro-value">
-        {displayValue ?? Math.round(value * 100)}
-      </span>
+    <div className="macro-row-wrap" title={title}>
+      <div className="macro-row">
+        {icon && <span className="macro-icon">{icon}</span>}
+        <span className="macro-label-col">
+          <span className="macro-label">{label}</span>
+        </span>
+        <TouchSlider
+          min={0}
+          max={1}
+          step={0.001}
+          value={value}
+          onChange={onChange}
+          className="macro-slider"
+          aria-label={label}
+          style={{ ["--fill" as string]: `${value * 100}%` } as React.CSSProperties}
+        />
+        <span className="macro-value">
+          {displayValue ?? Math.round(value * 100)}
+        </span>
+      </div>
+      {hint && <span className="macro-hint">{hint}</span>}
     </div>
   );
 }

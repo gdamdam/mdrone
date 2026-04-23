@@ -257,7 +257,7 @@ export function WeatherPad({
   };
 
   return (
-    <div className="weather-section">
+    <div className="weather-section" data-tutor="weather">
       <div className="weather-header">
         <span className={`weather-title${intro ? " weather-title-intro" : ""}`}>WEATHER</span>
         <span className={`weather-hint${intro ? " weather-hint-intro" : ""}`}>drag to change the room</span>

@@ -1,0 +1,311 @@
+/* ── Tutorial & advanced hint styles ──────────────────────────────
+   Intro tutorial uses two renderers: desktop spotlight (clip-path
+   overlay + anchored card) and mobile docked bottom-sheet with a
+   soft ring on the target. Advanced hint is a single floating
+   chip. Colours derive from the active palette via CSS vars.
+*/
+
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  z-index: 9997;
+  animation: tutorial-fade-in 160ms ease-out;
+  transition: clip-path 200ms ease-out;
+}
+
+@keyframes tutorial-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.tutorial-ring {
+  border: 2px solid var(--preview);
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35),
+              0 0 32px color-mix(in srgb, var(--preview) 55%, transparent);
+  animation: tutorial-ring-pulse 1800ms ease-in-out infinite;
+}
+
+@keyframes tutorial-ring-pulse {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35),
+                         0 0 24px color-mix(in srgb, var(--preview) 45%, transparent); }
+  50%      { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35),
+                         0 0 44px color-mix(in srgb, var(--preview) 75%, transparent); }
+}
+
+/* ── Card (shared) ───────────────────────────────────────────── */
+.tutorial-card {
+  position: fixed;
+  z-index: 9999;
+  width: min(340px, calc(100vw - 24px));
+  padding: 14px 16px 12px;
+  background: var(--bg-panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55),
+              0 0 0 1px color-mix(in srgb, var(--preview) 25%, transparent);
+  font-family: inherit;
+  animation: tutorial-card-in 220ms ease-out;
+}
+
+.tutorial-card-mobile {
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  width: auto;
+  max-width: none;
+}
+
+@keyframes tutorial-card-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tutorial-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tutorial-card-step {
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.tutorial-card-skip {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 4px 6px;
+}
+.tutorial-card-skip:hover { color: var(--text); }
+
+.tutorial-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--preview);
+  margin-bottom: 6px;
+}
+
+.tutorial-card-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.tutorial-card-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ── Buttons (shared with hint) ─────────────────────────────── */
+.tutorial-btn {
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-cell);
+  color: var(--text);
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.tutorial-btn:hover { border-color: var(--preview); }
+.tutorial-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.tutorial-btn-ghost {
+  background: transparent;
+  color: var(--text-dim);
+}
+.tutorial-btn-ghost:hover { color: var(--text); }
+
+.tutorial-btn-primary {
+  background: var(--preview);
+  color: #1a0f08;
+  border-color: var(--preview);
+  font-weight: 700;
+}
+.tutorial-btn-primary:hover { filter: brightness(1.08); }
+
+/* ── Advanced hint chip ─────────────────────────────────────── */
+.tutorial-hint {
+  position: fixed;
+  z-index: 9990;
+  width: min(320px, calc(100vw - 24px));
+  padding: 10px 12px 11px;
+  background: var(--bg-panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--preview);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  animation: tutorial-card-in 200ms ease-out;
+}
+
+@media (max-width: 720px) {
+  .tutorial-hint {
+    left: 12px !important;
+    right: 12px !important;
+    top: auto !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    width: auto;
+  }
+}
+
+.tutorial-hint-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.tutorial-hint-tag {
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--preview);
+  font-weight: 700;
+}
+
+.tutorial-hint-close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.tutorial-hint-close:hover { color: var(--text); }
+
+.tutorial-hint-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.tutorial-hint-body {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.tutorial-hint-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.tutorial-hint-actions .tutorial-btn {
+  font-size: 10px;
+  padding: 5px 9px;
+}
+
+/* ── Help-modal entry point for re-running intro / opening advanced list ── */
+.tutorial-help-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+/* ── IntroPrompt — persistent first-load pill under HOLD ──────────
+   Stays until the user opts in (click body → start tour) or opts
+   out (click × → mark intro done). Nothing else dismisses it. */
+.intro-prompt {
+  position: fixed;
+  z-index: 9996;
+  display: inline-flex;
+  align-items: stretch;
+  background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+  border: 1px solid var(--preview);
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: intro-prompt-in 220ms ease-out,
+             intro-prompt-pulse 1600ms ease-in-out 220ms infinite;
+}
+
+.intro-prompt-body,
+.intro-prompt-close {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--preview);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.intro-prompt-body {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+}
+.intro-prompt-body:hover {
+  background: color-mix(in srgb, var(--preview) 14%, transparent);
+}
+
+.intro-prompt-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  font-size: 15px;
+  letter-spacing: 0;
+  color: var(--text-dim);
+  border-left: 1px solid color-mix(in srgb, var(--preview) 30%, transparent);
+}
+.intro-prompt-close:hover {
+  background: color-mix(in srgb, var(--preview) 14%, transparent);
+  color: var(--text);
+}
+
+.intro-prompt-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--preview);
+  color: #1a0f08;
+  font-weight: 900;
+  font-size: 11px;
+}
+
+.intro-prompt-text {
+  white-space: nowrap;
+}
+
+@keyframes intro-prompt-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes intro-prompt-pulse {
+  0%, 100% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35),
+                          0 0 0 0 color-mix(in srgb, var(--preview) 45%, transparent); }
+  50%      { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35),
+                          0 0 0 6px color-mix(in srgb, var(--preview) 0%, transparent); }
+}

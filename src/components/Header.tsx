@@ -13,6 +13,12 @@ import { CpuWarning } from "./CpuWarning";
 import { STORAGE_KEYS } from "../config";
 import { showNotification } from "../notifications";
 import { trackEvent } from "../analytics";
+import {
+  isFlowDone,
+  onCloseSettingsRequested,
+  requestExpandAdvanced,
+  requestOfferFlow,
+} from "../tutorial/state";
 
 const HelpModal = lazy(() =>
   import("./HelpModal").then((m) => ({ default: m.HelpModal })),
@@ -227,6 +233,12 @@ export function Header({
     return () => window.removeEventListener("keydown", onKey);
   }, [sessionOpen]);
 
+  // Tutorial flows may need the Settings modal out of the way so the
+  // spotlight can target header / DroneView elements underneath.
+  useEffect(() => {
+    return onCloseSettingsRequested(() => setSessionOpen(false));
+  }, []);
+
   const lastNoteLabel = midiLastNote !== null
     ? (() => { const p = midiNoteToPitch(midiLastNote); return `${p.pitchClass}${p.octave} (${midiLastNote})`; })()
     : "—";
@@ -297,10 +309,11 @@ export function Header({
 
       <div className="header-row header-row-main">
         {/* Left — surface tabs */}
-        <div className="view-toggle">
+        <div className="view-toggle" data-tutor="views">
           {(["drone", "meditate", "mixer"] as const).map((m) => (
             <button
               key={m}
+              data-tutor={`view-${m}`}
               // MEDITATE is now a fullscreen overlay and MIXER a bottom
               // drawer — both close by tapping the same button again.
               // DRONE is the base layer, always available.
@@ -361,6 +374,7 @@ export function Header({
           <span className="header-btn-label-glyph" aria-hidden="true">RND</span>
         </button>
         <button
+          data-tutor="share-btn"
           className="header-btn header-btn-share"
           onClick={onOpenShare}
           title="Share the current drone landscape as a link"
@@ -369,6 +383,7 @@ export function Header({
           <span className="header-btn-label-glyph" aria-hidden="true">SHARE</span>
         </button>
         <button
+          data-tutor="hold"
           className={holding ? "header-hold-btn header-hold-btn-active" : "header-hold-btn"}
           onClick={onToggleHold}
           title={holding ? "Release the drone" : "Hold the current tonic"}
@@ -394,6 +409,15 @@ export function Header({
           <span className="header-btn-label-glyph" aria-hidden="true">VOL</span>
         </button>
         <button
+          className="header-btn header-btn-help"
+          onClick={() => setHelpOpen(true)}
+          title="Help — reference card + replay any tutorial"
+          aria-label="Open help"
+        >
+          ?
+        </button>
+        <button
+          data-tutor="settings-btn"
           className="header-btn header-btn-menu"
           onClick={() => setSessionOpen(true)}
           title={`Settings — sessions, MIDI, panic, reset`}
@@ -482,7 +506,21 @@ export function Header({
                     role="tab"
                     aria-selected={settingsTab === id}
                     className={settingsTab === id ? "settings-tab settings-tab-active" : "settings-tab"}
-                    onClick={() => setSettingsTab(id)}
+                    onClick={() => {
+                      // Tapping the Settings "ADVANCED" tab is one of
+                      // the two entry points for the advanced flow.
+                      // When firing, close this modal + expand the
+                      // DroneView ADVANCED section so the spotlight
+                      // lands on real content, not modal chrome.
+                      if (id === "advanced" && !isFlowDone("advanced")) {
+                        setSessionOpen(false);
+                        requestExpandAdvanced();
+                        // Offer the tour as a pill — user decides.
+                        window.setTimeout(() => requestOfferFlow("advanced"), 120);
+                        return;
+                      }
+                      setSettingsTab(id);
+                    }}
                   >
                     {label}
                   </button>
@@ -730,7 +768,10 @@ export function Header({
 
       {helpOpen && (
         <Suspense fallback={null}>
-          <HelpModal onClose={() => setHelpOpen(false)} />
+          <HelpModal
+            onClose={() => setHelpOpen(false)}
+            onBeforeTutorialReveal={() => setSessionOpen(false)}
+          />
         </Suspense>
       )}
 

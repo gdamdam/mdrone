@@ -13,6 +13,7 @@
 import { useState, useEffect } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { EffectId } from "../engine/FxChain";
+import { TouchSlider } from "./TouchSlider";
 
 interface FxModalProps {
   engine: AudioEngine | null;
@@ -161,14 +162,14 @@ function ParamSlider({
   return (
     <div className="fx-param-row">
       <span className="fx-param-label">{label}</span>
-      <input
-        type="range"
+      <TouchSlider
         min={min}
         max={max}
         step={step}
         value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
+        onChange={onChange}
         className="fx-param-slider"
+        aria-label={label}
       />
       <span className="fx-param-value">
         {step < 0.01 ? value.toFixed(3) : step < 1 ? value.toFixed(2) : Math.round(value)}

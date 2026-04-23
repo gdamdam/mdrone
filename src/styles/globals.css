@@ -1225,6 +1225,23 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 6px;
 }
 
+.header-btn-help {
+  /* Anchors the right-edge cluster. The following settings cog
+     cancels its own auto-margin via the adjacent-sibling rule
+     below so the two buttons stay tight together. */
+  margin-left: auto;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  min-width: 30px;
+  flex-shrink: 0;
+}
+
+.header-btn-help + .header-btn-menu {
+  margin-left: 4px;
+}
+
 .header-btn-session,
 .header-btn-menu {
   /* Settings cog — pushed to the far right of its flex container so
@@ -1413,6 +1430,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   align-items: center;
   gap: 6px;
 }
+.macro-with-chip .macro-row-wrap,
 .macro-with-chip .macro-row {
   flex: 1 1 auto;
   min-width: 0;
@@ -2961,12 +2979,20 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   }
 }
 
-/* Macro rows (DRIFT / AIR / TIME / LFO rate/depth) */
+/* Macro rows (DRIFT / AIR / TIME / LFO rate/depth).
+   The wrap holds the horizontal row + an optional hint line below it,
+   so revealing hints grows the row vertically rather than narrowing
+   the slider. */
+.macro-row-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+}
 .macro-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 0;
 }
 
 .macro-icon {
@@ -2994,10 +3020,11 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 /* Hint hidden by default; `.shape-hints-on` on the panel wrapper
- * reveals it under each macro label. Kept compact so it doesn't
- * blow up row height much when visible. */
+ * reveals it as a second line below the row. Indented to align under
+ * the label so it reads as a caption on that macro. */
 .macro-hint {
   display: none;
+  padding-left: 26px;
   font-size: 9.5px;
   font-weight: 500;
   line-height: 1.15;
@@ -3005,19 +3032,47 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   text-transform: none;
   color: var(--text-dim);
   opacity: 0.72;
-  max-width: 170px;
   white-space: normal;
 }
 .shape-hints-on .macro-hint {
-  display: inline-block;
+  display: block;
 }
 
 /* Surface the hint when the user points at or focuses a macro — no
    toggle needed for the quick "what does this do?" question. Leaves
    the ? button as the "show all hints, all the time" opt-in. */
-.macro-row:hover .macro-hint,
-.macro-row:focus-within .macro-hint {
-  display: inline-block;
+.macro-row-wrap:hover .macro-hint,
+.macro-row-wrap:focus-within .macro-hint {
+  display: block;
+}
+
+/* Touch-friendly wrapper around <input type="range">. Enlarges the
+   pointer hit area without changing visible track/thumb size. Vertical
+   padding + negative margin keeps the row's layout unchanged while
+   giving the finger ~32px of vertical slack above/below the thin track. */
+.touch-slider {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  position: relative;
+  touch-action: none;
+  cursor: pointer;
+  padding: 16px 0;
+  margin: -16px 0;
+}
+.touch-slider > input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.touch-slider-vertical {
+  flex: initial;
+  width: 100%;
+  height: 100%;
+  padding: 0 16px;
+  margin: 0 -16px;
+  justify-content: center;
 }
 
 .macro-slider {

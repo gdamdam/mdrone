@@ -9,12 +9,36 @@
  */
 
 import { APP_VERSION } from "../config";
+import {
+  type FlowId,
+  requestCloseSettings,
+  requestExpandAdvanced,
+  requestFlow,
+  resetAllFlows,
+  resetFlow,
+} from "../tutorial/state";
+import { FLOWS, FLOW_LABELS } from "../tutorial/flows";
 
 interface HelpModalProps {
   onClose: () => void;
+  /** Optional — closes any parent chrome (Settings modal) before the
+   *  tutorial / hint overlays render, so they aren't occluded. */
+  onBeforeTutorialReveal?: () => void;
 }
 
-export function HelpModal({ onClose }: HelpModalProps) {
+export function HelpModal({ onClose, onBeforeTutorialReveal }: HelpModalProps) {
+  const replayFlow = (id: FlowId) => {
+    // Explicit replay — clear the done flag so the renderer accepts
+    // the request. Close any Settings chrome so the spotlight hits
+    // real UI, not modal backdrop. For the advanced flow, also ask
+    // DroneView to expand its ADVANCED disclosure.
+    resetFlow(id);
+    onClose();
+    onBeforeTutorialReveal?.();
+    requestCloseSettings();
+    if (id === "advanced") requestExpandAdvanced();
+    window.setTimeout(() => requestFlow(id), 80);
+  };
   return (
     <div className="fx-modal-backdrop" onClick={onClose}>
       <div className="fx-modal help-modal" onClick={(e) => e.stopPropagation()}>
@@ -34,6 +58,36 @@ export function HelpModal({ onClose }: HelpModalProps) {
         </p>
 
         <div className="fx-modal-params help-modal-body">
+          <div className="fx-modal-section-label">TUTORIALS</div>
+          <p className="fx-modal-desc">
+            Three short guided tours. Each is 3–4 steps and can be
+            replayed any time.
+          </p>
+          <div className="tutorial-help-row">
+            {(Object.keys(FLOWS) as FlowId[]).map((id) => (
+              <button
+                key={id}
+                type="button"
+                className="header-btn"
+                onClick={() => replayFlow(id)}
+                title={`Replay the ${FLOW_LABELS[id].toLowerCase()} tour (${FLOWS[id].steps.length} steps)`}
+              >
+                {FLOW_LABELS[id].toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <div className="tutorial-help-row" style={{ marginTop: 6 }}>
+            <button
+              type="button"
+              className="header-btn"
+              onClick={resetAllFlows}
+              title="Clear all tutorial completion flags so every flow is re-eligible to auto-trigger"
+            >
+              RESET ALL TUTORIALS
+            </button>
+          </div>
+
+          <div className="fx-modal-divider" />
           <div className="fx-modal-section-label">GETTING STARTED</div>
           <p className="fx-modal-desc">
             First fresh launch opens the <strong>Welcome</strong> preset
