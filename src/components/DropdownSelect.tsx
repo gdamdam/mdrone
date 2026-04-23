@@ -6,6 +6,12 @@
  * Windows) popping up. This component renders its own popup list
  * so the look is identical on every platform.
  *
+ * The popup is portaled to `document.body` with `position: fixed`
+ * so it escapes any ancestor overflow clipping or stacking context
+ * (e.g. panels with `overflow: hidden`, sticky footers). Max-height
+ * is clamped to the viewport space below the trigger and capped at
+ * POPUP_CEILING so it never overflows the visible page.
+ *
  * Minimal API:
  *
  *   <DropdownSelect
@@ -22,6 +28,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface DropdownOption<T extends string> {
   value: T;
@@ -48,6 +55,18 @@ interface DropdownSelectProps<T extends string> {
   disabled?: boolean;
 }
 
+interface PopupGeometry {
+  top: number;
+  left: number;
+  width: number;
+  maxHeight: number;
+}
+
+const POPUP_CEILING = 340;
+const POPUP_FLOOR = 160;
+const TRIGGER_GAP = 4;
+const VIEWPORT_MARGIN = 12;
+
 export function DropdownSelect<T extends string>({
   value,
   options,
@@ -70,18 +89,26 @@ export function DropdownSelect<T extends string>({
   const [open, setOpen] = useState(false);
   const selectedIndex = Math.max(0, flat.findIndex((o) => o.value === value));
   const [highlight, setHighlight] = useState(selectedIndex);
+  // Geometry of the portaled popup — computed from the trigger's
+  // bounding rect on open + viewport resize. When null the popup is
+  // not positioned yet and is hidden.
+  const [geometry, setGeometry] = useState<PopupGeometry | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLUListElement>(null);
 
   const current = flat.find((o) => o.value === value);
   const label = current?.label ?? String(value);
 
-  // Close on outside pointer / Escape
+  // Close on outside pointer / Escape. With the portal, the popup is
+  // outside rootRef, so check the popup element separately.
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (!rootRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (popupRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -97,6 +124,38 @@ export function DropdownSelect<T extends string>({
     };
   }, [open]);
 
+  // Compute the popup's position + max-height from the trigger's
+  // viewport rect. `visualViewport` tracks mobile browser chrome
+  // (URL bar, keyboard) more accurately than window.innerHeight.
+  useEffect(() => {
+    if (!open) return;
+    const compute = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const vpHeight = window.visualViewport?.height ?? window.innerHeight;
+      const vpOffsetTop = window.visualViewport?.offsetTop ?? 0;
+      const available = vpHeight + vpOffsetTop - rect.bottom - TRIGGER_GAP - VIEWPORT_MARGIN;
+      const maxHeight = Math.max(POPUP_FLOOR, Math.min(POPUP_CEILING, available));
+      setGeometry({
+        top: rect.bottom + TRIGGER_GAP,
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+      });
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    window.addEventListener("scroll", compute, true);
+    window.visualViewport?.addEventListener("resize", compute);
+    window.visualViewport?.addEventListener("scroll", compute);
+    return () => {
+      window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute, true);
+      window.visualViewport?.removeEventListener("resize", compute);
+      window.visualViewport?.removeEventListener("scroll", compute);
+    };
+  }, [open]);
+
   const commit = useCallback((next: T) => {
     onChange(next);
     setOpen(false);
@@ -106,6 +165,7 @@ export function DropdownSelect<T extends string>({
   const openPopup = useCallback(() => {
     if (disabled) return;
     setHighlight(selectedIndex);
+    setGeometry(null);
     setOpen(true);
   }, [disabled, selectedIndex]);
 
@@ -116,6 +176,7 @@ export function DropdownSelect<T extends string>({
       return;
     }
     setHighlight(selectedIndex);
+    setGeometry(null);
     setOpen(true);
   }, [disabled, open, selectedIndex]);
 
@@ -147,30 +208,23 @@ export function DropdownSelect<T extends string>({
     }
   }, [commit, highlight, flat]);
 
-  return (
-    <div className="dropdown-select-root" ref={rootRef}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`dropdown-select-trigger ${className ?? ""}`}
-        onClick={togglePopup}
-        onKeyDown={handleTriggerKey}
-        title={title}
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        disabled={disabled}
-      >
-        <span className="dropdown-select-label">{label}</span>
-        <span className="dropdown-select-chevron" aria-hidden="true">▾</span>
-      </button>
-      {open && (
+  const popupNode = open && geometry && typeof document !== "undefined"
+    ? createPortal(
         <ul
+          ref={popupRef}
           className={`dropdown-select-popup ${popupClassName ?? ""}`}
           role="listbox"
           tabIndex={-1}
           onKeyDown={handleListKey}
-          ref={(el) => el?.focus()}
+          style={{
+            position: "fixed",
+            top: `${geometry.top}px`,
+            left: `${geometry.left}px`,
+            minWidth: `${geometry.width}px`,
+            maxHeight: `${geometry.maxHeight}px`,
+          }}
+          // Autofocus for keyboard nav
+          autoFocus
         >
           {groups
             ? (() => {
@@ -223,8 +277,29 @@ export function DropdownSelect<T extends string>({
                   {opt.label}
                 </li>
               ))}
-        </ul>
-      )}
+        </ul>,
+        document.body,
+      )
+    : null;
+
+  return (
+    <div className="dropdown-select-root" ref={rootRef}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`dropdown-select-trigger ${className ?? ""}`}
+        onClick={togglePopup}
+        onKeyDown={handleTriggerKey}
+        title={title}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={disabled}
+      >
+        <span className="dropdown-select-label">{label}</span>
+        <span className="dropdown-select-chevron" aria-hidden="true">▾</span>
+      </button>
+      {popupNode}
     </div>
   );
 }
