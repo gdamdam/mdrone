@@ -71,7 +71,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         <span className="start-gate-corner start-gate-corner-bl" aria-hidden="true" />
         <span className="start-gate-corner start-gate-corner-br" aria-hidden="true" />
 
-        <div className="start-gate-supra">serious drone instrument · microtonal · browser-native</div>
+        <div className="start-gate-supra">drone instrument · microtonal · browser-native</div>
 
         <button
           type="button"
@@ -150,7 +150,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         </div>
 
         <p className="start-gate-sub">
-          <em>A serious microtonal drone instrument in your browser.</em>
+          <em>A microtonal drone instrument in your browser.</em>
           <br />
           Hold a tone.
           <br />
