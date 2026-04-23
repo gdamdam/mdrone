@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type { AudioEngine } from "../engine/AudioEngine";
 import { showNotification } from "../notifications";
 import { trackEvent } from "../analytics";
-import { PRESETS, createArrivalScene, createSafeRandomScene, mutateScene, mulberry32 } from "../engine/presets";
+import { PRESETS, createArrivalScene, createSafeRandomScene, createWelcomeScene, mutateScene, mulberry32 } from "../engine/presets";
 import { applyJourneyTick } from "../journey";
 import {
   SceneRecorder,
@@ -163,12 +163,18 @@ export function useSceneManager({
   }, []);
 
   const applyStartupScene = useCallback(() => {
-    // Use the same code path as clicking RND so the first scene on load
-    // is effectively a random-scene click — same tonic pool, same jitter,
-    // same applySnapshot path. Octave comes from the preset's authored
-    // range; only fall back if the preset has no range.
+    // First-ever launch (no prior autosave) → deterministic Welcome
+    // preset. Every subsequent Start New pulls from the curated
+    // arrival pool with a random tonic. The autosave check mirrors
+    // the one weatherIntro uses, so the Welcome scene and WEATHER
+    // guidance appear together on the exact same session.
+    const isFirstLaunch = (() => {
+      try { return !localStorage.getItem("mdrone-autosave"); } catch { return false; }
+    })();
     const randomTonic = RANDOM_SCENE_TONICS[Math.floor(Math.random() * RANDOM_SCENE_TONICS.length)];
-    const { preset, snapshot } = createArrivalScene(randomTonic, FALLBACK_OCTAVE_RANGE);
+    const { preset, snapshot } = isFirstLaunch
+      ? createWelcomeScene(FALLBACK_OCTAVE_RANGE)
+      : createArrivalScene(randomTonic, FALLBACK_OCTAVE_RANGE);
     // See handleRandomScene — guard against handlePresetNameChange
     // stomping on the generated name when applySnapshot fires the
     // onPresetChange effect.

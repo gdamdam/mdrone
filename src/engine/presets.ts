@@ -2422,6 +2422,52 @@ export const PRESETS: Preset[] = [
     }),
   },
 
+  // ─── Welcome — dedicated first-launch preset ───────────────────────
+  // Served deterministically the first time a fresh browser lands on
+  // mdrone (no prior autosave). Designed for the "3 seconds at default
+  // tonic/octave" arrival bar: instant just-5 drone-triad consonance
+  // from tanpura + air, audible breath LFO so motion reads immediately,
+  // mid climateX/Y so the first WEATHER drag has room in every
+  // direction, safe 0.68 gain. No heavy effects — plate + hall only.
+  {
+    id: "welcome", group: "Minimal / Just",
+    name: "Welcome",
+    attribution: "First-launch drone · instant arrival",
+    hint: "A clean just-intonation triad on tanpura and air. Drag WEATHER to feel the room open.",
+    voiceLayers: ["tanpura", "air"],
+    voiceLevels: { tanpura: 1, air: 0.35 },
+    octaveRange: [3, 3],
+    drift: 0.18,
+    air: 0.4,
+    time: 0.15,
+    sub: 0.15,
+    bloom: 0.55,
+    glide: 0.2,
+    lfoShape: "sine",
+    lfoRate: 0.14,
+    lfoAmount: 0.09,
+    climateX: 0.55,
+    climateY: 0.45,
+    effects: ["plate", "hall"],
+    scale: "drone",
+    tuningId: "just5", relationId: "drone-triad",
+    gain: 0.68,
+    motionProfile: motionProfile({
+      climateXRange: [0.4, 0.7],
+      climateYRange: [0.3, 0.6],
+      bloomRange: [0.45, 0.65],
+      timeRange: [0.1, 0.22],
+      driftRange: [0.14, 0.24],
+      subRange: [0.1, 0.22],
+      macroStep: 0.5,
+      tonicWalk: "rare",
+      tonicIntervals: [-5, 5, 7],
+      tonicFloor: 0.8,
+      textureFloor: 0.88,
+      texturePeriod: 6,
+    }),
+  },
+
   // ─── Tuning-showcase variants ──────────────────────────────────────
   // Three presets whose identity IS the tuning. Kept intentionally
   // simple so the microtonal structure is what the ear tracks.
@@ -2908,6 +2954,25 @@ export function createSafeRandomScene(
     preset,
     snapshot: createPresetVariation(preset, root, octave, random),
   };
+}
+
+/** Deterministic first-launch scene — always serves the Welcome
+ *  preset at a fixed tonic/octave (C3) so the very first sound mdrone
+ *  makes for a new user is reliably beautiful, not a coin flip from
+ *  the arrival pool. Falls back to the arrival picker if, for any
+ *  reason, the welcome preset isn't present. */
+export function createWelcomeScene(
+  fallbackOctaveRange: readonly [number, number],
+  random = Math.random,
+): { preset: Preset; snapshot: DroneSessionSnapshot } {
+  const welcome = PRESETS.find((p) => p.id === "welcome");
+  if (welcome) {
+    const range = welcome.octaveRange ?? fallbackOctaveRange;
+    const [lo, hi] = range;
+    const octave = lo + Math.floor(random() * (hi - lo + 1));
+    return { preset: welcome, snapshot: createPresetVariation(welcome, "C", octave, random) };
+  }
+  return createArrivalScene("C", fallbackOctaveRange, random);
 }
 
 /**

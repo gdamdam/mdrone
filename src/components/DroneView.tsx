@@ -1012,6 +1012,20 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         )}
 
         {/* ── WEATHER + MACROS — two-column primary row ───── */}
+        {weatherIntro && (
+          <div
+            className="panel-hint"
+            role="note"
+            style={{
+              textAlign: "center",
+              marginBottom: 6,
+              letterSpacing: "0.4px",
+              color: "var(--preview)",
+            }}
+          >
+            Headphones recommended — drag WEATHER to open the room.
+          </div>
+        )}
         <div className="weather-macro-row">
           <WeatherPad
             climateX={state.climateX}

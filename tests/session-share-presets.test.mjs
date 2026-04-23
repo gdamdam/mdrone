@@ -10,7 +10,7 @@ const {
   encodeScenePayload,
   extractScenePayloadFromUrl,
 } = await import("../.test-dist/shareCodec.js");
-const { PRESETS, applyPreset, getPresetMaterialProfile } = await import("../.test-dist/engine/presets.js");
+const { PRESETS, applyPreset, getPresetMaterialProfile, createWelcomeScene } = await import("../.test-dist/engine/presets.js");
 const { saveCustomTuningAtId, tuningById, resolveTuning } = await import("../.test-dist/microtuning.js");
 
 test("normalizePortableScene clamps and sanitizes decoded scene data", () => {
@@ -454,4 +454,31 @@ test("migrated preset tuning assignments match musical intent", () => {
   check("doom-bloom", "equal", "tonic-fifth");
   check("windscape", "equal", "tonic-fourth");
   check("hecker-ravedeath", "equal", "minor-triad");
+});
+
+test("welcome preset exists and createWelcomeScene serves it deterministically", () => {
+  const welcome = PRESETS.find((p) => p.id === "welcome");
+  assert.ok(welcome, "welcome preset registered in PRESETS");
+  assert.equal(welcome.name, "Welcome");
+  // Core arrival properties: instant just-5 consonance, WEATHER-ready.
+  assert.equal(welcome.tuningId, "just5");
+  assert.equal(welcome.relationId, "drone-triad");
+  assert.ok(welcome.voiceLayers.includes("tanpura"), "tanpura carries the body");
+  assert.ok(welcome.voiceLayers.includes("air"), "air tracks climateY");
+  // Safe loudness ceiling — a fresh user shouldn't get blasted.
+  assert.ok(welcome.gain <= 0.72, `gain ${welcome.gain} within safe ceiling`);
+  // Audible motion by default so the room moves without user input.
+  assert.ok(welcome.lfoAmount > 0 && welcome.lfoAmount <= 0.15, "gentle audible LFO");
+
+  // Deterministic: every call returns the welcome preset at C3 (fixed
+  // tonic, single-entry octaveRange). Random only picks within [3,3].
+  const rng = () => 0;
+  const a = createWelcomeScene([3, 3], rng);
+  const b = createWelcomeScene([3, 3], rng);
+  assert.equal(a.preset.id, "welcome");
+  assert.equal(b.preset.id, "welcome");
+  assert.equal(a.snapshot.root, "C");
+  assert.equal(a.snapshot.octave, 3);
+  assert.equal(a.snapshot.tuningId, "just5");
+  assert.equal(a.snapshot.relationId, "drone-triad");
 });
