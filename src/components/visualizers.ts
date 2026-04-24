@@ -2696,10 +2696,13 @@ export function drawMoireField(
 }
 
 // ILLUMINATED GLYPHS — gilt runes placed on dark vellum. 12 authored
-// shapes, one per pitch class. Growth tier adds a gilt border circle.
+// shapes (one per pitch class). Multi-pitch chords stack multiple
+// glyphs; peaks fire a ring of smaller glyphs around the freshest
+// one. Drifting gilt sparks keep the vellum alive between placements.
 let glyphCanvas: HTMLCanvasElement | null = null;
 let glyphCtx: CanvasRenderingContext2D | null = null;
 let glyphLast = 0;
+let glyphPrevPeak = 0;
 const GLYPH_STROKES: number[][][] = [
   [[0, -1, 0, 1]],
   [[-1, 0, 0, -1, 1, 0, 0, 1, -1, 0]],
@@ -2714,62 +2717,177 @@ const GLYPH_STROKES: number[][][] = [
   [[-0.9, 0.9, 0, -0.9, 0.9, 0.9], [-0.5, 0, 0.5, 0]],
   [[-1, -1, 1, -1], [0, -1, 0, 1], [-0.6, 1, 0.6, 1]],
 ];
+// Recent glyph placements — live overlay breathes halos around them.
+interface RecentGlyph { x: number; y: number; sz: number; pc: number; age: number; }
+const recentGlyphs: RecentGlyph[] = [];
+// Drifting gilt sparks — ambient firefly layer so the vellum is
+// never fully still.
+interface GlyphSpark { x: number; y: number; vx: number; vy: number; life: number; }
+const glyphSparks: GlyphSpark[] = [];
 function ensureGlyph(w: number, h: number) {
   if (!glyphCanvas || glyphCanvas.width !== w || glyphCanvas.height !== h) {
     glyphCanvas = document.createElement("canvas");
     glyphCanvas.width = w; glyphCanvas.height = h;
     glyphCtx = glyphCanvas.getContext("2d");
     glyphCtx!.fillStyle = "#0d0906"; glyphCtx!.fillRect(0, 0, w, h);
+    recentGlyphs.length = 0;
+    glyphSparks.length = 0;
   }
+}
+function stampGlyph(
+  g: CanvasRenderingContext2D,
+  gx: number, gy: number, sz: number, pc: number, energy: number,
+  growth: number,
+) {
+  const strokes = GLYPH_STROKES[pc];
+  g.save();
+  g.translate(gx, gy);
+  g.lineWidth = 1.4 + energy * 1.8;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  g.strokeStyle = `hsla(42, ${60 + energy * 20}%, ${62 + energy * 12}%, 0.85)`;
+  g.shadowColor = "rgba(240, 164, 91, 0.55)";
+  g.shadowBlur = 8 + energy * 6;
+  for (const path of strokes) {
+    g.beginPath();
+    for (let i = 0; i < path.length; i += 2) {
+      const px = path[i] * sz;
+      const py = path[i + 1] * sz;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.stroke();
+  }
+  if (growth > 0.4) {
+    g.strokeStyle = `hsla(38, 65%, 55%, ${0.3 + growth * 0.3})`;
+    g.lineWidth = 0.8;
+    g.shadowBlur = 2;
+    g.beginPath();
+    g.arc(0, 0, sz * 1.55, 0, Math.PI * 2);
+    g.stroke();
+  }
+  // Growth tier 2 (>0.7): add a faint inner ring for extra decoration
+  if (growth > 0.7) {
+    g.strokeStyle = `hsla(45, 70%, 65%, ${(growth - 0.7) * 0.8})`;
+    g.lineWidth = 0.6;
+    g.shadowBlur = 1;
+    g.beginPath();
+    g.arc(0, 0, sz * 1.2, 0, Math.PI * 2);
+    g.stroke();
+  }
+  g.restore();
 }
 export function drawIlluminatedGlyphs(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
   ensureGlyph(w, h);
   const g = glyphCtx!;
+  // Slow vellum fade — glyphs persist for many seconds but don't
+  // saturate the canvas forever.
   g.fillStyle = "rgba(13, 9, 6, 0.012)";
   g.fillRect(0, 0, w, h);
+
   const now = p.t;
-  if (now - glyphLast > 1.5 - a.rms * 0.6) {
+  const dt = p.dtScale ?? 1;
+
+  // Spawn cadence — louder drones place glyphs more frequently.
+  // Was 1.5 - rms*0.6 → min ~0.9s. Now 0.9 - rms*0.7 → min ~0.2s.
+  const spawnEvery = Math.max(0.2, 0.9 - a.rms * 0.7);
+  if (now - glyphLast > spawnEvery) {
     glyphLast = now;
-    let pc = 0, best = 0;
+    // Collect top 3 active pitches by energy (was only dominant),
+    // so chord passages stack multiple glyphs per cycle.
+    const order: { pc: number; e: number }[] = [];
     for (let i = 0; i < 12; i++) {
-      if (p.activePitches[i] > best) { best = p.activePitches[i]; pc = i; }
+      if (p.activePitches[i] > 0.08) order.push({ pc: i, e: p.activePitches[i] });
     }
-    if (best > 0.1) {
-      const strokes = GLYPH_STROKES[pc];
-      const sz = 18 + best * 26;
+    order.sort((x, y) => y.e - x.e);
+    const picks = order.slice(0, Math.min(3, order.length));
+    for (let k = 0; k < picks.length; k++) {
+      const { pc, e } = picks[k];
+      // First pick is biggest; secondary picks render smaller
+      const sz = (18 + e * 26) * (k === 0 ? 1 : 0.65 - k * 0.1);
       const gx = 60 + Math.random() * (w - 120);
       const gy = 60 + Math.random() * (h - 120);
-      g.save();
-      g.translate(gx, gy);
-      g.lineWidth = 1.4 + best * 1.8;
-      g.lineCap = "round";
-      g.lineJoin = "round";
-      g.strokeStyle = `hsla(42, ${60 + best * 20}%, ${62 + best * 12}%, 0.85)`;
-      g.shadowColor = "rgba(240, 164, 91, 0.55)";
-      g.shadowBlur = 8 + best * 6;
-      for (const path of strokes) {
-        g.beginPath();
-        for (let i = 0; i < path.length; i += 2) {
-          const px = path[i] * sz;
-          const py = path[i + 1] * sz;
-          if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
-        }
-        g.stroke();
-      }
-      if (p.growth > 0.4) {
-        g.strokeStyle = `hsla(38, 65%, 55%, ${0.3 + p.growth * 0.3})`;
-        g.lineWidth = 0.8;
-        g.shadowBlur = 2;
-        g.beginPath();
-        g.arc(0, 0, sz * 1.55, 0, Math.PI * 2);
-        g.stroke();
-      }
-      g.restore();
+      stampGlyph(g, gx, gy, sz, pc, e, p.growth);
+      recentGlyphs.push({ x: gx, y: gy, sz, pc, age: 0 });
+      if (recentGlyphs.length > 18) recentGlyphs.shift();
     }
   }
+
+  // Peak burst — a ring of 6–8 small glyphs around the freshest
+  // placement on each transient.
+  if (a.peak > glyphPrevPeak + 0.08 && recentGlyphs.length > 0) {
+    const last = recentGlyphs[recentGlyphs.length - 1];
+    const count = 6 + Math.round(a.peak * 4);
+    const rr = last.sz * 2.2;
+    for (let k = 0; k < count; k++) {
+      const ang = (k / count) * Math.PI * 2;
+      const bx = last.x + Math.cos(ang) * rr;
+      const by = last.y + Math.sin(ang) * rr;
+      if (bx < 30 || bx > w - 30 || by < 30 || by > h - 30) continue;
+      // Small, bright, quick stamp — uses last glyph's pc for cohesion
+      stampGlyph(g, bx, by, last.sz * 0.4, last.pc, Math.min(1, a.peak + 0.3), p.growth);
+      recentGlyphs.push({ x: bx, y: by, sz: last.sz * 0.4, pc: last.pc, age: 0 });
+    }
+    if (recentGlyphs.length > 40) recentGlyphs.splice(0, recentGlyphs.length - 40);
+  }
+  glyphPrevPeak = a.peak;
+
+  // Age recent glyphs for the live halo overlay
+  for (let i = recentGlyphs.length - 1; i >= 0; i--) {
+    recentGlyphs[i].age += 0.01 * dt;
+    if (recentGlyphs[i].age > 3) recentGlyphs.splice(i, 1);
+  }
+
+  // Gilt sparks — drifting fireflies, audio-gated spawn
+  if (a.rms > 0.03 && Math.random() < 0.25 + a.rms * 0.8 && glyphSparks.length < 60) {
+    glyphSparks.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: -0.1 - Math.random() * 0.3,
+      life: 1,
+    });
+  }
+
   ctx.drawImage(glyphCanvas!, 0, 0);
+
+  // Live breathing halos on recent glyphs — the freshest pulse hardest
+  for (let i = 0; i < recentGlyphs.length; i++) {
+    const r = recentGlyphs[i];
+    const pulse = Math.max(0, 1 - r.age) * (0.35 + a.rms * 0.5);
+    if (pulse < 0.02) continue;
+    const haloR = r.sz * 1.8 * (1 + Math.sin(p.t * 1.5 + i) * 0.1);
+    const halo = ctx.createRadialGradient(r.x, r.y, 0, r.x, r.y, haloR);
+    halo.addColorStop(0, `hsla(42, 70%, 78%, ${pulse * 0.4})`);
+    halo.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, haloR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Step + render sparks on the live overlay (not stamped into the
+  // buffer, so they drift freely over the gilt runes).
+  for (let i = glyphSparks.length - 1; i >= 0; i--) {
+    const s = glyphSparks[i];
+    s.x += s.vx;
+    s.y += s.vy;
+    s.vy -= 0.003;
+    s.life -= 0.004;
+    if (s.life <= 0 || s.y < -20) { glyphSparks.splice(i, 1); continue; }
+    const alpha = s.life * 0.7 + a.peak * 0.2;
+    ctx.fillStyle = `hsla(44, 80%, 72%, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 1.1 + a.rms * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Peak flash — brief warm wash across the whole canvas on transients
+  if (a.peak > 0.5) {
+    ctx.fillStyle = `rgba(240, 180, 90, ${(a.peak - 0.5) * 0.18})`;
+    ctx.fillRect(0, 0, w, h);
+  }
 }
 
 // SCRYING MIRROR — bilateral symmetry. Ink blooms on the right half
