@@ -3342,64 +3342,74 @@ let mirrorSpawnTimer = 0;
 export function drawScryingMirror(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(12, 8, 8, 0.04)"; ctx.fillRect(0, 0, w, h);
+  // Cream card-stock background — classic Rorschach plate. Very slow
+  // fade so ink blooms persist for many seconds; the card never clears.
+  ctx.fillStyle = "rgba(239, 232, 220, 0.025)";
+  ctx.fillRect(0, 0, w, h);
+
   let num = 0, den = 0;
   for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
   const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
-  const hue = 350 * (1 - centroid) + 220 * centroid;
 
-  // Continuous ambient spawn — was only on peak transients, which
-  // almost never happen on a drone, leaving the mirror dark.
   mirrorSpawnTimer += 0.02 + a.rms * 0.1;
   if (mirrorSpawnTimer > 1 && mirrorBlooms.length < 32) {
     mirrorSpawnTimer = 0;
+    // ~15% of blooms are coloured (some Rorschach cards have red or
+    // blue accents); the rest are ink-black.
+    const coloured = Math.random() < 0.15;
+    const hue = coloured
+      ? (Math.random() < 0.5 ? 0 : 220) + (Math.random() - 0.5) * 20
+      : 25;
     mirrorBlooms.push({
       x: w * 0.5 + Math.random() * w * 0.45,
       y: Math.random() * h,
-      r: 6, maxR: 30 + Math.random() * 80 + a.rms * 60, hue, age: 0,
+      r: 6,
+      maxR: 30 + Math.random() * 80 + a.rms * 60,
+      hue: coloured ? hue : -1,  // -1 marks ink-black blooms
+      age: 0,
     });
   }
   if (a.peak > mirrorLastPeak + 0.05 && mirrorBlooms.length < 42) {
     mirrorBlooms.push({
       x: w * 0.5 + Math.random() * w * 0.45,
       y: Math.random() * h,
-      r: 10, maxR: 80 + Math.random() * 120, hue, age: 0,
+      r: 10,
+      maxR: 80 + Math.random() * 120,
+      hue: -1,
+      age: 0,
     });
   }
   mirrorLastPeak = a.peak;
+  // Suppress unused-var lint while keeping centroid read alive
+  // (may drive future per-plate palette shifts).
+  void centroid;
 
   const cx = w / 2;
   const dt = p.dtScale ?? 1;
 
-  // Baseline vertical pillar of light — the mirror is never fully dark.
-  const pillarR = 60 + a.rms * 80;
-  const pillar = ctx.createRadialGradient(cx, h / 2, 0, cx, h / 2, pillarR);
-  pillar.addColorStop(0, `hsla(${hue}, 30%, 55%, ${0.18 + a.rms * 0.25})`);
-  pillar.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = pillar;
-  ctx.fillRect(0, 0, w, h);
-
   for (let i = mirrorBlooms.length - 1; i >= 0; i--) {
     const b = mirrorBlooms[i];
-    b.age += 0.012 * dt;
+    // Age increments ~3× slower than before — blooms linger for
+    // ~20s each rather than ~6s, so the card accumulates texture.
+    b.age += 0.004 * dt;
     if (b.age > 1) { mirrorBlooms.splice(i, 1); continue; }
     b.r += (b.maxR - b.r) * 0.03;
-    const alpha = Math.max(0, 0.45 * (1 - b.age));
+    const alpha = Math.max(0, 0.6 * (1 - b.age));
+    const stop = b.hue < 0
+      ? `rgba(22, 18, 15, ${alpha})`              // ink-black
+      : `hsla(${b.hue}, 55%, 35%, ${alpha})`;     // red / blue accent
     const gr = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-    gr.addColorStop(0, `hsla(${b.hue}, 65%, 60%, ${alpha})`);
+    gr.addColorStop(0, stop);
     gr.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gr;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
     const mx = 2 * cx - b.x;
     const gL = ctx.createRadialGradient(mx, b.y, 0, mx, b.y, b.r);
-    gL.addColorStop(0, `hsla(${b.hue}, 65%, 60%, ${alpha})`);
+    gL.addColorStop(0, stop);
     gL.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gL;
     ctx.beginPath(); ctx.arc(mx, b.y, b.r, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.strokeStyle = `rgba(255,230,200,${0.08 + a.rms * 0.2})`;
-  ctx.lineWidth = 1 + a.peak * 2;
-  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
 }
 
 // ASTROLABE — three concentric rotating rings. Outer = pitch-class
