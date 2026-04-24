@@ -2300,6 +2300,8 @@ let filingsPositions: FilingPos[] | null = null;
 let filingsW = 0;
 let filingsH = 0;
 
+let filingsShock = 0;
+let prevFilingsPeak = 0;
 export function drawIronFilings(
   ctx: CanvasRenderingContext2D,
   w: number, h: number,
@@ -2325,36 +2327,101 @@ export function drawIronFilings(
 
   const cx = w * 0.5;
   const cy = h * 0.5;
-  const phi = p.t * 0.02 + p.slow * 1.6;
+  const phi = p.t * 0.05 + p.slow * 1.6;
   let active = 0;
   for (let i = 0; i < a.spectrum.length; i++) if (a.spectrum[i] > 0.1) active++;
   const spectrumWidth = active / a.spectrum.length;
-  const swirl = 0.15 + spectrumWidth * 1.1 + a.rms * 0.3;
-  const FILAMENT_LEN = 7;
+  const swirl = 0.15 + spectrumWidth * 1.1 + a.rms * 0.6;
 
-  ctx.strokeStyle = "#b8b3a8";
-  ctx.lineWidth = 0.8;
-  ctx.lineCap = "round";
-  ctx.beginPath();
+  // Active-pitch centroid places a second, orbiting pole — different
+  // chords push the pole to different positions so the field pattern
+  // visibly reshapes with the drone's harmony.
+  let pitchX = 0, pitchY = 0, pitchMass = 0;
+  for (let i = 0; i < 12; i++) {
+    const e = p.activePitches[i];
+    const ang = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    pitchX += Math.cos(ang) * e;
+    pitchY += Math.sin(ang) * e;
+    pitchMass += e;
+  }
+  const poleAng = pitchMass > 0.01 ? Math.atan2(pitchY, pitchX) : p.t * 0.1;
+  const poleR = Math.min(w, h) * (0.22 + 0.12 * Math.min(1, pitchMass));
+  const poleX = cx + Math.cos(poleAng + p.t * 0.1) * poleR;
+  const poleY = cy + Math.sin(poleAng + p.t * 0.1) * poleR;
+
+  // Peak shockwave — a brief moment where every filament radiates
+  // outward from the centre regardless of the field.
+  if (a.peak > prevFilingsPeak + 0.08) filingsShock = 1;
+  prevFilingsPeak = a.peak;
+  filingsShock *= 0.9;
+
   const positions = filingsPositions;
+  const spec = a.spectrum;
+  const bins = spec.length;
+  ctx.lineCap = "round";
   for (let i = 0; i < positions.length; i++) {
     const pos = positions[i];
-    const dx = pos.x - cx;
-    const dy = pos.y - cy;
-    const r = Math.sqrt(dx * dx + dy * dy);
-    const radial = Math.atan2(dy, dx);
-    const theta = radial + swirl * Math.sin(r * 0.012 - phi);
-    const hx = Math.cos(theta) * FILAMENT_LEN * 0.5;
-    const hy = Math.sin(theta) * FILAMENT_LEN * 0.5;
-    ctx.moveTo(pos.x - hx, pos.y - hy);
-    ctx.lineTo(pos.x + hx, pos.y + hy);
-  }
-  ctx.stroke();
+    // Local jitter so the grid breathes instead of sitting static
+    const jx = Math.sin(p.t * 2 + i * 0.7) * a.rms * 1.2;
+    const jy = Math.cos(p.t * 1.7 + i * 0.9) * a.rms * 1.2;
+    const px = pos.x + jx;
+    const py = pos.y + jy;
 
+    // Field direction — weighted sum of radials from centre + orbiting pole
+    const dx1 = px - cx, dy1 = py - cy;
+    const d1 = Math.sqrt(dx1 * dx1 + dy1 * dy1) + 1;
+    const dx2 = px - poleX, dy2 = py - poleY;
+    const d2 = Math.sqrt(dx2 * dx2 + dy2 * dy2) + 1;
+    const w1 = 1 / d1;
+    const w2 = (0.8 + pitchMass * 0.6) / d2;
+    const ang1 = Math.atan2(dy1, dx1);
+    const ang2 = Math.atan2(dy2, dx2);
+    // Vector-average the two field angles
+    const sx = Math.cos(ang1) * w1 + Math.cos(ang2) * w2;
+    const sy = Math.sin(ang1) * w1 + Math.sin(ang2) * w2;
+    let theta = Math.atan2(sy, sx) + swirl * Math.sin(d1 * 0.012 - phi);
+
+    // Peak shockwave overrides toward pure radial alignment
+    if (filingsShock > 0.05) {
+      theta = ang1 * filingsShock + theta * (1 - filingsShock);
+    }
+
+    // Per-filament brightness + length from spectrum bin sampled at grid position
+    const bin = (i * 7) % bins;
+    const e = spec[bin] ?? 0;
+    const fieldStrength = Math.min(1, (w1 + w2) * 60);
+    const len = 5 + fieldStrength * 3 + e * 6 + a.rms * 3;
+    const gray = Math.round(130 + e * 100 + a.peak * 40);
+    ctx.strokeStyle = `rgb(${gray}, ${Math.min(255, gray - 5)}, ${Math.max(0, gray - 20)})`;
+    ctx.lineWidth = 0.7 + e * 1.2;
+
+    const hx = Math.cos(theta) * len * 0.5;
+    const hy = Math.sin(theta) * len * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(px - hx, py - hy);
+    ctx.lineTo(px + hx, py + hy);
+    ctx.stroke();
+  }
+
+  // Poles — small bright anchors so the magnetic sources are visible
   ctx.fillStyle = "#d4cfc2";
   ctx.beginPath();
-  ctx.arc(cx, cy, 1.8 + a.rms * 0.8, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 2 + a.rms * 1.2, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = `rgba(230, 210, 170, ${0.55 + pitchMass * 0.3 + a.peak * 0.2})`;
+  ctx.beginPath();
+  ctx.arc(poleX, poleY, 2 + a.rms * 1.2 + pitchMass * 1.4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Peak shockwave ring
+  if (filingsShock > 0.05) {
+    const shockR = (1 - filingsShock) * Math.min(w, h) * 0.55 + 8;
+    ctx.strokeStyle = `rgba(240, 230, 210, ${filingsShock * 0.45})`;
+    ctx.lineWidth = 1 + filingsShock * 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, shockR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
