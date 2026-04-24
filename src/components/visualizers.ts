@@ -3072,41 +3072,102 @@ export function drawSandMandala(
   ensureSand(w, h);
   const s = sandCtx!;
   if (p.growth < sandPrevGrowth - 0.1) {
-    s.fillStyle = "rgba(13, 9, 6, 0.35)";
+    s.fillStyle = "rgba(13, 9, 6, 0.45)";
     s.fillRect(0, 0, w, h);
   }
   sandPrevGrowth = p.growth;
   const cx = w / 2, cy = h / 2;
   const rMax = Math.min(w, h) * 0.45;
+
   let mass = 0;
   for (let i = 0; i < 12; i++) mass += p.activePitches[i];
-  if (mass < 0.02) return;
-  const grains = Math.min(40, Math.round(2 + mass * 14 + a.rms * 8));
-  for (let g = 0; g < grains; g++) {
-    const pick = Math.random() * mass;
-    let sum = 0, pc = 0, bestE = 0;
-    for (let i = 0; i < 12; i++) {
-      sum += p.activePitches[i];
-      if (sum >= pick) { pc = i; bestE = p.activePitches[i]; break; }
+
+  // Progressive outward construction: rings unlock as p.growth rises.
+  // 1 ring at growth=0 (centre bindu zone), 6 at growth=1. The mandala
+  // visibly builds outward over ~4 min rather than filling everywhere
+  // at once.
+  const unlockedRings = Math.max(1, Math.min(6, 1 + Math.floor(p.growth * 5.5)));
+
+  if (mass >= 0.02) {
+    const grains = Math.min(40, Math.round(2 + mass * 14 + a.rms * 8));
+    for (let g = 0; g < grains; g++) {
+      const pick = Math.random() * mass;
+      let sum = 0, pc = 0, bestE = 0;
+      for (let i = 0; i < 12; i++) {
+        sum += p.activePitches[i];
+        if (sum >= pick) { pc = i; bestE = p.activePitches[i]; break; }
+      }
+      if (bestE < 0.04) continue;
+      const baseA = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+      // Bias toward the outermost unlocked ring so newly-available
+      // territory visibly fills in rather than getting lost inside.
+      const ring = Math.random() < 0.55
+        ? unlockedRings - 1
+        : Math.floor(Math.random() * unlockedRings);
+      const rr = rMax * (0.12 + ring * 0.145 + (Math.random() - 0.5) * 0.02);
+      const lobes = 8;
+      const jitter = (Math.random() - 0.5) * 0.03;
+      const hue = p.mood.hue + (pc - 6) * 8;
+      s.fillStyle = `hsla(${hue}, ${45 + bestE * 25}%, ${50 + bestE * 30}%, 0.7)`;
+      for (let k = 0; k < lobes; k++) {
+        const ang = baseA + (k / lobes) * Math.PI * 2 + jitter;
+        const x = cx + Math.cos(ang) * rr;
+        const y = cy + Math.sin(ang) * rr;
+        s.beginPath();
+        s.arc(x, y, 0.9 + bestE * 1.6, 0, Math.PI * 2);
+        s.fill();
+      }
+      // Growth tier 1 (>0.3): 16-fold filigree on outermost ring only
+      if (p.growth > 0.3 && ring === unlockedRings - 1 && bestE > 0.15) {
+        const subLobes = 16;
+        s.fillStyle = `hsla(${hue}, 40%, ${48 + bestE * 20}%, 0.45)`;
+        const subR = rr + 5;
+        for (let k = 0; k < subLobes; k++) {
+          const ang = baseA + (k / subLobes) * Math.PI * 2 + Math.PI / subLobes;
+          s.beginPath();
+          s.arc(cx + Math.cos(ang) * subR, cy + Math.sin(ang) * subR, 0.7, 0, Math.PI * 2);
+          s.fill();
+        }
+      }
     }
-    if (bestE < 0.04) continue;
-    const baseA = (pc / 12) * Math.PI * 2 - Math.PI / 2;
-    const ring = Math.floor(Math.random() * 6);
-    const rr = rMax * (0.18 + ring * 0.14 + (Math.random() - 0.5) * 0.02);
-    const lobes = 8;
-    const jitter = (Math.random() - 0.5) * 0.03;
-    const hue = p.mood.hue + (pc - 6) * 8;
-    s.fillStyle = `hsla(${hue}, ${45 + bestE * 25}%, ${50 + bestE * 30}%, 0.7)`;
-    for (let k = 0; k < lobes; k++) {
-      const ang = baseA + (k / lobes) * Math.PI * 2 + jitter;
-      const x = cx + Math.cos(ang) * rr;
-      const y = cy + Math.sin(ang) * rr;
+  }
+
+  // Growth tier 2 (>0.55): occasional dotted perimeter arc, sparse.
+  if (p.growth > 0.55 && Math.random() < 0.04) {
+    const arcRing = Math.floor(Math.random() * unlockedRings);
+    const arcR = rMax * (0.12 + arcRing * 0.145 + 0.075);
+    const dots = 24;
+    s.fillStyle = `hsla(${p.mood.hue + 20}, 35%, 60%, 0.45)`;
+    for (let i = 0; i < dots; i++) {
+      const ang = (i / dots) * Math.PI * 2 + p.t * 0.02;
       s.beginPath();
-      s.arc(x, y, 0.8 + bestE * 1.5, 0, Math.PI * 2);
+      s.arc(cx + Math.cos(ang) * arcR, cy + Math.sin(ang) * arcR, 0.8, 0, Math.PI * 2);
       s.fill();
     }
   }
+
+  // Growth tier 3 (>0.8): faint gilt rim at full extent
+  if (p.growth > 0.8) {
+    s.strokeStyle = `hsla(42, 60%, 65%, ${0.015 + (p.growth - 0.8) * 0.06})`;
+    s.lineWidth = 1.2;
+    s.beginPath();
+    s.arc(cx, cy, rMax * 0.92, 0, Math.PI * 2);
+    s.stroke();
+  }
+
   ctx.drawImage(sandCanvas!, 0, 0);
+
+  // Live bindu — not stamped into the buffer, overlaid each frame so
+  // the centre feels alive and there's visible structure from t=0
+  // even before grains arrive.
+  const binduR = 10 + a.rms * 6;
+  const bindu = ctx.createRadialGradient(cx, cy, 0, cx, cy, binduR);
+  bindu.addColorStop(0, `hsla(42, 70%, 80%, ${0.55 + a.peak * 0.35})`);
+  bindu.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = bindu;
+  ctx.beginPath();
+  ctx.arc(cx, cy, binduR, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // MOIRÉ FIELD — two overlaid rotating grids. Differential rotation
