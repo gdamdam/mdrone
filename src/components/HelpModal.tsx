@@ -160,7 +160,7 @@ function ReferenceTab() {
       <div className="fx-modal-section-label">SURFACES</div>
       <ul className="help-list">
         <li><strong>DRONE</strong> — the instrument. Presets, tonic/mode, SHAPE macros, FX chain, ADVANCED (tuning + LFO).</li>
-        <li><strong>MEDITATE</strong> — 39 fullscreen visualizers in 4 groups by function: HARMONIC · LANDSCAPE · RITUAL · VOID/HYPNOTIC (B&amp;W first, then colour within each). ⛶ fullscreen · ↗ pop out · 🎲 random. Double-click to cycle.</li>
+        <li><strong>MEDITATE</strong> — 36 fullscreen visualizers in 4 groups by function: HARMONIC · LANDSCAPE · RITUAL · VOID/HYPNOTIC (B&amp;W first, then colour within each). ⛶ fullscreen · ↗ pop out · 🎲 random. Double-click to cycle.</li>
         <li><strong>MIXER</strong> — master bus: HPF, 3-band EQ, glue compressor, drive, brickwall limiter + ceiling. <strong>SAFE</strong> clamps to −6 dBFS for headphones.</li>
       </ul>
 

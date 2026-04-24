@@ -25,14 +25,12 @@ export type Visualizer =
   | "sigil"
   | "starGate"
   | "cymatics"
-  | "inkBloom"
   | "aurora"
   | "dreamMachine"
   | "pitchSpiral"
   | "pitchTonnetz"
   | "pitchBeats"
   | "flowField"
-  | "feedbackTunnel"
   | "waveformRing"
   | "ironFilings"
   | "sediment"
@@ -43,7 +41,6 @@ export type Visualizer =
   | "illuminatedGlyphs"
   | "scryingMirror"
   | "crystalLattice"
-  | "halftone"
   | "phaseMirror"
   | "resonantBody"
   | "tapeDecay"
@@ -101,7 +98,6 @@ export const VISUALIZER_GROUPS: readonly {
       "prayerRug",
       "granularWeather",
       "tapeDecay",
-      "inkBloom",
     ],
   },
   {
@@ -117,7 +113,6 @@ export const VISUALIZER_GROUPS: readonly {
       "mandala",
       "haloGlow",
       "fractal",
-      "halftone",
       "scryingMirror",
       "rothko",
     ],
@@ -133,7 +128,6 @@ export const VISUALIZER_GROUPS: readonly {
       "shortwaveStatic",
       // Color
       "flowField",
-      "feedbackTunnel",
       "starGate",
       "dreamMachine",
     ],
@@ -157,7 +151,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   sigil: "SIGIL BLOOM",
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
-  feedbackTunnel: "FEEDBACK TUNNEL",
   ironFilings: "IRON FILINGS · magnetic field",
   sediment: "SEDIMENT STRATA · spectral deposit",
   prayerRug: "SPECTRAL PRAYER RUG",
@@ -168,8 +161,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   illuminatedGlyphs: "ILLUMINATED GLYPHS · gilt runes",
   scryingMirror: "SCRYING MIRROR · Rorschach bloom",
   crystalLattice: "CRYSTAL LATTICE · accreting facets",
-  halftone: "HALFTONE · risograph overlay",
-  inkBloom: "INK BLOOM",
   aurora: "SPECTRAL AURORA",
   dreamMachine: "DREAM MACHINE",
   resonantBody: "RESONANT BODY · voice anatomy",
@@ -179,7 +170,7 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   tuningManuscript: "TUNING MANUSCRIPT · interval score",
   granularWeather: "GRANULAR WEATHER · dust field",
   petroglyphs: "PETROGLYPHS",
-  feedbackTunnelBW: "FEEDBACK TUNNEL · B&W",
+  feedbackTunnelBW: "FEEDBACK TUNNEL",
   stereoVectorscope: "STEREO VECTORSCOPE · L×R correlation",
   harmonicEmber: "HARMONIC EMBER · burning series",
   shortwaveStatic: "SHORTWAVE STATIC · analog noise",
@@ -557,79 +548,6 @@ export function drawCymatics(
   ctx.drawImage(cymatCanvas!, 0, 0, w, h);
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// 3. INK BLOOM — slow drifting ink on a noise field
-// ─────────────────────────────────────────────────────────────────────
-interface InkBlob { x: number; y: number; r: number; vx: number; vy: number; h: number; life: number; }
-let inkBlobs: InkBlob[] = [];
-let lastInkRms = 0;
-export function drawInkBloom(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  // Fade rate tied to RMS — quiet drones persist; loud drones churn.
-  ctx.fillStyle = `rgba(8, 5, 3, ${0.04 + a.rms * 0.06})`;
-  ctx.fillRect(0, 0, w, h);
-
-  // Spectral centroid drives hue wheel
-  let num = 0, den = 0;
-  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
-  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
-  const hueBase = 20 + centroid * 300;
-
-  // Peak-triggered bigger brighter blooms
-  if (a.peak > lastInkRms + 0.05) {
-    inkBlobs.push({
-      x: w * (0.15 + Math.random() * 0.7),
-      y: h * (0.15 + Math.random() * 0.7),
-      r: 20 + Math.random() * 50 + a.peak * 40,
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: (Math.random() - 0.5) * 0.3,
-      h: (hueBase + Math.random() * 60 - 30 + 360) % 360,
-      life: 0,
-    });
-    const capacity = 40 + Math.round(p.growth * 50);
-    if (inkBlobs.length > capacity) inkBlobs.shift();
-  }
-  lastInkRms = a.peak;
-
-  // Continuous RMS-driven spawn — was 0.003 idle + 0.009*growth, now
-  // surges with RMS so drones always have activity.
-  const spawnRate = 0.004 + a.rms * 0.22 + p.growth * 0.01;
-  if (Math.random() < spawnRate && inkBlobs.length < 70) {
-    inkBlobs.push({
-      x: w * Math.random(),
-      y: h * Math.random(),
-      r: 15 + Math.random() * 30 + a.rms * 50,
-      vx: (Math.random() - 0.5) * 0.2,
-      vy: (Math.random() - 0.5) * 0.2,
-      h: (hueBase + Math.random() * 120 - 60 + 360) % 360,
-      life: 0,
-    });
-  }
-
-  const breath = 1 + Math.sin(p.t * 0.3) * 0.15 + a.rms * 0.25;
-  for (const b of inkBlobs) {
-    b.life += 0.016;
-    const curx = Math.cos(p.t * 0.05 + b.y * 0.002) * (0.3 + a.rms);
-    const cury = Math.sin(p.t * 0.04 + b.x * 0.002) * (0.3 + a.rms);
-    b.x += b.vx + curx;
-    b.y += b.vy + cury;
-    b.r += 0.25 + a.rms * 0.7;
-    const alpha = Math.max(0, 0.45 - b.life * 0.015) * (0.4 + a.rms * 1.2);
-    const er = b.r * breath;
-    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, er);
-    g.addColorStop(0, embToHsl(b.h, 80, 55, alpha));
-    g.addColorStop(0.5, embToHsl(b.h, 70, 40, alpha * 0.4));
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(b.x - er, b.y - er, er * 2, er * 2);
-  }
-  inkBlobs = inkBlobs.filter((b) => b.life < 30);
-}
 
 
 // ─────────────────────────────────────────────────────────────────────
@@ -1318,7 +1236,6 @@ export const VISUALIZER_FNS: Record<
   haloGlow: drawHaloGlow,
   mirrorGlyphs: drawMirrorGlyphs,
   cymatics: drawCymatics,
-  inkBloom: drawInkBloom,
   aurora: drawAurora,
   dreamMachine: drawDreamMachine,
   fractal: drawFractal,
@@ -1330,7 +1247,6 @@ export const VISUALIZER_FNS: Record<
   pitchBeats: drawPitchBeats,
   flowField: drawFlowField,
   waveformRing: drawWaveformRing,
-  feedbackTunnel: drawFeedbackTunnel,
   ironFilings: drawIronFilings,
   sediment: drawSediment,
   prayerRug: drawPrayerRug,
@@ -1341,7 +1257,6 @@ export const VISUALIZER_FNS: Record<
   illuminatedGlyphs: drawIlluminatedGlyphs,
   scryingMirror: drawScryingMirror,
   crystalLattice: drawCrystalLattice,
-  halftone: drawHalftone,
   resonantBody: drawResonantBody,
   tapeDecay: drawTapeDecay,
   voidMonolith: drawVoidMonolith,
@@ -2249,66 +2164,6 @@ export function drawStrata(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// 20. FEEDBACK TUNNEL — video-feedback emulation. Classic analog
-//     feedback loop simulated on an offscreen canvas: each frame,
-//     the prior frame is scaled slightly larger, rotated slightly,
-//     and blended back underneath a new central pulse. Produces
-//     the hypnotic spiraling inward/outward texture of Ken Russell
-//     / Derek Jarman experimental film.
-// ─────────────────────────────────────────────────────────────────────
-let feedbackCanvas: HTMLCanvasElement | null = null;
-let feedbackCtx: CanvasRenderingContext2D | null = null;
-export function drawFeedbackTunnel(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  if (!feedbackCanvas || feedbackCanvas.width !== w || feedbackCanvas.height !== h) {
-    feedbackCanvas = document.createElement("canvas");
-    feedbackCanvas.width = w;
-    feedbackCanvas.height = h;
-    feedbackCtx = feedbackCanvas.getContext("2d");
-    if (feedbackCtx) {
-      feedbackCtx.fillStyle = "#060408";
-      feedbackCtx.fillRect(0, 0, w, h);
-    }
-  }
-  const off = feedbackCtx;
-  if (!off || !feedbackCanvas) return;
-
-  // Slight fade so old content eventually decays out
-  off.fillStyle = `rgba(4, 2, 6, ${0.05 + a.rms * 0.04})`;
-  off.fillRect(0, 0, w, h);
-
-  // Zoom + rotate the previous frame onto itself. Small transforms
-  // build up over many frames into a visible tunnel.
-  off.save();
-  off.translate(w / 2, h / 2);
-  off.rotate(0.004 + a.rms * 0.008 + Math.sin(p.t * 0.07) * 0.002);
-  const zoom = 1.015 + a.rms * 0.01 + p.growth * 0.002;
-  off.scale(zoom, zoom);
-  off.translate(-w / 2, -h / 2);
-  off.globalAlpha = 0.9;
-  off.drawImage(feedbackCanvas, 0, 0);
-  off.globalAlpha = 1;
-  off.restore();
-
-  // Inject a new central pulse — it's what feeds the feedback loop
-  const pulseR = Math.min(w, h) * (0.04 + a.peak * 0.1 + a.rms * 0.05);
-  const hue = (p.hue + p.t * 4) % 360;
-  const grad = off.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, pulseR * 3);
-  grad.addColorStop(0, `hsla(${hue}, 95%, 70%, ${0.5 + a.peak * 0.4})`);
-  grad.addColorStop(0.5, `hsla(${(hue + 30) % 360}, 85%, 50%, ${0.25 + a.peak * 0.2})`);
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  off.fillStyle = grad;
-  off.fillRect(0, 0, w, h);
-
-  ctx.drawImage(feedbackCanvas, 0, 0);
-}
-
 
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2623,7 +2478,7 @@ export function drawPartialConstellation(
 // ═══════════════════════════════════════════════════════════════════════
 // GAP-FILLING VISUALIZERS (2026-04)
 // Phase-space / fluid / ritual construction / moiré / illuminated /
-// mirror / astrolabe / incense / crystal / halftone.
+// mirror / incense / crystal.
 // ═══════════════════════════════════════════════════════════════════════
 
 // PHASE PORTRAIT — XY plot of waveform vs delayed self. Pure sine
@@ -3316,96 +3171,6 @@ export function drawCrystalLattice(
   }
 }
 
-// HALFTONE — two-colour riso overlay. Dot spacing and radius follow
-// low/mid spectrum bands; two slightly-offset grids generate moiré.
-
-export function drawHalftone(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  // Fade instead of solid fill → old dots leave ghost trails so the
-  // page accumulates riso texture.
-  ctx.fillStyle = `rgba(13, 9, 6, ${0.2 + (1 - a.rms) * 0.1})`;
-  ctx.fillRect(0, 0, w, h);
-
-  const spec = a.spectrum;
-  const bins = spec.length;
-  let low = 0, mid = 0, high = 0;
-  for (let i = 0; i < 8; i++) low += spec[i];
-  for (let i = 8; i < 20; i++) mid += spec[i];
-  for (let i = 20; i < 32; i++) high += spec[i];
-  low /= 8; mid /= 12; high /= 12;
-
-  const spacing = 18 - Math.min(10, low * 30);
-  const dotBase = 2 + Math.min(6, a.rms * 10);
-  ctx.save();
-  ctx.translate(w / 2, h / 2);
-  ctx.rotate(p.t * 0.02 + a.rms * 0.15);
-  ctx.translate(-w / 2, -h / 2);
-
-  // Layer 1 — ember dots. Per-cell dot radius samples the spectrum
-  // bin mapped to (x, y) position so the plate visually encodes the
-  // current timbre as a rolling halftone of energy.
-  ctx.fillStyle = `hsla(25, 80%, 58%, ${0.5 + a.peak * 0.3})`;
-  for (let y = -spacing; y < h + spacing; y += spacing) {
-    // Row-wise vertical wave breathing — whole grid swims with RMS.
-    const rowWave = Math.sin(y * 0.02 + p.t * 0.8) * 2 * a.rms;
-    for (let x = -spacing; x < w + spacing; x += spacing) {
-      const u = (x / w + 0.5) % 1;
-      const v = (y / h + 0.5) % 1;
-      const bin = Math.floor((u * 0.7 + v * 0.3) * bins) % bins;
-      const e = spec[bin] ?? 0;
-      const r = dotBase * (0.5 + low) * (0.6 + e * 1.6);
-      ctx.beginPath();
-      ctx.arc(x, y + rowWave, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-
-  // Layer 2 — copper dots, offset grid + different rotation →
-  // travelling moire between the two layers.
-  ctx.save();
-  ctx.translate(w / 2, h / 2);
-  ctx.rotate(-p.t * 0.027 - high * 0.2);
-  ctx.translate(-w / 2, -h / 2);
-  ctx.fillStyle = "hsla(15, 55%, 42%, 0.45)";
-  const off = spacing * 0.5;
-  const sp2 = spacing * (1.03 + mid * 0.08);
-  for (let y = -sp2 + off; y < h + sp2; y += sp2) {
-    const rowWave = Math.cos(y * 0.025 + p.t * 0.5) * 1.5 * a.rms;
-    for (let x = -sp2 + off; x < w + sp2; x += sp2) {
-      const u = (x / w + 0.5) % 1;
-      const v = (y / h + 0.5) % 1;
-      const bin = Math.floor((v * 0.7 + u * 0.3) * bins) % bins;
-      const e = spec[bin] ?? 0;
-      ctx.beginPath();
-      ctx.arc(x + rowWave, y, dotBase * (0.5 + mid) * (0.6 + e * 1.4), 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-
-  // Layer 3 — sparse cream accent dots on peak transients. A small
-  // burst of bright pops scattered across the canvas each spike.
-  if (a.peak > 0.25) {
-    const count = Math.round(a.peak * 30);
-    ctx.fillStyle = `rgba(232, 207, 174, ${a.peak * 0.55})`;
-    for (let i = 0; i < count; i++) {
-      const x = Math.random() * w;
-      const y = Math.random() * h;
-      ctx.beginPath();
-      ctx.arc(x, y, 1 + a.peak * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // Paper-grain flecks (live overlay, not stamped) so the page stays
-  // lively between dot cycles.
-  ctx.fillStyle = "rgba(232, 207, 174, 0.03)";
-  for (let i = 0; i < 60; i++) {
-    ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
-  }
-}
 
 // MIRROR GLYPHS — a cream Rorschach card where gilt illuminated
 // glyphs AND bilateral ink blooms both accumulate. Fusion of the
