@@ -105,6 +105,7 @@ export const VISUALIZER_GROUPS: readonly {
       "inkBloom",
       // Print / textile
       "halftone",
+      "halftoneClassic",
       "prayerRug",
       // Ritual cluster (gilt / cream / Rorschach)
       "illuminatedGlyphs",
@@ -157,6 +158,7 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   astrolabe: "ASTROLABE · ritual clock",
   crystalLattice: "CRYSTAL LATTICE · accreting facets",
   halftone: "HALFTONE · risograph overlay",
+  halftoneClassic: "HALFTONE · classic",
   inkBloom: "INK BLOOM",
   horizon: "HORIZON SUNRISE",
   aurora: "SPECTRAL AURORA",
@@ -1429,6 +1431,7 @@ export const VISUALIZER_FNS: Record<
   astrolabe: drawAstrolabe,
   crystalLattice: drawCrystalLattice,
   halftone: drawHalftone,
+  halftoneClassic: drawHalftoneClassic,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -3509,6 +3512,49 @@ export function drawCrystalLattice(
 
 // HALFTONE — two-colour riso overlay. Dot spacing and radius follow
 // low/mid spectrum bands; two slightly-offset grids generate moiré.
+// HALFTONE CLASSIC — original behaviour: two static rotating grids
+// of coloured dots, dot size from RMS, paper-grain flecks. No FFT
+// per-cell sampling, no breathing wave, no peak bursts.
+export function drawHalftoneClassic(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "#0d0906"; ctx.fillRect(0, 0, w, h);
+  const spec = a.spectrum;
+  let low = 0, mid = 0;
+  for (let i = 0; i < 8; i++) low += spec[i];
+  for (let i = 8; i < 20; i++) mid += spec[i];
+  low /= 8; mid /= 12;
+  const spacing = 18 - Math.min(10, low * 30);
+  const dotSize = 2 + Math.min(6, a.rms * 10);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(p.t * 0.015);
+  ctx.translate(-w / 2, -h / 2);
+  ctx.fillStyle = `hsla(25, 80%, 58%, ${0.5 + a.peak * 0.3})`;
+  for (let y = -spacing; y < h + spacing; y += spacing) {
+    for (let x = -spacing; x < w + spacing; x += spacing) {
+      ctx.beginPath();
+      ctx.arc(x, y, dotSize * (0.6 + low), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = "hsla(15, 55%, 42%, 0.45)";
+  const off = spacing * 0.5;
+  const sp2 = spacing * (1.03 + mid * 0.08);
+  for (let y = -sp2 + off; y < h + sp2; y += sp2) {
+    for (let x = -sp2 + off; x < w + sp2; x += sp2) {
+      ctx.beginPath();
+      ctx.arc(x, y, dotSize * (0.5 + mid), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.fillStyle = "rgba(232, 207, 174, 0.015)";
+  for (let i = 0; i < 40; i++) {
+    ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+  }
+}
+
 export function drawHalftone(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
