@@ -1217,12 +1217,14 @@ export function drawSigilBloom(
   ctx.scale(pulse, pulse);
   ctx.translate(-cx, -cy);
 
-  // Deep sigil ink — red ochre bleeding on dark
-  const hue = 10 + Math.sin(p.t * 0.1) * 10;
-  ctx.strokeStyle = `hsla(${hue}, 85%, 55%, ${0.75 + a.peak * 0.2})`;
-  ctx.lineWidth = 1.8 + a.peak * 1.5;
+  // Outer halo — soft white bloom around the ink, gives the mark
+  // a physical "catching light" feel.
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.14 + a.rms * 0.12})`;
+  ctx.lineWidth = 7 + a.peak * 5;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+  ctx.shadowColor = "rgba(255, 255, 255, 0.35)";
+  ctx.shadowBlur = 6 + a.rms * 8;
   ctx.beginPath();
   const drawn = Math.floor(sigilDrawn);
   for (let i = 0; i < drawn; i++) {
@@ -1231,9 +1233,11 @@ export function drawSigilBloom(
   }
   ctx.stroke();
 
-  // Glow layer — redraw with larger, more transparent stroke
-  ctx.strokeStyle = `hsla(${hue}, 90%, 70%, ${0.18 + a.rms * 0.1})`;
-  ctx.lineWidth = 5 + a.peak * 4;
+  // Ink bleed — mid-weight grey stroke, reads as watery sumi-e
+  // fringe where the ink soaked into the paper.
+  ctx.shadowBlur = 2;
+  ctx.strokeStyle = `rgba(200, 196, 190, ${0.35 + a.rms * 0.2})`;
+  ctx.lineWidth = 3.6 + a.peak * 2;
   ctx.beginPath();
   for (let i = 0; i < drawn; i++) {
     const pt = sigilPoints![i];
@@ -1241,15 +1245,42 @@ export function drawSigilBloom(
   }
   ctx.stroke();
 
-  // Bindu nodes at the original points (show faintly)
+  // Core ink — warm off-white (not pure white) so it feels like
+  // ink rather than a laser line. Thickness pulses with RMS + peak.
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = `rgba(245, 240, 230, ${0.88 + a.peak * 0.1})`;
+  ctx.lineWidth = 1.6 + a.rms * 0.6 + a.peak * 1.2;
+  ctx.beginPath();
+  for (let i = 0; i < drawn; i++) {
+    const pt = sigilPoints![i];
+    if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+  }
+  ctx.stroke();
+
+  // Bindu nodes — bright anchor dots along the drawn path.
   if (sigilPoints) {
-    ctx.fillStyle = `hsla(${hue + 30}, 90%, 70%, 0.6)`;
+    ctx.fillStyle = "rgba(255, 252, 242, 0.75)";
     const n = Math.min(8, Math.floor(drawn / 160));
     for (let i = 0; i < n; i++) {
       const pt = sigilPoints[i * 160];
       if (!pt) continue;
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Peak sparks — on loud transients, a few random drawn points light
+  // up briefly, so loud passages appear to animate along the glyph
+  // like current running through a filament.
+  if (a.peak > 0.25 && drawn > 20) {
+    const sparks = 2 + Math.round(a.peak * 6);
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + a.peak * 0.4})`;
+    for (let k = 0; k < sparks; k++) {
+      const idx = Math.floor(Math.random() * drawn);
+      const pt = sigilPoints![idx];
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 1.2 + a.peak * 1.8, 0, Math.PI * 2);
       ctx.fill();
     }
   }
