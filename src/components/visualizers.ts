@@ -36,6 +36,7 @@ export type Visualizer =
   | "pitchBeats"
   | "flowField"
   | "feedbackTunnel"
+  | "feedbackTunnelBW"
   | "waveformRing"
   | "ironFilings"
   | "sediment"
@@ -115,6 +116,7 @@ export const VISUALIZER_GROUPS: readonly {
     label: "HYPNOTIC",
     items: [
       "feedbackTunnel",
+      "feedbackTunnelBW",
       "starGate",
       "fractal",
       "moireField",
@@ -142,6 +144,7 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
   feedbackTunnel: "FEEDBACK TUNNEL",
+  feedbackTunnelBW: "FEEDBACK TUNNEL · B&W",
   ironFilings: "IRON FILINGS · magnetic field",
   sediment: "SEDIMENT STRATA · spectral deposit",
   prayerRug: "SPECTRAL PRAYER RUG",
@@ -1413,6 +1416,7 @@ export const VISUALIZER_FNS: Record<
   flowField: drawFlowField,
   waveformRing: drawWaveformRing,
   feedbackTunnel: drawFeedbackTunnel,
+  feedbackTunnelBW: drawFeedbackTunnelBW,
   ironFilings: drawIronFilings,
   sediment: drawSediment,
   prayerRug: drawPrayerRug,
@@ -2310,6 +2314,84 @@ export function drawFeedbackTunnel(
   off.fillRect(0, 0, w, h);
 
   ctx.drawImage(feedbackCanvas, 0, 0);
+}
+
+// FEEDBACK TUNNEL · B&W — same accumulating-zoom mechanic as the
+// coloured version, but in pure grayscale. Kept alive by (a) a
+// warm off-white core (not sterile pure white), (b) a peak-triggered
+// central ring stamp, (c) a live vignette. Separate canvas so it
+// doesn't clobber the coloured tunnel's buffer.
+let feedbackBWCanvas: HTMLCanvasElement | null = null;
+let feedbackBWCtx: CanvasRenderingContext2D | null = null;
+export function drawFeedbackTunnelBW(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  if (!feedbackBWCanvas || feedbackBWCanvas.width !== w || feedbackBWCanvas.height !== h) {
+    feedbackBWCanvas = document.createElement("canvas");
+    feedbackBWCanvas.width = w;
+    feedbackBWCanvas.height = h;
+    feedbackBWCtx = feedbackBWCanvas.getContext("2d");
+    if (feedbackBWCtx) {
+      feedbackBWCtx.fillStyle = "#0a0a0a";
+      feedbackBWCtx.fillRect(0, 0, w, h);
+    }
+  }
+  const off = feedbackBWCtx;
+  if (!off || !feedbackBWCanvas) return;
+
+  off.fillStyle = `rgba(6, 6, 6, ${0.05 + a.rms * 0.04})`;
+  off.fillRect(0, 0, w, h);
+
+  off.save();
+  off.translate(w / 2, h / 2);
+  off.rotate(0.004 + a.rms * 0.008 + Math.sin(p.t * 0.07) * 0.002);
+  const zoom = 1.015 + a.rms * 0.01 + p.growth * 0.002;
+  off.scale(zoom, zoom);
+  off.translate(-w / 2, -h / 2);
+  off.globalAlpha = 0.9;
+  off.drawImage(feedbackBWCanvas, 0, 0);
+  off.globalAlpha = 1;
+  off.restore();
+
+  // Central pulse — warm off-white core (not sterile pure white) so
+  // the tunnel source reads as incandescent rather than digital.
+  const pulseR = Math.min(w, h) * (0.04 + a.peak * 0.1 + a.rms * 0.05);
+  const coreBright = Math.min(255, 230 + Math.round(a.peak * 25));
+  const midBright = 140 + Math.round(a.rms * 50);
+  const grad = off.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, pulseR * 3);
+  grad.addColorStop(0, `rgba(${coreBright}, ${coreBright}, ${Math.max(0, coreBright - 14)}, ${0.55 + a.peak * 0.4})`);
+  grad.addColorStop(0.5, `rgba(${midBright}, ${midBright}, ${Math.max(0, midBright - 8)}, ${0.22 + a.peak * 0.2})`);
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  off.fillStyle = grad;
+  off.fillRect(0, 0, w, h);
+
+  // Peak-triggered central ring — stamps a visible "source blink"
+  // into the feedback loop so transients propagate outward as
+  // concentric echoes.
+  if (a.peak > 0.3) {
+    off.strokeStyle = `rgba(255, 250, 240, ${a.peak * 0.6})`;
+    off.lineWidth = 1 + a.peak * 2;
+    off.beginPath();
+    off.arc(w / 2, h / 2, pulseR * 1.3, 0, Math.PI * 2);
+    off.stroke();
+  }
+
+  ctx.drawImage(feedbackBWCanvas, 0, 0);
+
+  // Live vignette — edge darkening so the tunnel throat reads as
+  // focal, not flat. Tightens on loud drones.
+  const vign = ctx.createRadialGradient(
+    w / 2, h / 2, Math.min(w, h) * 0.3,
+    w / 2, h / 2, Math.max(w, h) * 0.6,
+  );
+  vign.addColorStop(0, "rgba(0,0,0,0)");
+  vign.addColorStop(1, `rgba(0,0,0,${0.3 + a.rms * 0.15})`);
+  ctx.fillStyle = vign;
+  ctx.fillRect(0, 0, w, h);
 }
 
 
