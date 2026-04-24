@@ -15,7 +15,6 @@
  * Keep per-frame allocations to a minimum — these run in a rAF loop.
  */
 
-import { showNotification } from "../notifications";
 
 export type Visualizer =
   | "mandala"
@@ -992,24 +991,6 @@ function drawRothkoBlock(
 //     drifting organic silhouettes, evoking the La Monte Young /
 //     Marian Zazeela Dream House installation. Fullscreen this.
 // ─────────────────────────────────────────────────────────────────────
-interface DhShape { cx: number; cy: number; r: number; vx: number; vy: number; rot: number; }
-let dhShapes: DhShape[] | null = null;
-function ensureDh(w: number, h: number): DhShape[] {
-  if (!dhShapes || dhShapes.length === 0) {
-    dhShapes = [];
-    for (let i = 0; i < 6; i++) {
-      dhShapes.push({
-        cx: Math.random() * w,
-        cy: Math.random() * h,
-        r: 80 + Math.random() * 160,
-        vx: (Math.random() - 0.5) * 0.08,
-        vy: (Math.random() - 0.5) * 0.06,
-        rot: Math.random() * Math.PI * 2,
-      });
-    }
-  }
-  return dhShapes;
-}
 export function drawDreamHouse(
   ctx: CanvasRenderingContext2D,
   w: number,
