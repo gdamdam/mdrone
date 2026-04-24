@@ -17,6 +17,7 @@
 // @ts-expect-error — wrangler resolves the .wasm import to a CompiledWasm binding
 import resvgWasmModule from "@resvg/resvg-wasm/index_bg.wasm";
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
+import pkg from "../package.json" with { type: "json" };
 
 import {
   buildShareCardSvg,
@@ -29,7 +30,7 @@ import {
 import { normalizePortableScene, type PortableScene } from "../src/session";
 
 const APP_ORIGIN = "https://mdrone.org";
-const VERSION = "1.8.0";
+const VERSION = pkg.version;
 
 interface Env {
   SHORT: KVNamespace;
@@ -567,6 +568,8 @@ async function handleRequest(
   }
 
   if (url.pathname === "/stats" && request.method === "GET") {
+    const unauthorized = requireBasicAuth(request, env);
+    if (unauthorized) return unauthorized;
     return handleStats(env);
   }
 

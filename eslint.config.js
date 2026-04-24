@@ -12,6 +12,7 @@ export default tseslint.config(
       "e2e/**",
       "playwright.config.ts",
       "vitest.config.ts",
+      ".test-dist",
       "playwright-report",
       "test-results",
     ],

@@ -456,6 +456,7 @@ export function useDroneScene({
     setRelation,
     setFineTuneOffsets,
     setEffectEnabled,
+    setEntrain,
     partner,
   ]);
 

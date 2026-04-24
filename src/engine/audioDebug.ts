@@ -54,7 +54,6 @@ export function readAudioDebugFlags(): Set<AudioDebugFlag> {
     }
     if (set.size > 0) {
       // Loud banner so the user cannot forget the diagnostic is active.
-      // eslint-disable-next-line no-console
       console.warn("[mdrone/audio-debug] active flags:", Array.from(set).join(", "));
     }
   } catch {

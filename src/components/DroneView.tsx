@@ -35,6 +35,7 @@ const SHORT_GROUP_LABELS: Partial<Record<PresetGroup, string>> = {
   "Noise / Industrial": "NOISE",
   "Pulse / Studies": "PULSE",
 };
+const MORPH_CYCLE = [0, 10, 30, 120] as const;
 
 import type { DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
@@ -351,7 +352,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   const slotARef = useRef<DroneSessionSnapshot | null>(null);
   const slotBRef = useRef<DroneSessionSnapshot | null>(null);
   const suppressPushRef = useRef(false);
-  const [historyRev, setHistoryRev] = useState(0);
+  const [historyUi, setHistoryUi] = useState({
+    canUndo: false,
+    canRedo: false,
+    hasSlotA: false,
+    hasSlotB: false,
+  });
   const [shapeHintsOn, setShapeHintsOn] = useState<boolean>(() => {
     try { return window.localStorage?.getItem("mdrone.shapeHintsOn") === "1"; }
     catch { return false; }
@@ -384,7 +390,22 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     return next;
   });
 
-  const bumpRev = useCallback(() => setHistoryRev((r) => r + 1), []);
+  const syncHistoryUi = useCallback(() => {
+    const next = {
+      canUndo: historyIndexRef.current > 0,
+      canRedo: historyIndexRef.current < historyRef.current.length - 1,
+      hasSlotA: slotARef.current !== null,
+      hasSlotB: slotBRef.current !== null,
+    };
+    setHistoryUi((prev) => (
+      prev.canUndo === next.canUndo &&
+      prev.canRedo === next.canRedo &&
+      prev.hasSlotA === next.hasSlotA &&
+      prev.hasSlotB === next.hasSlotB
+        ? prev
+        : next
+    ));
+  }, []);
 
   useEffect(() => {
     if (suppressPushRef.current) return;
@@ -396,10 +417,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       hist.push(snap);
       if (hist.length > HISTORY_LIMIT) hist.shift();
       historyIndexRef.current = hist.length - 1;
-      bumpRev();
+      syncHistoryUi();
     }, 400);
     return () => clearTimeout(handle);
-  }, [state, getSnapshot, bumpRev]);
+  }, [state, getSnapshot, syncHistoryUi]);
 
   const applyAndSuppress = useCallback((snap: DroneSessionSnapshot) => {
     suppressPushRef.current = true;
@@ -413,18 +434,18 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     if (historyIndexRef.current <= 0) return;
     historyIndexRef.current -= 1;
     applyAndSuppress(historyRef.current[historyIndexRef.current]);
-    bumpRev();
-  }, [applyAndSuppress, bumpRev]);
+    syncHistoryUi();
+  }, [applyAndSuppress, syncHistoryUi]);
 
   const redo = useCallback(() => {
     if (historyIndexRef.current >= historyRef.current.length - 1) return;
     historyIndexRef.current += 1;
     applyAndSuppress(historyRef.current[historyIndexRef.current]);
-    bumpRev();
-  }, [applyAndSuppress, bumpRev]);
+    syncHistoryUi();
+  }, [applyAndSuppress, syncHistoryUi]);
 
-  const saveSlotA = useCallback(() => { slotARef.current = getSnapshot(); bumpRev(); }, [getSnapshot, bumpRev]);
-  const saveSlotB = useCallback(() => { slotBRef.current = getSnapshot(); bumpRev(); }, [getSnapshot, bumpRev]);
+  const saveSlotA = useCallback(() => { slotARef.current = getSnapshot(); syncHistoryUi(); }, [getSnapshot, syncHistoryUi]);
+  const saveSlotB = useCallback(() => { slotBRef.current = getSnapshot(); syncHistoryUi(); }, [getSnapshot, syncHistoryUi]);
   const recallSlotA = useCallback(() => { if (slotARef.current) applyAndSuppress(slotARef.current); }, [applyAndSuppress]);
   const recallSlotB = useCallback(() => { if (slotBRef.current) applyAndSuppress(slotBRef.current); }, [applyAndSuppress]);
 
@@ -434,45 +455,36 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // is consistent across the app.
   const slotHoldTimerRef = useRef<number | null>(null);
   const slotHoldFiredRef = useRef(false);
-  const slotHandlers = useCallback(
-    (hasSlot: boolean, save: () => void, recall: () => void) => {
-      const cancel = () => {
-        if (slotHoldTimerRef.current !== null) {
-          window.clearTimeout(slotHoldTimerRef.current);
-          slotHoldTimerRef.current = null;
-        }
-      };
-      return {
-        onPointerDown: () => {
-          slotHoldFiredRef.current = false;
-          cancel();
-          slotHoldTimerRef.current = window.setTimeout(() => {
-            slotHoldFiredRef.current = true;
-            save();
-          }, 420);
-        },
-        onPointerUp: cancel,
-        onPointerLeave: cancel,
-        onPointerCancel: cancel,
-        onClick: () => {
-          if (slotHoldFiredRef.current) {
-            slotHoldFiredRef.current = false;
-            return; // hold already fired save — don't also recall
-          }
-          if (hasSlot) recall();
-          else save();
-        },
-      };
-    },
-    [],
-  );
-
-  const canUndo = historyIndexRef.current > 0;
-  const canRedo = historyIndexRef.current < historyRef.current.length - 1;
-  const hasSlotA = slotARef.current !== null;
-  const hasSlotB = slotBRef.current !== null;
-  // historyRev is read by React so re-renders pick up ref changes.
-  void historyRev;
+  const cancelSlotHold = useCallback(() => {
+    if (slotHoldTimerRef.current !== null) {
+      window.clearTimeout(slotHoldTimerRef.current);
+      slotHoldTimerRef.current = null;
+    }
+  }, []);
+  const startSlotHold = useCallback((save: () => void) => {
+    slotHoldFiredRef.current = false;
+    cancelSlotHold();
+    slotHoldTimerRef.current = window.setTimeout(() => {
+      slotHoldFiredRef.current = true;
+      save();
+    }, 420);
+  }, [cancelSlotHold]);
+  const clickSlotA = useCallback(() => {
+    if (slotHoldFiredRef.current) {
+      slotHoldFiredRef.current = false;
+      return;
+    }
+    if (slotARef.current) recallSlotA();
+    else saveSlotA();
+  }, [recallSlotA, saveSlotA]);
+  const clickSlotB = useCallback(() => {
+    if (slotHoldFiredRef.current) {
+      slotHoldFiredRef.current = false;
+      return;
+    }
+    if (slotBRef.current) recallSlotB();
+    else saveSlotB();
+  }, [recallSlotB, saveSlotB]);
 
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
@@ -685,7 +697,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // fade-out → snap → fade-in crossfade via AudioEngine.morphRun so
   // back-to-back scenes in a 30-min set aren't abrupt cuts.
   // Transient UI-only state; not persisted.
-  const MORPH_CYCLE = [0, 10, 30, 120] as const;
   const [morphSeconds, setMorphSeconds] = useState<number>(0);
   const cycleMorph = useCallback(() => {
     setMorphSeconds((prev) => {
@@ -1251,7 +1262,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 type="button"
                 className="history-btn"
                 onClick={undo}
-                disabled={!canUndo}
+                disabled={!historyUi.canUndo}
                 title="Undo last change (Cmd/Ctrl+Z)"
                 aria-label="Undo"
               >
@@ -1261,7 +1272,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 type="button"
                 className="history-btn"
                 onClick={redo}
-                disabled={!canRedo}
+                disabled={!historyUi.canRedo}
                 title="Redo (Cmd/Ctrl+Shift+Z)"
                 aria-label="Redo"
               >
@@ -1270,25 +1281,33 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <span className="history-divider" aria-hidden="true" />
               <button
                 type="button"
-                className={hasSlotA ? "history-btn history-btn-armed" : "history-btn"}
+                className={historyUi.hasSlotA ? "history-btn history-btn-armed" : "history-btn"}
                 title={
-                  hasSlotA
+                  historyUi.hasSlotA
                     ? "Slot A: tap to recall · hold to overwrite with current scene"
                     : "Slot A empty: tap or hold to save current scene"
                 }
-                {...slotHandlers(hasSlotA, saveSlotA, recallSlotA)}
+                onPointerDown={() => startSlotHold(saveSlotA)}
+                onPointerUp={cancelSlotHold}
+                onPointerLeave={cancelSlotHold}
+                onPointerCancel={cancelSlotHold}
+                onClick={clickSlotA}
               >
                 A
               </button>
               <button
                 type="button"
-                className={hasSlotB ? "history-btn history-btn-armed" : "history-btn"}
+                className={historyUi.hasSlotB ? "history-btn history-btn-armed" : "history-btn"}
                 title={
-                  hasSlotB
+                  historyUi.hasSlotB
                     ? "Slot B: tap to recall · hold to overwrite with current scene"
                     : "Slot B empty: tap or hold to save current scene"
                 }
-                {...slotHandlers(hasSlotB, saveSlotB, recallSlotB)}
+                onPointerDown={() => startSlotHold(saveSlotB)}
+                onPointerUp={cancelSlotHold}
+                onPointerLeave={cancelSlotHold}
+                onPointerCancel={cancelSlotHold}
+                onClick={clickSlotB}
               >
                 B
               </button>

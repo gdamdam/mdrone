@@ -56,12 +56,10 @@ export async function measureAllPresets(hooks: MeasureHooks): Promise<string> {
     verdict: string;
   }> = [];
 
-  // eslint-disable-next-line no-console
   console.log(`[measure] starting — ${PRESETS.length} presets × ~12s each = ~${Math.round(PRESETS.length * 12 / 60)} min`);
 
   for (let i = 0; i < PRESETS.length; i++) {
     const preset = PRESETS[i];
-    // eslint-disable-next-line no-console
     console.log(`[measure] ${i + 1}/${PRESETS.length}: ${preset.name}`);
 
     applyPresetById(preset.id);
@@ -107,7 +105,6 @@ export async function measureAllPresets(hooks: MeasureHooks): Promise<string> {
   lines.push("Verdicts: `silent` (no reading), `quiet` (< -22), `ok` (-18..-12), `marginal` (outside ok but not extreme), `hot` (> -10), `peaky` (peak > -0.3 dBFS).");
   const markdown = lines.join("\n");
 
-  // eslint-disable-next-line no-console
   console.log(markdown);
 
   // Download as a file.

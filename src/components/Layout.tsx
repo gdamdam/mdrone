@@ -401,7 +401,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [viewMode]);
+  }, [viewMode, setViewMode]);
 
   // QWERTY tonic keyboard (only when ⌨ enabled)
   useEffect(() => {
