@@ -1052,12 +1052,11 @@ function ensureTape(): void {
     }
   } catch { /* ok */ }
 }
-function decayLoop(peak: number, growth: number): void {
-  // Each time the loop wraps we scar the tape in a few places.
-  // Gentle by default — a few short semi-opaque slashes — so the
-  // tape stays visible for many loop passes instead of going black.
+function decayLoop(peak: number, growth: number, rms: number): void {
+  // Each loop wrap scars the tape. More scars on loud passes so the
+  // tape accumulates faster when the drone is active.
   const t = tapeCtx!;
-  const scars = 1 + Math.round(growth * 2 + peak * 1.5);
+  const scars = 1 + Math.round(growth * 2 + peak * 3 + rms * 2);
   for (let i = 0; i < scars; i++) {
     const x = Math.random() * TAPE_W;
     const thickness = 1 + Math.random() * 2;
@@ -1066,13 +1065,16 @@ function decayLoop(peak: number, growth: number): void {
     t.fillStyle = "rgba(0,0,0,0.55)";
     t.fillRect(x, TAPE_H / 2 - yh / 2 + yOff, thickness, yh);
   }
-  // Occasional thin horizontal streak (rare, semi-transparent)
-  if (Math.random() < 0.08 + growth * 0.12) {
+  if (Math.random() < 0.08 + growth * 0.12 + rms * 0.15) {
     const y = Math.random() * TAPE_H;
     t.fillStyle = "rgba(0,0,0,0.45)";
     t.fillRect(0, y, TAPE_W, 1);
   }
 }
+// Write-head position on the tape canvas — advances in active-time
+// with the scroll so burn marks track the current playback position.
+let tapeWriteHead = 0;
+let tapePrevPeak = 0;
 export function drawTapeDecay(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -1082,36 +1084,72 @@ export function drawTapeDecay(
 ): void {
   ensureTape();
 
-  // Background — deep ferric brown
+  // Spectral centroid — drives burn-mark hue so different drones
+  // leave different colours on the tape. Low centroid = amber,
+  // high = cold magenta/cyan.
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+  const burnHue = ((30 - centroid * 180) % 360 + 360) % 360;
+
   ctx.fillStyle = "#0a0604";
   ctx.fillRect(0, 0, w, h);
 
-  // Advance the loop in active time — 40 px/s base, modulated a
-  // little by RMS. p.t only ticks while the drone is audible, so the
-  // tape freezes during silence and resumes exactly where it left
-  // off. Delta is clamped to avoid a huge jump on first frame or
-  // after a long tab pause.
-  const scrollSpeed = 40 + a.rms * 20;
+  // Scroll speed — 30→150 px/s across RMS range (was 40→60, barely
+  // perceptible). Loud drones accelerate the tape visibly.
+  const scrollSpeed = 30 + a.rms * 120;
   const dt = Math.max(0, Math.min(0.2, p.t - tapeLastT));
   tapeLastT = p.t;
-  tapeOffset += scrollSpeed * dt;
+  const advance = scrollSpeed * dt;
+  tapeOffset += advance;
+  tapeWriteHead = (tapeWriteHead + advance) % TAPE_W;
+
+  // Burn a vertical mark on peak transients — persists onto the tape.
+  if (a.peak > tapePrevPeak + 0.06) {
+    const t = tapeCtx!;
+    const wx = Math.floor(tapeWriteHead);
+    t.fillStyle = `hsla(${burnHue}, ${35 + a.peak * 35}%, ${25 + a.peak * 25}%, ${0.4 + a.peak * 0.35})`;
+    t.fillRect(wx, TAPE_H * 0.15, 1 + Math.round(a.peak * 3), TAPE_H * 0.7);
+    if (Math.random() < 0.4) {
+      t.fillStyle = "rgba(0,0,0,0.55)";
+      t.fillRect(wx, Math.random() * TAPE_H, 2 + Math.random() * 3, 1 + Math.random() * 2);
+    }
+  }
+  tapePrevPeak = a.peak;
+
+  // Continuous RMS tint — the tape carries a faint colour record of
+  // the drone's timbre as it scrolls past the write head.
+  if (a.rms > 0.04) {
+    const t = tapeCtx!;
+    const wx = Math.floor(tapeWriteHead);
+    const tintW = Math.max(1, Math.ceil(advance));
+    t.fillStyle = `hsla(${burnHue}, ${20 + a.rms * 30}%, ${28 + a.rms * 18}%, ${0.07 + a.rms * 0.15})`;
+    t.fillRect(wx, TAPE_H * 0.2, tintW, TAPE_H * 0.6);
+  }
+
   while (tapeOffset >= TAPE_W) {
     tapeOffset -= TAPE_W;
     tapeLoopIndex += 1;
-    // On every loop wrap, introduce new permanent scars
-    decayLoop(a.peak, p.growth);
+    decayLoop(a.peak, p.growth, a.rms);
   }
 
-  // Render the tape centered, wrapping the loop across the view
+  // Tape-transport wobble — the band physically jumps in the head
+  // on loud / peaky passages.
+  const wobble = Math.sin(p.t * 8) * a.rms * 4 + Math.sin(p.t * 3) * a.peak * 6;
+
   const bandH = h * 0.55;
-  const bandY = (h - bandH) / 2;
-  const tileW = w * (TAPE_W / TAPE_W); // full width
+  const bandY = (h - bandH) / 2 + wobble;
+  const tileW = w;
   ctx.imageSmoothingEnabled = true;
-  // Draw two copies side by side so the loop wraps seamlessly
   ctx.drawImage(tapeCanvas!, -tapeOffset, bandY, tileW, bandH);
   ctx.drawImage(tapeCanvas!, -tapeOffset + tileW, bandY, tileW, bandH);
 
-  // Soft vignette edges so the band fades to black at the sides
+  // Peak-flash overlay — brief bright sheen across the whole tape
+  if (a.peak > 0.5) {
+    ctx.fillStyle = `rgba(255, 220, 180, ${a.peak * 0.18})`;
+    ctx.fillRect(0, bandY, w, bandH);
+  }
+
   const grad = ctx.createLinearGradient(0, 0, w, 0);
   grad.addColorStop(0, "rgba(0,0,0,0.7)");
   grad.addColorStop(0.1, "rgba(0,0,0,0)");
@@ -1235,20 +1273,6 @@ export function drawDreamHouse(
     ctx.fill();
   }
 
-  // Growth tier: radial beams emanating from centre
-  if (p.growth > 0.4) {
-    const beams = 6;
-    ctx.strokeStyle = `hsla(${(baseHue + 40) % 360}, 80%, 70%, ${(p.growth - 0.4) * 0.25 + a.rms * 0.15})`;
-    ctx.lineWidth = 1.2;
-    for (let i = 0; i < beams; i++) {
-      const ang = (i / beams) * Math.PI * 2 + p.t * 0.08;
-      const r = Math.min(w, h) * 0.5;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(ang) * 40, cy + Math.sin(ang) * 40);
-      ctx.lineTo(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
-      ctx.stroke();
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -3521,43 +3545,125 @@ export function drawAstrolabe(
   ctx.restore();
 }
 
-// SMOKE PLUME — a single rising incense plume from bottom-centre.
-// Curl drift driven by high-band energy; RMS pushes emit rate.
-interface SmokeP { x: number; y: number; vx: number; vy: number; r: number; life: number; }
+// SMOKE PLUME — multiple rising plumes, one per active pitch class.
+// Each plume is tinted by its pitch's hue slot; wind drift comes from
+// spectral centroid; peak transients fire a burst puff from a random
+// active emitter. Embers cluster with RMS.
+interface SmokeP {
+  x: number; y: number; vx: number; vy: number; r: number;
+  life: number; hue: number;
+}
 const smokeParticles: SmokeP[] = [];
-const SMOKE_MAX = 120;
+const SMOKE_MAX = 260;
+let smokePrevPeak = 0;
 export function drawSmokePlume(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(4, 3, 3, 0.12)"; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(4, 3, 3, 0.10)"; ctx.fillRect(0, 0, w, h);
+
   let hi = 0;
   for (let i = 20; i < 32; i++) hi += a.spectrum[i];
   hi /= 12;
-  const rate = 1 + Math.round(a.rms * 4);
-  for (let k = 0; k < rate && smokeParticles.length < SMOKE_MAX; k++) {
-    smokeParticles.push({
-      x: w * 0.5 + (Math.random() - 0.5) * 8,
-      y: h - 8,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: -0.8 - Math.random() * 0.8,
-      r: 4 + Math.random() * 6,
-      life: 1,
-    });
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+  const wind = (centroid - 0.5) * 0.8;
+
+  // Emitter stations along the bottom — active pitches each emit
+  // their own plume at x = (pc/12)*w, coloured by a hue derived from
+  // that pitch class. Every frame, each active pitch spawns some
+  // particles proportional to its energy.
+  for (let pc = 0; pc < 12; pc++) {
+    const e = p.activePitches[pc];
+    if (e < 0.05) continue;
+    const x0 = w * ((pc + 0.5) / 12);
+    const hue = (p.mood.hue + (pc - 6) * 14 + 360) % 360;
+    const rate = Math.ceil(e * 3 + a.rms * 2);
+    for (let k = 0; k < rate && smokeParticles.length < SMOKE_MAX; k++) {
+      smokeParticles.push({
+        x: x0 + (Math.random() - 0.5) * 10,
+        y: h - 8,
+        vx: (Math.random() - 0.5) * 0.4 + wind * 0.5,
+        vy: -0.7 - Math.random() * 0.9 - e * 0.6,
+        r: 4 + Math.random() * 6,
+        life: 1,
+        hue,
+      });
+    }
   }
+
+  // Peak burst — a sudden puff from a random active emitter
+  if (a.peak > smokePrevPeak + 0.08) {
+    const actives: number[] = [];
+    for (let pc = 0; pc < 12; pc++) if (p.activePitches[pc] > 0.08) actives.push(pc);
+    if (actives.length > 0) {
+      const pc = actives[Math.floor(Math.random() * actives.length)];
+      const x0 = w * ((pc + 0.5) / 12);
+      const hue = (p.mood.hue + (pc - 6) * 14 + 360) % 360;
+      const puff = 12 + Math.round(a.peak * 14);
+      for (let k = 0; k < puff && smokeParticles.length < SMOKE_MAX; k++) {
+        smokeParticles.push({
+          x: x0 + (Math.random() - 0.5) * 20,
+          y: h - 8,
+          vx: (Math.random() - 0.5) * 1.2,
+          vy: -1.2 - Math.random() * 1.5,
+          r: 6 + Math.random() * 8,
+          life: 1,
+          hue,
+        });
+      }
+    }
+  }
+  smokePrevPeak = a.peak;
+
+  // Fallback: if nothing is playing, emit a faint baseline plume from
+  // centre so the visualizer never reads as dead.
+  if (smokeParticles.length < 8) {
+    for (let k = 0; k < 2 && smokeParticles.length < SMOKE_MAX; k++) {
+      smokeParticles.push({
+        x: w * 0.5 + (Math.random() - 0.5) * 8,
+        y: h - 8,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: -0.5 - Math.random() * 0.5,
+        r: 3 + Math.random() * 4,
+        life: 1,
+        hue: p.mood.hue,
+      });
+    }
+  }
+
   for (let i = smokeParticles.length - 1; i >= 0; i--) {
     const s = smokeParticles[i];
-    s.vx += Math.sin(s.y * 0.01 + p.t * 0.4) * 0.04 * (0.3 + hi * 3);
-    s.vy -= 0.002;
+    s.vx += Math.sin(s.y * 0.01 + p.t * 0.4) * 0.05 * (0.3 + hi * 3) + wind * 0.02;
+    s.vy -= 0.003;
     s.x += s.vx; s.y += s.vy;
-    s.r += 0.12;
-    s.life -= 0.005 + a.rms * 0.003;
-    if (s.life <= 0 || s.y < -20) { smokeParticles.splice(i, 1); continue; }
-    const alpha = s.life * 0.35;
-    ctx.fillStyle = `hsla(${p.mood.hue}, 15%, ${45 + hi * 25}%, ${alpha})`;
+    s.r += 0.14 + a.rms * 0.1;
+    s.life -= 0.005 + a.rms * 0.004;
+    if (s.life <= 0 || s.y < -20 || s.x < -30 || s.x > w + 30) {
+      smokeParticles.splice(i, 1);
+      continue;
+    }
+    const alpha = s.life * (0.4 + a.rms * 0.3);
+    ctx.fillStyle = `hsla(${s.hue}, ${15 + hi * 30}%, ${45 + hi * 25}%, ${alpha})`;
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.fillStyle = `hsla(25, 85%, 60%, ${0.6 + a.peak * 0.4})`;
-  ctx.beginPath(); ctx.arc(w * 0.5, h - 4, 2 + a.peak * 2, 0, Math.PI * 2); ctx.fill();
+
+  // Ember cluster at each active emitter — little flickers at the base
+  for (let pc = 0; pc < 12; pc++) {
+    const e = p.activePitches[pc];
+    if (e < 0.08) continue;
+    const x0 = w * ((pc + 0.5) / 12);
+    const hue = 20 + (pc - 6) * 4;
+    const embers = 1 + Math.round(e * 3 + a.peak * 2);
+    for (let k = 0; k < embers; k++) {
+      const ex = x0 + (Math.random() - 0.5) * 6;
+      const ey = h - 4 - Math.random() * 3;
+      ctx.fillStyle = `hsla(${hue}, 85%, ${55 + a.peak * 20}%, ${0.55 + a.peak * 0.35})`;
+      ctx.beginPath();
+      ctx.arc(ex, ey, 1.5 + e * 2 + a.peak * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
 // CRYSTAL LATTICE — persistent diamond accretion. Facets only grow
