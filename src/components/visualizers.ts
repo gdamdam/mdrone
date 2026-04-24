@@ -22,12 +22,10 @@ export type Visualizer =
   | "mirrorGlyphs"
   | "fractal"
   | "rothko"
-  | "dreamHouse"
   | "sigil"
   | "starGate"
   | "cymatics"
   | "inkBloom"
-  | "horizon"
   | "aurora"
   | "dreamMachine"
   | "pitchSpiral"
@@ -44,10 +42,8 @@ export type Visualizer =
   | "moireField"
   | "illuminatedGlyphs"
   | "scryingMirror"
-  | "astrolabe"
   | "crystalLattice"
   | "halftone"
-  | "halftoneClassic"
   | "phaseMirror"
   | "resonantBody"
   | "tapeDecay"
@@ -56,7 +52,10 @@ export type Visualizer =
   | "tuningManuscript"
   | "granularWeather"
   | "petroglyphs"
-  | "feedbackTunnelBW";
+  | "feedbackTunnelBW"
+  | "stereoVectorscope"
+  | "harmonicEmber"
+  | "shortwaveStatic";
 
 /**
  * Visualizer categories — the meditate view dropdown renders these
@@ -69,86 +68,73 @@ export const VISUALIZER_GROUPS: readonly {
   items: readonly Visualizer[];
 }[] = [
   {
-    label: "GEOMETRIC",
+    // ── Show the drone's pitch / tuning / phase / beats / voice
+    label: "HARMONIC",
     items: [
-      // ── B&W / monochromatic ──
-      // Pitch family (BW)
+      // B&W / monochromatic
       "pitchSpiral",
       "pitchBeats",
       "partialConstellation",
-      // Waveform / phase-space pair
       "phasePortrait",
       "phaseMirror",
-      // Signal / spectrum geometry (BW)
-      "cymatics",
-      // Ritual / specialised
-      "sigil",
-      "crystalLattice",
-      // Vector fields
-      "ironFilings",
-      "astrolabe",
-      // ── Drone-reactive BW family — clustered at the tail so they
-      //    sit next to granularWeather in SPECTRAL and petroglyphs in
-      //    FIELD / PAINTERLY across the dropdown flow.
-      "flowField",
-      "resonantBody",
-      "beatingField",
+      "stereoVectorscope",
       "tuningManuscript",
-      // ── Color ──
-      "mandala",
+      "beatingField",
+      "resonantBody",
+      // Color
       "pitchTonnetz",
       "waveformRing",
+      "harmonicEmber",
     ],
   },
   {
-    label: "SPECTRAL",
+    // ── Slow accreting fields: geology, textile, dust, paper, tape
+    label: "LANDSCAPE",
     items: [
-      // ── Color ──
-      "aurora",
-      // Accreting strata pair — geology + textile, same scroll mechanic
-      "sediment",
-      "prayerRug",
-      // granularWeather sits at the END of SPECTRAL so it chains
-      // directly into petroglyphs at the head of FIELD / PAINTERLY.
-      "granularWeather",
-    ],
-  },
-  {
-    label: "FIELD / PAINTERLY",
-    items: [
-      // ── B&W / monochromatic — petroglyphs first so it neighbours
-      //    granularWeather at the end of SPECTRAL.
+      // B&W / monochromatic (rock + gilt)
       "petroglyphs",
       "illuminatedGlyphs",
       "mirrorGlyphs",
-      // ── Color ──
-      // Warm painterly fields
-      "rothko",
-      "dreamHouse",
-      "horizon",
-      "haloGlow",
-      // Ink / textural
-      "inkBloom",
-      // Archival / decayed
+      // Color
+      "aurora",
+      "sediment",
+      "prayerRug",
+      "granularWeather",
       "tapeDecay",
-      // Print / textile
-      "halftone",
-      "halftoneClassic",
-      // Rorschach
-      "scryingMirror",
+      "inkBloom",
     ],
   },
   {
-    label: "HYPNOTIC",
+    // ── Ornate / painterly / ceremonial
+    label: "RITUAL",
     items: [
-      // ── B&W / monochromatic ──
+      // B&W / monochromatic
+      "ironFilings",
+      "cymatics",
+      "sigil",
+      "crystalLattice",
+      // Color
+      "mandala",
+      "haloGlow",
+      "fractal",
+      "halftone",
+      "scryingMirror",
+      "rothko",
+    ],
+  },
+  {
+    // ── Minimal negative space or stroboscopic / psychotropic
+    label: "VOID / HYPNOTIC",
+    items: [
+      // B&W / monochromatic
       "voidMonolith",
-      "feedbackTunnelBW",
       "moireField",
-      // ── Color ──
+      "feedbackTunnelBW",
+      "shortwaveStatic",
+      // Color
+      "flowField",
       "feedbackTunnel",
       "starGate",
-      "fractal",
       "dreamMachine",
     ],
   },
@@ -168,7 +154,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   mirrorGlyphs: "MIRROR GLYPHS · scrying + gilt runes",
   fractal: "JULIA FRACTAL · heavy",
   rothko: "ROTHKO FIELD",
-  dreamHouse: "DREAM HOUSE MAGENTA",
   sigil: "SIGIL BLOOM",
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
@@ -182,12 +167,9 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   moireField: "MOIRÉ FIELD · interference grid",
   illuminatedGlyphs: "ILLUMINATED GLYPHS · gilt runes",
   scryingMirror: "SCRYING MIRROR · Rorschach bloom",
-  astrolabe: "ASTROLABE · ritual clock",
   crystalLattice: "CRYSTAL LATTICE · accreting facets",
   halftone: "HALFTONE · risograph overlay",
-  halftoneClassic: "HALFTONE · classic",
   inkBloom: "INK BLOOM",
-  horizon: "HORIZON SUNRISE",
   aurora: "SPECTRAL AURORA",
   dreamMachine: "DREAM MACHINE",
   resonantBody: "RESONANT BODY · voice anatomy",
@@ -198,6 +180,9 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   granularWeather: "GRANULAR WEATHER · dust field",
   petroglyphs: "PETROGLYPHS",
   feedbackTunnelBW: "FEEDBACK TUNNEL · B&W",
+  stereoVectorscope: "STEREO VECTORSCOPE · L×R correlation",
+  harmonicEmber: "HARMONIC EMBER · burning series",
+  shortwaveStatic: "SHORTWAVE STATIC · analog noise",
 };
 
 export interface AudioFrame {
@@ -646,40 +631,6 @@ export function drawInkBloom(
   inkBlobs = inkBlobs.filter((b) => b.life < 30);
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// 4. HORIZON SUNRISE — gradient horizon line rising with breath
-// ─────────────────────────────────────────────────────────────────────
-export function drawHorizon(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  // Sky gradient
-  const skyTop = `hsl(${(p.hue + 200) % 360}, 40%, ${8 + p.slow * 4}%)`;
-  const skyMid = `hsl(${(p.hue + 25) % 360}, 60%, ${18 + a.rms * 8}%)`;
-  const skyBot = `hsl(${(p.hue + 10) % 360}, 75%, ${28 + a.rms * 14}%)`;
-  const sky = ctx.createLinearGradient(0, 0, 0, h);
-  sky.addColorStop(0, skyTop);
-  sky.addColorStop(0.55, skyMid);
-  sky.addColorStop(1, skyBot);
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, w, h);
-
-  // Sun — radius responds to rms + slow clock. The old horizon line
-  // and heat-haze shimmer rows have been removed; the visualizer is
-  // now a single suspended sun breathing on the sky gradient.
-  const sunY = h * (0.58 - p.slow * 0.06);
-  const sunR = Math.min(w, h) * (0.12 + a.rms * 0.08 + p.slow * 0.02);
-  const sunX = w * 0.5;
-  const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR * 2.4);
-  sunGrad.addColorStop(0, `hsla(${(p.hue + 20) % 360}, 95%, 75%, 0.95)`);
-  sunGrad.addColorStop(0.4, `hsla(${(p.hue + 10) % 360}, 85%, 55%, 0.55)`);
-  sunGrad.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = sunGrad;
-  ctx.fillRect(0, 0, w, h);
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 5. SPECTRAL AURORA — FFT bars bent into curtains
@@ -1039,77 +990,6 @@ function drawRothkoBlock(
 }
 
 
-// ─────────────────────────────────────────────────────────────────────
-// 11. DREAM HOUSE MAGENTA — full-screen magenta flood with slow-
-//     drifting organic silhouettes, evoking the La Monte Young /
-//     Marian Zazeela Dream House installation. Fullscreen this.
-// ─────────────────────────────────────────────────────────────────────
-export function drawDreamHouse(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  // Spectral centroid pushes palette: low → deep magenta, high → amber.
-  // Peaks punch the hue and saturation; RMS drives lightness.
-  let num = 0, den = 0;
-  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
-  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
-  const baseHue = (300 - centroid * 80 + Math.sin(p.t * 0.025) * 35 + a.peak * 30 + 360) % 360;
-  const sat = 72 + a.rms * 25;
-  const lig = 28 + a.rms * 14 + p.slow * 4;
-  ctx.fillStyle = `hsl(${baseHue}, ${sat}%, ${lig}%)`;
-  ctx.fillRect(0, 0, w, h);
-
-  // Shapes anchored to active pitch classes — each active pitch owns
-  // a dark silhouette orbiting the centre. Radius scales with its
-  // energy AND with RMS so silence drones are sparse / loud ones dense.
-  const cx = w * 0.5, cy = h * 0.5;
-  const orbitR = Math.min(w, h) * 0.36;
-  for (let pc = 0; pc < 12; pc++) {
-    const e = p.activePitches[pc];
-    if (e < 0.05) continue;
-    const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2 + p.t * 0.03;
-    const sx = cx + Math.cos(ang) * orbitR * (0.4 + 0.6 * e);
-    const sy = cy + Math.sin(ang) * orbitR * (0.4 + 0.6 * e);
-    const r = (60 + e * 140) * (1 + a.rms * 0.35);
-    const silHue = (baseHue - 25 + e * 50) % 360;
-    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
-    g.addColorStop(0, `hsla(${silHue}, 90%, 16%, ${0.5 + e * 0.35})`);
-    g.addColorStop(0.7, `hsla(${(silHue + 15) % 360}, 80%, 24%, ${0.25 + e * 0.2})`);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(sx, sy, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Central bright glow — pulses hard with RMS and peak
-  const centreR = 80 + a.rms * 160 + a.peak * 100;
-  const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, centreR);
-  cg.addColorStop(0, `hsla(${(baseHue + 50) % 360}, 100%, 78%, ${0.35 + a.rms * 0.5 + a.peak * 0.4})`);
-  cg.addColorStop(0.6, `hsla(${(baseHue + 30) % 360}, 90%, 55%, ${0.15 + a.rms * 0.2})`);
-  cg.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = cg;
-  ctx.beginPath();
-  ctx.arc(cx, cy, centreR, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (p.pointer) {
-    const px = p.pointer.x * w;
-    const py = p.pointer.y * h;
-    const r = 80 + (p.pointerDown ? 60 : 0);
-    const g = ctx.createRadialGradient(px, py, 0, px, py, r);
-    g.addColorStop(0, `hsla(${(baseHue + 60) % 360}, 100%, 75%, 0.6)`);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(px, py, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 12. SIGIL BLOOM — continuous-line ritual sigils drawn slowly from
@@ -1439,12 +1319,10 @@ export const VISUALIZER_FNS: Record<
   mirrorGlyphs: drawMirrorGlyphs,
   cymatics: drawCymatics,
   inkBloom: drawInkBloom,
-  horizon: drawHorizon,
   aurora: drawAurora,
   dreamMachine: drawDreamMachine,
   fractal: drawFractal,
   rothko: drawRothko,
-  dreamHouse: drawDreamHouse,
   sigil: drawSigilBloom,
   starGate: drawStarGate,
   pitchSpiral: drawPitchSpiral,
@@ -1462,10 +1340,8 @@ export const VISUALIZER_FNS: Record<
   moireField: drawMoireField,
   illuminatedGlyphs: drawIlluminatedGlyphs,
   scryingMirror: drawScryingMirror,
-  astrolabe: drawAstrolabe,
   crystalLattice: drawCrystalLattice,
   halftone: drawHalftone,
-  halftoneClassic: drawHalftoneClassic,
   resonantBody: drawResonantBody,
   tapeDecay: drawTapeDecay,
   voidMonolith: drawVoidMonolith,
@@ -1474,6 +1350,9 @@ export const VISUALIZER_FNS: Record<
   granularWeather: drawGranularWeather,
   petroglyphs: drawPetroglyphs,
   feedbackTunnelBW: drawFeedbackTunnelBW,
+  stereoVectorscope: drawStereoVectorscope,
+  harmonicEmber: drawHarmonicEmber,
+  shortwaveStatic: drawShortwaveStatic,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -3247,115 +3126,6 @@ export function drawScryingMirror(
   }
 }
 
-// ASTROLABE — three concentric rotating rings. Outer = pitch-class
-// ticks brightened by activePitches; middle = spectrum dots; inner
-// = six slow spokes. A central gilt sigil pulses with peak.
-let astroPeakFlash = 0;
-let prevAstroPeak = 0;
-export function drawAstrolabe(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  ctx.fillStyle = `rgba(5, 4, 3, ${0.12 + a.rms * 0.1})`;
-  ctx.fillRect(0, 0, w, h);
-  const cx = w / 2, cy = h / 2;
-  const R = Math.min(w, h) * 0.42;
-
-  if (a.peak > prevAstroPeak + 0.08) astroPeakFlash = 1;
-  prevAstroPeak = a.peak;
-  astroPeakFlash *= 0.9;
-
-  ctx.save();
-  ctx.translate(cx, cy);
-
-  // Concordance radials — each active pitch emits a ray to the rim.
-  const rotOuter = p.t * (0.02 + a.rms * 0.08);
-  for (let i = 0; i < 12; i++) {
-    const e = p.activePitches[i];
-    if (e < 0.05) continue;
-    const ang = rotOuter + (i / 12) * Math.PI * 2 - Math.PI / 2;
-    ctx.strokeStyle = `rgba(220, 220, 220, ${(e * 0.35 + astroPeakFlash * 0.4) * (0.7 + a.rms)})`;
-    ctx.lineWidth = 0.6 + e * 1.8;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(ang) * R * 0.9, Math.sin(ang) * R * 0.9);
-    ctx.stroke();
-  }
-
-  ctx.strokeStyle = `rgba(180, 180, 180, ${0.3 + a.rms * 0.2})`;
-  ctx.lineWidth = 1 + a.rms;
-  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.72, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.44, 0, Math.PI * 2); ctx.stroke();
-
-  // Outer ring ticks extend outward with pitch energy
-  for (let i = 0; i < 12; i++) {
-    const e = p.activePitches[i];
-    const ang = rotOuter + (i / 12) * Math.PI * 2 - Math.PI / 2;
-    const inR = R - 6 - e * 10;
-    const outR = R + 10 + e * 30 + astroPeakFlash * 20;
-    ctx.strokeStyle = `rgba(${Math.round(200 + e * 55)}, ${Math.round(200 + e * 55)}, ${Math.round(200 + e * 55)}, ${0.4 + e * 0.6})`;
-    ctx.lineWidth = 1 + e * 3;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(ang) * inR, Math.sin(ang) * inR);
-    ctx.lineTo(Math.cos(ang) * outR, Math.sin(ang) * outR);
-    ctx.stroke();
-  }
-
-  // Middle ring — 16 spectrum dots, counter-rotation accelerated by RMS
-  const rotMid = -p.t * (0.028 + a.rms * 0.08);
-  ctx.rotate(rotMid);
-  for (let i = 0; i < 16; i++) {
-    const e = a.spectrum[i * 2] ?? 0;
-    const ang = (i / 16) * Math.PI * 2;
-    const rr = R * 0.72;
-    const g = Math.round(170 + e * 80);
-    ctx.fillStyle = `rgba(${g}, ${g}, ${g}, ${0.35 + e * 0.6})`;
-    ctx.beginPath();
-    ctx.arc(Math.cos(ang) * rr, Math.sin(ang) * rr, 2 + e * 7, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.rotate(-rotMid);
-
-  // Inner ring — 6 spokes, 12 on growth tier
-  const rotIn = p.t * (0.012 + a.rms * 0.03);
-  const spokes = p.growth > 0.5 ? 12 : 6;
-  ctx.strokeStyle = `rgba(200, 200, 200, ${0.35 + a.rms * 0.4 + astroPeakFlash * 0.3})`;
-  for (let i = 0; i < spokes; i++) {
-    const ang = rotIn + (i / spokes) * Math.PI * 2;
-    const rr = R * 0.44;
-    ctx.lineWidth = 1 + astroPeakFlash;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
-    ctx.stroke();
-  }
-
-  // Peak sparks from the rim
-  if (astroPeakFlash > 0.2) {
-    const sparks = Math.round(astroPeakFlash * 16);
-    ctx.strokeStyle = `rgba(240, 240, 240, ${astroPeakFlash * 0.7})`;
-    ctx.lineWidth = 1.2;
-    for (let i = 0; i < sparks; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const r1 = R + 5;
-      const r2 = R + 15 + Math.random() * 30 * astroPeakFlash;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(ang) * r1, Math.sin(ang) * r1);
-      ctx.lineTo(Math.cos(ang) * r2, Math.sin(ang) * r2);
-      ctx.stroke();
-    }
-  }
-
-  // Central sigil — dramatic peak bloom
-  const sigilR = 6 + astroPeakFlash * 20 + a.rms * 8;
-  ctx.fillStyle = `rgba(230, 230, 230, ${0.5 + a.peak * 0.4 + astroPeakFlash * 0.3})`;
-  ctx.beginPath(); ctx.arc(0, 0, sigilR, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = `rgba(240, 240, 240, ${0.5 + astroPeakFlash * 0.4})`;
-  ctx.lineWidth = 1 + astroPeakFlash * 1.5;
-  ctx.beginPath(); ctx.arc(0, 0, sigilR + 4, 0, Math.PI * 2); ctx.stroke();
-
-  ctx.restore();
-}
 
 
 // CRYSTAL LATTICE — persistent polygonal accretion. Facet shape /
@@ -3548,48 +3318,6 @@ export function drawCrystalLattice(
 
 // HALFTONE — two-colour riso overlay. Dot spacing and radius follow
 // low/mid spectrum bands; two slightly-offset grids generate moiré.
-// HALFTONE CLASSIC — original behaviour: two static rotating grids
-// of coloured dots, dot size from RMS, paper-grain flecks. No FFT
-// per-cell sampling, no breathing wave, no peak bursts.
-export function drawHalftoneClassic(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  ctx.fillStyle = "#0d0906"; ctx.fillRect(0, 0, w, h);
-  const spec = a.spectrum;
-  let low = 0, mid = 0;
-  for (let i = 0; i < 8; i++) low += spec[i];
-  for (let i = 8; i < 20; i++) mid += spec[i];
-  low /= 8; mid /= 12;
-  const spacing = 18 - Math.min(10, low * 30);
-  const dotSize = 2 + Math.min(6, a.rms * 10);
-  ctx.save();
-  ctx.translate(w / 2, h / 2);
-  ctx.rotate(p.t * 0.015);
-  ctx.translate(-w / 2, -h / 2);
-  ctx.fillStyle = `hsla(25, 80%, 58%, ${0.5 + a.peak * 0.3})`;
-  for (let y = -spacing; y < h + spacing; y += spacing) {
-    for (let x = -spacing; x < w + spacing; x += spacing) {
-      ctx.beginPath();
-      ctx.arc(x, y, dotSize * (0.6 + low), 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.fillStyle = "hsla(15, 55%, 42%, 0.45)";
-  const off = spacing * 0.5;
-  const sp2 = spacing * (1.03 + mid * 0.08);
-  for (let y = -sp2 + off; y < h + sp2; y += sp2) {
-    for (let x = -sp2 + off; x < w + sp2; x += sp2) {
-      ctx.beginPath();
-      ctx.arc(x, y, dotSize * (0.5 + mid), 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-  ctx.fillStyle = "rgba(232, 207, 174, 0.015)";
-  for (let i = 0; i < 40; i++) {
-    ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
-  }
-}
 
 export function drawHalftone(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
@@ -5771,4 +5499,388 @@ export function drawPetroglyphs(
     ctx.fillStyle = `rgba(180, 90, 40, ${(a.peak - 0.55) * 0.09})`;
     ctx.fillRect(0, 0, w, h);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// NEW (2026-04 curation wave) — stereoVectorscope,
+// copper / bone palette, no rainbow.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────
+// STEREO VECTORSCOPE — X/Y oscilloscope showing stereo correlation.
+// Since mdrone's engine produces a mono sum at the master analyser,
+// we synthesise a pseudo-stereo image from two time-offset samples of
+// the waveform (30-sample lag) so the trace actually moves on sustained
+// notes. Monochrome greyscale phosphor, persistent trail.
+// ─────────────────────────────────────────────────────────────────────
+let vsCanvas: HTMLCanvasElement | null = null;
+let vsCtx: CanvasRenderingContext2D | null = null;
+export function drawStereoVectorscope(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  if (!vsCanvas || vsCanvas.width !== w || vsCanvas.height !== h) {
+    vsCanvas = document.createElement("canvas");
+    vsCanvas.width = w; vsCanvas.height = h;
+    vsCtx = vsCanvas.getContext("2d");
+    if (vsCtx) { vsCtx.fillStyle = "#06070a"; vsCtx.fillRect(0, 0, w, h); }
+  }
+  const off = vsCtx!;
+  const dt = p.dtScale ?? 1;
+  // Phosphor persistence — very slow decay so trails accumulate
+  off.fillStyle = `rgba(6, 7, 10, ${0.04 * dt})`;
+  off.fillRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const rad = Math.min(w, h) * 0.42;
+  const wf = a.waveform;
+
+  if (wf && wf.length > 128) {
+    const LAG = 30; // samples of right-channel delay vs left
+    const step = Math.max(1, Math.floor(wf.length / 600));
+    const bright = 195 + Math.round(a.rms * 40 + a.peak * 20);
+    off.strokeStyle = `rgba(${bright}, ${bright}, ${bright}, ${0.55 + a.rms * 0.4})`;
+    off.lineWidth = 0.8 + a.rms * 0.8;
+    off.beginPath();
+    let first = true;
+    for (let i = 0; i < wf.length - LAG; i += step) {
+      const l = (wf[i] - 128) / 128;          // "left"
+      const r = (wf[i + LAG] - 128) / 128;    // "right" (time-lagged)
+      // ±45° rotation — classic vectorscope orientation (M/S axes)
+      const vx = (l + r) * 0.707;
+      const vy = (l - r) * 0.707;
+      const x = cx + vx * rad;
+      const y = cy + vy * rad;
+      if (first) { off.moveTo(x, y); first = false; } else off.lineTo(x, y);
+    }
+    off.stroke();
+  }
+
+  // Cross-hair + M/S axis labels (minimal)
+  off.strokeStyle = "rgba(170, 170, 170, 0.14)";
+  off.lineWidth = 0.5;
+  off.beginPath();
+  off.moveTo(cx - rad, cy); off.lineTo(cx + rad, cy);
+  off.moveTo(cx, cy - rad); off.lineTo(cx, cy + rad);
+  off.stroke();
+  // Diagonal unity lines (mono = NW-SE)
+  off.strokeStyle = "rgba(170, 170, 170, 0.08)";
+  off.beginPath();
+  off.moveTo(cx - rad, cy - rad); off.lineTo(cx + rad, cy + rad);
+  off.moveTo(cx - rad, cy + rad); off.lineTo(cx + rad, cy - rad);
+  off.stroke();
+
+  ctx.drawImage(vsCanvas, 0, 0);
+
+  // Vignette
+  const vg = ctx.createRadialGradient(cx, cy, rad * 0.4, cx, cy, Math.max(w, h) * 0.7);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, w, h);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// HARMONIC EMBER — polar log plot of the actual harmonic series.
+// Each harmonic partial n (of a pitched drone) burns as an arc at
+// log-mapped radius. Burns are persistent: the buffer accumulates
+// so sustained notes inscribe a fixed pattern; glissando blurs it.
+// ─────────────────────────────────────────────────────────────────────
+let embCanvas: HTMLCanvasElement | null = null;
+let embCtx: CanvasRenderingContext2D | null = null;
+export function drawHarmonicEmber(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  if (!embCanvas || embCanvas.width !== w || embCanvas.height !== h) {
+    embCanvas = document.createElement("canvas");
+    embCanvas.width = w; embCanvas.height = h;
+    embCtx = embCanvas.getContext("2d");
+    if (embCtx) { embCtx.fillStyle = "#0a0604"; embCtx.fillRect(0, 0, w, h); }
+  }
+  const off = embCtx!;
+  const dt = p.dtScale ?? 1;
+  // Very slow wash — ember marks persist
+  off.fillStyle = `rgba(10, 6, 4, ${0.01 * dt})`;
+  off.fillRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const rMin = Math.min(w, h) * 0.08;
+  const rMax = Math.min(w, h) * 0.48;
+  // Log map: harmonic n → radius = rMin + (rMax - rMin) * log2(n) / log2(N_MAX)
+  const N_MAX = 16;
+  const logMax = Math.log2(N_MAX);
+
+  // For each active pitch class weighted by its energy, burn an arc
+  // on the harmonic whose root is that pc.
+  for (let pc = 0; pc < 12; pc++) {
+    const e = p.activePitches[pc];
+    if (e < 0.08) continue;
+    // Root angle comes from pitch class (circle of fifths)
+    const fifth = (pc * 7) % 12;
+    const rootAng = (fifth / 12) * Math.PI * 2 - Math.PI / 2;
+    for (let n = 1; n <= N_MAX; n++) {
+      // Each harmonic sits at a fraction of a turn from root angle
+      const harmAng = rootAng + Math.log2(n) * Math.PI * 0.35;
+      const rr = rMin + (rMax - rMin) * (Math.log2(n) / logMax);
+      // Arc thickness + brightness decrease with n (1/n falloff)
+      const arcAl = e * (1 / n) * (0.6 + a.rms * 0.5);
+      const arcLen = 0.12 + e * 0.18;
+      off.strokeStyle = `hsla(${24 + n}, 70%, ${50 + e * 20 - n}%, ${arcAl})`;
+      off.lineWidth = 1 + (e / n) * 3;
+      off.beginPath();
+      off.arc(cx, cy, rr, harmAng - arcLen * 0.5, harmAng + arcLen * 0.5);
+      off.stroke();
+    }
+  }
+
+  // Centre ember — pulses with rms, burns the origin as a dot
+  const coreR = 2 + a.rms * 4 + a.peak * 4;
+  const cg = off.createRadialGradient(cx, cy, 0, cx, cy, coreR * 5);
+  cg.addColorStop(0, `hsla(28, 85%, 62%, ${0.7 + a.peak * 0.2})`);
+  cg.addColorStop(0.5, `hsla(22, 65%, 35%, 0.25)`);
+  cg.addColorStop(1, "rgba(0,0,0,0)");
+  off.fillStyle = cg;
+  off.fillRect(cx - coreR * 5, cy - coreR * 5, coreR * 10, coreR * 10);
+
+  ctx.drawImage(embCanvas, 0, 0);
+
+  // Thin reference log-radius rings (very faint) — octaves
+  ctx.strokeStyle = "rgba(140, 110, 80, 0.08)";
+  ctx.lineWidth = 0.4;
+  for (let oct = 1; oct <= 4; oct++) {
+    const rr = rMin + (rMax - rMin) * (oct / logMax);
+    ctx.beginPath();
+    ctx.arc(cx, cy, rr, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Vignette
+  const vg = ctx.createRadialGradient(cx, cy, rMax * 0.6, cx, cy, Math.max(w, h) * 0.7);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.5)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, w, h);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// SHORTWAVE STATIC — 12 fixed "station carriers" across the dial, one
+// per pitch class. Active pitches brighten their stations (signal =
+// pitch energy); the rest is hissing noise whose density tracks rms.
+// The tuning dial sweeps slowly and gains a "locked" glow as it
+// passes a strong station. Peaks fire horizontal interference bars;
+// strong high-band content fires Morse-like dot bursts near carriers.
+// Below the waterfall, a thin live oscilloscope trace decodes the
+// currently-tuned station (reads the waveform as if demodulated).
+// ─────────────────────────────────────────────────────────────────────
+let swCanvas: HTMLCanvasElement | null = null;
+let swCtx: CanvasRenderingContext2D | null = null;
+const SW_ROWS = 3;       // rows added to waterfall per frame
+// Station carriers — fixed positions, one per pitch class.
+// Rendered as persistent bright columns in the waterfall.
+const SW_STATIONS = 12;
+// Running smoothed energy per station, so carriers don't flicker.
+const swStationE = new Float32Array(SW_STATIONS);
+let swPrevPeak = 0;
+// Morse-burst queue: each entry = {x, rows left}
+interface SwMorse { x: number; rows: number; }
+const swMorse: SwMorse[] = [];
+export function drawShortwaveStatic(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  if (!swCanvas || swCanvas.width !== w || swCanvas.height !== h) {
+    swCanvas = document.createElement("canvas");
+    swCanvas.width = w; swCanvas.height = h;
+    swCtx = swCanvas.getContext("2d");
+    if (swCtx) { swCtx.fillStyle = "#07060a"; swCtx.fillRect(0, 0, w, h); }
+    swMorse.length = 0;
+  }
+  const off = swCtx!;
+  const dt = p.dtScale ?? 1;
+
+  // Bands for Morse + haze modulation
+  let high = 0;
+  for (let i = 20; i < 32; i++) high += a.spectrum[i] ?? 0;
+  high /= 12;
+
+  // Transient detection
+  const peakDelta = a.peak - swPrevPeak;
+  const transient = peakDelta > 0.08;
+  swPrevPeak = a.peak * 0.85 + swPrevPeak * 0.15;
+
+  // Waterfall scroll
+  const img = off.getImageData(0, SW_ROWS, w, h - SW_ROWS);
+  off.putImageData(img, 0, 0);
+  off.fillStyle = "#07060a";
+  off.fillRect(0, h - SW_ROWS, w, SW_ROWS);
+
+  // Tuning dial position — slow drift + slight pull toward the
+  // strongest active station, so the dial feels drawn to strong
+  // signals rather than completely independent.
+  let pullX = 0, pullMass = 0;
+  for (let s = 0; s < SW_STATIONS; s++) {
+    const e = p.activePitches[s];
+    const sx = ((s + 0.5) / SW_STATIONS) * w;
+    pullX += sx * e;
+    pullMass += e;
+  }
+  const driftX = (w * 0.5) + Math.sin(p.t * 0.035) * (w * 0.35);
+  const targetX = pullMass > 0.08 ? driftX * 0.65 + (pullX / pullMass) * 0.35 : driftX;
+  // Ease dial toward target
+  const dialX = targetX;   // already-smoothed via targetX calc; could store if jumpy
+  const dialW = 40 + a.rms * 30;
+
+  // Smooth per-station energies (attack fast, release slow)
+  for (let s = 0; s < SW_STATIONS; s++) {
+    const e = p.activePitches[s];
+    const k = e > swStationE[s] ? 0.25 : 0.05;
+    swStationE[s] += (e - swStationE[s]) * (1 - Math.pow(1 - k, dt));
+  }
+
+  // How strongly the dial is "locked" to the nearest strong station
+  let lockedE = 0, lockedSx = 0;
+  for (let s = 0; s < SW_STATIONS; s++) {
+    const sx = ((s + 0.5) / SW_STATIONS) * w;
+    const d = Math.abs(sx - dialX);
+    const prox = d < dialW ? 1 - d / dialW : 0;
+    const sig = swStationE[s] * prox;
+    if (sig > lockedE) { lockedE = sig; lockedSx = sx; }
+  }
+
+  // Render bottom band — static + carriers
+  for (let x = 0; x < w; x++) {
+    // Nearest station energy at this x
+    const stationIdx = Math.min(SW_STATIONS - 1, Math.floor(x / w * SW_STATIONS));
+    const stationE = swStationE[stationIdx];
+    const sxStation = ((stationIdx + 0.5) / SW_STATIONS) * w;
+    const stationW = w / SW_STATIONS * 0.35;
+    const distS = Math.abs(x - sxStation);
+    const carrier = distS < stationW ? (1 - distS / stationW) * stationE : 0;
+
+    // Dial proximity (makes dial-region brighter, like a tuning sweep)
+    const dx = Math.abs(x - dialX);
+    const dialProx = dx < dialW ? 1 - dx / dialW : 0;
+
+    const noise = Math.random();
+    const sig = noise * (0.18 + a.rms * 0.45) + carrier * (0.55 + a.peak * 0.45) + dialProx * 0.12;
+    const lig = Math.min(96, 12 + sig * 78);
+    const al = 0.2 + carrier * 0.55 + sig * 0.25 + dialProx * 0.12;
+    // Amber bias on strong carriers, cool grey on pure noise
+    const hue = 30 + carrier * 10 - dialProx * 6;
+    const sat = 6 + carrier * 40 + dialProx * 8;
+    off.fillStyle = `hsla(${hue}, ${sat}%, ${lig}%, ${al})`;
+    off.fillRect(x, h - SW_ROWS, 1, SW_ROWS);
+  }
+
+  // Interference bars — peak-triggered
+  if (transient && a.peak > 0.4) {
+    const bars = 1 + Math.floor(a.peak * 2);
+    for (let b = 0; b < bars; b++) {
+      const barY = h - SW_ROWS - Math.floor(Math.random() * 14);
+      off.fillStyle = `hsla(28, 22%, 72%, ${a.peak * 0.5})`;
+      off.fillRect(0, barY, w, 1);
+    }
+  }
+
+  // Morse dot bursts — spawned by high-band transients. Each burst
+  // stamps a short dot / dash sequence at a randomly-chosen lit
+  // station's x-column over the next N scrolling rows.
+  if (transient && high > 0.1 && Math.random() < 0.6) {
+    // Pick a lit station
+    let bestS = -1, bestE = 0.12;
+    for (let s = 0; s < SW_STATIONS; s++) if (swStationE[s] > bestE) { bestE = swStationE[s]; bestS = s; }
+    if (bestS >= 0) {
+      const sx = ((bestS + 0.5) / SW_STATIONS) * w;
+      swMorse.push({ x: sx, rows: 6 + Math.floor(Math.random() * 14) });
+    }
+  }
+  for (let i = swMorse.length - 1; i >= 0; i--) {
+    const m = swMorse[i];
+    // Stamp a short bright dot this frame
+    off.fillStyle = `hsla(36, 50%, 80%, 0.8)`;
+    off.fillRect(m.x - 1, h - SW_ROWS, 3, SW_ROWS);
+    m.rows -= 1;
+    if (m.rows <= 0) swMorse.splice(i, 1);
+  }
+
+  ctx.drawImage(swCanvas, 0, 0);
+
+  // ── Dial indicator — thin vertical, brighter when locked
+  const lockStrength = Math.min(1, lockedE * 2.5);
+  ctx.strokeStyle = `hsla(${28 - lockStrength * 6}, ${50 + lockStrength * 35}%, ${55 + a.rms * 15 + lockStrength * 10}%, ${0.45 + a.peak * 0.3 + lockStrength * 0.3})`;
+  ctx.lineWidth = 1 + lockStrength * 1.2;
+  ctx.beginPath();
+  ctx.moveTo(dialX, 0);
+  ctx.lineTo(dialX, h);
+  ctx.stroke();
+
+  // Tuning-lock glyph: small diamond at the top of the dial when
+  // locked to a station, scaled by lock strength.
+  if (lockStrength > 0.15) {
+    const dy = 10;
+    const ds = 4 + lockStrength * 6;
+    ctx.fillStyle = `hsla(34, 65%, 70%, ${lockStrength * 0.7})`;
+    ctx.beginPath();
+    ctx.moveTo(dialX, dy - ds);
+    ctx.lineTo(dialX + ds, dy);
+    ctx.lineTo(dialX, dy + ds);
+    ctx.lineTo(dialX - ds, dy);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ── Station tick marks (top scale). Stations glow when lit.
+  const tickY = 8;
+  for (let s = 0; s < SW_STATIONS; s++) {
+    const sx = ((s + 0.5) / SW_STATIONS) * w;
+    const e = swStationE[s];
+    ctx.strokeStyle = `hsla(28, ${20 + e * 45}%, ${45 + e * 30}%, ${0.3 + e * 0.6})`;
+    ctx.lineWidth = 0.6 + e * 1.1;
+    ctx.beginPath();
+    ctx.moveTo(sx, tickY - 3 - e * 4);
+    ctx.lineTo(sx, tickY + 3 + e * 4);
+    ctx.stroke();
+  }
+
+  // ── Live oscilloscope — thin trace at the bottom 18px that shows
+  //    the "demodulated" waveform. Only drawn when dial is locked,
+  //    otherwise replaced with flat static hiss. The station's sx
+  //    determines the hue tint so different stations sound different.
+  const scopeH = 18;
+  const scopeY = h - SW_ROWS - scopeH - 8;
+  if (lockStrength > 0.2 && a.waveform) {
+    const wf = a.waveform;
+    ctx.strokeStyle = `hsla(${30 - lockStrength * 4}, 55%, ${60 + lockStrength * 15}%, ${0.5 + lockStrength * 0.4})`;
+    ctx.lineWidth = 0.9;
+    ctx.beginPath();
+    const step = Math.max(1, Math.floor(wf.length / w));
+    for (let x = 0; x < w; x += 2) {
+      const idx = Math.min(wf.length - 1, x * step);
+      const v = (wf[idx] - 128) / 128;
+      const y = scopeY + scopeH * 0.5 + v * scopeH * 0.45;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // Subtle horizontal guide line at the scope centre
+    ctx.strokeStyle = "rgba(120, 100, 80, 0.15)";
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(0, scopeY + scopeH * 0.5);
+    ctx.lineTo(w, scopeY + scopeH * 0.5);
+    ctx.stroke();
+    // Current-station colour tag on the left
+    ctx.fillStyle = `hsla(30, 55%, 60%, ${lockStrength * 0.8})`;
+    ctx.fillRect(4, scopeY + scopeH * 0.5 - 1, 14, 2);
+  }
+
+  // Suppress unused-var linter on lockedSx (kept for potential future
+  // visual use — station-centre marker).
+  void lockedSx;
+
+  // Vignette
+  const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.7);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.5)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, w, h);
 }
