@@ -413,8 +413,12 @@ export function drawMandala(
 let cymatCanvas: HTMLCanvasElement | null = null;
 let cymatCtx: CanvasRenderingContext2D | null = null;
 let cymatData: ImageData | null = null;
-const CYMAT_W = 96;
-const CYMAT_H = 64;
+// Buffer resolution — sharp nodal lines need enough pixels. 256x160
+// is a 4.4x pixel count vs the old 96x64 and still runs at 30fps on
+// modern hardware. Per-frame cost: ~41k pixels × 8 bands × 2 cos ≈
+// 660k trig ops/frame, well under the ~3M/frame V8 can sustain.
+const CYMAT_W = 256;
+const CYMAT_H = 160;
 function ensureCymatBuffer() {
   if (!cymatCanvas) {
     cymatCanvas = document.createElement("canvas");
