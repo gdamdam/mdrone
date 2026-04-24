@@ -20,9 +20,10 @@ import { showNotification } from "../notifications";
 export type Visualizer =
   | "mandala"
   | "haloGlow"
+  | "haloGlowBW"
+  | "mirrorGlyphs"
   | "fractal"
   | "rothko"
-  | "tapeDecay"
   | "dreamHouse"
   | "sigil"
   | "starGate"
@@ -37,19 +38,16 @@ export type Visualizer =
   | "flowField"
   | "feedbackTunnel"
   | "waveformRing"
-  | "saltDrift"
   | "ironFilings"
   | "sediment"
   | "prayerRug"
   | "partialConstellation"
   | "phasePortrait"
   | "liquidLight"
-  | "sandMandala"
   | "moireField"
   | "illuminatedGlyphs"
   | "scryingMirror"
   | "astrolabe"
-  | "smokePlume"
   | "crystalLattice"
   | "halftone"
   | "phaseMirror";
@@ -78,7 +76,6 @@ export const VISUALIZER_GROUPS: readonly {
       "partialConstellation",
       "phasePortrait",
       "phaseMirror",
-      "sandMandala",
       "astrolabe",
       "crystalLattice",
     ],
@@ -94,18 +91,17 @@ export const VISUALIZER_GROUPS: readonly {
     label: "FIELD / PAINTERLY",
     items: [
       "rothko",
-      "tapeDecay",
       "dreamHouse",
       "inkBloom",
       "haloGlow",
+      "haloGlowBW",
+      "mirrorGlyphs",
       "horizon",
-      "saltDrift",
       "ironFilings",
       "prayerRug",
       "liquidLight",
       "illuminatedGlyphs",
       "scryingMirror",
-      "smokePlume",
       "halftone",
     ],
   },
@@ -132,15 +128,15 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   flowField: "FLOW FIELD · particle streams",
   waveformRing: "WAVEFORM RING · circular oscilloscope",
   haloGlow: "HALO & RAYS",
+  haloGlowBW: "HALO & RAYS · B&W",
+  mirrorGlyphs: "MIRROR GLYPHS · scrying + gilt runes",
   fractal: "JULIA FRACTAL · heavy",
   rothko: "ROTHKO FIELD",
-  tapeDecay: "TAPE DECAY",
   dreamHouse: "DREAM HOUSE MAGENTA",
   sigil: "SIGIL BLOOM",
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
   feedbackTunnel: "FEEDBACK TUNNEL",
-  saltDrift: "SALT DRIFT · particulate accretion",
   ironFilings: "IRON FILINGS · magnetic field",
   sediment: "SEDIMENT STRATA · spectral deposit",
   prayerRug: "SPECTRAL PRAYER RUG",
@@ -148,12 +144,10 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   phasePortrait: "PHASE PORTRAIT · Lissajous attractor",
   phaseMirror: "PHASE MIRROR · 8-fold phase-space",
   liquidLight: "LIQUID LIGHT · caustics",
-  sandMandala: "SAND MANDALA · ritual accretion",
   moireField: "MOIRÉ FIELD · interference grid",
   illuminatedGlyphs: "ILLUMINATED GLYPHS · gilt runes",
   scryingMirror: "SCRYING MIRROR · Rorschach bloom",
   astrolabe: "ASTROLABE · ritual clock",
-  smokePlume: "SMOKE PLUME · incense trail",
   crystalLattice: "CRYSTAL LATTICE · accreting facets",
   halftone: "HALFTONE · risograph overlay",
   inkBloom: "INK BLOOM",
@@ -454,9 +448,9 @@ export function drawCymatics(
   for (let i = 0; i < spec.length; i++) { num += i * spec[i]; den += spec[i]; }
   const centroid = den > 0 ? (num / den) / spec.length : 0.25;
 
-  // Amplitude response — RMS + peak transient. Old gain topped out
-  // at ~1.3× on peaks; this lifts it to ~3.5× so loud drones pop.
-  const amp = 0.3 + a.rms * 2.6 + a.peak * 0.9;
+  // Amplitude response — wider range so silence is dark and loud
+  // drones clearly flash the nodes bright.
+  const amp = 0.15 + a.rms * 4.8 + a.peak * 2.0;
 
   // Grayscale palette — contrast is the whole story.
   const paletteR = 230;
@@ -465,6 +459,9 @@ export function drawCymatics(
   void centroid;
 
   const t = p.t;
+  // Phase speed scales with RMS — the whole plate visibly vibrates
+  // faster on louder drones, not just brighter.
+  const phaseMul = 1 + a.rms * 7 + a.peak * 3;
 
   for (let y = 0; y < CYMAT_H; y++) {
     for (let x = 0; x < CYMAT_W; x++) {
@@ -473,21 +470,24 @@ export function drawCymatics(
       const r = Math.sqrt(nx * nx + ny * ny);
       const ang = Math.atan2(ny, nx);
 
-      // Sum of excited Chladni modes weighted by their band energies.
-      // Each spectrum band drives a specific mode (radial × angular)
-      // so different drone timbres produce visibly different plates.
       let v = 0;
       for (let k = 0; k < nBands; k++) {
         const e = spec[k];
         if (e < 0.03) continue;
-        const rf = 3.1 + k * 2.0 + p.growth * 1.3;
+        // Radial freq modulated by RMS so nodes densify with loudness,
+        // not only long-term growth.
+        const rf = 3.1 + k * 2.0 + p.growth * 1.3 + a.rms * 6;
         const af = 2 + k * 2 + Math.floor(p.growth * 3);
-        v += e * Math.cos(r * rf - t * (0.08 + k * 0.015))
-              * Math.cos(ang * af + t * 0.04 * ((k & 1) ? 1 : -1));
+        v += e * Math.cos(r * rf - t * phaseMul * (0.08 + k * 0.015))
+              * Math.cos(ang * af + t * phaseMul * 0.04 * ((k & 1) ? 1 : -1));
       }
-      // Silent-drift baseline so the plate keeps breathing on quiet
-      // passages rather than going matte.
-      v += 0.12 * Math.cos(r * (2.2 + p.slow * 0.6) - t * 0.11);
+      // Peak-triggered radial shockwave — a visible ripple on transients.
+      if (a.peak > 0.08) {
+        v += a.peak * 1.5 * Math.cos(r * (8 + a.peak * 20) - t * 2.0);
+      }
+      // Silent-drift baseline, now very subtle so it doesn't wash out
+      // the audio reactivity.
+      v += 0.05 * Math.cos(r * (2.2 + p.slow * 0.6) - t * 0.11);
 
       const mag = Math.min(1, Math.abs(v) * amp);
       // Smoothstep contrast — nodal lines pop, dark zones stay dark.
@@ -968,220 +968,6 @@ function drawRothkoBlock(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// 10. TAPE DECAY — a horizontal band of magnetic tape scrolling
-//     right-to-left, slowly rotting with per-pixel dropouts. Persists
-//     across session reloads: the decay pattern is serialized to
-//     localStorage every few seconds, so the tape keeps eroding
-//     between sessions — Basinski-style disintegration loops.
-// ─────────────────────────────────────────────────────────────────────
-let tapeCanvas: HTMLCanvasElement | null = null;
-let tapeCtx: CanvasRenderingContext2D | null = null;
-const TAPE_W = 900;    // length of the physical loop
-const TAPE_H = 80;
-const TAPE_STORAGE_KEY = "mdrone.meditate.tapeDecay";
-let tapeLastSave = 0;
-let tapePersistDisabled = false;
-let tapeOffset = 0;     // scroll position (px)
-let tapeLoopIndex = 0;  // which playback pass we're on
-let tapeLastT = 0;      // p.t at the previous frame — drives scroll via
-                        // active-time delta so the loop advances only
-                        // while the drone is audible and is framerate-
-                        // independent (MeditateView caps at 30 fps).
-function paintBaseTape() {
-  const t = tapeCtx!;
-  const grad = t.createLinearGradient(0, 0, 0, TAPE_H);
-  grad.addColorStop(0, "#2a1404");
-  grad.addColorStop(0.5, "#4a2408");
-  grad.addColorStop(1, "#2a1404");
-  t.fillStyle = grad;
-  t.fillRect(0, 0, TAPE_W, TAPE_H);
-  // Add warm modulated brightness along the tape — simulates
-  // the magnetic signal variation along the strip.
-  for (let x = 0; x < TAPE_W; x++) {
-    const lum = 40 + Math.sin(x * 0.02) * 20 + Math.sin(x * 0.08 + 2) * 15;
-    t.fillStyle = `rgba(${180 + lum}, ${80 + lum * 0.5}, ${30 + lum * 0.2}, 0.5)`;
-    t.fillRect(x, TAPE_H * 0.15, 1, TAPE_H * 0.7);
-  }
-  // Sprocket holes / splice lines
-  t.fillStyle = "rgba(20,10,4,0.5)";
-  for (let i = 0; i < 8; i++) {
-    const sx = (i / 8) * TAPE_W + Math.random() * 40;
-    t.fillRect(sx, 0, 1, TAPE_H);
-  }
-}
-function ensureTape(): void {
-  if (tapeCanvas) return;
-  tapeCanvas = document.createElement("canvas");
-  tapeCanvas.width = TAPE_W;
-  tapeCanvas.height = TAPE_H;
-  tapeCtx = tapeCanvas.getContext("2d");
-  // Always paint a fresh base first so we have something visible
-  // before/without a saved state.
-  paintBaseTape();
-  // Try to restore the eroded loop from storage, but validate that
-  // the restored image isn't mostly black. A tape that was left
-  // degrading for a very long time can save as "all black" which
-  // isn't a useful resume state — just repaint fresh.
-  try {
-    const raw = localStorage.getItem(TAPE_STORAGE_KEY);
-    if (raw) {
-      const img = new Image();
-      img.onload = () => {
-        tapeCtx!.drawImage(img, 0, 0);
-        const sample = tapeCtx!.getImageData(0, 0, TAPE_W, TAPE_H).data;
-        let lum = 0;
-        for (let i = 0; i < sample.length; i += 4) {
-          lum += sample[i] + sample[i + 1] + sample[i + 2];
-        }
-        const avg = lum / (sample.length / 4) / 3;
-        // Reset freshness threshold — catches tapes that are flat
-        // (no dynamic variation) even if not pitch-black. Avg ≤ 42
-        // roughly corresponds to "uniformly dark brown smear with
-        // no contrast left".
-        if (avg < 42) {
-          localStorage.removeItem(TAPE_STORAGE_KEY);
-          paintBaseTape();
-          tapeLoopIndex = 0;
-        }
-      };
-      img.onerror = () => { paintBaseTape(); };
-      img.src = raw;
-    }
-  } catch { /* ok */ }
-}
-function decayLoop(peak: number, growth: number, rms: number): void {
-  // Each loop wrap scars the tape. More scars on loud passes so the
-  // tape accumulates faster when the drone is active.
-  const t = tapeCtx!;
-  const scars = 1 + Math.round(growth * 2 + peak * 3 + rms * 2);
-  for (let i = 0; i < scars; i++) {
-    const x = Math.random() * TAPE_W;
-    const thickness = 1 + Math.random() * 2;
-    const yOff = (Math.random() - 0.5) * TAPE_H * 0.3;
-    const yh = TAPE_H * (0.4 + Math.random() * 0.4);
-    t.fillStyle = "rgba(0,0,0,0.55)";
-    t.fillRect(x, TAPE_H / 2 - yh / 2 + yOff, thickness, yh);
-  }
-  if (Math.random() < 0.08 + growth * 0.12 + rms * 0.15) {
-    const y = Math.random() * TAPE_H;
-    t.fillStyle = "rgba(0,0,0,0.45)";
-    t.fillRect(0, y, TAPE_W, 1);
-  }
-}
-// Write-head position on the tape canvas — advances in active-time
-// with the scroll so burn marks track the current playback position.
-let tapeWriteHead = 0;
-let tapePrevPeak = 0;
-export function drawTapeDecay(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  ensureTape();
-
-  // Spectral centroid — drives burn-mark hue so different drones
-  // leave different colours on the tape. Low centroid = amber,
-  // high = cold magenta/cyan.
-  let num = 0, den = 0;
-  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
-  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
-  const burnHue = ((30 - centroid * 180) % 360 + 360) % 360;
-
-  ctx.fillStyle = "#0a0604";
-  ctx.fillRect(0, 0, w, h);
-
-  // Scroll speed — 30→150 px/s across RMS range (was 40→60, barely
-  // perceptible). Loud drones accelerate the tape visibly.
-  const scrollSpeed = 30 + a.rms * 120;
-  const dt = Math.max(0, Math.min(0.2, p.t - tapeLastT));
-  tapeLastT = p.t;
-  const advance = scrollSpeed * dt;
-  tapeOffset += advance;
-  tapeWriteHead = (tapeWriteHead + advance) % TAPE_W;
-
-  // Burn a vertical mark on peak transients — persists onto the tape.
-  if (a.peak > tapePrevPeak + 0.06) {
-    const t = tapeCtx!;
-    const wx = Math.floor(tapeWriteHead);
-    t.fillStyle = `hsla(${burnHue}, ${35 + a.peak * 35}%, ${25 + a.peak * 25}%, ${0.4 + a.peak * 0.35})`;
-    t.fillRect(wx, TAPE_H * 0.15, 1 + Math.round(a.peak * 3), TAPE_H * 0.7);
-    if (Math.random() < 0.4) {
-      t.fillStyle = "rgba(0,0,0,0.55)";
-      t.fillRect(wx, Math.random() * TAPE_H, 2 + Math.random() * 3, 1 + Math.random() * 2);
-    }
-  }
-  tapePrevPeak = a.peak;
-
-  // Continuous RMS tint — the tape carries a faint colour record of
-  // the drone's timbre as it scrolls past the write head.
-  if (a.rms > 0.04) {
-    const t = tapeCtx!;
-    const wx = Math.floor(tapeWriteHead);
-    const tintW = Math.max(1, Math.ceil(advance));
-    t.fillStyle = `hsla(${burnHue}, ${20 + a.rms * 30}%, ${28 + a.rms * 18}%, ${0.07 + a.rms * 0.15})`;
-    t.fillRect(wx, TAPE_H * 0.2, tintW, TAPE_H * 0.6);
-  }
-
-  while (tapeOffset >= TAPE_W) {
-    tapeOffset -= TAPE_W;
-    tapeLoopIndex += 1;
-    decayLoop(a.peak, p.growth, a.rms);
-  }
-
-  // Tape-transport wobble — the band physically jumps in the head
-  // on loud / peaky passages.
-  const wobble = Math.sin(p.t * 8) * a.rms * 4 + Math.sin(p.t * 3) * a.peak * 6;
-
-  const bandH = h * 0.55;
-  const bandY = (h - bandH) / 2 + wobble;
-  const tileW = w;
-  ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(tapeCanvas!, -tapeOffset, bandY, tileW, bandH);
-  ctx.drawImage(tapeCanvas!, -tapeOffset + tileW, bandY, tileW, bandH);
-
-  // Peak-flash overlay — brief bright sheen across the whole tape
-  if (a.peak > 0.5) {
-    ctx.fillStyle = `rgba(255, 220, 180, ${a.peak * 0.18})`;
-    ctx.fillRect(0, bandY, w, bandH);
-  }
-
-  const grad = ctx.createLinearGradient(0, 0, w, 0);
-  grad.addColorStop(0, "rgba(0,0,0,0.7)");
-  grad.addColorStop(0.1, "rgba(0,0,0,0)");
-  grad.addColorStop(0.9, "rgba(0,0,0,0)");
-  grad.addColorStop(1, "rgba(0,0,0,0.7)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, bandY, w, bandH);
-
-  // Persist every 6 s so Basinski-style resume works
-  if (!tapePersistDisabled && p.t * 1000 - tapeLastSave > 6000) {
-    tapeLastSave = p.t * 1000;
-    try {
-      localStorage.setItem(TAPE_STORAGE_KEY, tapeCanvas!.toDataURL("image/png"));
-    } catch (e) {
-      // Quota exceeded — drop the stored tape and stop retrying so
-      // we don't spam the user every 6 s. A fresh tape picks up next
-      // visit. Any other error is silent.
-      const name = (e as { name?: string })?.name ?? "";
-      if (name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED") {
-        tapePersistDisabled = true;
-        try { localStorage.removeItem(TAPE_STORAGE_KEY); } catch { /* ok */ }
-        showNotification(
-          "Tape loop too large to save — it will reset next session.",
-          "info",
-        );
-      }
-    }
-  }
-
-  // Subtitle with pass counter
-  ctx.fillStyle = "rgba(200,140,60,0.28)";
-  ctx.font = '10px "ui-monospace", monospace';
-  ctx.fillText(`TAPE · LOOP PASS ${tapeLoopIndex}`, 16, h - 16);
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 11. DREAM HOUSE MAGENTA — full-screen magenta flood with slow-
@@ -1559,7 +1345,7 @@ export function drawStarGate(
 }
 
 // Halo-and-rays visualizer (formerly the Buddha image gallery)
-import { drawHaloGlow } from "./deities";
+import { drawHaloGlow, drawHaloGlowBW } from "./deities";
 
 export const VISUALIZER_FNS: Record<
   Visualizer,
@@ -1567,6 +1353,8 @@ export const VISUALIZER_FNS: Record<
 > = {
   mandala: drawMandala,
   haloGlow: drawHaloGlow,
+  haloGlowBW: drawHaloGlowBW,
+  mirrorGlyphs: drawMirrorGlyphs,
   cymatics: drawCymatics,
   inkBloom: drawInkBloom,
   horizon: drawHorizon,
@@ -1574,7 +1362,6 @@ export const VISUALIZER_FNS: Record<
   dreamMachine: drawDreamMachine,
   fractal: drawFractal,
   rothko: drawRothko,
-  tapeDecay: drawTapeDecay,
   dreamHouse: drawDreamHouse,
   sigil: drawSigilBloom,
   starGate: drawStarGate,
@@ -1584,7 +1371,6 @@ export const VISUALIZER_FNS: Record<
   flowField: drawFlowField,
   waveformRing: drawWaveformRing,
   feedbackTunnel: drawFeedbackTunnel,
-  saltDrift: drawSaltDrift,
   ironFilings: drawIronFilings,
   sediment: drawSediment,
   prayerRug: drawPrayerRug,
@@ -1592,12 +1378,10 @@ export const VISUALIZER_FNS: Record<
   phasePortrait: drawPhasePortrait,
   phaseMirror: drawPhaseMirror,
   liquidLight: drawLiquidLight,
-  sandMandala: drawSandMandala,
   moireField: drawMoireField,
   illuminatedGlyphs: drawIlluminatedGlyphs,
   scryingMirror: drawScryingMirror,
   astrolabe: drawAstrolabe,
-  smokePlume: drawSmokePlume,
   crystalLattice: drawCrystalLattice,
   halftone: drawHalftone,
 };
@@ -2427,120 +2211,6 @@ export function drawFeedbackTunnel(
 // minutes of listening.
 // ═══════════════════════════════════════════════════════════════════════
 
-// ─────────────────────────────────────────────────────────────────────
-// SALT DRIFT — fine particulate drifting left-to-right across the
-// frame under a gentle gravity, accumulating at the bottom as slowly-
-// growing dunes. The floor erodes very slightly so dunes reshape
-// rather than piling up forever.
-// ─────────────────────────────────────────────────────────────────────
-interface SaltGrain { x: number; y: number; vx: number; vy: number; bright: number; }
-let saltGrains: SaltGrain[] | null = null;
-let saltFloor: Float32Array | null = null;
-let saltCanvasW = 0;
-let saltCanvasH = 0;
-
-export function drawSaltDrift(
-  ctx: CanvasRenderingContext2D,
-  w: number, h: number,
-  a: AudioFrame, p: PhaseClock,
-): void {
-  const N = 1200;
-  const FLOOR_BINS = Math.max(128, Math.floor(w / 4));
-
-  if (!saltGrains || saltCanvasW !== w || saltCanvasH !== h || !saltFloor || saltFloor.length !== FLOOR_BINS) {
-    saltCanvasW = w;
-    saltCanvasH = h;
-    saltGrains = new Array(N);
-    for (let i = 0; i < N; i++) {
-      saltGrains[i] = {
-        x: Math.random() * w,
-        y: Math.random() * h * 0.6,
-        vx: 0.2 + Math.random() * 0.5,
-        vy: 0.05 + Math.random() * 0.15,
-        bright: 0.55 + Math.random() * 0.45,
-      };
-    }
-    saltFloor = new Float32Array(FLOOR_BINS);
-  }
-
-  // Spectral centroid → wind direction. Low centroid = leftward drift,
-  // high = rightward. Rich drones produce crosscurrents.
-  let num = 0, den = 0;
-  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
-  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
-  const windDir = 0.4 + centroid * 0.8;
-
-  ctx.fillStyle = `hsl(${p.mood.hue}, 10%, ${10 + a.rms * 5}%)`;
-  ctx.fillRect(0, 0, w, h);
-
-  const gust = (Math.sin(p.t * 0.05) * 0.25 + p.slow * 0.15) * (1 + a.rms);
-  const gravity = 0.02 + a.rms * 0.04;
-  const floor = saltFloor!;
-  const speedMul = 1 + a.rms * 2;
-
-  // Grains coloured by the pitch-class they're tied to — different
-  // drones produce visibly different palettes on the salt.
-  for (let i = 0; i < N; i++) {
-    const g = saltGrains[i];
-    const pc = i % 12;
-    const pe = p.activePitches[pc];
-    const hue = (p.mood.hue + (pc - 6) * 12 + 360) % 360;
-    g.x += (g.vx + gust) * speedMul * windDir + (windDir - 0.5) * 0.15;
-    g.y += (g.vy + gravity) * speedMul;
-    if (g.x > w) g.x -= w;
-    if (g.x < 0) g.x += w;
-    const floorIdx = Math.min(FLOOR_BINS - 1, Math.max(0, Math.floor((g.x / w) * FLOOR_BINS)));
-    const floorY = h - floor[floorIdx];
-    if (g.y >= floorY) {
-      const spread = 1.5 + Math.random() * 0.8 + pe * 3;
-      floor[floorIdx] += spread;
-      const nL = Math.max(0, floorIdx - 1);
-      const nR = Math.min(FLOOR_BINS - 1, floorIdx + 1);
-      floor[nL] += spread * 0.35;
-      floor[nR] += spread * 0.35;
-      g.x = Math.random() * w;
-      g.y = -Math.random() * 10;
-      g.vx = 0.2 + Math.random() * 0.5;
-      g.vy = 0.05 + Math.random() * 0.15;
-      continue;
-    }
-    const r = 0.6 + g.bright * 0.9 + pe * 0.8;
-    ctx.globalAlpha = 0.55 + g.bright * 0.35;
-    ctx.fillStyle = `hsl(${hue}, ${18 + pe * 55}%, ${70 + pe * 20}%)`;
-    ctx.fillRect(g.x, g.y, r, r);
-  }
-  ctx.globalAlpha = 1;
-
-  const erosion = 0.04 + a.rms * 0.12;
-  const maxH = h * 0.48;
-  const nextFloor = new Float32Array(FLOOR_BINS);
-  for (let i = 0; i < FLOOR_BINS; i++) {
-    const l = floor[Math.max(0, i - 1)];
-    const r = floor[Math.min(FLOOR_BINS - 1, i + 1)];
-    const diffused = (l + floor[i] * 2 + r) * 0.25;
-    nextFloor[i] = Math.max(0, Math.min(maxH, diffused - erosion));
-  }
-  saltFloor = nextFloor;
-
-  ctx.fillStyle = `hsl(${p.mood.hue}, 15%, ${14 + a.rms * 3}%)`;
-  ctx.beginPath();
-  ctx.moveTo(0, h);
-  for (let i = 0; i < FLOOR_BINS; i++) {
-    const x = (i / (FLOOR_BINS - 1)) * w;
-    ctx.lineTo(x, h - nextFloor[i]);
-  }
-  ctx.lineTo(w, h);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = `hsl(${p.mood.hue}, 25%, ${22 + a.rms * 5}%)`;
-  ctx.lineWidth = 0.8 + a.rms * 0.8;
-  ctx.beginPath();
-  ctx.moveTo(0, h - nextFloor[0]);
-  for (let i = 1; i < FLOOR_BINS; i++) {
-    ctx.lineTo((i / (FLOOR_BINS - 1)) * w, h - nextFloor[i]);
-  }
-  ctx.stroke();
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // IRON FILINGS — a dense field of short filament strokes oriented to
@@ -2770,7 +2440,7 @@ export function drawPartialConstellation(
 
   // Connection lines flicker with per-pair timing so the web
   // constantly re-weaves rather than sitting static.
-  ctx.lineWidth = 0.7;
+  ctx.lineWidth = 1;
   for (let i = 0; i < pts.length; i++) {
     for (let j = i + 1; j < Math.min(pts.length, i + 5); j++) {
       if (pts[i].e + pts[j].e < 0.22) continue;
@@ -2985,123 +2655,6 @@ export function drawLiquidLight(
   ctx.drawImage(liqCanvas!, 0, 0, w, h);
 }
 
-// SAND MANDALA — ritual accretion. Grains fall at 8-fold radially-
-// symmetric positions sampled from active pitches. The buffer never
-// clears except when growth resets — then a brief sweep fades it.
-let sandCanvas: HTMLCanvasElement | null = null;
-let sandCtx: CanvasRenderingContext2D | null = null;
-let sandPrevGrowth = 0;
-function ensureSand(w: number, h: number) {
-  if (!sandCanvas || sandCanvas.width !== w || sandCanvas.height !== h) {
-    sandCanvas = document.createElement("canvas");
-    sandCanvas.width = w; sandCanvas.height = h;
-    sandCtx = sandCanvas.getContext("2d");
-    sandCtx!.fillStyle = "#0d0906"; sandCtx!.fillRect(0, 0, w, h);
-  }
-}
-export function drawSandMandala(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  ensureSand(w, h);
-  const s = sandCtx!;
-  if (p.growth < sandPrevGrowth - 0.1) {
-    s.fillStyle = "rgba(13, 9, 6, 0.45)";
-    s.fillRect(0, 0, w, h);
-  }
-  sandPrevGrowth = p.growth;
-  const cx = w / 2, cy = h / 2;
-  const rMax = Math.min(w, h) * 0.45;
-
-  let mass = 0;
-  for (let i = 0; i < 12; i++) mass += p.activePitches[i];
-
-  // Progressive outward construction: rings unlock as p.growth rises.
-  // 1 ring at growth=0 (centre bindu zone), 6 at growth=1. The mandala
-  // visibly builds outward over ~4 min rather than filling everywhere
-  // at once.
-  const unlockedRings = Math.max(1, Math.min(6, 1 + Math.floor(p.growth * 5.5)));
-
-  if (mass >= 0.02) {
-    const grains = Math.min(40, Math.round(2 + mass * 14 + a.rms * 8));
-    for (let g = 0; g < grains; g++) {
-      const pick = Math.random() * mass;
-      let sum = 0, pc = 0, bestE = 0;
-      for (let i = 0; i < 12; i++) {
-        sum += p.activePitches[i];
-        if (sum >= pick) { pc = i; bestE = p.activePitches[i]; break; }
-      }
-      if (bestE < 0.04) continue;
-      const baseA = (pc / 12) * Math.PI * 2 - Math.PI / 2;
-      // Bias toward the outermost unlocked ring so newly-available
-      // territory visibly fills in rather than getting lost inside.
-      const ring = Math.random() < 0.55
-        ? unlockedRings - 1
-        : Math.floor(Math.random() * unlockedRings);
-      const rr = rMax * (0.12 + ring * 0.145 + (Math.random() - 0.5) * 0.02);
-      const lobes = 8;
-      const jitter = (Math.random() - 0.5) * 0.03;
-      const hue = p.mood.hue + (pc - 6) * 8;
-      s.fillStyle = `hsla(${hue}, ${45 + bestE * 25}%, ${50 + bestE * 30}%, 0.7)`;
-      for (let k = 0; k < lobes; k++) {
-        const ang = baseA + (k / lobes) * Math.PI * 2 + jitter;
-        const x = cx + Math.cos(ang) * rr;
-        const y = cy + Math.sin(ang) * rr;
-        s.beginPath();
-        s.arc(x, y, 0.9 + bestE * 1.6, 0, Math.PI * 2);
-        s.fill();
-      }
-      // Growth tier 1 (>0.3): 16-fold filigree on outermost ring only
-      if (p.growth > 0.3 && ring === unlockedRings - 1 && bestE > 0.15) {
-        const subLobes = 16;
-        s.fillStyle = `hsla(${hue}, 40%, ${48 + bestE * 20}%, 0.45)`;
-        const subR = rr + 5;
-        for (let k = 0; k < subLobes; k++) {
-          const ang = baseA + (k / subLobes) * Math.PI * 2 + Math.PI / subLobes;
-          s.beginPath();
-          s.arc(cx + Math.cos(ang) * subR, cy + Math.sin(ang) * subR, 0.7, 0, Math.PI * 2);
-          s.fill();
-        }
-      }
-    }
-  }
-
-  // Growth tier 2 (>0.55): occasional dotted perimeter arc, sparse.
-  if (p.growth > 0.55 && Math.random() < 0.04) {
-    const arcRing = Math.floor(Math.random() * unlockedRings);
-    const arcR = rMax * (0.12 + arcRing * 0.145 + 0.075);
-    const dots = 24;
-    s.fillStyle = `hsla(${p.mood.hue + 20}, 35%, 60%, 0.45)`;
-    for (let i = 0; i < dots; i++) {
-      const ang = (i / dots) * Math.PI * 2 + p.t * 0.02;
-      s.beginPath();
-      s.arc(cx + Math.cos(ang) * arcR, cy + Math.sin(ang) * arcR, 0.8, 0, Math.PI * 2);
-      s.fill();
-    }
-  }
-
-  // Growth tier 3 (>0.8): faint gilt rim at full extent
-  if (p.growth > 0.8) {
-    s.strokeStyle = `hsla(42, 60%, 65%, ${0.015 + (p.growth - 0.8) * 0.06})`;
-    s.lineWidth = 1.2;
-    s.beginPath();
-    s.arc(cx, cy, rMax * 0.92, 0, Math.PI * 2);
-    s.stroke();
-  }
-
-  ctx.drawImage(sandCanvas!, 0, 0);
-
-  // Live bindu — not stamped into the buffer, overlaid each frame so
-  // the centre feels alive and there's visible structure from t=0
-  // even before grains arrive.
-  const binduR = 10 + a.rms * 6;
-  const bindu = ctx.createRadialGradient(cx, cy, 0, cx, cy, binduR);
-  bindu.addColorStop(0, `hsla(42, 70%, 80%, ${0.55 + a.peak * 0.35})`);
-  bindu.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = bindu;
-  ctx.beginPath();
-  ctx.arc(cx, cy, binduR, 0, Math.PI * 2);
-  ctx.fill();
-}
 
 // MOIRÉ FIELD — two overlaid rotating grids. Differential rotation
 // + spacing (driven by low/high spectrum bands) produce slow sweeping
@@ -3249,8 +2802,8 @@ export function drawScryingMirror(
       mirrorBlooms.push({
         x: w * 0.5 + Math.random() * w * 0.45,
         y: Math.random() * h,
-        r: 10,
-        maxR: 60 + Math.random() * 160 + a.rms * 180,
+        r: 8,
+        maxR: 40 + Math.random() * 100 + a.rms * 100,
         hue: coloured ? hue : -1,
         age: 0,
       });
@@ -3263,8 +2816,8 @@ export function drawScryingMirror(
     mirrorBlooms.push({
       x: w * 0.5 + Math.random() * w * 0.45,
       y: Math.random() * h,
-      r: 14,
-      maxR: 120 + Math.random() * 180 + a.peak * 120,
+      r: 10,
+      maxR: 70 + Math.random() * 110 + a.peak * 70,
       hue: -1,
       age: 0,
     });
@@ -3279,9 +2832,9 @@ export function drawScryingMirror(
 
   for (let i = mirrorBlooms.length - 1; i >= 0; i--) {
     const b = mirrorBlooms[i];
-    // Age increments slowly so blooms linger ~30 s each, letting the
-    // card accumulate visible texture.
-    b.age += 0.0028 * dt;
+    // Age rate: blooms linger ~18s each — enough to accumulate
+    // texture without the card getting completely crowded.
+    b.age += 0.005 * dt;
     if (b.age > 1) { mirrorBlooms.splice(i, 1); continue; }
     b.r += (b.maxR - b.r) * 0.03;
     const alpha = Math.max(0, 0.6 * (1 - b.age));
@@ -3412,135 +2965,15 @@ export function drawAstrolabe(
   ctx.restore();
 }
 
-// SMOKE PLUME — multiple rising plumes, one per active pitch class.
-// Each plume is tinted by its pitch's hue slot; wind drift comes from
-// spectral centroid; peak transients fire a burst puff from a random
-// active emitter. Embers cluster with RMS.
-interface SmokeP {
-  x: number; y: number; vx: number; vy: number; r: number;
-  life: number; hue: number;
-}
-const smokeParticles: SmokeP[] = [];
-const SMOKE_MAX = 520;
-let smokePrevPeak = 0;
-export function drawSmokePlume(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  ctx.fillStyle = "rgba(4, 3, 3, 0.10)"; ctx.fillRect(0, 0, w, h);
 
-  let hi = 0;
-  for (let i = 20; i < 32; i++) hi += a.spectrum[i];
-  hi /= 12;
-  let num = 0, den = 0;
-  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
-  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
-  const wind = (centroid - 0.5) * 0.8;
-
-  // Emitter stations along the bottom — active pitches each emit
-  // their own plume at x = (pc/12)*w, coloured by a hue derived from
-  // that pitch class. Every frame, each active pitch spawns some
-  // particles proportional to its energy.
-  // All particles share a neutral gray-incense hue — mood tint is
-  // subtle (low saturation) so the whole column reads as smoke, not
-  // as a rainbow stack.
-  const smokeHue = p.mood.hue;
-  for (let pc = 0; pc < 12; pc++) {
-    const e = p.activePitches[pc];
-    if (e < 0.05) continue;
-    const x0 = w * ((pc + 0.5) / 12);
-    const rate = Math.ceil(e * 7 + a.rms * 5);
-    for (let k = 0; k < rate && smokeParticles.length < SMOKE_MAX; k++) {
-      smokeParticles.push({
-        x: x0 + (Math.random() - 0.5) * 10,
-        y: h - 8,
-        vx: (Math.random() - 0.5) * 0.4 + wind * 0.5,
-        vy: -0.7 - Math.random() * 0.9 - e * 0.6,
-        r: 4 + Math.random() * 6,
-        life: 1,
-        hue: smokeHue,
-      });
-    }
-  }
-
-  // Peak burst — a sudden puff from a random active emitter
-  if (a.peak > smokePrevPeak + 0.08) {
-    const actives: number[] = [];
-    for (let pc = 0; pc < 12; pc++) if (p.activePitches[pc] > 0.08) actives.push(pc);
-    if (actives.length > 0) {
-      const pc = actives[Math.floor(Math.random() * actives.length)];
-      const x0 = w * ((pc + 0.5) / 12);
-      const puff = 18 + Math.round(a.peak * 22);
-      for (let k = 0; k < puff && smokeParticles.length < SMOKE_MAX; k++) {
-        smokeParticles.push({
-          x: x0 + (Math.random() - 0.5) * 20,
-          y: h - 8,
-          vx: (Math.random() - 0.5) * 1.2,
-          vy: -1.2 - Math.random() * 1.5,
-          r: 6 + Math.random() * 8,
-          life: 1,
-          hue: smokeHue,
-        });
-      }
-    }
-  }
-  smokePrevPeak = a.peak;
-
-  // Fallback: if nothing is playing, emit a faint baseline plume from
-  // centre so the visualizer never reads as dead.
-  if (smokeParticles.length < 8) {
-    for (let k = 0; k < 2 && smokeParticles.length < SMOKE_MAX; k++) {
-      smokeParticles.push({
-        x: w * 0.5 + (Math.random() - 0.5) * 8,
-        y: h - 8,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: -0.5 - Math.random() * 0.5,
-        r: 3 + Math.random() * 4,
-        life: 1,
-        hue: p.mood.hue,
-      });
-    }
-  }
-
-  for (let i = smokeParticles.length - 1; i >= 0; i--) {
-    const s = smokeParticles[i];
-    s.vx += Math.sin(s.y * 0.01 + p.t * 0.4) * 0.05 * (0.3 + hi * 3) + wind * 0.02;
-    s.vy -= 0.003;
-    s.x += s.vx; s.y += s.vy;
-    s.r += 0.14 + a.rms * 0.1;
-    s.life -= 0.005 + a.rms * 0.004;
-    if (s.life <= 0 || s.y < -20 || s.x < -30 || s.x > w + 30) {
-      smokeParticles.splice(i, 1);
-      continue;
-    }
-    const alpha = s.life * (0.4 + a.rms * 0.3);
-    // Gray incense smoke — 5–12% saturation, lightness varies with
-    // high-band energy so rich drones read denser than pure tones.
-    ctx.fillStyle = `hsla(${s.hue}, ${5 + hi * 8}%, ${48 + hi * 20}%, ${alpha})`;
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // Ember cluster at each active emitter — little flickers at the base
-  for (let pc = 0; pc < 12; pc++) {
-    const e = p.activePitches[pc];
-    if (e < 0.08) continue;
-    const x0 = w * ((pc + 0.5) / 12);
-    const hue = 20 + (pc - 6) * 4;
-    const embers = 1 + Math.round(e * 3 + a.peak * 2);
-    for (let k = 0; k < embers; k++) {
-      const ex = x0 + (Math.random() - 0.5) * 6;
-      const ey = h - 4 - Math.random() * 3;
-      ctx.fillStyle = `hsla(${hue}, 85%, ${55 + a.peak * 20}%, ${0.55 + a.peak * 0.35})`;
-      ctx.beginPath();
-      ctx.arc(ex, ey, 1.5 + e * 2 + a.peak * 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-}
-
-// CRYSTAL LATTICE — persistent diamond accretion. Facets only grow
-// (never shrink); stability (low |ΔRMS|) + sufficient energy permits
-// growth. Rate-limited to ~2 facets/sec at most.
-interface Facet { x: number; y: number; size: number; angle: number; hue: number; light: number; }
+// CRYSTAL LATTICE — persistent polygonal accretion. Facet shape /
+// size / spawn rate all shift with the drone's character so different
+// soundscapes grow visibly different crystals:
+//   dominant pitch class → polygon sides (3 = sharp shard, 7 = chunk)
+//   spectral centroid    → facet size (low centroid → big slabs,
+//                                      high → tiny shards)
+//   active-pitch mass    → spawn rate
+interface Facet { x: number; y: number; size: number; angle: number; sides: number; light: number; }
 const facets: Facet[] = [];
 let crystalCanvas: HTMLCanvasElement | null = null;
 let crystalCtx: CanvasRenderingContext2D | null = null;
@@ -3562,7 +2995,27 @@ export function drawCrystalLattice(
   const c = crystalCtx!;
   const stability = 1 - Math.min(1, Math.abs(a.rms - prevCrystalRms) * 20);
   prevCrystalRms = a.rms;
-  if (stability > 0.55 && a.rms > 0.06 && p.t - lastFacetSpawn > 0.4 - a.rms) {
+
+  // Spectral centroid → size scale. Low centroid = big blocky slabs,
+  // high centroid = tiny shards.
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+  const sizeScale = 1.4 - centroid * 0.9;
+
+  // Dominant pitch class → polygon sides (3..7). Different pitches
+  // choose different lattice geometries.
+  let dom = 0, domE = 0, mass = 0;
+  for (let i = 0; i < 12; i++) {
+    mass += p.activePitches[i];
+    if (p.activePitches[i] > domE) { domE = p.activePitches[i]; dom = i; }
+  }
+  const sides = 3 + (dom % 5);
+
+  // Spawn rate keys off active-pitch mass — silence barely grows,
+  // rich chord passages grow quickly.
+  const spawnEvery = Math.max(0.1, 0.8 - mass * 0.25 - a.rms);
+  if (stability > 0.55 && a.rms > 0.06 && p.t - lastFacetSpawn > spawnEvery) {
     lastFacetSpawn = p.t;
     let fx, fy;
     if (facets.length === 0) {
@@ -3577,9 +3030,9 @@ export function drawCrystalLattice(
     }
     const facet: Facet = {
       x: fx, y: fy,
-      size: 8 + Math.random() * 10,
+      size: (6 + Math.random() * 10) * sizeScale,
       angle: Math.random() * Math.PI,
-      hue: 0,
+      sides,
       light: 45 + Math.random() * 25,
     };
     facets.push(facet);
@@ -3596,7 +3049,12 @@ export function drawCrystalLattice(
     grad.addColorStop(1, `rgba(${Math.max(0, l3)}, ${Math.max(0, l3)}, ${Math.max(0, l3)}, 0.9)`);
     c.fillStyle = grad;
     c.beginPath();
-    c.moveTo(0, -s); c.lineTo(s, 0); c.lineTo(0, s); c.lineTo(-s, 0);
+    for (let k = 0; k < facet.sides; k++) {
+      const ang = (k / facet.sides) * Math.PI * 2 - Math.PI / 2;
+      const vx = Math.cos(ang) * s;
+      const vy = Math.sin(ang) * s;
+      if (k === 0) c.moveTo(vx, vy); else c.lineTo(vx, vy);
+    }
     c.closePath();
     c.fill();
     c.strokeStyle = "rgba(230, 230, 230, 0.35)";
@@ -3657,4 +3115,90 @@ export function drawHalftone(
   for (let i = 0; i < 40; i++) {
     ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
   }
+}
+
+// MIRROR GLYPHS — a cream Rorschach card where gilt illuminated
+// glyphs AND bilateral ink blooms both accumulate. Fusion of the
+// SCRYING MIRROR and ILLUMINATED GLYPHS visualizers. Reuses the
+// GLYPH_STROKES authored for ILLUMINATED GLYPHS.
+let mgCanvas: HTMLCanvasElement | null = null;
+let mgCtx: CanvasRenderingContext2D | null = null;
+let mgGlyphLast = 0;
+let mgSpawnTimer = 0;
+function ensureMg(w: number, h: number) {
+  if (!mgCanvas || mgCanvas.width !== w || mgCanvas.height !== h) {
+    mgCanvas = document.createElement("canvas");
+    mgCanvas.width = w; mgCanvas.height = h;
+    mgCtx = mgCanvas.getContext("2d");
+    mgCtx!.fillStyle = "#efe8dc"; mgCtx!.fillRect(0, 0, w, h);
+  }
+}
+export function drawMirrorGlyphs(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ensureMg(w, h);
+  const m = mgCtx!;
+  // Very slow fade toward cream so both glyphs and ink persist.
+  m.fillStyle = "rgba(239, 232, 220, 0.008)";
+  m.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+
+  // Bilateral ink blooms — audio-gated so silence stops adding ink.
+  if (a.rms > 0.03) {
+    mgSpawnTimer += a.rms * 0.2;
+    if (mgSpawnTimer > 1) {
+      mgSpawnTimer = 0;
+      const x = cx + 20 + Math.random() * (w * 0.45);
+      const y = Math.random() * h;
+      const r = 28 + Math.random() * 75 + a.rms * 70;
+      const mx = 2 * cx - x;
+      for (const bx of [x, mx]) {
+        const gr = m.createRadialGradient(bx, y, 0, bx, y, r);
+        gr.addColorStop(0, "rgba(22, 18, 15, 0.48)");
+        gr.addColorStop(1, "rgba(0,0,0,0)");
+        m.fillStyle = gr;
+        m.beginPath(); m.arc(bx, y, r, 0, Math.PI * 2); m.fill();
+      }
+    }
+  } else {
+    mgSpawnTimer = 0;
+  }
+
+  // Bilateral gilt glyphs — each placement doubles across the seam.
+  if (a.rms > 0.03 && p.t - mgGlyphLast > 1.8 - a.rms * 0.7) {
+    mgGlyphLast = p.t;
+    let pc = 0, best = 0;
+    for (let i = 0; i < 12; i++) {
+      if (p.activePitches[i] > best) { best = p.activePitches[i]; pc = i; }
+    }
+    if (best > 0.08) {
+      const strokes = GLYPH_STROKES[pc];
+      const sz = 18 + best * 22;
+      const gx = cx + 40 + Math.random() * (w * 0.35);
+      const gy = 60 + Math.random() * (h - 120);
+      for (const xx of [gx, 2 * cx - gx]) {
+        m.save();
+        m.translate(xx, gy);
+        m.lineWidth = 1.4 + best * 1.5;
+        m.lineCap = "round";
+        m.lineJoin = "round";
+        m.strokeStyle = `hsla(42, ${55 + best * 25}%, ${52 + best * 10}%, 0.85)`;
+        m.shadowColor = "rgba(200, 140, 60, 0.5)";
+        m.shadowBlur = 5 + best * 6;
+        for (const path of strokes) {
+          m.beginPath();
+          for (let i = 0; i < path.length; i += 2) {
+            const px = path[i] * sz;
+            const py = path[i + 1] * sz;
+            if (i === 0) m.moveTo(px, py); else m.lineTo(px, py);
+          }
+          m.stroke();
+        }
+        m.restore();
+      }
+    }
+  }
+
+  ctx.drawImage(mgCanvas!, 0, 0);
 }
