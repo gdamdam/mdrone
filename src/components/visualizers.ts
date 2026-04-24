@@ -49,6 +49,7 @@ export type Visualizer =
   | "astrolabe"
   | "crystalLattice"
   | "halftone"
+  | "halftoneClassic"
   | "phaseMirror";
 
 /**
