@@ -1745,6 +1745,8 @@ export function drawPitchTonnetz(
 // intervals → tight). Pairwise moiré bands render the visual
 // "beating" between every active pair.
 // ─────────────────────────────────────────────────────────────────────
+let pitchBeatsShock = 0;
+let prevPitchBeatsPeak = 0;
 export function drawPitchBeats(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -1752,7 +1754,7 @@ export function drawPitchBeats(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
   ctx.fillRect(0, 0, w, h);
 
   const energies = p.activePitches;
@@ -1760,17 +1762,40 @@ export function drawPitchBeats(
   for (let pc = 0; pc < 12; pc++) {
     if (energies[pc] > 0.08) actives.push({ pc, e: energies[pc], r: 0 });
   }
-  if (actives.length === 0) return;
   actives.sort((x, y) => x.pc - y.pc);
 
   const cx = w / 2;
   const cy = h / 2;
   const rMax = Math.min(w, h) * 0.48;
+
+  // Peak-triggered shockwave — a bright expanding ring that travels
+  // outward each time the drone spikes. Decays each frame.
+  if (a.peak > prevPitchBeatsPeak + 0.06) pitchBeatsShock = 1;
+  prevPitchBeatsPeak = a.peak;
+  pitchBeatsShock *= 0.94;
+
   ctx.save();
   ctx.translate(cx, cy);
+  // Slow rotation of the whole interferometer, accelerated by RMS.
+  ctx.rotate(p.t * (0.04 + a.rms * 0.12));
 
+  // Silent-state baseline ring so the canvas is never empty.
+  if (actives.length === 0) {
+    ctx.strokeStyle = `rgba(180, 180, 180, ${0.12 + a.rms * 0.1})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, rMax * 0.3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  // Per-pitch ring radius pulses with its own energy so the stack
+  // breathes rather than sitting static.
   for (let i = 0; i < actives.length; i++) {
-    actives[i].r = rMax * (0.18 + (i / Math.max(1, actives.length - 1)) * 0.7);
+    const base = rMax * (0.18 + (i / Math.max(1, actives.length - 1)) * 0.7);
+    const pulse = Math.sin(p.t * (0.6 + i * 0.25) + i) * 6 * (0.3 + actives[i].e);
+    actives[i].r = base + pulse + a.rms * 10;
   }
 
   for (let i = 0; i < actives.length; i++) {
@@ -1785,37 +1810,54 @@ export function drawPitchBeats(
       );
       if (d < minDist) minDist = d;
     }
-    const beatRate = 0.04 + minDist * 0.06;
+    // Beat rate now scales with RMS too — loud drones make the fringes
+    // actually sweep around the ring, not just hint at motion.
+    const beatRate = (0.15 + minDist * 0.12) * (1 + a.rms * 4 + a.peak * 3);
     const fringePhase = p.t * beatRate;
 
     for (let f = 0; f < fringeCount; f++) {
       const fr = r + Math.sin(fringePhase + f * 0.55 + pc * 0.3) * (8 + minDist * 2);
       const alpha = (1 - f / fringeCount) * (0.15 + e * 0.45);
-      ctx.strokeStyle = `hsla(0, 0%, 92%, ${alpha})`;
-      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = `rgba(235, 235, 235, ${alpha})`;
+      ctx.lineWidth = 0.8 + e * 0.7;
       ctx.beginPath();
       ctx.arc(0, 0, fr, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    ctx.strokeStyle = `hsla(0, 0%, 100%, ${Math.min(0.9, e * 0.8 + 0.25)})`;
-    ctx.lineWidth = 1.6;
+    // Angular lobed overlay — breaks the pure-circle geometry so the
+    // ring visibly breathes non-isotropically.
+    const lobes = 2 + (pc % 4);
+    ctx.strokeStyle = `rgba(245, 245, 245, ${Math.min(0.8, e * 0.7 + 0.25)})`;
+    ctx.lineWidth = 1.4 + e * 1.2;
     ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    const steps = 72;
+    for (let s = 0; s <= steps; s++) {
+      const ang = (s / steps) * Math.PI * 2;
+      const lobeMod = 1 + Math.sin(ang * lobes + p.t * (0.8 + minDist * 0.3)) * 0.04 * (0.5 + e + a.rms);
+      const rr = r * lobeMod;
+      const x = Math.cos(ang) * rr;
+      const y = Math.sin(ang) * rr;
+      if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
     ctx.stroke();
   }
 
+  // Pairwise moiré — the angular moiré phase now rotates with time
+  // and scales with RMS, so close pitches produce visibly sweeping
+  // interference bands.
   for (let i = 0; i < actives.length; i++) {
     for (let j = i + 1; j < actives.length; j++) {
       const mid = (actives[i].r + actives[j].r) * 0.5;
       const gap = Math.abs(actives[j].r - actives[i].r);
       const bands = 6;
+      const beatRate = 0.8 + a.rms * 3;
       for (let b = 0; b < bands; b++) {
-        const phase = p.t * 0.3 + b * 0.9;
+        const phase = p.t * beatRate + b * 0.9;
         const off = Math.sin(phase) * gap * 0.35;
-        const alpha = (1 - b / bands) * 0.08 * Math.min(1, actives[i].e + actives[j].e);
-        ctx.strokeStyle = `hsla(42, 50%, 75%, ${alpha})`;
-        ctx.lineWidth = 0.6;
+        const alpha = (1 - b / bands) * 0.1 * Math.min(1, actives[i].e + actives[j].e);
+        ctx.strokeStyle = `rgba(230, 215, 175, ${alpha})`;
+        ctx.lineWidth = 0.7;
         ctx.beginPath();
         ctx.arc(0, 0, mid + off, 0, Math.PI * 2);
         ctx.stroke();
@@ -1823,11 +1865,36 @@ export function drawPitchBeats(
     }
   }
 
+  // Radial sweeps — spokes that rotate, creating cross-interference
+  // with the ring stripes. A proper interferometer has both radial
+  // and angular axes.
+  const sweeps = Math.min(8, actives.length * 2);
+  ctx.strokeStyle = `rgba(220, 220, 220, ${0.12 + a.rms * 0.25})`;
+  ctx.lineWidth = 0.6;
+  for (let k = 0; k < sweeps; k++) {
+    const ang = (k / sweeps) * Math.PI * 2 + p.t * (0.5 + a.rms);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(ang) * rMax, Math.sin(ang) * rMax);
+    ctx.stroke();
+  }
+
+  // Expanding peak shockwave — a bright ring that travels outward
+  // each time the drone spikes.
+  if (pitchBeatsShock > 0.02) {
+    const shockR = (1 - pitchBeatsShock) * rMax * 1.1 + 10;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${pitchBeatsShock * 0.7})`;
+    ctx.lineWidth = 1 + pitchBeatsShock * 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, shockR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   let totalE = 0;
   for (const { e } of actives) totalE += e;
-  const coreR = 4 + Math.min(14, totalE * 3 + a.rms * 8);
+  const coreR = 4 + Math.min(18, totalE * 3 + a.rms * 10 + pitchBeatsShock * 12);
   const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
-  core.addColorStop(0, "hsla(0, 0%, 100%, 0.8)");
+  core.addColorStop(0, `rgba(255, 255, 255, ${0.7 + a.peak * 0.3})`);
   core.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = core;
   ctx.beginPath();
