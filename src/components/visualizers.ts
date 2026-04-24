@@ -34,7 +34,6 @@ export type Visualizer =
   | "pitchSpiral"
   | "pitchTonnetz"
   | "pitchBeats"
-  | "pitchHarmonics"
   | "flowField"
   | "waterfall"
   | "feedbackTunnel"
@@ -43,7 +42,20 @@ export type Visualizer =
   | "ironFilings"
   | "sediment"
   | "erosion"
-  | "ashTrail";
+  | "ashTrail"
+  | "harmonicLoom"
+  | "prayerRug"
+  | "partialConstellation"
+  | "phasePortrait"
+  | "liquidLight"
+  | "sandMandala"
+  | "moireField"
+  | "illuminatedGlyphs"
+  | "scryingMirror"
+  | "astrolabe"
+  | "smokePlume"
+  | "crystalLattice"
+  | "halftone";
 
 /**
  * Visualizer categories — the meditate view dropdown renders these
@@ -62,11 +74,16 @@ export const VISUALIZER_GROUPS: readonly {
       "pitchSpiral",
       "pitchTonnetz",
       "pitchBeats",
-      "pitchHarmonics",
       "flowField",
       "waveformRing",
       "sigil",
       "cymatics",
+      "harmonicLoom",
+      "partialConstellation",
+      "phasePortrait",
+      "sandMandala",
+      "astrolabe",
+      "crystalLattice",
     ],
   },
   {
@@ -90,6 +107,12 @@ export const VISUALIZER_GROUPS: readonly {
       "saltDrift",
       "ironFilings",
       "ashTrail",
+      "prayerRug",
+      "liquidLight",
+      "illuminatedGlyphs",
+      "scryingMirror",
+      "smokePlume",
+      "halftone",
     ],
   },
   {
@@ -99,6 +122,7 @@ export const VISUALIZER_GROUPS: readonly {
       "starGate",
       "fractal",
       "dreamMachine",
+      "moireField",
     ],
   },
 ];
@@ -111,7 +135,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   pitchSpiral: "PITCH SPIRAL · microtonal ring",
   pitchTonnetz: "PITCH TONNETZ · harmonic lattice",
   pitchBeats: "PITCH BEATS · interferometer",
-  pitchHarmonics: "PITCH HARMONICS · partial fan",
   flowField: "FLOW FIELD · particle streams",
   waveformRing: "WAVEFORM RING · circular oscilloscope",
   haloGlow: "HALO & RAYS",
@@ -129,6 +152,19 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   sediment: "SEDIMENT STRATA · spectral deposit",
   erosion: "EROSION CONTOURS · spectral relief",
   ashTrail: "ASH TRAIL · per-voice smoke",
+  harmonicLoom: "HARMONIC LATTICE LOOM",
+  prayerRug: "SPECTRAL PRAYER RUG",
+  partialConstellation: "PARTIAL CONSTELLATION",
+  phasePortrait: "PHASE PORTRAIT · Lissajous attractor",
+  liquidLight: "LIQUID LIGHT · caustics",
+  sandMandala: "SAND MANDALA · ritual accretion",
+  moireField: "MOIRÉ FIELD · interference grid",
+  illuminatedGlyphs: "ILLUMINATED GLYPHS · gilt runes",
+  scryingMirror: "SCRYING MIRROR · Rorschach bloom",
+  astrolabe: "ASTROLABE · ritual clock",
+  smokePlume: "SMOKE PLUME · incense trail",
+  crystalLattice: "CRYSTAL LATTICE · accreting facets",
+  halftone: "HALFTONE · risograph overlay",
   inkBloom: "INK BLOOM",
   horizon: "HORIZON SUNRISE",
   aurora: "SPECTRAL AURORA",
@@ -1502,7 +1538,6 @@ export const VISUALIZER_FNS: Record<
   pitchSpiral: drawPitchSpiral,
   pitchTonnetz: drawPitchTonnetz,
   pitchBeats: drawPitchBeats,
-  pitchHarmonics: drawPitchHarmonics,
   flowField: drawFlowField,
   waveformRing: drawWaveformRing,
   waterfall: drawWaterfall,
@@ -1512,6 +1547,19 @@ export const VISUALIZER_FNS: Record<
   sediment: drawSediment,
   erosion: drawErosion,
   ashTrail: drawAshTrail,
+  harmonicLoom: drawHarmonicLoom,
+  prayerRug: drawPrayerRug,
+  partialConstellation: drawPartialConstellation,
+  phasePortrait: drawPhasePortrait,
+  liquidLight: drawLiquidLight,
+  sandMandala: drawSandMandala,
+  moireField: drawMoireField,
+  illuminatedGlyphs: drawIlluminatedGlyphs,
+  scryingMirror: drawScryingMirror,
+  astrolabe: drawAstrolabe,
+  smokePlume: drawSmokePlume,
+  crystalLattice: drawCrystalLattice,
+  halftone: drawHalftone,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1755,7 +1803,7 @@ export function drawPitchTonnetz(
   const spacing = Math.min(w, h) * 0.1;
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(Math.sin(p.t * 0.015) * 0.05);
+  ctx.rotate(Math.sin(p.t * 0.015) * (0.035 + a.rms * 0.06));
 
   const energies = p.activePitches;
   const UX = spacing, UY = 0;
@@ -1933,96 +1981,6 @@ export function drawPitchBeats(
 
   ctx.restore();
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// PITCH HARMONICS — harmonic-series fan
-//
-// Rays at the harmonic ratios 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13 of
-// the tonic. Each ray's length / brightness reads the FFT bin that
-// falls on that partial. A pure sine stays a lonely fundamental;
-// a brass-rich drone grows a full fan. Microtonal character lives
-// in the non-octave partials (7, 11, 13).
-// ─────────────────────────────────────────────────────────────────────
-const HARMONIC_RATIOS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13];
-export function drawPitchHarmonics(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
-  ctx.fillRect(0, 0, w, h);
-
-  const spec = a.spectrum;
-  const lowerHalf = Math.min(spec.length / 2, 16);
-  let tonicBin = 1, tonicE = 0;
-  for (let i = 1; i < lowerHalf; i++) {
-    if (spec[i] > tonicE) { tonicE = spec[i]; tonicBin = i; }
-  }
-
-  const cx = w / 2;
-  const cy = h / 2;
-  const rBase = Math.min(w, h) * 0.08;
-  const rMax = Math.min(w, h) * 0.44;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(p.t * 0.015);
-
-  const maxRatio = HARMONIC_RATIOS[HARMONIC_RATIOS.length - 1];
-  for (let i = 0; i < HARMONIC_RATIOS.length; i++) {
-    const n = HARMONIC_RATIOS[i];
-    const pBin = Math.min(spec.length - 1, Math.round(tonicBin * n));
-    const e = (spec[pBin] || 0) * (1 + (n === 1 ? tonicE * 0.5 : 0));
-
-    const ang = (Math.log2(n) / Math.log2(maxRatio)) * Math.PI * 2 - Math.PI / 2;
-    const rayLen = rBase + (rMax - rBase) * Math.min(1, e * 2.2 + (n === 1 ? 0.4 : 0));
-    const light = 35 + Math.min(55, e * 140);
-    const rawHue = 38 - Math.min(30, n * 2.5);
-    const hue = rawHue < 0 ? rawHue + 360 : rawHue;
-    const sat = n === 1 ? 42 : 28;
-
-    ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${light}%, ${0.3 + Math.min(0.6, e * 1.4)})`;
-    ctx.lineWidth = 1.2 + Math.min(3.5, e * 6);
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(ang) * rBase, Math.sin(ang) * rBase);
-    ctx.lineTo(Math.cos(ang) * rayLen, Math.sin(ang) * rayLen);
-    ctx.stroke();
-
-    if (e > 0.08) {
-      const tipGrad = ctx.createRadialGradient(
-        Math.cos(ang) * rayLen, Math.sin(ang) * rayLen, 0,
-        Math.cos(ang) * rayLen, Math.sin(ang) * rayLen, 14 + e * 30,
-      );
-      tipGrad.addColorStop(0, `hsla(${hue}, ${sat}%, 78%, ${Math.min(0.8, e * 1.3)})`);
-      tipGrad.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = tipGrad;
-      ctx.beginPath();
-      ctx.arc(Math.cos(ang) * rayLen, Math.sin(ang) * rayLen, 14 + e * 30, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    if (e > 0.22 && n > 1) {
-      ctx.fillStyle = `hsla(0, 0%, 100%, ${Math.min(0.6, e * 0.8)})`;
-      ctx.font = "9px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(`${n}:1`, Math.cos(ang) * (rayLen + 12), Math.sin(ang) * (rayLen + 12));
-    }
-  }
-
-  const hub = ctx.createRadialGradient(0, 0, 0, 0, 0, rBase * 1.8);
-  hub.addColorStop(0, `hsla(38, 45%, 85%, ${0.4 + tonicE * 0.5})`);
-  hub.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = hub;
-  ctx.beginPath();
-  ctx.arc(0, 0, rBase * 1.8, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // 17. HARMONOGRAPH — Lissajous attractor. Four decoupled oscillators
 //     with irrational frequency ratios produce a slow-evolving pen
@@ -2853,4 +2811,678 @@ export function drawAshTrail(
   }
 
   ctx.drawImage(ashCanvas, 0, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// HARMONIC LATTICE LOOM — a woven ratio diagram. Nodes are pitch
+// classes, but the geometry reads like just-intonation threads rather
+// than UI telemetry.
+// ─────────────────────────────────────────────────────────────────────
+const loomRatios = [
+  [0, 7], [0, 5], [0, 4], [0, 3], [7, 2], [5, 9],
+  [3, 10], [4, 11], [2, 9], [8, 3], [10, 5], [11, 6],
+] as const;
+export function drawHarmonicLoom(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(13, 10, 8, 0.22)";
+  ctx.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2;
+  const rx = Math.min(w, h) * 0.34;
+  const ry = rx * 0.72;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.sin(p.t * 0.018) * 0.05);
+  for (const [i, j] of loomRatios) {
+    const e = Math.max(p.activePitches[i], p.activePitches[j]);
+    const a1 = i / 12 * Math.PI * 2 - Math.PI / 2;
+    const a2 = j / 12 * Math.PI * 2 - Math.PI / 2;
+    const x1 = Math.cos(a1) * rx, y1 = Math.sin(a1) * ry;
+    const x2 = Math.cos(a2) * rx, y2 = Math.sin(a2) * ry;
+    ctx.strokeStyle = `hsla(${p.mood.hue + 18}, 28%, ${45 + e * 35}%, ${0.08 + e * 0.42})`;
+    ctx.lineWidth = 0.8 + e * 2.3;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    const bow = Math.sin(p.t * 0.04 + i + j) * 18 * (0.4 + e);
+    ctx.quadraticCurveTo(bow, -bow, x2, y2);
+    ctx.stroke();
+  }
+  for (let i = 0; i < 12; i++) {
+    const e = p.activePitches[i];
+    const ang = i / 12 * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(ang) * rx, y = Math.sin(ang) * ry;
+    ctx.fillStyle = `rgba(230,220,198,${0.18 + e * 0.75})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 2 + e * 7 + a.rms * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SPECTRAL PRAYER RUG — the spectrum weaves persistent thread rows.
+// It is intentionally textile-like: slow, worn, symmetrical, accretive.
+// ─────────────────────────────────────────────────────────────────────
+let rugCanvas: HTMLCanvasElement | null = null;
+let rugCtx: CanvasRenderingContext2D | null = null;
+let rugOffset = 0;
+export function drawPrayerRug(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  a: AudioFrame, p: PhaseClock,
+): void {
+  if (!rugCanvas || rugCanvas.width !== w || rugCanvas.height !== h) {
+    rugCanvas = document.createElement("canvas");
+    rugCanvas.width = w; rugCanvas.height = h;
+    rugCtx = rugCanvas.getContext("2d");
+    rugCtx?.fillRect(0, 0, w, h);
+    rugOffset = 0;
+  }
+  const off = rugCtx!;
+  rugOffset += 0.08 + a.rms * 0.16;
+  const rows = Math.floor(rugOffset);
+  rugOffset -= rows;
+  if (rows > 0 && h - rows > 0) {
+    const img = off.getImageData(0, rows, w, h - rows);
+    off.putImageData(img, 0, 0);
+    for (let y = h - rows; y < h; y++) {
+      off.fillStyle = "#17100c";
+      off.fillRect(0, y, w, 1);
+      for (let x = 0; x < w / 2; x += 3) {
+        const u = x / (w / 2);
+        const bin = Math.min(31, Math.floor(u * a.spectrum.length));
+        const e = a.spectrum[bin] ?? 0;
+        const knot = Math.sin(u * Math.PI * (6 + Math.floor(p.growth * 8)) + p.t * 0.08);
+        const lig = 13 + e * 38 + (knot > 0 ? 6 : 0);
+        const hue = p.mood.hue + (u - 0.5) * 36;
+        off.fillStyle = `hsla(${hue}, ${18 + e * 42}%, ${lig}%, ${0.45 + e * 0.45})`;
+        off.fillRect(x, y, 2, 1);
+        off.fillRect(w - x - 2, y, 2, 1);
+      }
+    }
+  }
+  ctx.drawImage(rugCanvas, 0, 0);
+  ctx.fillStyle = "rgba(0,0,0,0.12)";
+  ctx.fillRect(0, 0, w, h);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PARTIAL CONSTELLATION — harmonic partials become a star map. Bright
+// low-order partials anchor the image; consonant pitch classes connect.
+// ─────────────────────────────────────────────────────────────────────
+export function drawPartialConstellation(
+  ctx: CanvasRenderingContext2D,
+  w: number, h: number,
+  a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(4, 5, 6, 0.20)";
+  ctx.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2;
+  const r = Math.min(w, h) * 0.42;
+  const pts: { x: number; y: number; e: number }[] = [];
+  for (let pc = 0; pc < 12; pc++) {
+    const base = p.activePitches[pc];
+    if (base < 0.04) continue;
+    for (let n = 1; n <= 5; n++) {
+      const ang = ((pc + Math.log2(n) * 12) / 12) * Math.PI * 2 - Math.PI / 2 + p.t * 0.006;
+      const rr = r * (0.18 + n * 0.14 + Math.sin(p.t * 0.03 + pc) * 0.02);
+      const e = base / n;
+      const x = cx + Math.cos(ang) * rr;
+      const y = cy + Math.sin(ang) * rr;
+      pts.push({ x, y, e });
+      ctx.fillStyle = `rgba(235,230,215,${0.18 + e * 0.72})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 0.8 + e * 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.strokeStyle = `rgba(220,210,190,${0.06 + a.rms * 0.18})`;
+  ctx.lineWidth = 0.7;
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < Math.min(pts.length, i + 5); j++) {
+      if (pts[i].e + pts[j].e < 0.22) continue;
+      ctx.beginPath();
+      ctx.moveTo(pts[i].x, pts[i].y);
+      ctx.lineTo(pts[j].x, pts[j].y);
+      ctx.stroke();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GAP-FILLING VISUALIZERS (2026-04)
+// Phase-space / fluid / ritual construction / moiré / illuminated /
+// mirror / astrolabe / incense / crystal / halftone.
+// ═══════════════════════════════════════════════════════════════════════
+
+// PHASE PORTRAIT — XY plot of waveform vs delayed self. Pure sine
+// closes into an ellipse; rich drone traces a rosette; microtonal
+// beating makes the curve slowly precess.
+const PHASE_TRAIL = 1600;
+const phaseTrail = new Float32Array(PHASE_TRAIL * 2);
+let phaseHead = 0, phaseLen = 0;
+export function drawPhasePortrait(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.12)"; ctx.fillRect(0, 0, w, h);
+  const wf = a.waveform;
+  if (!wf || wf.length < 32) return;
+  const cx = w / 2, cy = h / 2;
+  const scale = Math.min(w, h) * 0.42;
+  const tau = 12;
+  for (let i = tau; i < wf.length; i++) {
+    const x = (wf[i] - 128) / 128;
+    const y = (wf[i - tau] - 128) / 128;
+    phaseTrail[phaseHead * 2] = x;
+    phaseTrail[phaseHead * 2 + 1] = y;
+    phaseHead = (phaseHead + 1) % PHASE_TRAIL;
+    if (phaseLen < PHASE_TRAIL) phaseLen++;
+  }
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = `hsla(${p.mood.hue}, 45%, 75%, ${0.35 + a.rms * 0.4})`;
+  ctx.beginPath();
+  for (let i = 0; i < phaseLen; i++) {
+    const idx = ((phaseHead - phaseLen + i + PHASE_TRAIL) % PHASE_TRAIL) * 2;
+    const x = cx + phaseTrail[idx] * scale;
+    const y = cy + phaseTrail[idx + 1] * scale;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 24);
+  core.addColorStop(0, `hsla(${p.mood.hue}, 60%, 85%, ${0.5 + a.peak * 0.4})`);
+  core.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(cx, cy, 24, 0, Math.PI * 2); ctx.fill();
+}
+
+// LIQUID LIGHT — caustic ripples. Spectrum bands drive heightfield
+// sinusoids; refraction magnitude = |∂h/∂x, ∂h/∂y|. Palette warms
+// with low centroid, cools with high.
+let liqCanvas: HTMLCanvasElement | null = null;
+let liqCtx: CanvasRenderingContext2D | null = null;
+let liqData: ImageData | null = null;
+const LIQ_W = 160, LIQ_H = 100;
+function ensureLiq() {
+  if (!liqCanvas) {
+    liqCanvas = document.createElement("canvas");
+    liqCanvas.width = LIQ_W; liqCanvas.height = LIQ_H;
+    liqCtx = liqCanvas.getContext("2d");
+    liqData = liqCtx!.createImageData(LIQ_W, LIQ_H);
+  }
+}
+export function drawLiquidLight(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ensureLiq();
+  const d = liqData!.data;
+  const spec = a.spectrum;
+  let num = 0, den = 0;
+  for (let i = 0; i < spec.length; i++) { num += i * spec[i]; den += spec[i]; }
+  const centroid = den > 0 ? (num / den) / spec.length : 0.3;
+  const t = p.t;
+  const gain = 0.4 + a.rms * 2 + a.peak * 0.6;
+  const rR = 235 - centroid * 130;
+  const gG = 150 - centroid * 50;
+  const bB = 60 + centroid * 180;
+  for (let y = 0; y < LIQ_H; y++) {
+    for (let x = 0; x < LIQ_W; x++) {
+      const nx = x / LIQ_W - 0.5;
+      const ny = y / LIQ_H - 0.5;
+      let hX = 0, hY = 0;
+      for (let k = 0; k < 6; k++) {
+        const e = spec[k * 2] ?? 0;
+        if (e < 0.03) continue;
+        const f = 8 + k * 6;
+        const phase = t * (0.12 + k * 0.04) + k;
+        hX += e * f * Math.cos(nx * f + ny * (f * 0.7) + phase);
+        hY += e * (f * 0.7) * Math.sin(nx * (f * 0.7) + ny * f + phase * 1.1);
+      }
+      const mag = Math.min(1, Math.sqrt(hX * hX + hY * hY) * gain * 0.05);
+      const c = mag * mag * (3 - 2 * mag);
+      const i = (y * LIQ_W + x) * 4;
+      d[i] = Math.round(rR * c); d[i + 1] = Math.round(gG * c);
+      d[i + 2] = Math.round(bB * c); d[i + 3] = 255;
+    }
+  }
+  liqCtx!.putImageData(liqData!, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(liqCanvas!, 0, 0, w, h);
+}
+
+// SAND MANDALA — ritual accretion. Grains fall at 8-fold radially-
+// symmetric positions sampled from active pitches. The buffer never
+// clears except when growth resets — then a brief sweep fades it.
+let sandCanvas: HTMLCanvasElement | null = null;
+let sandCtx: CanvasRenderingContext2D | null = null;
+let sandPrevGrowth = 0;
+function ensureSand(w: number, h: number) {
+  if (!sandCanvas || sandCanvas.width !== w || sandCanvas.height !== h) {
+    sandCanvas = document.createElement("canvas");
+    sandCanvas.width = w; sandCanvas.height = h;
+    sandCtx = sandCanvas.getContext("2d");
+    sandCtx!.fillStyle = "#0d0906"; sandCtx!.fillRect(0, 0, w, h);
+  }
+}
+export function drawSandMandala(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ensureSand(w, h);
+  const s = sandCtx!;
+  if (p.growth < sandPrevGrowth - 0.1) {
+    s.fillStyle = "rgba(13, 9, 6, 0.35)";
+    s.fillRect(0, 0, w, h);
+  }
+  sandPrevGrowth = p.growth;
+  const cx = w / 2, cy = h / 2;
+  const rMax = Math.min(w, h) * 0.45;
+  let mass = 0;
+  for (let i = 0; i < 12; i++) mass += p.activePitches[i];
+  if (mass < 0.02) return;
+  const grains = Math.min(40, Math.round(2 + mass * 14 + a.rms * 8));
+  for (let g = 0; g < grains; g++) {
+    const pick = Math.random() * mass;
+    let sum = 0, pc = 0, bestE = 0;
+    for (let i = 0; i < 12; i++) {
+      sum += p.activePitches[i];
+      if (sum >= pick) { pc = i; bestE = p.activePitches[i]; break; }
+    }
+    if (bestE < 0.04) continue;
+    const baseA = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+    const ring = Math.floor(Math.random() * 6);
+    const rr = rMax * (0.18 + ring * 0.14 + (Math.random() - 0.5) * 0.02);
+    const lobes = 8;
+    const jitter = (Math.random() - 0.5) * 0.03;
+    const hue = p.mood.hue + (pc - 6) * 8;
+    s.fillStyle = `hsla(${hue}, ${45 + bestE * 25}%, ${50 + bestE * 30}%, 0.7)`;
+    for (let k = 0; k < lobes; k++) {
+      const ang = baseA + (k / lobes) * Math.PI * 2 + jitter;
+      const x = cx + Math.cos(ang) * rr;
+      const y = cy + Math.sin(ang) * rr;
+      s.beginPath();
+      s.arc(x, y, 0.8 + bestE * 1.5, 0, Math.PI * 2);
+      s.fill();
+    }
+  }
+  ctx.drawImage(sandCanvas!, 0, 0);
+}
+
+// MOIRÉ FIELD — two overlaid rotating grids. Differential rotation
+// + spacing (driven by low/high spectrum bands) produce slow sweeping
+// fringes across the whole canvas.
+export function drawMoireField(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(7, 5, 5, 0.18)"; ctx.fillRect(0, 0, w, h);
+  const spec = a.spectrum;
+  let low = 0, high = 0;
+  for (let i = 0; i < 8; i++) low += spec[i];
+  for (let i = 16; i < 32; i++) high += spec[i];
+  low /= 8; high /= 16;
+  const drawGrid = (rot: number, spacing: number, alpha: number, hue: number) => {
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(rot);
+    ctx.strokeStyle = `hsla(${hue}, 45%, 65%, ${alpha})`;
+    ctx.lineWidth = 0.8;
+    const reach = Math.hypot(w, h);
+    for (let d = -reach; d <= reach; d += spacing) {
+      ctx.beginPath();
+      ctx.moveTo(-reach, d);
+      ctx.lineTo(reach, d);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+  const base = 14 + Math.sin(p.t * 0.04) * 2;
+  drawGrid(p.t * 0.008, base, 0.22 + a.rms * 0.15, p.mood.hue);
+  drawGrid(
+    p.t * 0.008 + 0.03 + low * 0.04,
+    base * (1 + 0.04 + high * 0.12),
+    0.22 + a.rms * 0.15,
+    (p.mood.hue + 40) % 360,
+  );
+}
+
+// ILLUMINATED GLYPHS — gilt runes placed on dark vellum. 12 authored
+// shapes, one per pitch class. Growth tier adds a gilt border circle.
+let glyphCanvas: HTMLCanvasElement | null = null;
+let glyphCtx: CanvasRenderingContext2D | null = null;
+let glyphLast = 0;
+const GLYPH_STROKES: number[][][] = [
+  [[0, -1, 0, 1]],
+  [[-1, 0, 0, -1, 1, 0, 0, 1, -1, 0]],
+  [[-1, -1, 1, 1], [-1, 1, 1, -1]],
+  [[0, -1, 0, 0, -0.8, 0.8], [0, 0, 0.8, 0.8]],
+  [[-0.9, -0.9, 0.9, -0.9, 0, 0.9, -0.9, -0.9]],
+  [[-1, -1, 1, -1, 1, 1, -1, 1, -1, -1]],
+  [[-1, 0, 1, 0], [0, -1, 0, 1]],
+  [[-1, 1, 0, -1, 1, 1]],
+  [[-0.7, -1, -0.7, 1], [0.7, -1, 0.7, 1], [-0.7, 0, 0.7, 0]],
+  [[-1, -0.5, 0, -1, 1, -0.5, 0, 0.5, -1, -0.5], [0, 0.5, 0, 1]],
+  [[-0.9, 0.9, 0, -0.9, 0.9, 0.9], [-0.5, 0, 0.5, 0]],
+  [[-1, -1, 1, -1], [0, -1, 0, 1], [-0.6, 1, 0.6, 1]],
+];
+function ensureGlyph(w: number, h: number) {
+  if (!glyphCanvas || glyphCanvas.width !== w || glyphCanvas.height !== h) {
+    glyphCanvas = document.createElement("canvas");
+    glyphCanvas.width = w; glyphCanvas.height = h;
+    glyphCtx = glyphCanvas.getContext("2d");
+    glyphCtx!.fillStyle = "#0d0906"; glyphCtx!.fillRect(0, 0, w, h);
+  }
+}
+export function drawIlluminatedGlyphs(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ensureGlyph(w, h);
+  const g = glyphCtx!;
+  g.fillStyle = "rgba(13, 9, 6, 0.012)";
+  g.fillRect(0, 0, w, h);
+  const now = p.t;
+  if (now - glyphLast > 1.5 - a.rms * 0.6) {
+    glyphLast = now;
+    let pc = 0, best = 0;
+    for (let i = 0; i < 12; i++) {
+      if (p.activePitches[i] > best) { best = p.activePitches[i]; pc = i; }
+    }
+    if (best > 0.1) {
+      const strokes = GLYPH_STROKES[pc];
+      const sz = 18 + best * 26;
+      const gx = 60 + Math.random() * (w - 120);
+      const gy = 60 + Math.random() * (h - 120);
+      g.save();
+      g.translate(gx, gy);
+      g.lineWidth = 1.4 + best * 1.8;
+      g.lineCap = "round";
+      g.lineJoin = "round";
+      g.strokeStyle = `hsla(42, ${60 + best * 20}%, ${62 + best * 12}%, 0.85)`;
+      g.shadowColor = "rgba(240, 164, 91, 0.55)";
+      g.shadowBlur = 8 + best * 6;
+      for (const path of strokes) {
+        g.beginPath();
+        for (let i = 0; i < path.length; i += 2) {
+          const px = path[i] * sz;
+          const py = path[i + 1] * sz;
+          if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+        }
+        g.stroke();
+      }
+      if (p.growth > 0.4) {
+        g.strokeStyle = `hsla(38, 65%, 55%, ${0.3 + p.growth * 0.3})`;
+        g.lineWidth = 0.8;
+        g.shadowBlur = 2;
+        g.beginPath();
+        g.arc(0, 0, sz * 1.55, 0, Math.PI * 2);
+        g.stroke();
+      }
+      g.restore();
+    }
+  }
+  ctx.drawImage(glyphCanvas!, 0, 0);
+}
+
+// SCRYING MIRROR — bilateral symmetry. Ink blooms on the right half
+// are mirrored to the left. Peak transients spawn new blooms; their
+// hue rotates warm→cool with spectral centroid.
+interface MirrorBloom { x: number; y: number; r: number; maxR: number; hue: number; age: number; }
+const mirrorBlooms: MirrorBloom[] = [];
+let mirrorLastPeak = 0;
+export function drawScryingMirror(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(4, 3, 3, 0.06)"; ctx.fillRect(0, 0, w, h);
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+  const hue = 350 * (1 - centroid) + 220 * centroid;
+  if (a.peak > mirrorLastPeak + 0.08 && mirrorBlooms.length < 20) {
+    mirrorBlooms.push({
+      x: w * 0.5 + Math.random() * w * 0.4,
+      y: Math.random() * h,
+      r: 6, maxR: 40 + Math.random() * 120, hue, age: 0,
+    });
+  }
+  mirrorLastPeak = a.peak;
+  const cx = w / 2;
+  const dt = p.dtScale ?? 1;
+  for (let i = mirrorBlooms.length - 1; i >= 0; i--) {
+    const b = mirrorBlooms[i];
+    b.age += 0.02 * dt;
+    if (b.age > 1) { mirrorBlooms.splice(i, 1); continue; }
+    b.r += (b.maxR - b.r) * 0.02;
+    const alpha = Math.max(0, 0.35 * (1 - b.age));
+    const gr = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+    gr.addColorStop(0, `hsla(${b.hue}, 60%, 55%, ${alpha})`);
+    gr.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+    const mx = 2 * cx - b.x;
+    const gL = ctx.createRadialGradient(mx, b.y, 0, mx, b.y, b.r);
+    gL.addColorStop(0, `hsla(${b.hue}, 60%, 55%, ${alpha})`);
+    gL.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gL;
+    ctx.beginPath(); ctx.arc(mx, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(0,0,0,0.3)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+}
+
+// ASTROLABE — three concentric rotating rings. Outer = pitch-class
+// ticks brightened by activePitches; middle = spectrum dots; inner
+// = six slow spokes. A central gilt sigil pulses with peak.
+export function drawAstrolabe(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(5, 4, 3, 0.18)"; ctx.fillRect(0, 0, w, h);
+  const cx = w / 2, cy = h / 2;
+  const R = Math.min(w, h) * 0.42;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = "hsla(42, 30%, 55%, 0.3)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.72, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.44, 0, Math.PI * 2); ctx.stroke();
+  const rotOuter = p.t * 0.02;
+  for (let i = 0; i < 12; i++) {
+    const e = p.activePitches[i];
+    const ang = rotOuter + (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const inR = R - 6, outR = R + 10;
+    ctx.strokeStyle = `hsla(42, ${40 + e * 40}%, ${55 + e * 25}%, ${0.35 + e * 0.55})`;
+    ctx.lineWidth = 1 + e * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * inR, Math.sin(ang) * inR);
+    ctx.lineTo(Math.cos(ang) * outR, Math.sin(ang) * outR);
+    ctx.stroke();
+  }
+  const rotMid = -p.t * 0.028;
+  ctx.rotate(rotMid);
+  for (let i = 0; i < 8; i++) {
+    const e = a.spectrum[i * 4] ?? 0;
+    const ang = (i / 8) * Math.PI * 2;
+    const rr = R * 0.72;
+    ctx.fillStyle = `hsla(${p.mood.hue}, ${30 + e * 40}%, ${50 + e * 25}%, ${0.4 + e * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(Math.cos(ang) * rr, Math.sin(ang) * rr, 2 + e * 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.rotate(-rotMid);
+  const rotIn = p.t * 0.012;
+  ctx.strokeStyle = `hsla(${p.mood.hue + 20}, 40%, 60%, ${0.35 + a.rms * 0.3})`;
+  for (let i = 0; i < 6; i++) {
+    const ang = rotIn + (i / 6) * Math.PI * 2;
+    const rr = R * 0.44;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+    ctx.stroke();
+  }
+  ctx.fillStyle = `hsla(42, 55%, 70%, ${0.45 + a.peak * 0.4})`;
+  ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "hsla(42, 60%, 75%, 0.6)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
+
+// SMOKE PLUME — a single rising incense plume from bottom-centre.
+// Curl drift driven by high-band energy; RMS pushes emit rate.
+interface SmokeP { x: number; y: number; vx: number; vy: number; r: number; life: number; }
+const smokeParticles: SmokeP[] = [];
+const SMOKE_MAX = 120;
+export function drawSmokePlume(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(4, 3, 3, 0.12)"; ctx.fillRect(0, 0, w, h);
+  let hi = 0;
+  for (let i = 20; i < 32; i++) hi += a.spectrum[i];
+  hi /= 12;
+  const rate = 1 + Math.round(a.rms * 4);
+  for (let k = 0; k < rate && smokeParticles.length < SMOKE_MAX; k++) {
+    smokeParticles.push({
+      x: w * 0.5 + (Math.random() - 0.5) * 8,
+      y: h - 8,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: -0.8 - Math.random() * 0.8,
+      r: 4 + Math.random() * 6,
+      life: 1,
+    });
+  }
+  for (let i = smokeParticles.length - 1; i >= 0; i--) {
+    const s = smokeParticles[i];
+    s.vx += Math.sin(s.y * 0.01 + p.t * 0.4) * 0.04 * (0.3 + hi * 3);
+    s.vy -= 0.002;
+    s.x += s.vx; s.y += s.vy;
+    s.r += 0.12;
+    s.life -= 0.005 + a.rms * 0.003;
+    if (s.life <= 0 || s.y < -20) { smokeParticles.splice(i, 1); continue; }
+    const alpha = s.life * 0.35;
+    ctx.fillStyle = `hsla(${p.mood.hue}, 15%, ${45 + hi * 25}%, ${alpha})`;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = `hsla(25, 85%, 60%, ${0.6 + a.peak * 0.4})`;
+  ctx.beginPath(); ctx.arc(w * 0.5, h - 4, 2 + a.peak * 2, 0, Math.PI * 2); ctx.fill();
+}
+
+// CRYSTAL LATTICE — persistent diamond accretion. Facets only grow
+// (never shrink); stability (low |ΔRMS|) + sufficient energy permits
+// growth. Rate-limited to ~2 facets/sec at most.
+interface Facet { x: number; y: number; size: number; angle: number; hue: number; light: number; }
+const facets: Facet[] = [];
+let crystalCanvas: HTMLCanvasElement | null = null;
+let crystalCtx: CanvasRenderingContext2D | null = null;
+let lastFacetSpawn = 0;
+let prevCrystalRms = 0;
+function ensureCrystal(w: number, h: number) {
+  if (!crystalCanvas || crystalCanvas.width !== w || crystalCanvas.height !== h) {
+    crystalCanvas = document.createElement("canvas");
+    crystalCanvas.width = w; crystalCanvas.height = h;
+    crystalCtx = crystalCanvas.getContext("2d");
+    crystalCtx!.fillStyle = "#0d0906"; crystalCtx!.fillRect(0, 0, w, h);
+    facets.length = 0;
+  }
+}
+export function drawCrystalLattice(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ensureCrystal(w, h);
+  const c = crystalCtx!;
+  const stability = 1 - Math.min(1, Math.abs(a.rms - prevCrystalRms) * 20);
+  prevCrystalRms = a.rms;
+  if (stability > 0.55 && a.rms > 0.06 && p.t - lastFacetSpawn > 0.4 - a.rms) {
+    lastFacetSpawn = p.t;
+    let fx, fy;
+    if (facets.length === 0) {
+      fx = w / 2; fy = h / 2;
+    } else {
+      const parent = facets[Math.floor(Math.random() * facets.length)];
+      const ang = Math.random() * Math.PI * 2;
+      const d = parent.size * 1.4;
+      fx = parent.x + Math.cos(ang) * d;
+      fy = parent.y + Math.sin(ang) * d;
+      if (fx < 20 || fy < 20 || fx > w - 20 || fy > h - 20) return;
+    }
+    const facet: Facet = {
+      x: fx, y: fy,
+      size: 8 + Math.random() * 10,
+      angle: Math.random() * Math.PI,
+      hue: p.mood.hue + (Math.random() - 0.5) * 20,
+      light: 45 + Math.random() * 25,
+    };
+    facets.push(facet);
+    c.save();
+    c.translate(facet.x, facet.y);
+    c.rotate(facet.angle);
+    const s = facet.size;
+    const grad = c.createLinearGradient(-s, -s, s, s);
+    grad.addColorStop(0, `hsla(${facet.hue}, 25%, ${facet.light + 15}%, 0.9)`);
+    grad.addColorStop(0.5, `hsla(${facet.hue}, 30%, ${facet.light}%, 0.85)`);
+    grad.addColorStop(1, `hsla(${facet.hue}, 20%, ${facet.light - 15}%, 0.9)`);
+    c.fillStyle = grad;
+    c.beginPath();
+    c.moveTo(0, -s); c.lineTo(s, 0); c.lineTo(0, s); c.lineTo(-s, 0);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = "hsla(42, 50%, 80%, 0.35)";
+    c.lineWidth = 0.8;
+    c.stroke();
+    c.restore();
+  }
+  ctx.drawImage(crystalCanvas!, 0, 0);
+  const last = facets[facets.length - 1];
+  if (last) {
+    const glow = ctx.createRadialGradient(last.x, last.y, 0, last.x, last.y, last.size * 3);
+    glow.addColorStop(0, `hsla(42, 70%, 70%, ${0.25 + a.rms * 0.4})`);
+    glow.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(last.x, last.y, last.size * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// HALFTONE — two-colour riso overlay. Dot spacing and radius follow
+// low/mid spectrum bands; two slightly-offset grids generate moiré.
+export function drawHalftone(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "#0d0906"; ctx.fillRect(0, 0, w, h);
+  const spec = a.spectrum;
+  let low = 0, mid = 0;
+  for (let i = 0; i < 8; i++) low += spec[i];
+  for (let i = 8; i < 20; i++) mid += spec[i];
+  low /= 8; mid /= 12;
+  const spacing = 18 - Math.min(10, low * 30);
+  const dotSize = 2 + Math.min(6, a.rms * 10);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(p.t * 0.015);
+  ctx.translate(-w / 2, -h / 2);
+  ctx.fillStyle = `hsla(25, 80%, 58%, ${0.5 + a.peak * 0.3})`;
+  for (let y = -spacing; y < h + spacing; y += spacing) {
+    for (let x = -spacing; x < w + spacing; x += spacing) {
+      ctx.beginPath();
+      ctx.arc(x, y, dotSize * (0.6 + low), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = "hsla(15, 55%, 42%, 0.45)";
+  const off = spacing * 0.5;
+  const sp2 = spacing * (1.03 + mid * 0.08);
+  for (let y = -sp2 + off; y < h + sp2; y += sp2) {
+    for (let x = -sp2 + off; x < w + sp2; x += sp2) {
+      ctx.beginPath();
+      ctx.arc(x, y, dotSize * (0.5 + mid), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+  ctx.fillStyle = "rgba(232, 207, 174, 0.015)";
+  for (let i = 0; i < 40; i++) {
+    ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+  }
 }
