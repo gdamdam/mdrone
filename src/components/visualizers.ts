@@ -30,9 +30,11 @@ export type Visualizer =
   | "inkBloom"
   | "horizon"
   | "aurora"
-  | "orb"
   | "dreamMachine"
-  | "pitchMandala"
+  | "pitchSpiral"
+  | "pitchTonnetz"
+  | "pitchBeats"
+  | "pitchHarmonics"
   | "flowField"
   | "waterfall"
   | "feedbackTunnel"
@@ -57,7 +59,10 @@ export const VISUALIZER_GROUPS: readonly {
     label: "GEOMETRIC",
     items: [
       "mandala",
-      "pitchMandala",
+      "pitchSpiral",
+      "pitchTonnetz",
+      "pitchBeats",
+      "pitchHarmonics",
       "flowField",
       "waveformRing",
       "sigil",
@@ -82,7 +87,6 @@ export const VISUALIZER_GROUPS: readonly {
       "inkBloom",
       "haloGlow",
       "horizon",
-      "orb",
       "saltDrift",
       "ironFilings",
       "ashTrail",
@@ -104,7 +108,10 @@ export const VISUALIZER_ORDER: readonly Visualizer[] =
 
 export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   mandala: "BREATHING MANDALA",
-  pitchMandala: "PITCH MANDALA · 12 sectors",
+  pitchSpiral: "PITCH SPIRAL · microtonal ring",
+  pitchTonnetz: "PITCH TONNETZ · harmonic lattice",
+  pitchBeats: "PITCH BEATS · interferometer",
+  pitchHarmonics: "PITCH HARMONICS · partial fan",
   flowField: "FLOW FIELD · particle streams",
   waveformRing: "WAVEFORM RING · circular oscilloscope",
   haloGlow: "HALO & RAYS",
@@ -125,7 +132,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   inkBloom: "INK BLOOM",
   horizon: "HORIZON SUNRISE",
   aurora: "SPECTRAL AURORA",
-  orb: "RESONANT ORB",
   dreamMachine: "DREAM MACHINE",
 };
 
@@ -413,10 +419,23 @@ export function drawCymatics(
   ensureCymatBuffer();
   const data = cymatData!;
   const pix = data.data;
+  const spec = a.spectrum;
+  const nBands = Math.min(8, spec.length);
 
-  // Growth increases spatial frequency → finer nodal patterns emerge
-  // over time, like a Chladni plate whose tone slowly climbs.
-  const freq = 2.2 + a.rms * 2 + p.slow * 0.6 + p.growth * 3;
+  // Spectral centroid 0..1 warms / cools the palette.
+  let num = 0, den = 0;
+  for (let i = 0; i < spec.length; i++) { num += i * spec[i]; den += spec[i]; }
+  const centroid = den > 0 ? (num / den) / spec.length : 0.25;
+
+  // Amplitude response — RMS + peak transient. Old gain topped out
+  // at ~1.3× on peaks; this lifts it to ~3.5× so loud drones pop.
+  const amp = 0.3 + a.rms * 2.6 + a.peak * 0.9;
+
+  // Palette interpolates amber (low centroid) → pink → cyan (high).
+  const paletteR = 230 - centroid * 150;
+  const paletteG = 120 - centroid * 20;
+  const paletteB = 30 + centroid * 220;
+
   const t = p.t;
 
   for (let y = 0; y < CYMAT_H; y++) {
@@ -425,18 +444,31 @@ export function drawCymatics(
       const ny = (y / CYMAT_H) * 2 - 1;
       const r = Math.sqrt(nx * nx + ny * ny);
       const ang = Math.atan2(ny, nx);
-      const v =
-        Math.cos(r * freq * 3.1 - t * 0.12) *
-        Math.cos(ang * (6 + p.growth * 8) + t * 0.05) +
-        Math.cos((nx + ny) * freq * 2.3 + t * 0.07) * 0.6 +
-        // Third harmonic interference unfolds with growth
-        Math.cos(r * freq * 5.7 + ang * 4 - t * 0.09) * 0.35 * p.growth;
-      const mag = Math.abs(v) * (0.4 + a.peak * 0.9);
-      const lum = Math.min(255, Math.round(mag * 150));
+
+      // Sum of excited Chladni modes weighted by their band energies.
+      // Each spectrum band drives a specific mode (radial × angular)
+      // so different drone timbres produce visibly different plates.
+      let v = 0;
+      for (let k = 0; k < nBands; k++) {
+        const e = spec[k];
+        if (e < 0.03) continue;
+        const rf = 3.1 + k * 2.0 + p.growth * 1.3;
+        const af = 2 + k * 2 + Math.floor(p.growth * 3);
+        v += e * Math.cos(r * rf - t * (0.08 + k * 0.015))
+              * Math.cos(ang * af + t * 0.04 * ((k & 1) ? 1 : -1));
+      }
+      // Silent-drift baseline so the plate keeps breathing on quiet
+      // passages rather than going matte.
+      v += 0.12 * Math.cos(r * (2.2 + p.slow * 0.6) - t * 0.11);
+
+      const mag = Math.min(1, Math.abs(v) * amp);
+      // Smoothstep contrast — nodal lines pop, dark zones stay dark.
+      const contrast = mag * mag * (3 - 2 * mag);
+
       const idx = (y * CYMAT_W + x) * 4;
-      pix[idx] = lum;
-      pix[idx + 1] = lum;
-      pix[idx + 2] = lum;
+      pix[idx]     = Math.round(paletteR * contrast);
+      pix[idx + 1] = Math.round(paletteG * contrast);
+      pix[idx + 2] = Math.round(paletteB * contrast);
       pix[idx + 3] = 255;
     }
   }
@@ -576,55 +608,6 @@ export function drawAurora(
         Math.sin(phaseX * 2.1 + p.slow * 6) * (h * 0.1) * energy +
         (b - bands / 2) * (6 + a.rms * 2);
       if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// 6. RESONANT ORB — glowing sphere with halo rings
-// ─────────────────────────────────────────────────────────────────────
-export function drawOrb(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  ctx.fillStyle = "rgba(4, 2, 2, 0.22)";
-  ctx.fillRect(0, 0, w, h);
-
-  const cx = w / 2;
-  const cy = h / 2;
-  const baseR = Math.min(w, h) * 0.18;
-  const r = baseR * (1 + a.rms * 0.8 + p.slow * 0.1);
-
-  // Core orb gradient
-  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-  core.addColorStop(0, `hsla(${(p.hue + 20) % 360}, 90%, 75%, 0.9)`);
-  core.addColorStop(0.5, `hsla(${(p.hue + 10) % 360}, 85%, 55%, 0.6)`);
-  core.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = core;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 2.4, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Halos — count from spectrum bands with energy above a threshold,
-  // plus a baseline that grows with time so the orb accretes rings.
-  const baseHalos = Math.min(6, a.spectrum.filter((v) => v > 0.12).length);
-  const halos = Math.min(14, baseHalos + Math.round(p.growth * 8));
-  for (let i = 0; i < halos; i++) {
-    const rr = r * (1.4 + i * 0.22 + a.peak * 0.1);
-    const ang = p.t * (0.018 + i * 0.004) + i;
-    ctx.strokeStyle = `hsla(${(p.hue + i * 18) % 360}, 80%, 70%, ${0.22 - i * 0.03})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let s = 0; s <= 64; s++) {
-      const t = (s / 64) * Math.PI * 2 + ang;
-      const wobble = 1 + Math.sin(t * 5 + p.t * 0.08) * 0.04 * (0.5 + a.peak);
-      const x = cx + Math.cos(t) * rr * wobble;
-      const y = cy + Math.sin(t) * rr * wobble * 0.85;
-      if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
@@ -832,29 +815,67 @@ export function drawRothko(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  // Deep maroon / rust / ochre palette — pure Rothko Seagram.
-  const hueA = (350 + Math.sin(p.t * 0.01) * 20) % 360;     // blood
-  const hueB = (15 + Math.sin(p.t * 0.008) * 18) % 360;     // rust
-  const hueC = (38 + Math.sin(p.t * 0.012) * 12) % 360;     // ochre
+  // Spectral centroid drives the base palette so different drones
+  // land in genuinely different rooms rather than all reading as the
+  // same maroon-on-black. Low-centroid (tonic-heavy) = deep maroon;
+  // mid = magenta; high = ochre / amber. Slow mood drift rotates the
+  // whole palette ±60° over ~150 s.
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) {
+    num += i * a.spectrum[i];
+    den += a.spectrum[i];
+  }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
 
-  // Background canvas → a near-black maroon
-  ctx.fillStyle = `hsl(${hueA}, 55%, ${6 + a.rms * 4}%)`;
+  const moodPhase = p.t * 0.042;
+  const hueBase = ((340 + Math.sin(moodPhase) * 60 + centroid * 50) + 720) % 360;
+  const hueA = (hueBase + Math.sin(p.t * 0.017) * 24) % 360;
+  const hueB = (hueBase + 18 + Math.sin(p.t * 0.013) * 22) % 360;
+  const hueC = (hueBase + 42 + Math.sin(p.t * 0.021) * 18) % 360;
+
+  // Background saturates + brightens with RMS — quiet drones matte,
+  // loud drones flood the whole canvas.
+  const bgSat = 48 + a.rms * 22;
+  ctx.fillStyle = `hsl(${hueA}, ${bgSat}%, ${5 + a.rms * 8}%)`;
   ctx.fillRect(0, 0, w, h);
 
-  const blockH = h * 0.32;
-  const blockW = w * 0.72;
+  // Block dimensions breathe visibly with RMS.
+  const rmsFlex = 1 + a.rms * 0.18 + p.slow * 0.04;
+  const blockW = w * 0.72 * rmsFlex;
+  const blockH = h * 0.32 * rmsFlex;
   const x0 = (w - blockW) / 2;
 
-  // Top block — wider, taller, soft edges via a radial tint
-  drawRothkoBlock(ctx, x0, h * 0.08 + p.slow * 6, blockW, blockH * 1.05, hueB, 55, 34, a, p);
-  // Middle thin break
-  // Bottom block — deeper rust
-  drawRothkoBlock(ctx, x0, h * 0.56 + p.slow * 4, blockW, blockH * 0.95, hueC, 60, 38, a, p);
+  // Peak transients nudge the whole stack vertically.
+  const shakeY = a.peak * 18;
 
-  // Very slow vertical noise-less scan line to break the flatness
-  const scanY = h * 0.5 + Math.sin(p.t * 0.12) * h * 0.04;
-  ctx.strokeStyle = `hsla(${hueB}, 40%, 50%, 0.08)`;
-  ctx.lineWidth = 1;
+  drawRothkoBlock(
+    ctx, x0, h * 0.08 + p.slow * 12 + shakeY * Math.sin(p.t * 0.7),
+    blockW, blockH * 1.05,
+    hueB, 58 + centroid * 25, 30 + centroid * 15, a, p,
+  );
+  drawRothkoBlock(
+    ctx, x0, h * 0.56 + p.slow * 8 - shakeY * 0.6,
+    blockW, blockH * 0.95,
+    hueC, 62 + a.rms * 20, 36 + centroid * 12, a, p,
+  );
+
+  // Peak-triggered vertical paint-bleed. On transients a faint band
+  // smears across the canvas like a drip running down.
+  if (a.peak > 0.22) {
+    const bleedX = x0 + (Math.sin(p.t * 0.9) * 0.5 + 0.5) * blockW;
+    const bleedW = 14 + a.peak * 40;
+    const grad = ctx.createLinearGradient(bleedX, 0, bleedX + bleedW, 0);
+    grad.addColorStop(0, `hsla(${hueB}, 70%, 58%, 0)`);
+    grad.addColorStop(0.5, `hsla(${hueB}, 70%, 58%, ${0.12 * a.peak})`);
+    grad.addColorStop(1, `hsla(${hueB}, 70%, 58%, 0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(bleedX, 0, bleedW, h);
+  }
+
+  // Scan line wobbles much harder on peaks than before.
+  const scanY = h * 0.5 + Math.sin(p.t * 0.24) * h * 0.08 * (1 + a.peak * 2);
+  ctx.strokeStyle = `hsla(${hueB}, 55%, 60%, ${0.12 + a.rms * 0.15})`;
+  ctx.lineWidth = 1 + a.peak * 2;
   ctx.beginPath();
   ctx.moveTo(x0, scanY);
   ctx.lineTo(x0 + blockW, scanY);
@@ -866,34 +887,48 @@ function drawRothkoBlock(
   hue: number, sat: number, lig: number,
   a: AudioFrame, p: PhaseClock,
 ) {
-  // Subtle vibration of the block edges, driven by peak + a low-
-  // frequency sine so the colour fields feel "alive" the way a
-  // Rothko canvas does in a dim room.
-  // Vibration — slow and subtle. Frequencies are intentionally well
-  // below 2 Hz so the canvas breathes instead of shivers.
-  const vibAmp = 1.2 + a.peak * 3 + p.slow * 1.5;
-  const vibX = Math.sin(p.t * 1.1) * vibAmp + Math.sin(p.t * 0.45) * vibAmp * 0.6;
-  const vibY = Math.cos(p.t * 0.9) * vibAmp * 0.7;
+  // Aggressive vibration — the old version was clamped ~4px; this
+  // reaches ~12px on peaks with visible micro-shake so the canvas
+  // feels charged rather than merely ajar.
+  const vibAmp = 2 + a.peak * 9 + p.slow * 2;
+  const vibX = Math.sin(p.t * 1.4) * vibAmp
+             + Math.sin(p.t * 0.55) * vibAmp * 0.7
+             + Math.sin(p.t * 3.1) * a.peak * 4;
+  const vibY = Math.cos(p.t * 1.05) * vibAmp * 0.8
+             + Math.sin(p.t * 2.7) * a.peak * 3;
 
   const xv = x + vibX;
   const yv = y + vibY;
 
-  // Soft blurred edge via stacked opaque rectangles with easing alphas.
-  const steps = 8;
+  // Soft edge via stacked rectangles — more steps, stronger RMS alpha
+  // bleed so loud drones genuinely bloom at the edges.
+  const steps = 10;
   for (let s = 0; s < steps; s++) {
     const t = s / (steps - 1);
-    const pad = t * Math.min(bw, bh) * 0.12;
-    const alpha = (1 - t) * 0.18;
-    // Each halo ring gets its own tiny jitter so the edge ripples
-    const jx = Math.sin(p.t * 1.3 + s) * 0.6;
-    const jy = Math.cos(p.t * 1.1 + s) * 0.6;
-    ctx.fillStyle = `hsla(${hue}, ${sat}%, ${lig + (1 - t) * 10}%, ${alpha + a.rms * 0.05})`;
+    const pad = t * Math.min(bw, bh) * 0.14;
+    const alpha = (1 - t) * 0.22;
+    const jx = Math.sin(p.t * 1.7 + s) * (1.5 + a.peak * 3);
+    const jy = Math.cos(p.t * 1.3 + s) * (1.5 + a.peak * 3);
+    const lw = lig + (1 - t) * 12 + a.rms * 8;
+    ctx.fillStyle = `hsla(${hue}, ${sat}%, ${lw}%, ${alpha + a.rms * 0.18})`;
     ctx.fillRect(xv + pad + jx, yv + pad + jy, bw - pad * 2, bh - pad * 2);
   }
-  // Final solid core with a tiny horizontal scan offset that wobbles
-  ctx.fillStyle = `hsla(${hue}, ${sat}%, ${lig}%, 0.9)`;
+
+  // Core fill
   const pc = Math.min(bw, bh) * 0.08;
+  ctx.fillStyle = `hsla(${hue}, ${sat}%, ${lig}%, 0.92)`;
   ctx.fillRect(xv + pc, yv + pc, bw - pc * 2, bh - pc * 2);
+
+  // Peak-triggered horizontal stripes across the core — the block
+  // "strobes" briefly on transients, then returns to calm.
+  if (a.peak > 0.18) {
+    const bandCount = 4;
+    for (let i = 0; i < bandCount; i++) {
+      const by = yv + pc + ((i + Math.sin(p.t * 2 + i)) / bandCount) * (bh - pc * 2);
+      ctx.fillStyle = `hsla(${hue}, ${sat + 15}%, ${lig + 18}%, ${a.peak * 0.35})`;
+      ctx.fillRect(xv + pc, by, bw - pc * 2, 1 + a.peak * 3);
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -1457,7 +1492,6 @@ export const VISUALIZER_FNS: Record<
   inkBloom: drawInkBloom,
   horizon: drawHorizon,
   aurora: drawAurora,
-  orb: drawOrb,
   dreamMachine: drawDreamMachine,
   fractal: drawFractal,
   rothko: drawRothko,
@@ -1465,7 +1499,10 @@ export const VISUALIZER_FNS: Record<
   dreamHouse: drawDreamHouse,
   sigil: drawSigilBloom,
   starGate: drawStarGate,
-  pitchMandala: drawPitchMandala,
+  pitchSpiral: drawPitchSpiral,
+  pitchTonnetz: drawPitchTonnetz,
+  pitchBeats: drawPitchBeats,
+  pitchHarmonics: drawPitchHarmonics,
   flowField: drawFlowField,
   waveformRing: drawWaveformRing,
   waterfall: drawWaterfall,
@@ -1594,178 +1631,99 @@ export function drawFreqRing(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 16. PITCH MANDALA — 12-sector monochromatic mandala. Sectors are
-//     labeled C..B (C at top). Spectrum bins are log-mapped to pitch
-//     classes via bin-center frequency → MIDI → mod 12. Bin 0 is
-//     skipped: at a 48 kHz / 2048 fft / 32-reduced-bin layout each
-//     visualizer bin covers ~750 Hz, so bin 0 always mapped to F#
-//     and swamped the mandala regardless of what was playing.
-//     Pure black-and-white palette — no hue rotation.
+// PITCH SPIRAL — continuous ring with cents-flavour placement
+//
+// Angle = pitch-class position on a circle; no discrete sectors.
+// 12-TET canonical positions render as ghost tick marks so the
+// eye has a reference. Active pitches glow at their angle with a
+// small wobble driven by neighbour-pitch pressure — an evocation
+// of microtonal drift (a true cents reading would need engine
+// wiring; this stays self-contained).
 // ─────────────────────────────────────────────────────────────────────
-const pitchEnergies = new Float32Array(12);
-// Bin width estimate: 48 kHz sample rate → 24 kHz Nyquist, 32 reduced
-// bins → ~750 Hz per visualizer bin.
-const BIN_WIDTH_HZ = 48000 / 2 / 32;
-export function drawPitchMandala(
+const tmpSpiralAngle = new Float32Array(12);
+export function drawPitchSpiral(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
   ctx.fillRect(0, 0, w, h);
-
-  // Prefer ground-truth active pitches from the engine. The 32-bin
-  // reduced FFT spectrum is too coarse (~750 Hz per bin) to
-  // discriminate pitch classes at drone frequencies — a D3 drone
-  // dumps most of its upper-harmonic energy into bin 1 whose center
-  // is ~1125 Hz → MIDI 85 → C#, so the mandala used to light C#
-  // every time. PhaseClock.activePitches carries root+intervals
-  // derived from engine state, which is exact.
-  pitchEnergies.fill(0);
-  const truth = p.activePitches;
-  let hasTruth = false;
-  for (let i = 0; i < 12; i++) {
-    if (truth[i] > 0) { hasTruth = true; break; }
-  }
-  if (hasTruth) {
-    for (let i = 0; i < 12; i++) pitchEnergies[i] = truth[i];
-  } else {
-    // Fallback: the old FFT-based mapping, for visualizer demos
-    // when no engine is attached.
-    const bins = a.spectrum.length;
-    for (let i = 1; i < bins; i++) {
-      const centerHz = (i + 0.5) * BIN_WIDTH_HZ;
-      const midi = 12 * Math.log2(centerHz / 440) + 69;
-      const pc = ((Math.round(midi) % 12) + 12) % 12;
-      pitchEnergies[pc] += a.spectrum[i];
-    }
-    let maxE = 0.001;
-    for (let i = 0; i < 12; i++) if (pitchEnergies[i] > maxE) maxE = pitchEnergies[i];
-    for (let i = 0; i < 12; i++) pitchEnergies[i] /= maxE;
-  }
-
-  // Per-frame wobble — give each sector an independent breathing
-  // phase so the mandala feels alive even when the ground truth
-  // hasn't changed. The wobble also multiplies with RMS so loud
-  // passages visibly pump. This is visualization, not measurement,
-  // so precision isn't the goal — motion is.
-  const rmsBoost = 0.7 + a.rms * 0.7;
-  const wobbleEnergies = tmpPitchWobble;
-  let maxPc = 0, maxE = 0;
-  let secondPc = 0, secondE = 0;
-  for (let pc = 0; pc < 12; pc++) {
-    const base = pitchEnergies[pc];
-    const wob =
-      1 +
-      0.15 * Math.sin(p.t * (0.5 + pc * 0.13)) +
-      0.08 * Math.sin(p.t * (1.3 + pc * 0.23) + pc * 0.7);
-    const e = Math.min(1, base * wob * rmsBoost);
-    wobbleEnergies[pc] = e;
-    if (e > maxE) { secondE = maxE; secondPc = maxPc; maxE = e; maxPc = pc; }
-    else if (e > secondE) { secondE = e; secondPc = pc; }
-  }
 
   const cx = w / 2;
   const cy = h / 2;
-  const r0 = Math.min(w, h) * 0.09;
-  const rMax = Math.min(w, h) * 0.38;
-  const breath = 1 + a.rms * 0.06 + p.slow * 0.03;
-
+  const rBase = Math.min(w, h) * 0.32;
   ctx.save();
   ctx.translate(cx, cy);
-  // Slow clockwise rotation — ~one revolution per 100 s. Was 0.012
-  // (≈ 8 min per revolution) which was too slow to notice.
-  ctx.rotate(p.t * 0.06);
+  ctx.rotate(p.t * 0.018);
 
-  const halfAngle = (Math.PI / 12) * 0.86;
-  // Store active sector midpoints for the constellation-line pass
-  const activeX = tmpPitchX;
-  const activeY = tmpPitchY;
-  for (let pc = 0; pc < 12; pc++) {
-    const energy = wobbleEnergies[pc];
-    // C at top (angle = -π/2)
-    const angle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
-    const innerR = r0 * breath;
-    const outerR = innerR + (rMax - r0) * (0.22 + energy * 0.78);
-    const midR = (innerR + outerR) * 0.5;
-    activeX[pc] = Math.cos(angle) * midR;
-    activeY[pc] = Math.sin(angle) * midR;
-
-    // Monochromatic sector fill
-    const light = Math.round(16 + energy * 75); // 16..91 grey
-    ctx.fillStyle = `hsla(0, 0%, ${light}%, ${0.25 + energy * 0.6})`;
-    ctx.beginPath();
-    ctx.arc(0, 0, outerR, angle - halfAngle, angle + halfAngle);
-    ctx.arc(0, 0, innerR, angle + halfAngle, angle - halfAngle, true);
-    ctx.closePath();
-    ctx.fill();
-
-    // Echo sliver just outside the main sector — smaller, phase-
-    // shifted, gives the mandala visual depth without adding clutter
-    if (energy > 0.18) {
-      const echoR = outerR + 6 + energy * 10;
-      const echoInner = outerR + 2;
-      const echoHalf = halfAngle * 0.6;
-      const echoLight = Math.round(40 + energy * 55);
-      ctx.fillStyle = `hsla(0, 0%, ${echoLight}%, ${energy * 0.35})`;
-      ctx.beginPath();
-      ctx.arc(0, 0, echoR, angle - echoHalf, angle + echoHalf);
-      ctx.arc(0, 0, echoInner, angle + echoHalf, angle - echoHalf, true);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Bright outer edge for active pitches
-    if (energy > 0.25) {
-      ctx.strokeStyle = `hsla(0, 0%, 100%, ${energy * 0.75})`;
-      ctx.lineWidth = 1.5 + energy * 2.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, outerR, angle - halfAngle, angle + halfAngle);
-      ctx.stroke();
-    }
-
-  }
-
-  // Constellation lines — connect every pair of sufficiently-active
-  // sectors with a faint white line. Makes the set of lit classes
-  // feel like a *chord*, not isolated blobs.
-  ctx.lineCap = "round";
+  ctx.strokeStyle = "hsla(0, 0%, 35%, 0.25)";
   ctx.lineWidth = 1;
-  for (let i = 0; i < 12; i++) {
-    if (wobbleEnergies[i] < 0.22) continue;
-    for (let j = i + 1; j < 12; j++) {
-      if (wobbleEnergies[j] < 0.22) continue;
-      const alpha = Math.min(0.5, (wobbleEnergies[i] + wobbleEnergies[j]) * 0.2);
-      ctx.strokeStyle = `hsla(0, 0%, 95%, ${alpha})`;
-      ctx.beginPath();
-      ctx.moveTo(activeX[i], activeY[i]);
-      ctx.lineTo(activeX[j], activeY[j]);
-      ctx.stroke();
-    }
-  }
-
-  // Highlight the two brightest sectors with a thicker link —
-  // the visual "root → dominant" connection.
-  if (maxE > 0.3 && secondE > 0.22) {
-    ctx.strokeStyle = `hsla(0, 0%, 100%, ${0.45 + a.rms * 0.3})`;
-    ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.arc(0, 0, rBase, 0, Math.PI * 2);
+  ctx.stroke();
+  for (let pc = 0; pc < 12; pc++) {
+    const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+    ctx.strokeStyle = `hsla(0, 0%, 45%, ${pc === 0 ? 0.55 : 0.2})`;
     ctx.beginPath();
-    ctx.moveTo(activeX[maxPc], activeY[maxPc]);
-    ctx.lineTo(activeX[secondPc], activeY[secondPc]);
+    ctx.moveTo(Math.cos(ang) * (rBase - 8), Math.sin(ang) * (rBase - 8));
+    ctx.lineTo(Math.cos(ang) * (rBase + 8), Math.sin(ang) * (rBase + 8));
     ctx.stroke();
   }
 
-  // Inner hub — pulses with total lit energy
+  const energies = p.activePitches;
   let totalE = 0;
-  for (let i = 0; i < 12; i++) totalE += wobbleEnergies[i];
-  const hubPulse = Math.min(1, totalE * 0.18 + a.rms * 0.5);
-  const hubR = r0 * breath * (0.8 + hubPulse * 0.5);
-  const hubGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, hubR * 2);
-  hubGrad.addColorStop(0, `hsla(0, 0%, 100%, ${0.45 + hubPulse * 0.45})`);
-  hubGrad.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = hubGrad;
+  for (let i = 0; i < 12; i++) totalE += energies[i];
+
+  for (let pc = 0; pc < 12; pc++) {
+    const e = energies[pc];
+    if (e < 0.04) continue;
+    const neighbor = (energies[(pc + 11) % 12] - energies[(pc + 1) % 12]) * 0.5;
+    const wobble = Math.sin(p.t * (0.3 + pc * 0.07)) * 0.008 + neighbor * 0.012;
+    const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2 + wobble;
+    tmpSpiralAngle[pc] = ang;
+
+    const glowR = rBase + (rBase * 0.18) * Math.min(1, e + a.rms * 0.2);
+    const beam = ctx.createRadialGradient(
+      Math.cos(ang) * rBase, Math.sin(ang) * rBase, 0,
+      Math.cos(ang) * rBase, Math.sin(ang) * rBase, rBase * 0.22,
+    );
+    beam.addColorStop(0, `hsla(0, 0%, 100%, ${Math.min(1, e * 0.9 + 0.2)})`);
+    beam.addColorStop(0.6, `hsla(0, 0%, 100%, ${e * 0.25})`);
+    beam.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.arc(Math.cos(ang) * rBase, Math.sin(ang) * rBase, rBase * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = `hsla(0, 0%, 92%, ${e * 0.6})`;
+    ctx.lineWidth = 1 + e * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * (rBase - 16), Math.sin(ang) * (rBase - 16));
+    ctx.lineTo(Math.cos(ang) * glowR, Math.sin(ang) * glowR);
+    ctx.stroke();
+  }
+
+  for (let i = 0; i < 12; i++) {
+    if (energies[i] < 0.22) continue;
+    for (let j = i + 1; j < 12; j++) {
+      if (energies[j] < 0.22) continue;
+      const a1 = tmpSpiralAngle[i];
+      const a2 = tmpSpiralAngle[j];
+      ctx.strokeStyle = `hsla(0, 0%, 96%, ${Math.min(0.4, (energies[i] + energies[j]) * 0.15)})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, rBase - 6, Math.min(a1, a2), Math.max(a1, a2));
+      ctx.stroke();
+    }
+  }
+
+  const hubR = Math.min(w, h) * (0.06 + 0.04 * Math.min(1, totalE * 0.25 + a.rms * 0.5));
+  const hub = ctx.createRadialGradient(0, 0, 0, 0, 0, hubR * 2);
+  hub.addColorStop(0, `hsla(0, 0%, 100%, ${0.35 + a.rms * 0.4})`);
+  hub.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = hub;
   ctx.beginPath();
   ctx.arc(0, 0, hubR * 2, 0, Math.PI * 2);
   ctx.fill();
@@ -1773,11 +1731,297 @@ export function drawPitchMandala(
   ctx.restore();
 }
 
-// Module-level scratch buffers for drawPitchMandala — avoid per-
-// frame allocation.
-const tmpPitchWobble = new Float32Array(12);
-const tmpPitchX = new Float32Array(12);
-const tmpPitchY = new Float32Array(12);
+// ─────────────────────────────────────────────────────────────────────
+// PITCH TONNETZ — harmonic lattice
+//
+// Hexagonal grid of pitch classes: horizontal axis = fifths (+7),
+// up-right diagonal = major thirds (+4). Each lattice cell is a
+// pitch class; active pitches light nodes; interval pairs light
+// edges; chord triangles read visually as small lit shapes.
+// ─────────────────────────────────────────────────────────────────────
+const PITCH_LABELS = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+export function drawPitchTonnetz(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.17)";
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const spacing = Math.min(w, h) * 0.1;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.sin(p.t * 0.015) * 0.05);
+
+  const energies = p.activePitches;
+  const UX = spacing, UY = 0;
+  const VX = spacing * 0.5, VY = -spacing * 0.866;
+
+  for (let v = -3; v <= 3; v++) {
+    for (let u = -4; u <= 4; u++) {
+      const x = u * UX + v * VX;
+      const y = u * UY + v * VY;
+      if (Math.abs(x) > w * 0.48 || Math.abs(y) > h * 0.48) continue;
+      const pc = (((u * 7 + v * 4) % 12) + 12) % 12;
+      const e = energies[pc];
+
+      // Edge east (fifth)
+      const ex = (u + 1) * UX + v * VX;
+      const ey = (u + 1) * UY + v * VY;
+      const ePc = (((u * 7 + v * 4 + 7) % 12) + 12) % 12;
+      const eEn = energies[ePc];
+      if (e > 0.12 && eEn > 0.12) {
+        ctx.strokeStyle = `hsla(0, 0%, 90%, ${Math.min(0.6, (e + eEn) * 0.25)})`;
+        ctx.lineWidth = 0.8 + Math.min(2, (e + eEn) * 1.4);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+      }
+      // Edge up-right (major third)
+      const ux = u * UX + (v + 1) * VX;
+      const uy = u * UY + (v + 1) * VY;
+      const uPc = (((u * 7 + (v + 1) * 4) % 12) + 12) % 12;
+      const uEn = energies[uPc];
+      if (e > 0.12 && uEn > 0.12) {
+        ctx.strokeStyle = `hsla(0, 0%, 90%, ${Math.min(0.6, (e + uEn) * 0.25)})`;
+        ctx.lineWidth = 0.8 + Math.min(2, (e + uEn) * 1.4);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(ux, uy);
+        ctx.stroke();
+      }
+    }
+  }
+
+  for (let v = -3; v <= 3; v++) {
+    for (let u = -4; u <= 4; u++) {
+      const x = u * UX + v * VX;
+      const y = u * UY + v * VY;
+      if (Math.abs(x) > w * 0.48 || Math.abs(y) > h * 0.48) continue;
+      const pc = (((u * 7 + v * 4) % 12) + 12) % 12;
+      const e = energies[pc];
+
+      ctx.fillStyle = `hsla(0, 0%, 35%, ${0.25 + e * 0.1})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fill();
+      if (e > 0.06) {
+        const gR = 6 + e * 22;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, gR);
+        grad.addColorStop(0, `hsla(0, 0%, 100%, ${Math.min(1, e * 0.9 + 0.25)})`);
+        grad.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, gR, 0, Math.PI * 2);
+        ctx.fill();
+        if (e > 0.25) {
+          ctx.fillStyle = `hsla(0, 0%, 100%, ${e * 0.5})`;
+          ctx.font = "10px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(PITCH_LABELS[pc], x, y);
+        }
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PITCH BEATS — interferometer
+//
+// Each active pitch draws a ring at a distinct radius, with fringe
+// oscillations whose rate depends on the interval to the nearest
+// other active pitch (close intervals → slow wide fringes, far
+// intervals → tight). Pairwise moiré bands render the visual
+// "beating" between every active pair.
+// ─────────────────────────────────────────────────────────────────────
+export function drawPitchBeats(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
+  ctx.fillRect(0, 0, w, h);
+
+  const energies = p.activePitches;
+  const actives: { pc: number; e: number; r: number }[] = [];
+  for (let pc = 0; pc < 12; pc++) {
+    if (energies[pc] > 0.08) actives.push({ pc, e: energies[pc], r: 0 });
+  }
+  if (actives.length === 0) return;
+  actives.sort((x, y) => x.pc - y.pc);
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const rMax = Math.min(w, h) * 0.48;
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  for (let i = 0; i < actives.length; i++) {
+    actives[i].r = rMax * (0.18 + (i / Math.max(1, actives.length - 1)) * 0.7);
+  }
+
+  for (let i = 0; i < actives.length; i++) {
+    const { pc, e, r } = actives[i];
+    const fringeCount = 18 + Math.floor(e * 14);
+    let minDist = 12;
+    for (let j = 0; j < actives.length; j++) {
+      if (j === i) continue;
+      const d = Math.min(
+        Math.abs(actives[j].pc - pc),
+        12 - Math.abs(actives[j].pc - pc),
+      );
+      if (d < minDist) minDist = d;
+    }
+    const beatRate = 0.04 + minDist * 0.06;
+    const fringePhase = p.t * beatRate;
+
+    for (let f = 0; f < fringeCount; f++) {
+      const fr = r + Math.sin(fringePhase + f * 0.55 + pc * 0.3) * (8 + minDist * 2);
+      const alpha = (1 - f / fringeCount) * (0.15 + e * 0.45);
+      ctx.strokeStyle = `hsla(0, 0%, 92%, ${alpha})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(0, 0, fr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = `hsla(0, 0%, 100%, ${Math.min(0.9, e * 0.8 + 0.25)})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  for (let i = 0; i < actives.length; i++) {
+    for (let j = i + 1; j < actives.length; j++) {
+      const mid = (actives[i].r + actives[j].r) * 0.5;
+      const gap = Math.abs(actives[j].r - actives[i].r);
+      const bands = 6;
+      for (let b = 0; b < bands; b++) {
+        const phase = p.t * 0.3 + b * 0.9;
+        const off = Math.sin(phase) * gap * 0.35;
+        const alpha = (1 - b / bands) * 0.08 * Math.min(1, actives[i].e + actives[j].e);
+        ctx.strokeStyle = `hsla(42, 50%, 75%, ${alpha})`;
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.arc(0, 0, mid + off, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  let totalE = 0;
+  for (const { e } of actives) totalE += e;
+  const coreR = 4 + Math.min(14, totalE * 3 + a.rms * 8);
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
+  core.addColorStop(0, "hsla(0, 0%, 100%, 0.8)");
+  core.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PITCH HARMONICS — harmonic-series fan
+//
+// Rays at the harmonic ratios 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13 of
+// the tonic. Each ray's length / brightness reads the FFT bin that
+// falls on that partial. A pure sine stays a lonely fundamental;
+// a brass-rich drone grows a full fan. Microtonal character lives
+// in the non-octave partials (7, 11, 13).
+// ─────────────────────────────────────────────────────────────────────
+const HARMONIC_RATIOS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 13];
+export function drawPitchHarmonics(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  a: AudioFrame,
+  p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+  ctx.fillRect(0, 0, w, h);
+
+  const spec = a.spectrum;
+  const lowerHalf = Math.min(spec.length / 2, 16);
+  let tonicBin = 1, tonicE = 0;
+  for (let i = 1; i < lowerHalf; i++) {
+    if (spec[i] > tonicE) { tonicE = spec[i]; tonicBin = i; }
+  }
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const rBase = Math.min(w, h) * 0.08;
+  const rMax = Math.min(w, h) * 0.44;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(p.t * 0.015);
+
+  const maxRatio = HARMONIC_RATIOS[HARMONIC_RATIOS.length - 1];
+  for (let i = 0; i < HARMONIC_RATIOS.length; i++) {
+    const n = HARMONIC_RATIOS[i];
+    const pBin = Math.min(spec.length - 1, Math.round(tonicBin * n));
+    const e = (spec[pBin] || 0) * (1 + (n === 1 ? tonicE * 0.5 : 0));
+
+    const ang = (Math.log2(n) / Math.log2(maxRatio)) * Math.PI * 2 - Math.PI / 2;
+    const rayLen = rBase + (rMax - rBase) * Math.min(1, e * 2.2 + (n === 1 ? 0.4 : 0));
+    const light = 35 + Math.min(55, e * 140);
+    const rawHue = 38 - Math.min(30, n * 2.5);
+    const hue = rawHue < 0 ? rawHue + 360 : rawHue;
+    const sat = n === 1 ? 42 : 28;
+
+    ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${light}%, ${0.3 + Math.min(0.6, e * 1.4)})`;
+    ctx.lineWidth = 1.2 + Math.min(3.5, e * 6);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * rBase, Math.sin(ang) * rBase);
+    ctx.lineTo(Math.cos(ang) * rayLen, Math.sin(ang) * rayLen);
+    ctx.stroke();
+
+    if (e > 0.08) {
+      const tipGrad = ctx.createRadialGradient(
+        Math.cos(ang) * rayLen, Math.sin(ang) * rayLen, 0,
+        Math.cos(ang) * rayLen, Math.sin(ang) * rayLen, 14 + e * 30,
+      );
+      tipGrad.addColorStop(0, `hsla(${hue}, ${sat}%, 78%, ${Math.min(0.8, e * 1.3)})`);
+      tipGrad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = tipGrad;
+      ctx.beginPath();
+      ctx.arc(Math.cos(ang) * rayLen, Math.sin(ang) * rayLen, 14 + e * 30, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (e > 0.22 && n > 1) {
+      ctx.fillStyle = `hsla(0, 0%, 100%, ${Math.min(0.6, e * 0.8)})`;
+      ctx.font = "9px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`${n}:1`, Math.cos(ang) * (rayLen + 12), Math.sin(ang) * (rayLen + 12));
+    }
+  }
+
+  const hub = ctx.createRadialGradient(0, 0, 0, 0, 0, rBase * 1.8);
+  hub.addColorStop(0, `hsla(38, 45%, 85%, ${0.4 + tonicE * 0.5})`);
+  hub.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = hub;
+  ctx.beginPath();
+  ctx.arc(0, 0, rBase * 1.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // 17. HARMONOGRAPH — Lissajous attractor. Four decoupled oscillators

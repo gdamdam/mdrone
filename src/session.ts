@@ -175,7 +175,10 @@ const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sa
 const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk", "parchment"] as const;
 const VISUALIZERS: readonly Visualizer[] = [
   "mandala",
-  "pitchMandala",
+  "pitchSpiral",
+  "pitchTonnetz",
+  "pitchBeats",
+  "pitchHarmonics",
   "haloGlow",
   "fractal",
   "rothko",
@@ -187,7 +190,6 @@ const VISUALIZERS: readonly Visualizer[] = [
   "inkBloom",
   "horizon",
   "aurora",
-  "orb",
   "dreamMachine",
   "flowField",
   "waterfall",
