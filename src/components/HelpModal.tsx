@@ -190,6 +190,7 @@ function ReferenceTab() {
         <li>14-effect chain. <strong>Click</strong> to toggle, <strong>long-press</strong> for parameters, <strong>drag</strong> to reorder.</li>
         <li>Active-chain preview above the grid shows enabled effects in processing order.</li>
         <li>Two granulars: <strong>GRAIN</strong> (drone-smooth cloud) vs <strong>CLOUD</strong> (stutter, pitches snapped to the scale).</li>
+        <li><strong>FREEZE</strong> snapshots the live ring buffer when toggled on. Presets that ship FREEZE enabled defer the snapshot ~3 s after apply so voices fill the ring with steady-state audio first.</li>
       </ul>
 
       <div className="fx-modal-divider" />

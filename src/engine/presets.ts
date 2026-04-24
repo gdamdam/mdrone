@@ -3521,9 +3521,36 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     engine.applyDroneScene(layers, levels, engineIntervals);
   }
 
-  // Effects — turn on the listed ones, off the rest
+  // Effects — turn on the listed ones, off the rest. Freeze is the
+  // exception: even with the ring buffer always filling (see FxChain
+  // freeze wiring), the *new* preset's voices need a moment to ramp
+  // into the ring before the snapshot fires, otherwise the freeze
+  // captures the previous scene's tail or near-silence on first
+  // launch. Defer freeze enable by ~3 s so the ring holds steady-
+  // state audio of the new voices when active flips up.
+  if (pendingFreezeEnableTimer !== null) {
+    clearTimeout(pendingFreezeEnableTimer);
+    pendingFreezeEnableTimer = null;
+  }
   const active = new Set(preset.effects);
   for (const id of ALL_EFFECT_IDS) {
+    if (id === "freeze") continue;
     ui.setEffectEnabled(id, active.has(id));
   }
+  if (active.has("freeze")) {
+    ui.setEffectEnabled("freeze", false);
+    pendingFreezeEnableTimer = setTimeout(() => {
+      pendingFreezeEnableTimer = null;
+      ui.setEffectEnabled("freeze", true);
+    }, FREEZE_PRESET_DEFER_MS) as unknown as number;
+  } else {
+    ui.setEffectEnabled("freeze", false);
+  }
 }
+
+const FREEZE_PRESET_DEFER_MS = 3000;
+// Module-scoped cancel token — applyPreset cancels any pending
+// freeze enable from a prior preset call so a quick A→B switch
+// (where B has no freeze) doesn't get its freeze re-enabled by a
+// stale timer from A.
+let pendingFreezeEnableTimer: number | null = null;

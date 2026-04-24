@@ -974,7 +974,14 @@ export class FxChain {
     this.freezeWorklet.parameters.get("mix")!.setValueAtTime(1, ctx.currentTime);
     const freezeIns = this.inserts.freeze;
     freezeIns.wetInGate = ctx.createGain();
-    freezeIns.wetInGate.gain.value = 0;
+    // Freeze is unique among inserts: its phase-vocoder snapshots
+    // whatever's in the ring buffer the moment `active` flips up.
+    // Keep wetInGate fully open so the ring is continuously filled
+    // with the live signal — when the user (or a preset) enables
+    // freeze, the snapshot grabs real audio instead of the silent
+    // capture that gated wetInGate would produce. Output is still
+    // gated by wetGain, so disabled freeze never leaks any signal.
+    freezeIns.wetInGate.gain.value = 1;
     freezeIns.insertIn.connect(freezeIns.wetInGate);
     freezeIns.wetInGate
       .connect(this.freezeWorklet)
@@ -1212,7 +1219,7 @@ export class FxChain {
     // settle to silence and Safari stops hashing low-level signal
     // through it. Binary target; the output-side `wetGain` still
     // carries the user-level amount.
-    if (ins.wetInGate) {
+    if (ins.wetInGate && id !== "freeze") {
       ins.wetInGate.gain.setTargetAtTime(on ? 1 : 0, now, this.xfadeTC);
     }
 

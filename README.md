@@ -105,7 +105,7 @@ The chain holds 14 effects. Each is a toggle (click) with a long-press settings 
 | **PLATE** | Worklet Dattorro plate reverb |
 | **HALL** | Worklet FDN hall (size ≈ 0.45, bright damping) |
 | **SHIMMER** | Worklet shimmer reverb plus octave-up source voice |
-| **FREEZE** | Worklet freeze capture that latches a sustained layer |
+| **FREEZE** | Phase-vocoder magnitude-hold capture. Ring buffer always fills with live audio so toggling FREEZE on snapshots whatever is playing right now; presets that ship FREEZE enabled defer the snapshot ~3 s after apply so voices ramp into the ring first |
 | **CISTERN** | Worklet FDN cathedral-scale reverb (size ≈ 1.2, dark damping, ~28 s tail) |
 | **GRANULAR** | Drone-smooth grain cloud — medium grains at moderate density, trapezoid envelope, per-channel envelope-sum normalised |
 | **GRAINCLOUD** | Classic grain stutter — 40 ms grains at 25/s, falling-exponential envelope, ordered time-stretch replay, pitches snapped to the drone scale |
