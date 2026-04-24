@@ -54,7 +54,7 @@
 | View | Purpose |
 |---|---|
 | **DRONE** | The instrument: header tonic / octave / HOLD transport, preset library, voice stack, macros, breathing LFO, climate XY pad, effect chain, undo/redo + A/B snapshot slots, SCALE editor, GESTURES panel |
-| **MEDITATE** | 24 full-screen visualizers grouped GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC, picked from a dropdown (double-click canvas to cycle). Many accrete complexity over minutes rather than react per-frame: PITCH MANDALA, BREATHING MANDALA, HALO & RAYS, SEDIMENT STRATA, TAPE DECAY, and more. Also: a JULIA FRACTAL that reacts to low / mid / high spectral bands, and five original drone-native visualizers (SALT DRIFT, IRON FILINGS, SEDIMENT STRATA, EROSION CONTOURS, ASH TRAIL). |
+| **MEDITATE** | 39 full-screen visualizers grouped GEOMETRIC / SPECTRAL / FIELD / HYPNOTIC (B&W first, then colour within each), picked from a dropdown (double-click canvas to cycle). Many accrete complexity over minutes rather than react per-frame: PITCH MANDALA, BREATHING MANDALA, HALO & RAYS, SEDIMENT STRATA, TAPE DECAY, TUNING MANUSCRIPT, RESONANT BODY, PETROGLYPHS, and more. Also: a JULIA FRACTAL that reacts to low / mid / high spectral bands, and a set of drone-native visualizers (IRON FILINGS, SEDIMENT STRATA, VOID MONOLITH, BEATING FIELD, GRANULAR WEATHER, PETROGLYPHS). |
 | **MIXER** | Master bus: HPF, 3-band EQ, glue compression, drive, brickwall limiter with ceiling, SAFE (headphone-safe) toggle, CLIP LED (pre-limiter peak), LUFS-S + PEAK metering, final output trim |
 
 ---
@@ -183,14 +183,14 @@ Master-bus controls matched to the mpump / mloop family vocabulary:
 
 ## MEDITATE view
 
-24 authored visualizers organised into four groups in the picker:
+39 authored visualizers organised into four groups in the picker. Within each group, **B&W / monochromatic** visualizers are listed first, then **colour**:
 
-- **GEOMETRIC** — breathing mandala, pitch mandala, flow field, waveform ring, sigil bloom, cymatics
-- **SPECTRAL** — aurora, spectral waterfall, sediment strata, erosion contours
-- **FIELD / PAINTERLY** — Rothko field, tape decay, Dream House magenta, ink bloom, halo & rays, horizon sunrise, resonant orb, salt drift, iron filings, ash trail
-- **HYPNOTIC** — feedback tunnel, star gate, Julia fractal, dream machine *(10 Hz flicker — warning shown; close eyes for the classic usage)*
+- **GEOMETRIC** — pitch spiral, pitch beats, partial constellation, phase portrait, phase mirror, cymatics, sigil bloom, crystal lattice, iron filings, astrolabe, **flow field → resonant body → beating field → tuning manuscript** (drone-reactive cluster), breathing mandala, pitch tonnetz, waveform ring
+- **SPECTRAL** — aurora, sediment strata, spectral prayer rug, **granular weather**
+- **FIELD / PAINTERLY** — **petroglyphs**, illuminated glyphs, mirror glyphs, Rothko field, Dream House magenta, horizon sunrise, halo & rays, ink bloom, tape decay, halftone (riso / classic), scrying mirror
+- **HYPNOTIC** — void monolith, feedback tunnel B&W, moiré field, feedback tunnel, star gate, Julia fractal, dream machine *(10 Hz flicker — warning shown; close eyes for the classic usage)*
 
-Most visualizers follow a drone-native ethos: slow time, heavy / matte material, no glow or hue-from-audio, no per-frame fast reactivity. They **accrete over minutes** rather than react per-frame — PITCH MANDALA accrues pitch-class presence through a long integrator, BREATHING MANDALA and HALO & RAYS add new ornament tiers at growth > 0.3 / 0.5 / 0.7 / 0.85, SEDIMENT STRATA deposits rock layers at the bottom and the pile grows upward, TAPE DECAY scars its loop every pass, SALT DRIFT piles dunes at the bottom of the frame.
+Most visualizers follow a drone-native ethos: slow time, heavy / matte material, no glow or hue-from-audio, no per-frame fast reactivity. They **accrete over minutes** rather than react per-frame — PITCH MANDALA accrues pitch-class presence through a long integrator, BREATHING MANDALA and HALO & RAYS add new ornament tiers at growth > 0.3 / 0.5 / 0.7 / 0.85, SEDIMENT STRATA deposits rock layers at the bottom and the pile grows upward, TAPE DECAY scars its loop every pass and stamps dropout constellations, TUNING MANUSCRIPT writes ink ticks on a cents grid column by column, RESONANT BODY blends the anatomies of whichever voices (TANPURA / REED / METAL / AIR / PIANO / FM / AMP / NOISE) are currently active.
 
 JULIA FRACTAL is the one deliberate exception — it reacts to the *kind* of drone: low-band energy warps the Julia cr parameter, high-band warps ci, mid-band pulses zoom, overall RMS scales rotation. Rich spectra push the fractal toward the Mandelbrot rim where the shape morphs dramatically; a pure tonic sits quietly.
 

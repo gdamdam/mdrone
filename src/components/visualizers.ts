@@ -35,7 +35,6 @@ export type Visualizer =
   | "pitchBeats"
   | "flowField"
   | "feedbackTunnel"
-  | "feedbackTunnelBW"
   | "waveformRing"
   | "ironFilings"
   | "sediment"
@@ -49,7 +48,15 @@ export type Visualizer =
   | "crystalLattice"
   | "halftone"
   | "halftoneClassic"
-  | "phaseMirror";
+  | "phaseMirror"
+  | "resonantBody"
+  | "tapeDecay"
+  | "voidMonolith"
+  | "beatingField"
+  | "tuningManuscript"
+  | "granularWeather"
+  | "petroglyphs"
+  | "feedbackTunnelBW";
 
 /**
  * Visualizer categories — the meditate view dropdown renders these
@@ -64,38 +71,57 @@ export const VISUALIZER_GROUPS: readonly {
   {
     label: "GEOMETRIC",
     items: [
-      // Flagship color mandala
-      "mandala",
-      // Pitch family — radial, pitch-class reactive
+      // ── B&W / monochromatic ──
+      // Pitch family (BW)
       "pitchSpiral",
-      "pitchTonnetz",
       "pitchBeats",
       "partialConstellation",
       // Waveform / phase-space pair
       "phasePortrait",
       "phaseMirror",
-      // Signal / spectrum geometry
-      "waveformRing",
+      // Signal / spectrum geometry (BW)
       "cymatics",
       // Ritual / specialised
       "sigil",
       "crystalLattice",
-      // Vector-field strokes
-      "flowField",
+      // Vector fields
       "ironFilings",
       "astrolabe",
+      // ── Drone-reactive BW family — clustered at the tail so they
+      //    sit next to granularWeather in SPECTRAL and petroglyphs in
+      //    FIELD / PAINTERLY across the dropdown flow.
+      "flowField",
+      "resonantBody",
+      "beatingField",
+      "tuningManuscript",
+      // ── Color ──
+      "mandala",
+      "pitchTonnetz",
+      "waveformRing",
     ],
   },
   {
     label: "SPECTRAL",
     items: [
+      // ── Color ──
       "aurora",
+      // Accreting strata pair — geology + textile, same scroll mechanic
       "sediment",
+      "prayerRug",
+      // granularWeather sits at the END of SPECTRAL so it chains
+      // directly into petroglyphs at the head of FIELD / PAINTERLY.
+      "granularWeather",
     ],
   },
   {
     label: "FIELD / PAINTERLY",
     items: [
+      // ── B&W / monochromatic — petroglyphs first so it neighbours
+      //    granularWeather at the end of SPECTRAL.
+      "petroglyphs",
+      "illuminatedGlyphs",
+      "mirrorGlyphs",
+      // ── Color ──
       // Warm painterly fields
       "rothko",
       "dreamHouse",
@@ -103,24 +129,26 @@ export const VISUALIZER_GROUPS: readonly {
       "haloGlow",
       // Ink / textural
       "inkBloom",
+      // Archival / decayed
+      "tapeDecay",
       // Print / textile
       "halftone",
       "halftoneClassic",
-      "prayerRug",
-      // Ritual cluster (gilt / cream / Rorschach)
-      "illuminatedGlyphs",
-      "mirrorGlyphs",
+      // Rorschach
       "scryingMirror",
     ],
   },
   {
     label: "HYPNOTIC",
     items: [
-      "feedbackTunnel",
+      // ── B&W / monochromatic ──
+      "voidMonolith",
       "feedbackTunnelBW",
+      "moireField",
+      // ── Color ──
+      "feedbackTunnel",
       "starGate",
       "fractal",
-      "moireField",
       "dreamMachine",
     ],
   },
@@ -145,7 +173,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
   feedbackTunnel: "FEEDBACK TUNNEL",
-  feedbackTunnelBW: "FEEDBACK TUNNEL · B&W",
   ironFilings: "IRON FILINGS · magnetic field",
   sediment: "SEDIMENT STRATA · spectral deposit",
   prayerRug: "SPECTRAL PRAYER RUG",
@@ -163,6 +190,14 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   horizon: "HORIZON SUNRISE",
   aurora: "SPECTRAL AURORA",
   dreamMachine: "DREAM MACHINE",
+  resonantBody: "RESONANT BODY · voice anatomy",
+  tapeDecay: "TAPE DECAY · oxide archive",
+  voidMonolith: "VOID MONOLITH · pressure line",
+  beatingField: "BEATING FIELD · binaural interference",
+  tuningManuscript: "TUNING MANUSCRIPT · interval score",
+  granularWeather: "GRANULAR WEATHER · dust field",
+  petroglyphs: "PETROGLYPHS",
+  feedbackTunnelBW: "FEEDBACK TUNNEL · B&W",
 };
 
 export interface AudioFrame {
@@ -171,6 +206,21 @@ export interface AudioFrame {
   spectrum: Float32Array; // 32 normalized bins, 0..1
   waveform?: Uint8Array;  // raw time-domain data (128 = silence)
 }
+
+/** Active voice identities passed by MeditateView. Each entry is the
+ *  effective level of that voice (0 when inactive, its mixer level
+ *  otherwise). `resonantBody` blends per-voice anatomy from this;
+ *  other visualizers ignore it. Undefined when engine is unavailable. */
+export type VoiceWeights = {
+  tanpura: number;
+  reed: number;
+  metal: number;
+  air: number;
+  piano: number;
+  fm: number;
+  amp: number;
+  noise: number;
+};
 
 export interface PhaseClock {
   t: number;     // seconds since mount
@@ -207,6 +257,9 @@ export interface PhaseClock {
    *  this so the fade rate is framerate-independent. Falls back to
    *  1 when the caller didn't populate it. */
   dtScale?: number;
+  /** Per-voice weights 0..1. `resonantBody` blends anatomy silhouettes
+   *  from these. Undefined when no engine is wired (tests, silence). */
+  voices?: VoiceWeights;
 }
 
 // ── Shared colour helpers (ember-leaning but drifting) ─────────────
@@ -1400,7 +1453,6 @@ export const VISUALIZER_FNS: Record<
   flowField: drawFlowField,
   waveformRing: drawWaveformRing,
   feedbackTunnel: drawFeedbackTunnel,
-  feedbackTunnelBW: drawFeedbackTunnelBW,
   ironFilings: drawIronFilings,
   sediment: drawSediment,
   prayerRug: drawPrayerRug,
@@ -1414,6 +1466,14 @@ export const VISUALIZER_FNS: Record<
   crystalLattice: drawCrystalLattice,
   halftone: drawHalftone,
   halftoneClassic: drawHalftoneClassic,
+  resonantBody: drawResonantBody,
+  tapeDecay: drawTapeDecay,
+  voidMonolith: drawVoidMonolith,
+  beatingField: drawBeatingField,
+  tuningManuscript: drawTuningManuscript,
+  granularWeather: drawGranularWeather,
+  petroglyphs: drawPetroglyphs,
+  feedbackTunnelBW: drawFeedbackTunnelBW,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2041,9 +2101,13 @@ function flowNoise(x: number, y: number): number {
   const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
+// Flow-field particle (band tag picks palette: 0=low/copper, 1=mid/
+// bone, 2=high/ash). emitter flag marks particles spawned from the
+// peak-triggered central source so we can style them brighter.
 const flowParticles: {
   x: number; y: number; px: number; py: number;
   life: number; maxLife: number; size: number;
+  band: 0 | 1 | 2; emitter: boolean;
 }[] = [];
 let flowPeakFlash = 0;
 let prevFlowPeak = 0;
@@ -2067,6 +2131,17 @@ export function drawFlowField(
   prevFlowPeak = a.peak;
   flowPeakFlash *= 0.92;
 
+  // ── Band split — drives per-particle palette / spawn weight
+  let low = 0, mid = 0, high = 0;
+  for (let i = 0; i < 8; i++) low += a.spectrum[i] ?? 0;
+  for (let i = 8; i < 20; i++) mid += a.spectrum[i] ?? 0;
+  for (let i = 20; i < 32; i++) high += a.spectrum[i] ?? 0;
+  low /= 8; mid /= 12; high /= 12;
+  const bandTotal = low + mid + high + 1e-6;
+  const wLow  = low  / bandTotal;
+  const wHigh = high / bandTotal;
+
+  // ── Pitch centroid as stronger directional pull (1.0 scaled, not 0.4)
   let pitchCx = 0, pitchCy = 0, pitchMass = 0;
   for (let i = 0; i < 12; i++) {
     const e = p.activePitches[i];
@@ -2076,30 +2151,60 @@ export function drawFlowField(
     pitchMass += e;
   }
   const pitchAng = pitchMass > 0.01 ? Math.atan2(pitchCy, pitchCx) : 0;
+  const pitchPull = Math.min(0.9, pitchMass * 0.7);
 
-  // Higher ceiling + stronger RMS gain for denser strokes.
+  // ── Spawning — denser strokes overall. Peak-triggered central
+  //    emitter bursts emit tight particle fans aimed outward.
   const spawnRate = rms * rms * 22 + 2;
-  for (let s = 0; s < spawnRate && flowParticles.length < 320; s++) {
-    const fromCentre = flowPeakFlash > 0.3 && Math.random() < 0.5;
+  for (let s = 0; s < spawnRate && flowParticles.length < 380; s++) {
+    const fromCentre = flowPeakFlash > 0.3 && Math.random() < 0.55;
     const x = fromCentre ? w / 2 : Math.random() * w;
     const y = fromCentre ? h / 2 : Math.random() * h;
+    // Band assignment — weighted by spectral shape so spectrum shows
+    // in the palette. Rolling the die in normalized band-weight space.
+    const r = Math.random();
+    const band: 0 | 1 | 2 = r < wLow ? 0 : r < (wLow + 0.4 + wHigh * 0.2) ? 1 : 2;
     flowParticles.push({
       x, y, px: x, py: y,
-      life: 0, maxLife: 160 + Math.random() * 200,
-      size: 0.6 + Math.random() * 1.6,
+      life: 0, maxLife: 140 + Math.random() * 220,
+      size: 0.5 + Math.random() * (band === 0 ? 2.0 : band === 1 ? 1.4 : 0.9),
+      band,
+      emitter: fromCentre,
     });
   }
 
+  // ── Curl noise — sample noise at two offset points and take a
+  //    finite-difference curl so the velocity field is divergence-
+  //    free (fluid-like, not radial). Much more "drone smoke" feel.
   const fieldScale = 0.004;
   const fieldSpeed = 0.4 + rms * 3.5 + flowPeakFlash * 2.5;
+  const eps = 0.0018;
   ctx.lineCap = "round";
   for (let i = flowParticles.length - 1; i >= 0; i--) {
     const fp = flowParticles[i];
     fp.px = fp.x; fp.py = fp.y;
-    const n = flowNoise(fp.x * fieldScale + time * 0.06, fp.y * fieldScale + time * 0.03);
-    const angle = n * Math.PI * 4 + time * 0.1 + pitchAng * 0.4;
-    fp.x += Math.cos(angle) * fieldSpeed;
-    fp.y += Math.sin(angle) * fieldSpeed;
+    const x0 = fp.x * fieldScale + time * 0.06;
+    const y0 = fp.y * fieldScale + time * 0.03;
+    // Curl noise: (∂ψ/∂y, −∂ψ/∂x) of a scalar potential ψ = flowNoise.
+    const na = flowNoise(x0, y0 + eps);
+    const nb = flowNoise(x0, y0 - eps);
+    const nc = flowNoise(x0 + eps, y0);
+    const nd = flowNoise(x0 - eps, y0);
+    let vx = (na - nb) / (2 * eps);
+    let vy = -(nc - nd) / (2 * eps);
+    // Normalize and rotate by pitch centroid angle
+    const vl = Math.hypot(vx, vy) + 1e-6;
+    vx /= vl; vy /= vl;
+    // Blend with pitch-pull direction
+    if (pitchPull > 0) {
+      const px = Math.cos(pitchAng), py = Math.sin(pitchAng);
+      vx = vx * (1 - pitchPull) + px * pitchPull;
+      vy = vy * (1 - pitchPull) + py * pitchPull;
+      const vl2 = Math.hypot(vx, vy) + 1e-6;
+      vx /= vl2; vy /= vl2;
+    }
+    fp.x += vx * fieldSpeed;
+    fp.y += vy * fieldSpeed;
     fp.life++;
     if (fp.life >= fp.maxLife || fp.x < -10 || fp.x > w + 10 || fp.y < -10 || fp.y > h + 10) {
       flowParticles.splice(i, 1);
@@ -2107,15 +2212,39 @@ export function drawFlowField(
     }
     const t = fp.life / fp.maxLife;
     const alpha = (t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1);
-    // White ink strokes on dark background. Thickness responds to
-    // RMS + peak so loud drones inscribe boldly, quiet ones whisper.
-    const gray = 210 + Math.round(rms * 40 + flowPeakFlash * 15);
-    ctx.strokeStyle = `rgba(${gray},${gray},${gray},${alpha * (0.35 + rms * 0.6)})`;
-    ctx.lineWidth = fp.size + rms * 1.6 + flowPeakFlash * 1.2;
+    // Band → palette. Copper/ember for lows, bone for mids, ash-grey
+    // for highs. Emitter particles are always warmer + brighter.
+    let r255: number, g255: number, b255: number;
+    if (fp.emitter) {
+      r255 = 245; g255 = 210; b255 = 160;
+    } else if (fp.band === 0) {
+      r255 = 190 + Math.round(low * 45); g255 = 135 + Math.round(low * 25); b255 = 90;
+    } else if (fp.band === 1) {
+      r255 = 210 + Math.round(mid * 35); g255 = 196 + Math.round(mid * 30); b255 = 170 + Math.round(mid * 20);
+    } else {
+      const gy = 180 + Math.round(high * 60);
+      r255 = gy; g255 = gy; b255 = gy - 12;
+    }
+    ctx.strokeStyle = `rgba(${r255},${g255},${b255},${alpha * (0.32 + rms * 0.65 + (fp.emitter ? 0.2 : 0))})`;
+    ctx.lineWidth = fp.size + rms * 1.4 + flowPeakFlash * 1.2 + (fp.emitter ? 0.4 : 0);
     ctx.beginPath();
     ctx.moveTo(fp.px, fp.py);
     ctx.lineTo(fp.x, fp.y);
     ctx.stroke();
+  }
+
+  // ── Pitch-centroid anchor — a faint glyph at the centroid location,
+  //    visible only when mass > 0. Anchors the flow to a point so the
+  //    visualizer reads as "wind around a held note", not formless.
+  if (pitchMass > 0.15) {
+    const cx = w / 2 + Math.cos(pitchAng) * Math.min(w, h) * 0.22;
+    const cy = h / 2 + Math.sin(pitchAng) * Math.min(w, h) * 0.22;
+    const ar = 4 + pitchMass * 4;
+    const ag = ctx.createRadialGradient(cx, cy, 0, cx, cy, ar * 4);
+    ag.addColorStop(0, `hsla(28, 60%, 60%, ${Math.min(0.35, pitchMass * 0.25)})`);
+    ag.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = ag;
+    ctx.fillRect(cx - ar * 4, cy - ar * 4, ar * 8, ar * 8);
   }
 }
 
@@ -2301,83 +2430,6 @@ export function drawFeedbackTunnel(
   ctx.drawImage(feedbackCanvas, 0, 0);
 }
 
-// FEEDBACK TUNNEL · B&W — same accumulating-zoom mechanic as the
-// coloured version, but in pure grayscale. Kept alive by (a) a
-// warm off-white core (not sterile pure white), (b) a peak-triggered
-// central ring stamp, (c) a live vignette. Separate canvas so it
-// doesn't clobber the coloured tunnel's buffer.
-let feedbackBWCanvas: HTMLCanvasElement | null = null;
-let feedbackBWCtx: CanvasRenderingContext2D | null = null;
-export function drawFeedbackTunnelBW(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  if (!feedbackBWCanvas || feedbackBWCanvas.width !== w || feedbackBWCanvas.height !== h) {
-    feedbackBWCanvas = document.createElement("canvas");
-    feedbackBWCanvas.width = w;
-    feedbackBWCanvas.height = h;
-    feedbackBWCtx = feedbackBWCanvas.getContext("2d");
-    if (feedbackBWCtx) {
-      feedbackBWCtx.fillStyle = "#0a0a0a";
-      feedbackBWCtx.fillRect(0, 0, w, h);
-    }
-  }
-  const off = feedbackBWCtx;
-  if (!off || !feedbackBWCanvas) return;
-
-  off.fillStyle = `rgba(6, 6, 6, ${0.05 + a.rms * 0.04})`;
-  off.fillRect(0, 0, w, h);
-
-  off.save();
-  off.translate(w / 2, h / 2);
-  off.rotate(0.004 + a.rms * 0.008 + Math.sin(p.t * 0.07) * 0.002);
-  const zoom = 1.015 + a.rms * 0.01 + p.growth * 0.002;
-  off.scale(zoom, zoom);
-  off.translate(-w / 2, -h / 2);
-  off.globalAlpha = 0.9;
-  off.drawImage(feedbackBWCanvas, 0, 0);
-  off.globalAlpha = 1;
-  off.restore();
-
-  // Central pulse — warm off-white core (not sterile pure white) so
-  // the tunnel source reads as incandescent rather than digital.
-  const pulseR = Math.min(w, h) * (0.04 + a.peak * 0.1 + a.rms * 0.05);
-  const coreBright = Math.min(255, 230 + Math.round(a.peak * 25));
-  const midBright = 140 + Math.round(a.rms * 50);
-  const grad = off.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, pulseR * 3);
-  grad.addColorStop(0, `rgba(${coreBright}, ${coreBright}, ${Math.max(0, coreBright - 14)}, ${0.55 + a.peak * 0.4})`);
-  grad.addColorStop(0.5, `rgba(${midBright}, ${midBright}, ${Math.max(0, midBright - 8)}, ${0.22 + a.peak * 0.2})`);
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  off.fillStyle = grad;
-  off.fillRect(0, 0, w, h);
-
-  // Peak-triggered central ring — stamps a visible "source blink"
-  // into the feedback loop so transients propagate outward as
-  // concentric echoes.
-  if (a.peak > 0.3) {
-    off.strokeStyle = `rgba(255, 250, 240, ${a.peak * 0.6})`;
-    off.lineWidth = 1 + a.peak * 2;
-    off.beginPath();
-    off.arc(w / 2, h / 2, pulseR * 1.3, 0, Math.PI * 2);
-    off.stroke();
-  }
-
-  ctx.drawImage(feedbackBWCanvas, 0, 0);
-
-  // Live vignette — edge darkening so the tunnel throat reads as
-  // focal, not flat. Tightens on loud drones.
-  const vign = ctx.createRadialGradient(
-    w / 2, h / 2, Math.min(w, h) * 0.3,
-    w / 2, h / 2, Math.max(w, h) * 0.6,
-  );
-  vign.addColorStop(0, "rgba(0,0,0,0)");
-  vign.addColorStop(1, `rgba(0,0,0,${0.3 + a.rms * 0.15})`);
-  ctx.fillStyle = vign;
-  ctx.fillRect(0, 0, w, h);
-}
 
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2916,9 +2968,11 @@ const GLYPH_STROKES: number[][][] = [
   [[-0.4, -1, 0.2, -0.2, -0.3, 0.1, 0.4, 1]],
   // 19 crescent (outer arc)
   [[0.4, -0.9, -0.2, -0.6, -0.6, 0, -0.2, 0.6, 0.4, 0.9]],
-  // 20 hexagram (two triangles)
-  [[-0.87, -0.5, 0.87, -0.5, 0, 1, -0.87, -0.5],
-   [-0.87, 0.5, 0.87, 0.5, 0, -1, -0.87, 0.5]],
+  // 20 psychic cross (vertical + three equal horizontal bars)
+  [[0, -1, 0, 1],
+   [-0.55, -0.45, 0.55, -0.45],
+   [-0.55, 0, 0.55, 0],
+   [-0.55, 0.45, 0.55, 0.45]],
   // 21 eight-ray star (cross + X)
   [[0, -1, 0, 1], [-1, 0, 1, 0],
    [-0.7, -0.7, 0.7, 0.7], [-0.7, 0.7, 0.7, -0.7]],
@@ -3709,4 +3763,2012 @@ export function drawMirrorGlyphs(
   }
 
   ctx.drawImage(mgCanvas!, 0, 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// NEW VISUALIZERS (2026-04 wave) — resonantBody, tapeDecay,
+// voidMonolith, beatingField, tuningManuscript, granularWeather,
+// feedbackTunnelBW. All follow the ember/copper/bone palette and
+// accrete slowly; no rainbow spectra, no neon glow.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────
+// RESONANT BODY — instrument anatomy blend. Each active voice layer
+// contributes a silhouette weighted by its mixer level. Draws on a
+// persistent offscreen so repeated passes deepen the ink; we wash the
+// buffer each frame with a faint dark overlay so silhouettes settle.
+// ─────────────────────────────────────────────────────────────────────
+let bodyCanvas: HTMLCanvasElement | null = null;
+let bodyCtx: CanvasRenderingContext2D | null = null;
+// Persistent per-voice reactive state — plucks/pings/rib-lights that
+// decay between peaks so transients show as visible events.
+const bodyTanpuraPluck = new Float32Array(4);
+const bodyTanpuraPhase = new Float32Array(4);
+const bodyMetalPing = new Float32Array(5);
+const bodyPianoRib = new Float32Array(7);
+const bodyAmpPulse = new Float32Array(1);
+const bodyReedAperture = new Float32Array(1);
+// Air wisps: x,y,vy,life (persistent, respawn from bottom)
+const BODY_WISP_N = 18;
+const bodyWisps = new Float32Array(BODY_WISP_N * 4);
+let bodyWispsInit = false;
+let bodyPrevPeak = 0;
+let bodyFmPhase = 0;
+
+export function drawResonantBody(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  if (!bodyCanvas || bodyCanvas.width !== w || bodyCanvas.height !== h) {
+    bodyCanvas = document.createElement("canvas");
+    bodyCanvas.width = w; bodyCanvas.height = h;
+    bodyCtx = bodyCanvas.getContext("2d");
+    if (bodyCtx) { bodyCtx.fillStyle = "#0b0805"; bodyCtx.fillRect(0, 0, w, h); }
+  }
+  const off = bodyCtx!;
+  const dt = p.dtScale ?? 1;
+  // Wash modulated by rms — loud passages leave stronger ink, quiet
+  // passages clear faster so motion stays legible.
+  off.fillStyle = `rgba(11, 8, 5, ${(0.05 + a.rms * 0.12) * dt})`;
+  off.fillRect(0, 0, w, h);
+
+  const v = p.voices;
+  const cx = w / 2, cy = h / 2;
+  const R = Math.min(w, h) * 0.38;
+
+  // ── Spectral bands (single pass, shared by all voices) ───────────
+  let low = 0, mid = 0, high = 0;
+  for (let i = 0; i < 8; i++) low += a.spectrum[i] ?? 0;
+  for (let i = 8; i < 20; i++) mid += a.spectrum[i] ?? 0;
+  for (let i = 20; i < 32; i++) high += a.spectrum[i] ?? 0;
+  low /= 8; mid /= 12; high /= 12;
+
+  // ── Transient detection — rising edge on peak triggers events ────
+  const peakDelta = a.peak - bodyPrevPeak;
+  const transient = peakDelta > 0.08;
+  bodyPrevPeak = a.peak * 0.85 + bodyPrevPeak * 0.15;
+
+  // Silence baseline — faint bone ring breathing with rms
+  const baseRing = R * (1 + a.rms * 0.02 + Math.sin(p.t * 0.25) * 0.01);
+  off.strokeStyle = `rgba(190, 170, 140, ${0.06 + a.rms * 0.06})`;
+  off.lineWidth = 1;
+  off.beginPath();
+  off.arc(cx, cy, baseRing, 0, Math.PI * 2);
+  off.stroke();
+  if (!v) { ctx.drawImage(bodyCanvas, 0, 0); return; }
+
+  const rms = a.rms;
+
+  // Decay persistent excitations (framerate-independent)
+  for (let i = 0; i < 4; i++) {
+    bodyTanpuraPluck[i] *= Math.pow(0.94, dt);
+    bodyTanpuraPhase[i] += dt * (6 + i * 0.7);
+  }
+  for (let i = 0; i < 5; i++) bodyMetalPing[i] *= Math.pow(0.93, dt);
+  for (let i = 0; i < 7; i++) bodyPianoRib[i] *= Math.pow(0.92, dt);
+  bodyAmpPulse[0] *= Math.pow(0.88, dt);
+  bodyReedAperture[0] *= Math.pow(0.93, dt);
+
+  // TANPURA — 4 strings, transients pluck one. Pluck selection biased
+  // by active pitch class so the string that "fires" corresponds to
+  // whichever note just came in. Shape = travelling quadratic lobe
+  // whose amplitude = pluck energy.
+  if (v.tanpura > 0.02) {
+    const baseAl = v.tanpura * (0.28 + rms * 0.55);
+    if (transient) {
+      // Pick a string from loudest active pitch class
+      let pc = 0, best = 0;
+      for (let i = 0; i < 12; i++) if (p.activePitches[i] > best) { best = p.activePitches[i]; pc = i; }
+      const sIdx = pc % 4;
+      bodyTanpuraPluck[sIdx] = Math.max(bodyTanpuraPluck[sIdx], a.peak * (0.6 + v.tanpura * 0.5));
+    }
+    off.lineWidth = 1;
+    for (let s = 0; s < 4; s++) {
+      const x = cx + (s - 1.5) * (R * 0.18);
+      const pluck = bodyTanpuraPluck[s];
+      const ph = bodyTanpuraPhase[s];
+      const pluckWob = Math.sin(ph) * pluck * R * 0.18;
+      const breath = Math.sin(p.t * (0.9 + s * 0.11) + s) * (1.2 + low * 4);
+      const midY = cy + pluckWob;
+      // Brighter amber on loaded strings, tawny base otherwise
+      const gl = 0.5 + Math.min(0.45, pluck * 1.2);
+      off.strokeStyle = `rgba(${210 + Math.round(pluck * 40)}, ${170 + Math.round(pluck * 30)}, ${110 + Math.round(pluck * 20)}, ${baseAl * gl})`;
+      off.beginPath();
+      off.moveTo(x, cy - R);
+      off.quadraticCurveTo(x + breath + pluckWob, midY, x, cy + R);
+      off.stroke();
+    }
+    // Jawari bridge — brighter when any string is excited
+    const jh = cy + R * 0.62;
+    const pluckSum = bodyTanpuraPluck[0] + bodyTanpuraPluck[1] + bodyTanpuraPluck[2] + bodyTanpuraPluck[3];
+    off.fillStyle = `rgba(240, 205, 140, ${baseAl * (0.35 + Math.min(0.55, pluckSum * 0.4))})`;
+    off.fillRect(cx - R * 0.3, jh, R * 0.6, 1.2 + pluckSum * 1.2);
+  }
+
+  // REED — bellows breathe on rms; slat spread tied to mid band;
+  // aperture opens on transients and decays.
+  if (v.reed > 0.02) {
+    const baseAl = v.reed * (0.28 + rms * 0.5);
+    if (transient) bodyReedAperture[0] = Math.min(1, bodyReedAperture[0] + a.peak * 0.8);
+    off.strokeStyle = `rgba(200, 150, 100, ${baseAl})`;
+    off.lineWidth = 1;
+    const slats = 9;
+    const bx = cx - R * 0.8, by = cy - R * 0.25;
+    const bellowsW = R * 0.5;
+    // Breath cycle — RMS drives inhale depth, not just sine
+    const inhale = 0.85 + rms * 0.35 + Math.sin(p.t * 0.9) * 0.06;
+    for (let i = 0; i < slats; i++) {
+      const t = i / (slats - 1);
+      const spread = 1 + mid * 0.6;
+      const y = by + t * R * 0.5 * inhale * spread;
+      const ax = (Math.sin(p.t * 1.4 + t * 3) * mid * bellowsW * 0.06);
+      off.beginPath();
+      off.moveTo(bx + ax, y);
+      off.lineTo(bx + bellowsW - ax, y);
+      off.stroke();
+    }
+    // Aperture — ring + filled dot whose radius spikes on transient
+    const apBase = R * 0.06 * (0.85 + rms * 0.4);
+    const apR = apBase * (1 + bodyReedAperture[0] * 1.6);
+    off.strokeStyle = `rgba(230, 180, 120, ${baseAl * (0.7 + bodyReedAperture[0] * 0.3)})`;
+    off.lineWidth = 1;
+    off.beginPath(); off.arc(cx + R * 0.1, cy, apR, 0, Math.PI * 2); off.stroke();
+    if (bodyReedAperture[0] > 0.15) {
+      off.fillStyle = `rgba(245, 210, 150, ${bodyReedAperture[0] * 0.5 * baseAl})`;
+      off.beginPath(); off.arc(cx + R * 0.1, cy, apR * 0.4, 0, Math.PI * 2); off.fill();
+    }
+  }
+
+  // METAL — 5 bowl rings. Transient pings a ring chosen by spectral
+  // centroid (low=inner, high=outer). Pinged ring radius+brightness
+  // briefly swells. Silent rings very faint.
+  if (v.metal > 0.02) {
+    const baseAl = v.metal * (0.25 + rms * 0.55);
+    if (transient) {
+      const brightness = (low + mid + high) > 1e-3
+        ? high / (low + mid + high + 1e-6) : 0.5;
+      const idx = Math.max(0, Math.min(4, Math.floor(brightness * 5)));
+      bodyMetalPing[idx] = Math.min(1, bodyMetalPing[idx] + a.peak * 0.9);
+    }
+    off.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const ping = bodyMetalPing[i];
+      const rr = R * (0.2 + (i / 5) * 0.72) * (1 + ping * 0.12 + Math.sin(p.t * 0.8 + i) * 0.01);
+      off.strokeStyle = `rgba(${170 + Math.round(ping * 40)}, ${195 + Math.round(ping * 30)}, ${205 + Math.round(ping * 30)}, ${baseAl * (0.45 + ping * 0.55)})`;
+      off.lineWidth = 0.8 + ping * 1.4;
+      off.beginPath();
+      off.arc(cx, cy, rr, 0, Math.PI * 2);
+      off.stroke();
+    }
+  }
+
+  // AIR — pipe + persistent wisps with audio-driven spawn rate and
+  // speed. Wisps rise, wrap around; high-band energy thickens the
+  // column of wisps, rms speeds them.
+  if (v.air > 0.02) {
+    const baseAl = v.air * (0.28 + rms * 0.5);
+    const px = cx + R * 0.6;
+    // Column — lateral tremble tied to rms
+    off.strokeStyle = `rgba(200, 210, 200, ${baseAl})`;
+    off.lineWidth = 1;
+    off.beginPath();
+    const trem = Math.sin(p.t * 4) * rms * 1.4;
+    off.moveTo(px + trem, cy - R * 0.85);
+    off.lineTo(px - trem, cy + R * 0.85);
+    off.stroke();
+    // Init wisps
+    if (!bodyWispsInit) {
+      for (let i = 0; i < BODY_WISP_N; i++) {
+        const o = i * 4;
+        bodyWisps[o] = px + (Math.random() - 0.5) * 8;
+        bodyWisps[o + 1] = cy + (Math.random() - 0.5) * R * 1.6;
+        bodyWisps[o + 2] = 0.5 + Math.random() * 0.8;
+        bodyWisps[o + 3] = Math.random();
+      }
+      bodyWispsInit = true;
+    }
+    const visible = Math.floor(BODY_WISP_N * (0.3 + v.air * 0.4 + high * 1.2));
+    const rise = 0.8 + rms * 3.2 + high * 2.0;
+    off.strokeStyle = `rgba(210, 220, 210, ${baseAl * 0.6})`;
+    off.lineWidth = 0.8;
+    for (let i = 0; i < Math.min(visible, BODY_WISP_N); i++) {
+      const o = i * 4;
+      bodyWisps[o + 1] -= bodyWisps[o + 2] * rise;
+      if (bodyWisps[o + 1] < cy - R * 0.9) {
+        bodyWisps[o] = px + (Math.random() - 0.5) * 10;
+        bodyWisps[o + 1] = cy + R * 0.9;
+        bodyWisps[o + 2] = 0.5 + Math.random() * 0.8;
+      }
+      const wx = bodyWisps[o] + Math.sin(bodyWisps[o + 1] * 0.08 + p.t) * 1.5;
+      off.beginPath();
+      off.moveTo(wx, bodyWisps[o + 1]);
+      off.lineTo(wx + 4, bodyWisps[o + 1] - 5);
+      off.stroke();
+    }
+  }
+
+  // PIANO — ribs light up from low→high: each rib is tied to a
+  // spectrum band. Peak articulation boosts the loudest band's rib.
+  if (v.piano > 0.02) {
+    const baseAl = v.piano * (0.28 + rms * 0.5);
+    const ribs = 7;
+    // Bind ribs to spectrum thirds
+    const bandVals = [
+      a.spectrum[2] ?? 0, a.spectrum[5] ?? 0, a.spectrum[9] ?? 0,
+      a.spectrum[13] ?? 0, a.spectrum[18] ?? 0, a.spectrum[23] ?? 0, a.spectrum[28] ?? 0,
+    ];
+    if (transient) {
+      let bestI = 0, bestV = 0;
+      for (let i = 0; i < 7; i++) if (bandVals[i] > bestV) { bestV = bandVals[i]; bestI = i; }
+      bodyPianoRib[bestI] = Math.min(1, bodyPianoRib[bestI] + a.peak * 0.9);
+    }
+    off.lineWidth = 0.8;
+    for (let i = 0; i < ribs; i++) {
+      const ry = cy - R * 0.4 + (i / (ribs - 1)) * R * 0.8;
+      const lit = Math.min(1, bandVals[i] * 2.2 + bodyPianoRib[i]);
+      off.strokeStyle = `rgba(${180 + Math.round(lit * 50)}, ${150 + Math.round(lit * 40)}, ${120 + Math.round(lit * 25)}, ${baseAl * (0.4 + lit * 0.6)})`;
+      off.lineWidth = 0.7 + lit * 1.2;
+      off.beginPath();
+      off.moveTo(cx - R * 0.8, ry);
+      off.lineTo(cx + R * 0.8, ry);
+      off.stroke();
+    }
+  }
+
+  // FM — carrier orbit speed tracks low band (fundamental energy);
+  // modulator orbit speed tracks high band (inharmonic sidebands);
+  // radii track rms. Connector brightens on peaks (sidebanding).
+  if (v.fm > 0.02) {
+    const baseAl = v.fm * (0.32 + rms * 0.5);
+    const carrierRate = 0.3 + low * 3.0;
+    const modRate = 0.6 + high * 6.0;
+    bodyFmPhase += dt * 0.02;
+    const orbC = R * (0.22 + rms * 0.1);
+    const orbM = R * (0.3 + mid * 0.25);
+    const ax = p.t * carrierRate + bodyFmPhase;
+    const bx = p.t * modRate * 1.7 + bodyFmPhase;
+    const cx2 = cx + Math.cos(ax) * orbC;
+    const cy2 = cy + Math.sin(ax) * orbC;
+    const mx = cx + Math.cos(bx) * orbM;
+    const my = cy + Math.sin(bx) * orbM;
+    off.strokeStyle = `rgba(210, 160, 100, ${baseAl * (0.7 + a.peak * 0.3)})`;
+    off.lineWidth = 1 + a.peak * 0.8;
+    off.beginPath(); off.arc(cx2, cy2, R * (0.08 + rms * 0.04), 0, Math.PI * 2); off.stroke();
+    off.strokeStyle = `rgba(160, 180, 210, ${baseAl * (0.65 + high * 0.4)})`;
+    off.beginPath(); off.arc(mx, my, R * (0.06 + high * 0.08), 0, Math.PI * 2); off.stroke();
+    off.strokeStyle = `rgba(200, 180, 140, ${baseAl * (0.15 + a.peak * 0.45)})`;
+    off.lineWidth = 0.7 + a.peak;
+    off.beginPath(); off.moveTo(cx2, cy2); off.lineTo(mx, my); off.stroke();
+    // Faint carrier/modulator orbit traces
+    off.strokeStyle = `rgba(190, 170, 140, ${baseAl * 0.12})`;
+    off.lineWidth = 0.5;
+    off.beginPath(); off.arc(cx, cy, orbC, 0, Math.PI * 2); off.stroke();
+    off.beginPath(); off.arc(cx, cy, orbM, 0, Math.PI * 2); off.stroke();
+  }
+
+  // AMP — speaker cone swells with rms, peak triggers a radiating
+  // shockwave ring. Cabinet vertical resonance line on strong lows.
+  if (v.amp > 0.02) {
+    const baseAl = v.amp * (0.3 + rms * 0.55);
+    if (transient) bodyAmpPulse[0] = Math.min(1, bodyAmpPulse[0] + a.peak);
+    const acx = cx - R * 0.3;
+    const acy = cy + R * 0.25;
+    const coneR = R * (0.22 + rms * 0.14 + bodyAmpPulse[0] * 0.18);
+    off.strokeStyle = `rgba(180, 130, 90, ${baseAl})`;
+    off.lineWidth = 1.2 + bodyAmpPulse[0] * 1.2;
+    off.beginPath(); off.arc(acx, acy, coneR, 0, Math.PI * 2); off.stroke();
+    off.lineWidth = 0.7;
+    off.beginPath(); off.arc(acx, acy, coneR * 0.55, 0, Math.PI * 2); off.stroke();
+    // Shockwave — drawn at coneR * (1 + pulse * 1.5), fades as pulse decays
+    if (bodyAmpPulse[0] > 0.05) {
+      off.strokeStyle = `rgba(230, 170, 110, ${bodyAmpPulse[0] * 0.55})`;
+      off.lineWidth = 0.9;
+      off.beginPath(); off.arc(acx, acy, coneR * (1 + bodyAmpPulse[0] * 1.6), 0, Math.PI * 2); off.stroke();
+    }
+    // Cabinet low resonance vertical when lows are hot
+    if (low > 0.25) {
+      off.strokeStyle = `rgba(160, 110, 70, ${baseAl * low * 0.8})`;
+      off.lineWidth = 0.8;
+      off.beginPath();
+      off.moveTo(acx - coneR * 1.15, acy - coneR * 1.1);
+      off.lineTo(acx - coneR * 1.15, acy + coneR * 1.1);
+      off.stroke();
+    }
+  }
+
+  // NOISE — density tracks high-band, scatter radius tracks rms.
+  // Transients place a dense cluster to mark excitation.
+  if (v.noise > 0.02) {
+    const baseAl = v.noise * (0.35 + rms * 0.45);
+    const grains = Math.floor(40 + v.noise * 40 + high * 120);
+    off.fillStyle = `rgba(200, 180, 150, ${baseAl * 0.5})`;
+    for (let i = 0; i < grains; i++) {
+      off.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+    }
+    if (transient) {
+      off.fillStyle = `rgba(235, 210, 170, ${a.peak * 0.6 * baseAl})`;
+      const clx = Math.random() * w;
+      const cly = Math.random() * h;
+      for (let i = 0; i < 30 + Math.floor(a.peak * 30); i++) {
+        off.fillRect(clx + (Math.random() - 0.5) * 20, cly + (Math.random() - 0.5) * 20, 1, 1);
+      }
+    }
+  }
+
+  ctx.drawImage(bodyCanvas, 0, 0);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────
+// TAPE DECAY — archival oxide degradation. Offscreen loop buffer that
+// accumulates scars, splice seams, dropout specks, and slow scan
+// bands. Not glitchy EDM — feels archival, like a long loop losing
+// magnetization over hours.
+// ─────────────────────────────────────────────────────────────────────
+let tapeCanvas: HTMLCanvasElement | null = null;
+let tapeCtx: CanvasRenderingContext2D | null = null;
+let tapeSeamPhase = 0;
+export function drawTapeDecay(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  if (!tapeCanvas || tapeCanvas.width !== w || tapeCanvas.height !== h) {
+    tapeCanvas = document.createElement("canvas");
+    tapeCanvas.width = w; tapeCanvas.height = h;
+    tapeCtx = tapeCanvas.getContext("2d");
+    if (tapeCtx) { tapeCtx.fillStyle = "#0e0a07"; tapeCtx.fillRect(0, 0, w, h); }
+  }
+  const off = tapeCtx!;
+  const dt = p.dtScale ?? 1;
+  // Very slow fade — damage persists minutes, not seconds.
+  off.fillStyle = `rgba(14, 10, 7, ${0.018 * dt})`;
+  off.fillRect(0, 0, w, h);
+
+  // Base oxide bands — horizontal streaks, spectral energy scars them
+  const bands = 40;
+  const bandH = h / bands;
+  for (let i = 0; i < bands; i++) {
+    const u = i / bands;
+    const bin = Math.min(31, Math.floor(u * 32));
+    const e = a.spectrum[bin] ?? 0;
+    if (e < 0.06) continue;
+    const y = i * bandH + Math.random() * bandH;
+    const alpha = 0.04 + e * 0.12;
+    const hue = 25 + p.mood.warmth * 12;
+    const lig = 30 + e * 30;
+    off.fillStyle = `hsla(${hue}, ${40 + e * 25}%, ${lig}%, ${alpha})`;
+    const segs = 1 + Math.floor(e * 4);
+    for (let s = 0; s < segs; s++) {
+      const x = Math.random() * w;
+      const len = 20 + Math.random() * 180 * e;
+      off.fillRect(x, y, len, 1);
+    }
+  }
+
+  // Loop seam — a vertical line slowly travelling across the tape
+  // (one "pass" every ~45 s). Each pass stamps a brighter scar where
+  // the splice is, so older passes show as dimmer ghost seams.
+  tapeSeamPhase += (0.006 + a.rms * 0.012) * dt;
+  if (tapeSeamPhase > 1) tapeSeamPhase -= 1;
+  const seamX = tapeSeamPhase * w;
+  off.fillStyle = `rgba(220, 180, 130, ${0.12 + a.peak * 0.2})`;
+  off.fillRect(seamX, 0, 1, h);
+
+  // Dropout constellations — tiny bright specks that remain in place
+  const drops = 2 + Math.floor(a.peak * 8);
+  for (let i = 0; i < drops; i++) {
+    off.fillStyle = `rgba(235, 210, 170, ${0.35 + Math.random() * 0.25})`;
+    off.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+  }
+
+  // Occasional degraded scan band — a slow wide horizontal sweep
+  if (p.growth > 0.2) {
+    const bandY = (Math.sin(p.t * 0.03) * 0.5 + 0.5) * h;
+    const bandHigh = h * 0.04;
+    const bg = off.createLinearGradient(0, bandY - bandHigh, 0, bandY + bandHigh);
+    bg.addColorStop(0, "rgba(0,0,0,0)");
+    bg.addColorStop(0.5, `rgba(180, 140, 90, ${0.08 * p.growth})`);
+    bg.addColorStop(1, "rgba(0,0,0,0)");
+    off.fillStyle = bg;
+    off.fillRect(0, bandY - bandHigh, w, bandHigh * 2);
+  }
+
+  ctx.drawImage(tapeCanvas, 0, 0);
+  // Live grain on top — very fine live noise
+  ctx.fillStyle = "rgba(200, 170, 130, 0.02)";
+  for (let i = 0; i < 60; i++) ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// VOID MONOLITH — a tall dark slab under standing-wave pressure.
+// Slab width breathes with low-band energy. Standing-wave nodes along
+// the slab brighten at y-positions of active pitch classes. Transients
+// emit horizontal shockwave rings across the field and send travelling
+// pulses down the slab. Pointer/hover raises pressure ripples at the
+// cursor X so the canvas reads as responsive to touch.
+// Still the quietest visualizer — huge negative space, but alive.
+// ─────────────────────────────────────────────────────────────────────
+const VOID_WAVE_N = 6;
+const voidWaves = new Float32Array(VOID_WAVE_N * 2);       // y, life
+let voidWaveCursor = 0;
+const VOID_SHOCK_N = 5;
+const voidShocks = new Float32Array(VOID_SHOCK_N * 2);     // radius (px), life
+let voidShockCursor = 0;
+const VOID_CRACK_N = 3;
+const voidCracks = new Float32Array(VOID_CRACK_N * 2);     // y-norm, life
+let voidCrackCursor = 0;
+// Pointer ripples — hover leaves faint waves at the cursor X.
+const VOID_POINTER_N = 4;
+const voidPointerRipples = new Float32Array(VOID_POINTER_N * 3); // xNorm, radius, life
+let voidPointerCursor = 0;
+let voidPointerDownPrev = false;
+let voidPointerLastSpawn = 0;
+// Sparse falling dust — a handful of grains drifting down the field.
+const VOID_DUST_N = 28;
+const voidDust = new Float32Array(VOID_DUST_N * 3); // x, y, vy
+let voidDustInit = false;
+let voidEmberGlow = 0;
+let voidPrevPeak = 0;
+
+export function drawVoidMonolith(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  const dt = p.dtScale ?? 1;
+  ctx.fillStyle = "#050302";
+  ctx.fillRect(0, 0, w, h);
+
+  // Spectral bands — low governs monolith width, mid governs travelling
+  // pulse speed, high governs dust density and pointer-ripple colour.
+  let low = 0, mid = 0, high = 0;
+  for (let i = 0; i < 8; i++) low += a.spectrum[i] ?? 0;
+  for (let i = 8; i < 20; i++) mid += a.spectrum[i] ?? 0;
+  for (let i = 20; i < 32; i++) high += a.spectrum[i] ?? 0;
+  low /= 8; mid /= 12; high /= 12;
+
+  // Transient detection with hysteresis
+  const peakDelta = a.peak - voidPrevPeak;
+  const transient = peakDelta > 0.09;
+  voidPrevPeak = a.peak * 0.85 + voidPrevPeak * 0.15;
+
+  // ── Event spawns ───────────────────────────────────────────────
+  if (transient) {
+    voidWaves[voidWaveCursor * 2] = 0;
+    voidWaves[voidWaveCursor * 2 + 1] = 1;
+    voidWaveCursor = (voidWaveCursor + 1) % VOID_WAVE_N;
+    voidEmberGlow = Math.min(1, voidEmberGlow + a.peak * 0.9);
+    if (a.peak > 0.3) {
+      // Horizontal shockwave ring — crosses the field, fades
+      voidShocks[voidShockCursor * 2] = 0;
+      voidShocks[voidShockCursor * 2 + 1] = Math.min(1, 0.4 + a.peak);
+      voidShockCursor = (voidShockCursor + 1) % VOID_SHOCK_N;
+    }
+    if (a.peak > 0.5) {
+      voidCracks[voidCrackCursor * 2] = Math.random();
+      voidCracks[voidCrackCursor * 2 + 1] = 1;
+      voidCrackCursor = (voidCrackCursor + 1) % VOID_CRACK_N;
+    }
+  }
+  voidEmberGlow *= Math.pow(0.94, dt);
+
+  // Pointer interaction — hover spawns faint ripples at cursor X
+  // (rate-limited); pointerDown latches a stronger ripple.
+  if (p.pointer) {
+    voidPointerLastSpawn -= dt;
+    const spawnThresh = p.pointerDown ? 6 : 22;
+    if (voidPointerLastSpawn <= 0) {
+      voidPointerRipples[voidPointerCursor * 3] = p.pointer.x;
+      voidPointerRipples[voidPointerCursor * 3 + 1] = 0;
+      voidPointerRipples[voidPointerCursor * 3 + 2] = p.pointerDown ? 1 : 0.5;
+      voidPointerCursor = (voidPointerCursor + 1) % VOID_POINTER_N;
+      voidPointerLastSpawn = spawnThresh;
+    }
+    // Release click → add a small peak boost (tactile)
+    if (!voidPointerDownPrev && p.pointerDown) {
+      voidEmberGlow = Math.min(1, voidEmberGlow + 0.35);
+    }
+  }
+  voidPointerDownPrev = p.pointerDown;
+
+  // ── Monolith slab — vertical narrow rectangle. Width breathes with
+  //    low-band; right edge fills slightly brighter (amber rim).
+  const mx = w * 0.38 + Math.sin(p.t * 0.05) * 2;
+  const topY = h * 0.08;
+  const botY = h * 0.92;
+  const lineH = botY - topY;
+  const slabW = 1.6 + low * 5.6 + a.rms * 2.2;
+  const slabAl = 0.08 + low * 0.3 + a.rms * 0.12;
+  // Body
+  ctx.fillStyle = `rgba(40, 34, 26, ${slabAl})`;
+  ctx.fillRect(mx - slabW / 2, topY, slabW, lineH);
+  // Amber rim (right edge)
+  ctx.fillStyle = `rgba(180, 160, 130, ${slabAl * 1.8})`;
+  ctx.fillRect(mx + slabW / 2 - 0.7, topY, 0.7, lineH);
+  // Cool rim (left edge)
+  ctx.fillStyle = `rgba(110, 100, 95, ${slabAl * 0.9})`;
+  ctx.fillRect(mx - slabW / 2, topY, 0.6, lineH);
+
+  // Buckling spine — a centre line running through the slab, sinusoid
+  // amplitude scales with low-band so strong subs warp the column.
+  const bend = low * 14 + a.rms * 6;
+  ctx.strokeStyle = `rgba(200, 180, 150, ${0.22 + low * 0.5})`;
+  ctx.lineWidth = 0.8 + low * 0.8;
+  ctx.beginPath();
+  const SEGS = 24;
+  for (let s = 0; s <= SEGS; s++) {
+    const t = s / SEGS;
+    const y = topY + t * lineH;
+    let x = mx + Math.sin(t * Math.PI * (1.5 + low * 2) + p.t * 0.3) * bend;
+    x += (Math.random() - 0.5) * a.peak * 0.8;
+    if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // ── Standing-wave nodes — for each lit pitch class, draw a small
+  //    bright dot on the slab at that pc's y-position. Dot radius +
+  //    brightness scale with pitch energy, so the chord is literally
+  //    etched onto the monolith.
+  for (let pc = 0; pc < 12; pc++) {
+    const e = p.activePitches[pc];
+    if (e < 0.1) continue;
+    const ty = topY + (pc / 11) * lineH;
+    const nx = mx + Math.sin((pc / 11) * Math.PI * (1.5 + low * 2) + p.t * 0.3) * bend;
+    const nr = 1.4 + e * 3.2 + a.peak * 1.5;
+    const ng = ctx.createRadialGradient(nx, ty, 0, nx, ty, nr * 3);
+    ng.addColorStop(0, `hsla(28, 70%, 70%, ${0.55 + e * 0.35})`);
+    ng.addColorStop(0.5, `hsla(22, 50%, 40%, ${e * 0.2})`);
+    ng.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = ng;
+    ctx.fillRect(nx - nr * 3, ty - nr * 3, nr * 6, nr * 6);
+    // Right-edge tick — all active pitches show, not just strongest
+    ctx.fillStyle = `rgba(170, 150, 120, ${0.3 + e * 0.5})`;
+    ctx.fillRect(w * 0.9, ty, 4 + e * 6, 1);
+  }
+
+  // ── Horizontal shockwave rings — ellipses centred on the slab,
+  //    expand outward across the canvas, fade. Loud peaks push rings
+  //    farther.
+  for (let i = 0; i < VOID_SHOCK_N; i++) {
+    const r = voidShocks[i * 2];
+    const life = voidShocks[i * 2 + 1];
+    if (life <= 0) continue;
+    const rx = r * w * 0.75;
+    const ry = r * h * 0.35;
+    ctx.strokeStyle = `rgba(180, 160, 130, ${life * 0.18})`;
+    ctx.lineWidth = 0.7 + life * 0.9;
+    ctx.beginPath();
+    ctx.ellipse(mx, h * 0.58, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    voidShocks[i * 2] += (0.010 + a.rms * 0.014) * dt;
+    voidShocks[i * 2 + 1] *= Math.pow(0.975, dt);
+  }
+
+  // ── Travelling pressure pulses along the slab (seismograph beads)
+  for (let i = 0; i < VOID_WAVE_N; i++) {
+    const life = voidWaves[i * 2 + 1];
+    if (life <= 0) continue;
+    const yNorm = voidWaves[i * 2];
+    const y = topY + yNorm * lineH;
+    const xAtY = mx + Math.sin(yNorm * Math.PI * (1.5 + low * 2) + p.t * 0.3) * bend;
+    const pulseH = 18 + life * 12;
+    const g = ctx.createLinearGradient(xAtY, y - pulseH, xAtY, y + pulseH);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(0.5, `rgba(230, 200, 160, ${life * 0.75})`);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 1.4 + life;
+    ctx.beginPath();
+    ctx.moveTo(xAtY, y - pulseH);
+    ctx.lineTo(xAtY, y + pulseH);
+    ctx.stroke();
+    voidWaves[i * 2] += (0.02 + mid * 0.05 + a.rms * 0.03) * dt;
+    voidWaves[i * 2 + 1] *= Math.pow(0.985, dt);
+    if (voidWaves[i * 2] > 1.05) voidWaves[i * 2 + 1] = 0;
+  }
+
+  // ── Horizontal pressure cracks — still rare, still quiet
+  for (let i = 0; i < VOID_CRACK_N; i++) {
+    const life = voidCracks[i * 2 + 1];
+    if (life <= 0) continue;
+    const y = topY + voidCracks[i * 2] * lineH;
+    ctx.strokeStyle = `rgba(170, 150, 120, ${life * 0.22})`;
+    ctx.lineWidth = 0.7;
+    const x0 = w * (0.12 + Math.random() * 0.04);
+    const x1 = w * (0.78 - Math.random() * 0.04);
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    ctx.lineTo(x1, y + (Math.random() - 0.5) * 0.8);
+    ctx.stroke();
+    voidCracks[i * 2 + 1] *= Math.pow(0.975, dt);
+  }
+
+  // ── Pointer ripples — concentric faint circles at cursor X. Colour
+  //    tint modulated by high-band so different drone colours feel
+  //    different to touch.
+  for (let i = 0; i < VOID_POINTER_N; i++) {
+    const life = voidPointerRipples[i * 3 + 2];
+    if (life <= 0) continue;
+    const xpx = voidPointerRipples[i * 3] * w;
+    const r = voidPointerRipples[i * 3 + 1];
+    const rpx = r * Math.max(w, h) * 0.45;
+    ctx.strokeStyle = `hsla(${26 + high * 8}, 45%, 55%, ${life * 0.18})`;
+    ctx.lineWidth = 0.7 + life * 0.6;
+    ctx.beginPath();
+    ctx.arc(xpx, h * 0.5, rpx, 0, Math.PI * 2);
+    ctx.stroke();
+    voidPointerRipples[i * 3 + 1] += 0.012 * dt;
+    voidPointerRipples[i * 3 + 2] *= Math.pow(0.965, dt);
+  }
+
+  // ── Ember — afterglow on peaks. Position nudged by rms.
+  const ex = w * 0.62 + Math.sin(p.t * 0.05) * 1.5;
+  const ey = h * 0.58 + Math.sin(p.t * 0.2) * 1.2 + a.rms * 2;
+  const er = 1.2 + a.peak * 2.2 + voidEmberGlow * 2.5;
+  const g = ctx.createRadialGradient(ex, ey, 0, ex, ey, er * 9);
+  g.addColorStop(0, `hsla(26, 80%, 65%, ${0.45 + voidEmberGlow * 0.4 + a.peak * 0.2})`);
+  g.addColorStop(0.5, `hsla(22, 60%, 35%, ${0.08 + voidEmberGlow * 0.12})`);
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(ex, ey, er * 9, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Rare arc — on strong transient with ember already glowing, a
+  //    faint filament connects the monolith to the ember. Fades fast.
+  if (voidEmberGlow > 0.35) {
+    const arcAl = (voidEmberGlow - 0.35) * 0.3;
+    ctx.strokeStyle = `rgba(220, 190, 150, ${arcAl})`;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(mx + slabW / 2, ey);
+    ctx.quadraticCurveTo((mx + ex) / 2, ey - 30 * voidEmberGlow, ex, ey);
+    ctx.stroke();
+  }
+
+  // ── Sparse falling dust — a few grains drifting down, barely
+  //    visible. Density scales with p.growth so it accrues over time.
+  if (!voidDustInit) {
+    for (let i = 0; i < VOID_DUST_N; i++) {
+      voidDust[i * 3] = Math.random() * w;
+      voidDust[i * 3 + 1] = Math.random() * h;
+      voidDust[i * 3 + 2] = 0.1 + Math.random() * 0.3;
+    }
+    voidDustInit = true;
+  }
+  const dustVisible = Math.floor(VOID_DUST_N * (0.3 + p.growth * 0.6));
+  ctx.fillStyle = `rgba(170, 150, 120, ${0.12 + high * 0.08})`;
+  for (let i = 0; i < dustVisible; i++) {
+    voidDust[i * 3 + 1] += voidDust[i * 3 + 2] * dt;
+    if (voidDust[i * 3 + 1] > h) {
+      voidDust[i * 3] = Math.random() * w;
+      voidDust[i * 3 + 1] = -2;
+    }
+    ctx.fillRect(voidDust[i * 3], voidDust[i * 3 + 1], 1, 1);
+  }
+
+  // ── Patience reward — second tiny ember after long view
+  if (p.growth > 0.7) {
+    const fade = (p.growth - 0.7) / 0.3;
+    const ex2 = w * 0.24;
+    const ey2 = h * 0.32;
+    const g2 = ctx.createRadialGradient(ex2, ey2, 0, ex2, ey2, 22);
+    g2.addColorStop(0, `hsla(30, 50%, 60%, ${0.18 * fade + voidEmberGlow * 0.1})`);
+    g2.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g2;
+    ctx.fillRect(ex2 - 22, ey2 - 22, 44, 44);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// BEATING FIELD — binaural / microtonal interference bands. Uses the
+// active pitch classes to drive slow beat frequencies; close pitches
+// produce visible slow moving bands, wide intervals produce stable
+// stripes. Feels drone-native, not FFT-reactive.
+// ─────────────────────────────────────────────────────────────────────
+export function drawBeatingField(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(6, 5, 4, 0.35)";
+  ctx.fillRect(0, 0, w, h);
+
+  // Sample the waveform crudely when available; otherwise fall back
+  // to a synthetic beat from active pitches.
+  const energies = p.activePitches;
+  // Gather up to 4 strongest pitch classes
+  const picks: { pc: number; e: number }[] = [];
+  for (let i = 0; i < 12; i++) {
+    if (energies[i] > 0.08) picks.push({ pc: i, e: energies[i] });
+  }
+  picks.sort((x, y) => y.e - x.e);
+  const active = picks.slice(0, 4);
+
+  // Render horizontal bands. The band intensity at row y is sum of
+  // cos(k_i * y + phi_i) across pitch classes — close pitches beat
+  // where their phases align and cancel, producing slow travelling
+  // stripes (that's exactly what binaural beating looks like).
+  const bandCount = 90;
+  const bandH = h / bandCount;
+  const hueBase = 28 + (p.mood.warmth - 0.5) * 18;
+
+  for (let i = 0; i < bandCount; i++) {
+    const y = i * bandH;
+    // Base pressure from rms so silent state still shows a faint field
+    let amp = 0.18 + a.rms * 0.4;
+    if (active.length === 0) {
+      amp *= 0.6 * (0.5 + 0.5 * Math.cos(i * 0.18 + p.t * 0.2));
+    } else {
+      let v = 0;
+      for (const pk of active) {
+        // Each pc maps to a spatial frequency and a slow phase drift.
+        // Incommensurate phases so interference truly beats.
+        const k = 0.08 + (pk.pc + 1) * 0.022;
+        const phi = p.t * (0.25 + pk.pc * 0.017);
+        v += Math.cos(k * i + phi) * pk.e;
+      }
+      amp *= 0.4 + Math.abs(v) * 0.6;
+    }
+    const lig = 14 + amp * 34;
+    ctx.fillStyle = `hsla(${hueBase + i * 0.05}, 28%, ${lig}%, 0.85)`;
+    ctx.fillRect(0, y, w, bandH + 1);
+  }
+
+  // Phantom centre seam — thin vertical line where in a binaural
+  // rig the "phantom image" would sit. Intensifies on peaks.
+  ctx.strokeStyle = `rgba(220, 180, 130, ${0.14 + a.peak * 0.35})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(w / 2, 0);
+  ctx.lineTo(w / 2, h);
+  ctx.stroke();
+
+  // Slow vignette
+  const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.2,
+                                      w / 2, h / 2, Math.max(w, h) * 0.7);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.45)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, w, h);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// TUNING MANUSCRIPT — ritual score of the current tuning. Unequal
+// horizontal rules (cents grid) on a dark parchment, ink marks where
+// active pitch classes sit, a few quiet numerals, drift lines tracing
+// interval motion. Accretes marks on the offscreen buffer so the
+// manuscript reads as written, not animated.
+// ─────────────────────────────────────────────────────────────────────
+let manuscriptCanvas: HTMLCanvasElement | null = null;
+let manuscriptCtx: CanvasRenderingContext2D | null = null;
+let manuscriptColX = 0;
+export function drawTuningManuscript(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  if (!manuscriptCanvas || manuscriptCanvas.width !== w || manuscriptCanvas.height !== h) {
+    manuscriptCanvas = document.createElement("canvas");
+    manuscriptCanvas.width = w; manuscriptCanvas.height = h;
+    manuscriptCtx = manuscriptCanvas.getContext("2d");
+    if (manuscriptCtx) {
+      manuscriptCtx.fillStyle = "#14100a"; // warm parchment-dark
+      manuscriptCtx.fillRect(0, 0, w, h);
+    }
+    manuscriptColX = 20;
+  }
+  const off = manuscriptCtx!;
+  // Very slow wash — older ink fades over minutes, not seconds.
+  off.fillStyle = "rgba(20, 16, 10, 0.008)";
+  off.fillRect(0, 0, w, h);
+
+  // Cents grid — 12 horizontal rules at pitch-class heights, spaced
+  // by cents (so minor seconds sit closer than tritone↔fifth). Rules
+  // are drawn every frame but very thin so they read as the paper
+  // ruling, not as active motion.
+  const topY = h * 0.12;
+  const botY = h * 0.88;
+  const span = botY - topY;
+  // Map pc 0..11 to cents 0..1100 position
+  for (let pc = 0; pc < 12; pc++) {
+    const y = topY + (pc / 11) * span;
+    off.strokeStyle = `rgba(190, 170, 140, ${0.06 + (pc % 5 === 0 ? 0.04 : 0)})`;
+    off.lineWidth = 0.6;
+    off.beginPath();
+    off.moveTo(30, y);
+    off.lineTo(w - 30, y);
+    off.stroke();
+  }
+
+  // Advance the ink column slowly — every ~3 seconds a new stroke
+  // column is written at the current X, and it wraps around when it
+  // hits the right margin.
+  const writeRate = 0.04 + a.rms * 0.12;
+  manuscriptColX += writeRate;
+  if (manuscriptColX > w - 20) manuscriptColX = 20;
+
+  // Ink marks — for each pitch class with energy > threshold, place
+  // a short horizontal tick at its rule, with jitter proportional to
+  // detune (we don't know exact cents here so we use peak as a stand-
+  // in for articulation strength).
+  const energies = p.activePitches;
+  for (let pc = 0; pc < 12; pc++) {
+    const e = energies[pc];
+    if (e < 0.08) continue;
+    const y = topY + (pc / 11) * span;
+    const len = 2 + e * 8;
+    const al = 0.25 + e * 0.4;
+    off.strokeStyle = `rgba(215, 180, 130, ${al})`;
+    off.lineWidth = 0.8 + e * 0.6;
+    // Jitter with peak so articulation feels hand-written
+    const jy = (a.peak - 0.5) * 1.2;
+    off.beginPath();
+    off.moveTo(manuscriptColX, y + jy);
+    off.lineTo(manuscriptColX + len, y + jy);
+    off.stroke();
+    // Occasional tiny dot above the tick — cents marking
+    if (e > 0.3 && Math.random() < 0.08) {
+      off.fillStyle = `rgba(215, 180, 130, ${al * 0.8})`;
+      off.fillRect(manuscriptColX + len - 1, y - 2, 1, 1);
+    }
+  }
+
+  // Interval traces — thin lines between consecutive active pitches,
+  // drawn occasionally so the manuscript gets interval curves on top
+  // of the ticks. Only when two or more classes are lit.
+  if (Math.random() < 0.06) {
+    const lit: number[] = [];
+    for (let pc = 0; pc < 12; pc++) if (energies[pc] > 0.15) lit.push(pc);
+    if (lit.length >= 2) {
+      off.strokeStyle = "rgba(200, 160, 120, 0.18)";
+      off.lineWidth = 0.7;
+      off.beginPath();
+      for (let i = 0; i < lit.length; i++) {
+        const y = topY + (lit[i] / 11) * span;
+        const x = manuscriptColX - 1 - i * 0.4;
+        if (i === 0) off.moveTo(x, y); else off.lineTo(x, y);
+      }
+      off.stroke();
+    }
+  }
+
+  ctx.drawImage(manuscriptCanvas, 0, 0);
+
+  // Vignette — parchment corners dim
+  const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35,
+                                      w / 2, h / 2, Math.max(w, h) * 0.8);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.5)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, w, h);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// GRANULAR WEATHER — suspended dust / falling ash / tape-floor grain.
+// Persistent particle pool; density + fall speed driven by rms and
+// spectral brightness. Stays close to ember/bone; no rainbow.
+// ─────────────────────────────────────────────────────────────────────
+// Two populations with very different physics:
+//  • ASH  — heavy grains, fall downward, density tracks low/mid band
+//           energy, size varies, brown/dusty palette
+//  • DUST — light grains, suspended (brownian), high-band fills the
+//           air with fine suspended particles
+//  • EMBERS — rare, triggered by peaks, rise upward and fade, warm
+// Also: a vertical rain curtain when rms is sustained high, a wind
+// field that gusts (low-freq noise, not fixed sine), and a floor
+// accretion stripe where heavy grains pile over time.
+const WEATHER_ASH_N = 240;
+const WEATHER_DUST_N = 160;
+const WEATHER_EMBER_N = 40;
+// ash: x, y, vy, life (life = seed 0..1)
+const weatherAsh = new Float32Array(WEATHER_ASH_N * 4);
+// dust: x, y, vx, vy
+const weatherDust = new Float32Array(WEATHER_DUST_N * 4);
+// embers: x, y, vy, life (life decays to 0)
+const weatherEmbers = new Float32Array(WEATHER_EMBER_N * 4);
+let weatherEmberCursor = 0;
+let weatherInit2 = false;
+let weatherPrevPeak = 0;
+// Wind field — low-pass random walk so gusts feel organic not sinusoidal
+let weatherWind = 0;
+let weatherWindTarget = 0;
+let weatherWindTimer = 0;
+// Accreted drift stripe on the floor, very faint — a bottom offscreen
+// that collects the darkest grains over time. Rendered as a gradient
+// whose height grows with p.growth.
+let weatherDriftCanvas: HTMLCanvasElement | null = null;
+let weatherDriftCtx: CanvasRenderingContext2D | null = null;
+
+export function drawGranularWeather(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  const dt = p.dtScale ?? 1;
+  // Background fade — quiet passages clear more, loud passages leave
+  // a richer atmosphere.
+  ctx.fillStyle = `rgba(8, 6, 4, ${0.28 + (1 - a.rms) * 0.12})`;
+  ctx.fillRect(0, 0, w, h);
+
+  // ── Bands + transient ───────────────────────────────────────────
+  let total = 0, low = 0, mid = 0, high = 0;
+  for (let i = 0; i < 32; i++) total += a.spectrum[i] ?? 0;
+  for (let i = 0; i < 8; i++) low += a.spectrum[i] ?? 0;
+  for (let i = 8; i < 20; i++) mid += a.spectrum[i] ?? 0;
+  for (let i = 20; i < 32; i++) high += a.spectrum[i] ?? 0;
+  low /= 8; mid /= 12; high /= 12;
+  const bright = total > 1e-4 ? Math.min(1, high / (total / 32) * 0.1) : 0;
+
+  const peakDelta = a.peak - weatherPrevPeak;
+  const transient = peakDelta > 0.1;
+  weatherPrevPeak = a.peak * 0.85 + weatherPrevPeak * 0.15;
+
+  // Init pools
+  if (!weatherInit2) {
+    for (let i = 0; i < WEATHER_ASH_N; i++) {
+      const o = i * 4;
+      weatherAsh[o] = Math.random() * w;
+      weatherAsh[o + 1] = Math.random() * h;
+      weatherAsh[o + 2] = 0.4 + Math.random() * 1.6;
+      weatherAsh[o + 3] = Math.random();
+    }
+    for (let i = 0; i < WEATHER_DUST_N; i++) {
+      const o = i * 4;
+      weatherDust[o] = Math.random() * w;
+      weatherDust[o + 1] = Math.random() * h;
+      weatherDust[o + 2] = (Math.random() - 0.5) * 0.4;
+      weatherDust[o + 3] = (Math.random() - 0.5) * 0.3;
+    }
+    for (let i = 0; i < WEATHER_EMBER_N; i++) weatherEmbers[i * 4 + 3] = 0;
+    weatherInit2 = true;
+  }
+
+  if (!weatherDriftCanvas || weatherDriftCanvas.width !== w || weatherDriftCanvas.height !== h) {
+    weatherDriftCanvas = document.createElement("canvas");
+    weatherDriftCanvas.width = w; weatherDriftCanvas.height = h;
+    weatherDriftCtx = weatherDriftCanvas.getContext("2d");
+  }
+
+  // ── Wind — low-pass random walk. Change target every ~4s or on
+  //    strong peaks, so weather feels mood-driven.
+  weatherWindTimer -= dt;
+  if (weatherWindTimer <= 0 || (transient && a.peak > 0.5)) {
+    weatherWindTarget = (Math.random() - 0.5) * 1.6 * (0.5 + a.rms);
+    weatherWindTimer = 180 + Math.random() * 260;
+  }
+  weatherWind += (weatherWindTarget - weatherWind) * 0.015 * dt;
+
+  const hueBase = 30 + (p.mood.warmth - 0.5) * 16 - bright * 8;
+
+  // ── ASH — falling heavy grains. Count visible scales with low+mid.
+  const ashVisible = Math.floor(WEATHER_ASH_N * (0.25 + (low + mid) * 0.6 + a.rms * 0.35));
+  const fallK = 0.6 + a.rms * 2.6 + low * 1.8 + mid * 1.0;
+  for (let i = 0; i < Math.min(ashVisible, WEATHER_ASH_N); i++) {
+    const o = i * 4;
+    weatherAsh[o + 1] += weatherAsh[o + 2] * fallK * dt;
+    weatherAsh[o] += weatherWind * weatherAsh[o + 2] * dt * 0.8;
+    if (weatherAsh[o + 1] > h) {
+      // Heavier grains occasionally deposit on the drift floor
+      if (weatherDriftCtx && Math.random() < 0.3 * weatherAsh[o + 3]) {
+        weatherDriftCtx.fillStyle = `rgba(80, 55, 35, 0.08)`;
+        weatherDriftCtx.fillRect(weatherAsh[o], h - Math.random() * Math.max(8, p.growth * 28), 1, 1);
+      }
+      weatherAsh[o] = Math.random() * w;
+      weatherAsh[o + 1] = -2;
+      weatherAsh[o + 2] = 0.4 + Math.random() * 1.6;
+      weatherAsh[o + 3] = Math.random();
+    }
+    if (weatherAsh[o] < 0) weatherAsh[o] += w;
+    else if (weatherAsh[o] > w) weatherAsh[o] -= w;
+    const life = weatherAsh[o + 3];
+    const sz = 0.7 + life * 2.0;
+    const al = 0.2 + life * 0.5 + a.rms * 0.2;
+    const lig = 28 + life * 28 + bright * 10;
+    const sat = 14 + life * 28;
+    ctx.fillStyle = `hsla(${hueBase - life * 4}, ${sat}%, ${lig}%, ${al})`;
+    ctx.fillRect(weatherAsh[o], weatherAsh[o + 1], sz, sz);
+  }
+
+  // ── DUST — suspended fine grains, count scales with high band.
+  //    Brownian motion + wind drag; these render as very tiny specks.
+  const dustVisible = Math.floor(WEATHER_DUST_N * (0.25 + high * 1.2 + p.growth * 0.25));
+  for (let i = 0; i < Math.min(dustVisible, WEATHER_DUST_N); i++) {
+    const o = i * 4;
+    // Brownian jitter
+    weatherDust[o + 2] += (Math.random() - 0.5) * 0.08 + weatherWind * 0.012;
+    weatherDust[o + 3] += (Math.random() - 0.5) * 0.06 - 0.01; // slight buoyancy up
+    weatherDust[o + 2] *= 0.92;
+    weatherDust[o + 3] *= 0.92;
+    weatherDust[o] += weatherDust[o + 2] * dt;
+    weatherDust[o + 1] += weatherDust[o + 3] * dt;
+    // Wrap
+    if (weatherDust[o] < 0) weatherDust[o] += w;
+    else if (weatherDust[o] > w) weatherDust[o] -= w;
+    if (weatherDust[o + 1] < 0) weatherDust[o + 1] += h;
+    else if (weatherDust[o + 1] > h) weatherDust[o + 1] -= h;
+    const lig = 55 + bright * 18;
+    ctx.fillStyle = `hsla(${hueBase + 2}, 10%, ${lig}%, ${0.14 + high * 0.35})`;
+    ctx.fillRect(weatherDust[o], weatherDust[o + 1], 1, 1);
+  }
+
+  // ── EMBERS — rare bright particles spawned on transients; they
+  //    rise against gravity and fade. A weather event, not decoration.
+  if (transient && a.peak > 0.25) {
+    const spawn = 1 + Math.floor(a.peak * 4);
+    for (let k = 0; k < spawn; k++) {
+      const o = weatherEmberCursor * 4;
+      weatherEmbers[o] = Math.random() * w;
+      weatherEmbers[o + 1] = h - 2 - Math.random() * 20;
+      weatherEmbers[o + 2] = -(1 + Math.random() * 2.5) * (0.6 + a.peak);
+      weatherEmbers[o + 3] = 0.7 + Math.random() * 0.3;
+      weatherEmberCursor = (weatherEmberCursor + 1) % WEATHER_EMBER_N;
+    }
+  }
+  for (let i = 0; i < WEATHER_EMBER_N; i++) {
+    const o = i * 4;
+    const life = weatherEmbers[o + 3];
+    if (life <= 0) continue;
+    weatherEmbers[o + 1] += weatherEmbers[o + 2] * dt;
+    weatherEmbers[o] += weatherWind * 0.6 * dt;
+    weatherEmbers[o + 2] *= 0.98;
+    weatherEmbers[o + 3] *= Math.pow(0.975, dt);
+    if (weatherEmbers[o + 1] < -5) weatherEmbers[o + 3] = 0;
+    // Render as a small radial glow
+    const gr = 2 + life * 3;
+    const gg = ctx.createRadialGradient(weatherEmbers[o], weatherEmbers[o + 1], 0, weatherEmbers[o], weatherEmbers[o + 1], gr * 3);
+    gg.addColorStop(0, `hsla(26, 85%, 66%, ${life * 0.75})`);
+    gg.addColorStop(0.5, `hsla(22, 70%, 40%, ${life * 0.18})`);
+    gg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gg;
+    ctx.fillRect(weatherEmbers[o] - gr * 3, weatherEmbers[o + 1] - gr * 3, gr * 6, gr * 6);
+  }
+
+  // ── Rain curtain — vertical gust of dense grains when rms is
+  //    sustained high. Draws a moving column, not a random spray.
+  if (a.rms > 0.25 && p.growth > 0.15) {
+    const curtainStrength = Math.min(1, (a.rms - 0.25) * 3);
+    const cx0 = (p.t * 60 * (0.3 + a.rms)) % (w + 200) - 100;
+    const cw = 40 + curtainStrength * 140;
+    ctx.fillStyle = `hsla(${hueBase - 6}, 18%, ${34 + bright * 10}%, ${0.06 * curtainStrength})`;
+    ctx.fillRect(cx0, 0, cw, h);
+    // Sparse denser grains inside
+    const rainN = 30 + Math.floor(curtainStrength * 50);
+    ctx.fillStyle = `hsla(${hueBase - 4}, 16%, 48%, ${0.25 * curtainStrength})`;
+    for (let i = 0; i < rainN; i++) {
+      const rx = cx0 + Math.random() * cw;
+      const ry = Math.random() * h;
+      ctx.fillRect(rx, ry, 1, 2);
+    }
+  }
+
+  // ── Gust band — still used for fast transients, but now the
+  //    strength and angle are tied to the wind field.
+  if (transient && a.peak > 0.35) {
+    const gustY = Math.random() * h;
+    const gustN = 30 + Math.floor(a.peak * 60);
+    ctx.fillStyle = `hsla(${hueBase}, 20%, ${58 + bright * 10}%, ${0.22 + a.peak * 0.2})`;
+    for (let i = 0; i < gustN; i++) {
+      const gx = Math.random() * w;
+      const gy = gustY + (Math.random() - 0.5) * 40;
+      ctx.fillRect(gx, gy, 1 + Math.floor(Math.random() * 2), 1);
+    }
+  }
+
+  // ── Active pitch cloud — strongest pitch class leaves a barely-
+  //    visible tinted cloud positioned by its pc index, so the
+  //    weather faintly remembers the note being held.
+  let bestPc = -1, bestE = 0.15;
+  for (let i = 0; i < 12; i++) if (p.activePitches[i] > bestE) { bestE = p.activePitches[i]; bestPc = i; }
+  if (bestPc >= 0) {
+    const cxCloud = ((bestPc + 0.5) / 12) * w;
+    const cyCloud = h * 0.35 + Math.sin(p.t * 0.2 + bestPc) * 20;
+    const cr = Math.min(w, h) * 0.15;
+    const cg = ctx.createRadialGradient(cxCloud, cyCloud, 0, cxCloud, cyCloud, cr);
+    cg.addColorStop(0, `hsla(${hueBase + 4}, 22%, 45%, ${0.05 + bestE * 0.05})`);
+    cg.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = cg;
+    ctx.fillRect(cxCloud - cr, cyCloud - cr, cr * 2, cr * 2);
+  }
+
+  // ── Accreted drift — overlay the persistent floor deposit. Very
+  //    faint, grows over minutes since ash deposits every time a
+  //    heavy grain reaches the bottom.
+  if (weatherDriftCanvas) ctx.drawImage(weatherDriftCanvas, 0, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// FEEDBACK TUNNEL · B&W — same accumulating-zoom mechanic as the
+// coloured version, but in pure grayscale. Warm off-white core, peak-
+// triggered ring stamp, live vignette. Separate offscreen so it
+// doesn't clobber the coloured tunnel's buffer.
+// ─────────────────────────────────────────────────────────────────────
+let feedbackBWCanvas: HTMLCanvasElement | null = null;
+let feedbackBWCtx: CanvasRenderingContext2D | null = null;
+export function drawFeedbackTunnelBW(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  if (!feedbackBWCanvas || feedbackBWCanvas.width !== w || feedbackBWCanvas.height !== h) {
+    feedbackBWCanvas = document.createElement("canvas");
+    feedbackBWCanvas.width = w; feedbackBWCanvas.height = h;
+    feedbackBWCtx = feedbackBWCanvas.getContext("2d");
+    if (feedbackBWCtx) { feedbackBWCtx.fillStyle = "#0a0a0a"; feedbackBWCtx.fillRect(0, 0, w, h); }
+  }
+  const off = feedbackBWCtx;
+  if (!off || !feedbackBWCanvas) return;
+
+  off.fillStyle = `rgba(6, 6, 6, ${0.05 + a.rms * 0.04})`;
+  off.fillRect(0, 0, w, h);
+
+  off.save();
+  off.translate(w / 2, h / 2);
+  off.rotate(0.004 + a.rms * 0.008 + Math.sin(p.t * 0.07) * 0.002);
+  const zoom = 1.015 + a.rms * 0.01 + p.growth * 0.002;
+  off.scale(zoom, zoom);
+  off.translate(-w / 2, -h / 2);
+  off.globalAlpha = 0.9;
+  off.drawImage(feedbackBWCanvas, 0, 0);
+  off.globalAlpha = 1;
+  off.restore();
+
+  const pulseR = Math.min(w, h) * (0.04 + a.peak * 0.1 + a.rms * 0.05);
+  const coreBright = Math.min(255, 230 + Math.round(a.peak * 25));
+  const midBright = 140 + Math.round(a.rms * 50);
+  const grad = off.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, pulseR * 3);
+  grad.addColorStop(0, `rgba(${coreBright}, ${coreBright}, ${Math.max(0, coreBright - 14)}, ${0.55 + a.peak * 0.4})`);
+  grad.addColorStop(0.5, `rgba(${midBright}, ${midBright}, ${Math.max(0, midBright - 8)}, ${0.22 + a.peak * 0.2})`);
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  off.fillStyle = grad;
+  off.fillRect(0, 0, w, h);
+
+  if (a.peak > 0.3) {
+    off.strokeStyle = `rgba(255, 250, 240, ${a.peak * 0.6})`;
+    off.lineWidth = 1 + a.peak * 2;
+    off.beginPath();
+    off.arc(w / 2, h / 2, pulseR * 1.3, 0, Math.PI * 2);
+    off.stroke();
+  }
+
+  ctx.drawImage(feedbackBWCanvas, 0, 0);
+
+  const vign = ctx.createRadialGradient(
+    w / 2, h / 2, Math.min(w, h) * 0.3,
+    w / 2, h / 2, Math.max(w, h) * 0.6,
+  );
+  vign.addColorStop(0, "rgba(0,0,0,0)");
+  vign.addColorStop(1, `rgba(0,0,0,${0.3 + a.rms * 0.15})`);
+  ctx.fillStyle = vign;
+  ctx.fillRect(0, 0, w, h);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PETROGLYPHS · Valcamonica rock art — prehistoric Alpine rock carvings
+// (4th millennium BCE → Iron Age). Ochre/terracotta symbols pecked into
+// slate. Same accretion mechanic as illuminatedGlyphs but with a
+// different palette and a 16-shape library drawn from documented
+// Camunian motifs: orante (praying figure), warrior, archer, stag,
+// rosa camuna, sun wheel, hut, ladder (scalariform), labyrinth spiral,
+// axe, footprint, lozenge shuttle, hand, cup-mark rosette, meander
+// snake, topographic map. Each polyline is in normalized [-1, 1].
+// ─────────────────────────────────────────────────────────────────────
+// All 16 glyphs are authentic Camunian motifs per Anati / CCSP / Parco
+// Nazionale Naquane documentation. Coordinates: canvas [-1,1] with +y
+// pointing DOWN (standard Canvas). No swastika-adjacent forms.
+const PETRO_GLYPHS: number[][][] = [
+  // 0 Orante — authentic Camunian stick figure, headless, with
+  // characteristic bent-elbow arms raised (shoulder → elbow → raised
+  // hand). Match the Naquane/Foppe di Nadro form shown in field
+  // photography: no circular head, arms form distinct L-shapes.
+  [[0, -0.5, 0, 0.3],                         // body (shoulder-line to hip)
+   [0, -0.5, -0.3, -0.68, -0.3, -0.98],       // left bent arm: shoulder → elbow → raised hand
+   [0, -0.5, 0.3, -0.68, 0.3, -0.98],         // right bent arm: mirror
+   [0, 0.3, -0.35, 0.95],                     // left splayed leg
+   [0, 0.3, 0.35, 0.95]],                     // right splayed leg
+  // 1 Warrior — orante stance + round shield + vertical spear
+  [[0, -0.3, 0, 0.2],                         // body
+   [0.11, -0.48, 0.06, -0.58, 0, -0.62, -0.06, -0.58, -0.11, -0.48, -0.06, -0.38, 0, -0.34, 0.06, -0.38, 0.11, -0.48], // head
+   [0, -0.2, 0.55, -0.2],                     // right arm horizontal (spear grip)
+   [0.55, -0.75, 0.55, 0.3],                  // spear (vertical)
+   [0, -0.2, -0.35, -0.1],                    // left arm to shield
+   // shield (round, offset left) — octagon
+   [-0.42, -0.1, -0.48, -0.22, -0.58, -0.25, -0.68, -0.22, -0.72, -0.1, -0.68, 0.02, -0.58, 0.05, -0.48, 0.02, -0.42, -0.1],
+   [0, 0.2, -0.25, 0.8],                      // left leg
+   [0, 0.2, 0.25, 0.8]],                      // right leg
+  // 2 Archer — profile figure drawing a bow. Body left of centre, bow
+  // on right, drawn bowstring + horizontal arrow.
+  [[-0.25, -0.3, -0.25, 0.2],                 // body
+   [-0.12, -0.48, -0.18, -0.58, -0.25, -0.62, -0.32, -0.58, -0.38, -0.48, -0.32, -0.38, -0.25, -0.34, -0.18, -0.38, -0.12, -0.48], // head
+   [-0.25, -0.2, 0.22, -0.2],                 // forward arm gripping bow
+   [-0.25, -0.2, -0.45, -0.12],               // rear arm pulling string
+   // bow — semicircle opening right (polyline arc)
+   [0.22, -0.62, 0.42, -0.52, 0.55, -0.35, 0.6, -0.2, 0.55, -0.05, 0.42, 0.12, 0.22, 0.22],
+   [0.22, -0.62, 0.22, 0.22],                 // bowstring (chord)
+   [-0.45, -0.2, 0.9, -0.2],                  // arrow (from draw hand out through bow)
+   [-0.25, 0.2, -0.45, 0.8],
+   [-0.25, 0.2, -0.05, 0.8]],
+  // 3 Stag — horizontal body, 4 legs, neck + branched antlers, short tail.
+  [[-0.6, 0.0, 0.5, 0.0, 0.5, 0.25, -0.6, 0.25, -0.6, 0.0],
+   [-0.48, 0.25, -0.48, 0.75],                // front-left leg
+   [-0.25, 0.25, -0.25, 0.75],
+   [0.22, 0.25, 0.22, 0.75],
+   [0.45, 0.25, 0.45, 0.75],                  // back-right leg
+   [0.5, 0.05, 0.72, -0.22],                  // neck
+   // antlers — 2 main forks + 3 tines
+   [0.72, -0.22, 0.68, -0.8],
+   [0.72, -0.22, 0.9, -0.75],
+   [0.75, -0.5, 0.62, -0.58],                 // tine
+   [0.78, -0.4, 0.9, -0.4],                   // tine
+   [0.82, -0.58, 0.95, -0.52],                // tine
+   [-0.6, 0.0, -0.75, -0.18]],                // tail flick
+  // 4 Rosa Camuna — sentinel; real rendering in stampRosaCamuna
+  // (Type 2: X-saltire meander + 9 cup marks on a 3x3 grid).
+  [[0, 0]],
+  // 5 Sun wheel / cross-in-circle — the canonical Camunian 4-spoked
+  // wheel. Outer circle + horizontal+vertical diameters + 4 short
+  // diagonal outer rays.
+  [[0.5, 0, 0.35, 0.35, 0, 0.5, -0.35, 0.35, -0.5, 0, -0.35, -0.35, 0, -0.5, 0.35, -0.35, 0.5, 0],
+   [-0.5, 0, 0.5, 0],                         // horizontal diameter
+   [0, -0.5, 0, 0.5],                         // vertical diameter
+   [0.6, -0.6, 0.85, -0.85],                  // NE outer ray
+   [-0.6, -0.6, -0.85, -0.85],                // NW
+   [0.6, 0.6, 0.85, 0.85],                    // SE
+   [-0.6, 0.6, -0.85, 0.85]],                 // SW
+  // 6 Hut — pile-dwelling / pitched-roof house. Base rectangle +
+  // triangular roof overhanging + central door. Optional stilts.
+  [[-0.5, 0.4, 0.5, 0.4, 0.5, -0.2, -0.5, -0.2, -0.5, 0.4],
+   [-0.7, -0.2, 0, -0.8, 0.7, -0.2],          // roof triangle (overhangs eaves)
+   [-0.12, 0.4, -0.12, 0.05, 0.12, 0.05, 0.12, 0.4], // door
+   [-0.3, 0.4, -0.3, 0.9],                    // stilt left
+   [0.3, 0.4, 0.3, 0.9]],                     // stilt right
+  // 7 Scalariform — ladder, 2 rails + 5 rungs
+  [[-0.3, -0.9, -0.3, 0.9],
+   [0.3, -0.9, 0.3, 0.9],
+   [-0.3, -0.55, 0.3, -0.55],
+   [-0.3, -0.2, 0.3, -0.2],
+   [-0.3, 0.15, 0.3, 0.15],
+   [-0.3, 0.5, 0.3, 0.5],
+   [-0.3, 0.85, 0.3, 0.85]],
+  // 8 Labyrinth — squared 3-circuit, entering from the bottom-left.
+  // Continuous polyline threading inward.
+  [[-0.85, 0.85, -0.85, -0.65, 0.85, -0.65, 0.85, 0.4, -0.55, 0.4, -0.55, -0.35, 0.55, -0.35, 0.55, 0.1, -0.25, 0.1, -0.25, -0.05, 0.25, -0.05]],
+  // 9 Axe — hafted bronze axe. Vertical haft + flared trapezoidal
+  // blade head attached to the right.
+  [[0, 0.9, 0, -0.6]],    // haft
+  // ...plus blade as its own shape appended in a separate entry? No —
+  // glyph is one logical unit. Append the blade as a second polyline:
+  // ATT: each polyline in the array is rendered as one `beginPath`/
+  // `stroke`, so multiple shapes per glyph is fine. Splitting here:
+  // (blade trapezoid)
+  // Done in sequel line below.
+  // NOTE: combining in single glyph entry:
+  // The entry below replaces the two-line version.
+  // 9 Axe — combined entry:
+  // (overwrite note above)
+  // 10 Footprint — oval sole + 5 small toe circles above
+  // (entry 10)
+  // 11 Shield — round studded
+  // (entry 11)
+  // 12 Chariot — 2 wheels + platform + draft pole
+  // (entry 12)
+  // 13 Plough scene — ox + beam + plough + ploughman
+  // (entry 13)
+  // 14 Duellists — 2 mirrored warriors, crossed weapons
+  // (entry 14)
+  // 15 Bedolina map — irregular rectangular fields + cup-dot interiors + connectors
+  // (entry 15)
+];
+
+// Append complete multi-part glyphs inline (not split across commits)
+// — array positions 9–15 overwritten here for clarity:
+PETRO_GLYPHS[9] = [
+  // Axe — haft + flared blade trapezoid to the right
+  [0, 0.9, 0, -0.6],                           // haft
+  [0, -0.3, 0.7, -0.5, 0.7, -0.1, 0, -0.3],    // blade trapezoid flared
+];
+PETRO_GLYPHS[10] = [
+  // Footprint — oval sole outline + 5 small toe circles
+  [-0.25, -0.45, -0.2, -0.4, 0.2, -0.4, 0.28, -0.25, 0.28, 0.3, 0.2, 0.65, 0.05, 0.8, -0.12, 0.8, -0.25, 0.65, -0.3, 0.3, -0.3, -0.25, -0.25, -0.45],
+  // toes as tiny circles (approx 6-gon each)
+  [-0.2, -0.5, -0.15, -0.54, -0.08, -0.54, -0.05, -0.5, -0.08, -0.46, -0.15, -0.46, -0.2, -0.5],
+  [-0.08, -0.58, -0.03, -0.62, 0.04, -0.62, 0.07, -0.58, 0.04, -0.54, -0.03, -0.54, -0.08, -0.58],
+  [0.04, -0.58, 0.09, -0.62, 0.16, -0.62, 0.19, -0.58, 0.16, -0.54, 0.09, -0.54, 0.04, -0.58],
+  [0.16, -0.54, 0.21, -0.57, 0.27, -0.56, 0.3, -0.52, 0.27, -0.48, 0.21, -0.48, 0.16, -0.52, 0.16, -0.54],
+  [0.26, -0.44, 0.3, -0.46, 0.35, -0.43, 0.36, -0.39, 0.33, -0.36, 0.28, -0.37, 0.25, -0.4, 0.26, -0.44],
+];
+PETRO_GLYPHS[11] = [
+  // Shield — round, 12-gon outer edge + central boss + 6 studs ring
+  [0.7, 0, 0.6, 0.35, 0.35, 0.6, 0, 0.7, -0.35, 0.6, -0.6, 0.35, -0.7, 0, -0.6, -0.35, -0.35, -0.6, 0, -0.7, 0.35, -0.6, 0.6, -0.35, 0.7, 0],
+  // central boss (small octagon, will read as filled dot with stroke)
+  [0.12, 0, 0.08, 0.08, 0, 0.12, -0.08, 0.08, -0.12, 0, -0.08, -0.08, 0, -0.12, 0.08, -0.08, 0.12, 0],
+  // 6 studs around mid-ring at r=0.4, each a tiny hex
+  [0.4, 0, 0.42, 0.04, 0.42, 0.08, 0.4, 0.1, 0.38, 0.08, 0.38, 0.04, 0.4, 0],
+  [0.2, 0.346, 0.24, 0.36, 0.24, 0.4, 0.2, 0.42, 0.16, 0.4, 0.16, 0.36, 0.2, 0.346],
+  [-0.2, 0.346, -0.16, 0.36, -0.16, 0.4, -0.2, 0.42, -0.24, 0.4, -0.24, 0.36, -0.2, 0.346],
+  [-0.4, 0, -0.38, 0.04, -0.38, 0.08, -0.4, 0.1, -0.42, 0.08, -0.42, 0.04, -0.4, 0],
+  [-0.2, -0.346, -0.16, -0.33, -0.16, -0.29, -0.2, -0.27, -0.24, -0.29, -0.24, -0.33, -0.2, -0.346],
+  [0.2, -0.346, 0.24, -0.33, 0.24, -0.29, 0.2, -0.27, 0.16, -0.29, 0.16, -0.33, 0.2, -0.346],
+];
+PETRO_GLYPHS[12] = [
+  // Chariot — 2 wheels (cross-in-circle) + platform + draft pole + yoke
+  // Left wheel
+  [-0.45, 0.15, -0.55, 0.28, -0.75, 0.4, -0.55, 0.52, -0.45, 0.65, -0.35, 0.52, -0.25, 0.4, -0.35, 0.28, -0.45, 0.15],
+  [-0.75, 0.4, -0.25, 0.4],                   // left wheel horizontal
+  [-0.5, 0.15, -0.5, 0.65],                   // left wheel vertical
+  // Right wheel
+  [0.45, 0.15, 0.35, 0.28, 0.25, 0.4, 0.35, 0.52, 0.45, 0.65, 0.55, 0.52, 0.75, 0.4, 0.55, 0.28, 0.45, 0.15],
+  [0.25, 0.4, 0.75, 0.4],
+  [0.5, 0.15, 0.5, 0.65],
+  // Platform connecting wheel tops
+  [-0.5, 0.15, 0.5, 0.15],
+  // Draft pole + yoke (extending forward)
+  [0, 0.15, 0, -0.5],
+  [-0.25, -0.5, 0.25, -0.5],
+];
+PETRO_GLYPHS[13] = [
+  // Plough scene — one quadruped ox (left) + diagonal beam + plough + ploughman (right)
+  // Ox body
+  [-0.9, 0.1, -0.25, 0.1, -0.25, 0.4, -0.9, 0.4, -0.9, 0.1],
+  [-0.8, 0.4, -0.8, 0.75],                    // front leg
+  [-0.5, 0.4, -0.5, 0.75],                    // rear leg
+  // Ox head + horns
+  [-0.9, 0.2, -1.0, 0.05, -0.9, -0.05, -0.9, 0.2],
+  [-1.0, 0.05, -1.08, -0.1],                  // horn up-left
+  [-0.9, -0.05, -0.82, -0.2],                 // horn up-right
+  // Plough beam: diagonal from ox rear down-right
+  [-0.3, 0.2, 0.45, 0.55],
+  // Ploughshare (triangle) at end of beam
+  [0.45, 0.55, 0.65, 0.55, 0.55, 0.78, 0.45, 0.55],
+  // Ploughman stick figure handling plough
+  [0.55, 0.4, 0.55, 0.78],                     // body
+  [0.55, 0.4, 0.45, 0.55],                     // arm down to plough
+  [0.58, 0.3, 0.55, 0.25, 0.52, 0.3, 0.5, 0.35, 0.55, 0.4, 0.6, 0.35, 0.58, 0.3], // head
+];
+PETRO_GLYPHS[14] = [
+  // Duellists — two mirrored warriors, crossed weapons meeting at centre
+  // Left warrior
+  [-0.55, -0.3, -0.55, 0.2],                   // body
+  [-0.43, -0.45, -0.48, -0.55, -0.55, -0.58, -0.62, -0.55, -0.67, -0.45, -0.62, -0.35, -0.55, -0.32, -0.48, -0.35, -0.43, -0.45],
+  [-0.55, 0.2, -0.75, 0.7],                    // left leg
+  [-0.55, 0.2, -0.35, 0.7],                    // right leg
+  // Left weapon (crossing to centre)
+  [-0.55, -0.2, 0, 0.0],                       // spear/sword
+  // Left shield (outer)
+  [-0.78, -0.1, -0.83, -0.18, -0.92, -0.2, -0.97, -0.12, -0.95, -0.02, -0.88, 0.02, -0.8, 0, -0.78, -0.1],
+  [-0.55, -0.15, -0.78, -0.1],                 // outer arm to shield
+
+  // Right warrior (mirror)
+  [0.55, -0.3, 0.55, 0.2],
+  [0.43, -0.45, 0.48, -0.55, 0.55, -0.58, 0.62, -0.55, 0.67, -0.45, 0.62, -0.35, 0.55, -0.32, 0.48, -0.35, 0.43, -0.45],
+  [0.55, 0.2, 0.75, 0.7],
+  [0.55, 0.2, 0.35, 0.7],
+  [0.55, -0.2, 0, 0.0],                        // sword crossing
+  [0.78, -0.1, 0.83, -0.18, 0.92, -0.2, 0.97, -0.12, 0.95, -0.02, 0.88, 0.02, 0.8, 0, 0.78, -0.1],
+  [0.55, -0.15, 0.78, -0.1],
+];
+PETRO_GLYPHS[15] = [
+  // Bedolina-type map — 4 irregular rectangular fields with cup-dot
+  // interiors + 2 connector paths. Authentic to the Bedolina Rock 1
+  // topographic carving.
+  [-0.85, -0.55, -0.15, -0.55, -0.15, 0.05, -0.85, 0.05, -0.85, -0.55],
+  [-0.1, -0.3, 0.5, -0.3, 0.5, 0.25, -0.1, 0.25, -0.1, -0.3],
+  [-0.5, 0.3, -0.5, 0.78, 0.35, 0.78, 0.35, 0.3, -0.5, 0.3],
+  [0.55, 0.3, 0.85, 0.3, 0.85, 0.78, 0.55, 0.78, 0.55, 0.3],
+  // cup dots inside fields (tiny closed triangles read as dots)
+  [-0.55, -0.3, -0.5, -0.28, -0.55, -0.25, -0.6, -0.28, -0.55, -0.3],
+  [-0.35, -0.2, -0.3, -0.18, -0.35, -0.15, -0.4, -0.18, -0.35, -0.2],
+  [0.15, 0.0, 0.2, 0.02, 0.15, 0.05, 0.1, 0.02, 0.15, 0.0],
+  [0.3, -0.15, 0.35, -0.13, 0.3, -0.1, 0.25, -0.13, 0.3, -0.15],
+  [-0.2, 0.55, -0.15, 0.57, -0.2, 0.6, -0.25, 0.57, -0.2, 0.55],
+  [0.7, 0.5, 0.75, 0.52, 0.7, 0.55, 0.65, 0.52, 0.7, 0.5],
+  // connector paths
+  [-0.4, 0.05, -0.4, 0.3],
+  [0.3, 0.25, 0.3, 0.3],
+  [0.35, 0.55, 0.55, 0.55],
+];
+
+let petroCanvas: HTMLCanvasElement | null = null;
+let petroCtx: CanvasRenderingContext2D | null = null;
+let petroLast = 0;
+let petroPrevPeak = 0;
+interface RecentPetro { x: number; y: number; sz: number; gi: number; pc: number; age: number; }
+const recentPetro: RecentPetro[] = [];
+// Rising incense wisps — slow upward smoke instead of falling dust.
+// x, y, vx, vy, life (life decays).
+interface PetroWisp { x: number; y: number; vx: number; vy: number; life: number; size: number; }
+const petroWisps: PetroWisp[] = [];
+// Pointer inscription cooldown so hover-drags don't carpet the rock.
+let petroPointerCd = 0;
+let petroPointerWasDown = false;
+// Procession state — accumulates when rms is sustained + one pitch
+// dominates. When full, triggers a row of orantes / warriors.
+let petroProcessionGauge = 0;
+// Lamp flicker — low-pass random walk drives the firelight source.
+let petroLamp = 0.5;
+
+function ensurePetro(w: number, h: number) {
+  if (!petroCanvas || petroCanvas.width !== w || petroCanvas.height !== h) {
+    petroCanvas = document.createElement("canvas");
+    petroCanvas.width = w; petroCanvas.height = h;
+    petroCtx = petroCanvas.getContext("2d");
+    const g = petroCtx!;
+    // Deep umber sacred-cave base — richer and darker than before
+    g.fillStyle = "#140c08";
+    g.fillRect(0, 0, w, h);
+    // Dense rock texture — more grains, varied warmth, so the stone
+    // has real weathered body under the glyphs.
+    for (let i = 0; i < 2600; i++) {
+      const lig = 6 + Math.random() * 18;
+      const hue = 18 + Math.random() * 12;
+      g.fillStyle = `hsla(${hue}, 22%, ${lig}%, 0.55)`;
+      g.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+    }
+    // Fissure lines — deeper cracks + some hair-thin ones
+    g.strokeStyle = "rgba(50, 32, 22, 0.4)";
+    g.lineWidth = 0.6;
+    for (let i = 0; i < 10; i++) {
+      g.beginPath();
+      let x = Math.random() * w;
+      let y = Math.random() * h;
+      g.moveTo(x, y);
+      for (let k = 0; k < 6; k++) {
+        x += (Math.random() - 0.5) * w * 0.12;
+        y += (Math.random() - 0.5) * h * 0.12;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    // Hair-thin weathering cracks
+    g.strokeStyle = "rgba(70, 46, 30, 0.22)";
+    g.lineWidth = 0.4;
+    for (let i = 0; i < 14; i++) {
+      g.beginPath();
+      let x = Math.random() * w;
+      let y = Math.random() * h;
+      g.moveTo(x, y);
+      for (let k = 0; k < 4; k++) {
+        x += (Math.random() - 0.5) * w * 0.08;
+        y += (Math.random() - 0.5) * h * 0.08;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    // Lichen / patina patches — sparse darker blotches
+    for (let i = 0; i < 26; i++) {
+      const bx = Math.random() * w;
+      const by = Math.random() * h;
+      const br = 6 + Math.random() * 20;
+      const grd = g.createRadialGradient(bx, by, 0, bx, by, br);
+      grd.addColorStop(0, "rgba(25, 18, 14, 0.6)");
+      grd.addColorStop(1, "rgba(25, 18, 14, 0)");
+      g.fillStyle = grd;
+      g.fillRect(bx - br, by - br, br * 2, br * 2);
+    }
+    recentPetro.length = 0;
+    petroWisps.length = 0;
+  }
+}
+
+function pickPetroIdx(pc: number): number {
+  // 16 glyphs for 12 pitch classes — pc maps to canonical slot, but
+  // 50/50 chance to pick one of the four "advanced" alternates
+  // (12-15: hand, rosette, meander, map). Gives pc-stability with
+  // visual variety.
+  if (Math.random() < 0.25) return 12 + (pc % 4);
+  return pc % 12;
+}
+
+// Rosa Camuna Type 2 — one arm of the saltire meander, drawn from
+// centre cup (0,0) outward through the adjacent cardinal cup and
+// terminating at a corner cup (0.6, -0.6). Rotated 4× for the full
+// X-shape. The S-curve passes near the cardinal cup so the ribbon
+// "swallows" all 9 grid points.
+const ROSA_ARM_PATH: readonly (readonly [number, number])[] = [
+  [ 0.05, -0.02],
+  [ 0.15, -0.22],
+  [ 0.05, -0.40],
+  [ 0.00, -0.58],   // brush past the top cardinal cup
+  [ 0.18, -0.62],
+  [ 0.40, -0.55],
+  [ 0.55, -0.52],
+  [ 0.62, -0.62],   // terminate at NE corner cup
+];
+// 9 cup marks on a 3x3 grid — the canonical Rosa Camuna Type 2
+// layout (Regione Lombardia logo form). Cups sit at the 9 intersections
+// of a 3x3 grid; the saltire meander weaves between them.
+const ROSA_CUPS: readonly (readonly [number, number, number])[] = [
+  // central (largest)
+  [ 0.00,  0.00, 0.10],
+  // 4 cardinal (top/bottom/left/right of grid)
+  [ 0.00, -0.60, 0.065],
+  [ 0.60,  0.00, 0.065],
+  [ 0.00,  0.60, 0.065],
+  [-0.60,  0.00, 0.065],
+  // 4 corners (NE, SE, SW, NW)
+  [ 0.60, -0.60, 0.07],
+  [ 0.60,  0.60, 0.07],
+  [-0.60,  0.60, 0.07],
+  [-0.60, -0.60, 0.07],
+];
+function stampRosaCamuna(
+  g: CanvasRenderingContext2D,
+  sz: number, energy: number, growth: number, phaseT: number,
+) {
+  // Very slow rotation captured per-stamp — each stamp is frozen into
+  // the offscreen buffer at a slightly different orientation, so the
+  // long-view field reads as hand-carved variants rather than a
+  // spinning animation.
+  const rot = phaseT * 0.008 + (Math.random() - 0.5) * 0.15;
+  g.save();
+  g.rotate(rot);
+  // Ribbon thickness scales with energy + rms-proxy (passed via energy)
+  const ribbonW = Math.max(2.2, sz * 0.16 + energy * sz * 0.12);
+  g.lineWidth = ribbonW;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  g.strokeStyle = `hsla(${18 + energy * 6}, ${58 + energy * 18}%, ${40 + energy * 14}%, 0.90)`;
+  g.shadowColor = "rgba(120, 60, 22, 0.22)";
+  g.shadowBlur = 1.2 + energy * 1.4;
+
+  // 4 arms rotated by 90° around the centre. Adds small random jitter
+  // per stamping so successive carvings look hand-made.
+  for (let r = 0; r < 4; r++) {
+    const ang = r * (Math.PI / 2);
+    const cosA = Math.cos(ang), sinA = Math.sin(ang);
+    g.beginPath();
+    for (let i = 0; i < ROSA_ARM_PATH.length; i++) {
+      const x = ROSA_ARM_PATH[i][0] * sz + (Math.random() - 0.5) * 0.9;
+      const y = ROSA_ARM_PATH[i][1] * sz + (Math.random() - 0.5) * 0.9;
+      const rx = x * cosA - y * sinA;
+      const ry = x * sinA + y * cosA;
+      if (i === 0) g.moveTo(rx, ry); else g.lineTo(rx, ry);
+    }
+    g.stroke();
+    // Terminal lobe — filled circle at each arm's tip
+    const tx = ROSA_ARM_PATH[ROSA_ARM_PATH.length - 1][0] * sz;
+    const ty = ROSA_ARM_PATH[ROSA_ARM_PATH.length - 1][1] * sz;
+    const lx = tx * cosA - ty * sinA;
+    const ly = tx * sinA + ty * cosA;
+    g.fillStyle = `hsla(${16 + energy * 6}, ${55 + energy * 18}%, ${34 + energy * 12}%, 0.92)`;
+    g.beginPath();
+    g.arc(lx, ly, ribbonW * 0.75 + sz * 0.04, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  // Cup marks — filled circles on top of the ribbon. Central cup is
+  // larger and slightly brighter. Cup size pulses very faintly with
+  // energy (the carver's sureness of hand).
+  g.shadowBlur = 0;
+  for (let i = 0; i < ROSA_CUPS.length; i++) {
+    const [cx, cy, cr] = ROSA_CUPS[i];
+    const r = cr * sz * (1 + energy * 0.22);
+    // Jitter per stamp
+    const jx = (Math.random() - 0.5) * 0.8;
+    const jy = (Math.random() - 0.5) * 0.8;
+    const lig = i === 0 ? 30 + energy * 16 : 22 + energy * 10;
+    g.fillStyle = `hsla(14, 40%, ${lig}%, 0.95)`;
+    g.beginPath();
+    g.arc(cx * sz + jx, cy * sz + jy, r, 0, Math.PI * 2);
+    g.fill();
+    // Thin lighter rim for depth
+    g.strokeStyle = `hsla(22, 45%, ${lig + 18}%, 0.5)`;
+    g.lineWidth = 0.5;
+    g.beginPath();
+    g.arc(cx * sz + jx, cy * sz + jy, r + 0.4, 0, Math.PI * 2);
+    g.stroke();
+  }
+
+  // Growth accretion — pecked weathered border (same spirit as other
+  // petroglyphs but at Rosa Camuna's bbox radius)
+  if (growth > 0.55) {
+    g.strokeStyle = `hsla(20, 40%, 32%, ${(growth - 0.55) * 0.45})`;
+    g.lineWidth = 0.6;
+    const ringR = sz * 1.35;
+    g.beginPath();
+    const pts = 32;
+    for (let i = 0; i < pts; i++) {
+      const th = (i / pts) * Math.PI * 2;
+      const rr = ringR + (Math.random() - 0.5) * 1.6;
+      const x = Math.cos(th) * rr;
+      const y = Math.sin(th) * rr;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.closePath();
+    g.stroke();
+  }
+  g.restore();
+}
+
+function stampPetro(
+  g: CanvasRenderingContext2D,
+  gx: number, gy: number, sz: number, gi: number, energy: number,
+  growth: number, phaseT: number,
+) {
+  // Rosa Camuna takes the bespoke renderer
+  if (gi === 4) {
+    g.save();
+    g.translate(gx, gy);
+    stampRosaCamuna(g, sz, energy, growth, phaseT);
+    g.restore();
+    return;
+  }
+  const strokes = PETRO_GLYPHS[gi];
+  g.save();
+  g.translate(gx, gy);
+  // Pecked-line feel — slight jitter per vertex, ochre on slate. No
+  // heavy blur (not gilt; these are chisel scars, not gold leaf).
+  g.lineWidth = 1.6 + energy * 1.4;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  g.strokeStyle = `hsla(${18 + energy * 6}, ${55 + energy * 20}%, ${42 + energy * 14}%, 0.88)`;
+  g.shadowColor = "rgba(140, 70, 30, 0.25)";
+  g.shadowBlur = 1.5 + energy * 1.5;
+  for (const path of strokes) {
+    g.beginPath();
+    for (let i = 0; i < path.length; i += 2) {
+      const jx = (Math.random() - 0.5) * 0.9;
+      const jy = (Math.random() - 0.5) * 0.9;
+      const px = path[i] * sz + jx;
+      const py = path[i + 1] * sz + jy;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    }
+    g.stroke();
+  }
+  // Secondary darker pass — double-pecked line for stronger stamps
+  if (energy > 0.4) {
+    g.strokeStyle = `hsla(14, 45%, 26%, ${(energy - 0.4) * 0.9})`;
+    g.lineWidth = 0.7;
+    g.shadowBlur = 0;
+    for (const path of strokes) {
+      g.beginPath();
+      for (let i = 0; i < path.length; i += 2) {
+        const px = path[i] * sz + (Math.random() - 0.5) * 0.6;
+        const py = path[i + 1] * sz + (Math.random() - 0.5) * 0.6;
+        if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+      }
+      g.stroke();
+    }
+  }
+  // Growth accretion — a pecked border ring appears after long view
+  if (growth > 0.55) {
+    g.strokeStyle = `hsla(20, 40%, 32%, ${(growth - 0.55) * 0.5})`;
+    g.lineWidth = 0.6;
+    const ringR = sz * 1.35;
+    const pts = 28;
+    g.beginPath();
+    for (let i = 0; i < pts; i++) {
+      const th = (i / pts) * Math.PI * 2;
+      const rr = ringR + (Math.random() - 0.5) * 1.5;
+      const x = Math.cos(th) * rr;
+      const y = Math.sin(th) * rr;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.closePath();
+    g.stroke();
+  }
+  g.restore();
+}
+
+// Persistent "heat" counter — on every peak, spikes. Decays over ~3s.
+// Used to ripple halos across recently-carved glyphs so the whole
+// cliff face visibly responds to transients, not just the fresh stamp.
+let petroHeat = 0;
+// Pitch-centroid-biased placement — a hot-zone anchor that drifts.
+let petroAnchorX = 0.5;
+let petroAnchorY = 0.5;
+
+export function drawPetroglyphs(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ensurePetro(w, h);
+  const g = petroCtx!;
+  // Very slow wash — carvings persist like ancient stone
+  g.fillStyle = "rgba(20, 12, 8, 0.004)";
+  g.fillRect(0, 0, w, h);
+
+  const now = p.t;
+  const dt = p.dtScale ?? 1;
+
+  // ── Spectral bands (mid not used yet; kept for band-weighted motif)
+  let low = 0, high = 0;
+  for (let i = 0; i < 8; i++) low += a.spectrum[i] ?? 0;
+  for (let i = 20; i < 32; i++) high += a.spectrum[i] ?? 0;
+  low /= 8; high /= 12;
+
+  // Transient heat — spike on peaks, decay every frame
+  if (a.peak > petroPrevPeak + 0.08) {
+    petroHeat = Math.min(1, petroHeat + a.peak * 0.9);
+  }
+  petroHeat *= Math.pow(0.965, dt);
+
+  // Oil-lamp flicker driving the firelight source — low-pass random
+  // walk, not a sine, so the fire never feels mechanical.
+  const lampTarget = 0.35 + Math.random() * 0.65 + a.rms * 0.2;
+  petroLamp += (lampTarget - petroLamp) * 0.06 * dt;
+
+  // Pitch-centroid anchor
+  let pitchCx = 0, pitchCy = 0, pitchMass = 0;
+  for (let i = 0; i < 12; i++) {
+    const e = p.activePitches[i];
+    const ang = (i / 12) * Math.PI * 2;
+    pitchCx += Math.cos(ang) * e;
+    pitchCy += Math.sin(ang) * e;
+    pitchMass += e;
+  }
+  const targetX = pitchMass > 0.05 ? 0.5 + (pitchCx / pitchMass) * 0.25 : 0.5;
+  const targetY = pitchMass > 0.05 ? 0.5 + (pitchCy / pitchMass) * 0.25 : 0.5;
+  const k = 1 - Math.pow(0.985, dt);
+  petroAnchorX += (targetX - petroAnchorX) * k;
+  petroAnchorY += (targetY - petroAnchorY) * k;
+
+  // ── Pointer inscription — click/tap on the rock carves a glyph at
+  //    the cursor. Hover with no press shows a faint preview halo.
+  //    Cooldown prevents carpeting during drags.
+  petroPointerCd -= dt;
+  const pointerDown = p.pointerDown;
+  if (p.pointer && pointerDown && !petroPointerWasDown && petroPointerCd <= 0) {
+    const px = p.pointer.x * w;
+    const py = p.pointer.y * h;
+    // Prefer the strongest active pitch class for the glyph selection;
+    // if no pitches lit, fall back to a random authentic motif.
+    let bestPc = -1, bestE = 0.08;
+    for (let i = 0; i < 12; i++) {
+      if (p.activePitches[i] > bestE) { bestE = p.activePitches[i]; bestPc = i; }
+    }
+    const gi = bestPc >= 0 ? pickPetroIdx(bestPc) : Math.floor(Math.random() * 16);
+    stampPetro(g, px, py, 28 + a.rms * 24, gi, Math.max(0.3, bestE), p.growth, now);
+    recentPetro.push({ x: px, y: py, sz: 28 + a.rms * 24, gi, pc: bestPc >= 0 ? bestPc : gi % 12, age: 0 });
+    if (recentPetro.length > 20) recentPetro.shift();
+    // Burst of rising wisps — the chisel stirred the dust
+    for (let w0 = 0; w0 < 8; w0++) {
+      petroWisps.push({
+        x: px + (Math.random() - 0.5) * 12,
+        y: py + (Math.random() - 0.5) * 8,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: -0.3 - Math.random() * 0.8,
+        life: 1,
+        size: 0.8 + Math.random() * 1.2,
+      });
+    }
+    petroPointerCd = 10; // frames
+  }
+  petroPointerWasDown = pointerDown;
+
+  // ── Procession gauge — builds when a dominant pitch is sustained.
+  //    When it fills, triggers a ROW of orantes (authentic Naquane
+  //    scene composition).
+  const dominantE = pitchMass > 0.05 ? (pitchCx * pitchCx + pitchCy * pitchCy) / (pitchMass * pitchMass) : 0;
+  if (a.rms > 0.08 && dominantE > 0.25) {
+    petroProcessionGauge += 0.004 * dt * (0.3 + a.rms);
+  } else {
+    petroProcessionGauge *= Math.pow(0.985, dt);
+  }
+  if (petroProcessionGauge > 1) {
+    petroProcessionGauge = 0;
+    // Spawn 4-5 orantes (gi 0) in a row at a random y. The row is
+    // centred on the pitch-centroid anchor X.
+    const count = 4 + Math.floor(Math.random() * 2);
+    const rowY = h * (0.25 + Math.random() * 0.5);
+    const rowSz = 28;
+    const spacing = rowSz * 1.8;
+    const cxRow = Math.max(spacing * count * 0.5 + 20, Math.min(w - spacing * count * 0.5 - 20, petroAnchorX * w));
+    const xStart = cxRow - ((count - 1) / 2) * spacing;
+    for (let i = 0; i < count; i++) {
+      const px = xStart + i * spacing + (Math.random() - 0.5) * 4;
+      const py = rowY + (Math.random() - 0.5) * 6;
+      stampPetro(g, px, py, rowSz, 0, 0.6, p.growth, now);
+      recentPetro.push({ x: px, y: py, sz: rowSz, gi: 0, pc: 0, age: 0 });
+    }
+    if (recentPetro.length > 22) recentPetro.splice(0, recentPetro.length - 22);
+  }
+
+  // ── Spawn cadence — louder drones carve faster
+  const spawnEvery = Math.max(0.35, 1.3 - a.rms * 0.9);
+  if (now - petroLast > spawnEvery) {
+    petroLast = now;
+    const order: { pc: number; e: number }[] = [];
+    for (let i = 0; i < 12; i++) {
+      if (p.activePitches[i] > 0.08) order.push({ pc: i, e: p.activePitches[i] });
+    }
+    order.sort((x, y) => y.e - x.e);
+    const picks = order.slice(0, Math.min(3, order.length));
+    for (let kk = 0; kk < picks.length; kk++) {
+      const { pc, e } = picks[kk];
+      // Band-weighted motif selection — low frequencies weight toward
+      // weighty symbols (axe/shield/duellists), high toward airy
+      // (orante/sun/archer), mid toward narrative (stag/warrior/plough).
+      let gi: number;
+      const r = Math.random();
+      if (r < low * 0.6) gi = [9, 11, 14][Math.floor(Math.random() * 3)];
+      else if (r < low * 0.6 + high * 0.7) gi = [0, 2, 5][Math.floor(Math.random() * 3)];
+      else if (r < 0.6) gi = [1, 3, 13][Math.floor(Math.random() * 3)];
+      else gi = pickPetroIdx(pc);
+      const sz = (22 + e * 28) * (kk === 0 ? 1 : 0.6 - kk * 0.08);
+      let gx: number, gy: number;
+      if (Math.random() < 0.6) {
+        const ax = petroAnchorX * w;
+        const ay = petroAnchorY * h;
+        const spread = Math.min(w, h) * (0.15 + p.growth * 0.1);
+        gx = Math.max(60, Math.min(w - 60, ax + (Math.random() - 0.5) * spread));
+        gy = Math.max(60, Math.min(h - 60, ay + (Math.random() - 0.5) * spread));
+      } else {
+        gx = 60 + Math.random() * (w - 120);
+        gy = 60 + Math.random() * (h - 120);
+      }
+      stampPetro(g, gx, gy, sz, gi, e, p.growth, now);
+      recentPetro.push({ x: gx, y: gy, sz, gi, pc, age: 0 });
+      if (recentPetro.length > 20) recentPetro.shift();
+      // Dust puff on every stamp — rising wisps seeded at glyph centre
+      for (let wk = 0; wk < 3 + Math.floor(e * 4); wk++) {
+        petroWisps.push({
+          x: gx + (Math.random() - 0.5) * sz * 0.5,
+          y: gy + (Math.random() - 0.5) * sz * 0.5,
+          vx: (Math.random() - 0.5) * 0.4,
+          vy: -0.2 - Math.random() * 0.6,
+          life: 0.8 + Math.random() * 0.3,
+          size: 0.6 + Math.random() * 1.0,
+        });
+      }
+    }
+  }
+
+  // ── Peak transient — single larger "action" glyph; very loud peaks
+  //    scatter a footprint trail. Heat boost triggers resonance bloom.
+  if (a.peak > petroPrevPeak + 0.08) {
+    const actionGi = [1, 2, 3, 9, 11, 14][Math.floor(Math.random() * 6)];
+    const bx = 80 + Math.random() * (w - 160);
+    const by = 80 + Math.random() * (h - 160);
+    stampPetro(g, bx, by, 30 + a.peak * 30, actionGi, Math.min(1, a.peak + 0.2), p.growth, now);
+    recentPetro.push({ x: bx, y: by, sz: 30 + a.peak * 30, gi: actionGi, pc: actionGi % 12, age: 0 });
+    if (a.peak > 0.55) {
+      const tx0 = 60 + Math.random() * (w - 240);
+      const ty0 = 60 + Math.random() * (h - 120);
+      for (let i = 0; i < 4; i++) {
+        stampPetro(g, tx0 + i * 36, ty0 + (i % 2) * 8, 14, 10, 0.5, p.growth, now);
+      }
+    }
+  }
+  petroPrevPeak = a.peak;
+
+  for (let i = recentPetro.length - 1; i >= 0; i--) {
+    recentPetro[i].age += 0.012 * dt;
+    if (recentPetro[i].age > 4) recentPetro.splice(i, 1);
+  }
+
+  // ── Rising incense wisps — slow upward drift from ground level up,
+  //    plus audio-gated spawns from the bottom edge. Replaces the old
+  //    falling-chips motion with a more sacred rising smoke.
+  if (a.rms > 0.03 && Math.random() < 0.25 + a.rms * 0.9 && petroWisps.length < 80) {
+    petroWisps.push({
+      x: Math.random() * w,
+      y: h + 4,
+      vx: (Math.random() - 0.5) * 0.2,
+      vy: -0.4 - Math.random() * 0.6,
+      life: 1,
+      size: 1 + Math.random() * 2,
+    });
+  }
+
+  // ── Compose the offscreen rock face with a whole-wall breathing
+  //    offset driven by low-band energy (seismic rumble) + slow sine.
+  const shakeX = Math.sin(p.t * 0.18) * 1.2 + low * (Math.random() - 0.5) * 3;
+  const shakeY = Math.cos(p.t * 0.14) * 0.8 + low * (Math.random() - 0.5) * 2;
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+  ctx.drawImage(petroCanvas!, 0, 0);
+  ctx.restore();
+
+  // ── Firelight source — warm radial glow from bottom-centre. Flickers
+  //    with the lamp walk + rms. The cave is lit by fire.
+  const lampCy = h * 0.92;
+  const lampR = Math.max(w, h) * (0.35 + petroLamp * 0.12 + a.rms * 0.1);
+  const fireBright = 0.28 + petroLamp * 0.32 + a.rms * 0.25 + petroHeat * 0.18;
+  const fire = ctx.createRadialGradient(w / 2, lampCy, 0, w / 2, lampCy, lampR);
+  fire.addColorStop(0, `hsla(26, 75%, 50%, ${fireBright * 0.45})`);
+  fire.addColorStop(0.4, `hsla(22, 65%, 32%, ${fireBright * 0.2})`);
+  fire.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = fire;
+  ctx.fillRect(0, 0, w, h);
+
+  // ── Sacred constellation threads — connect recent glyphs sharing
+  //    a pitch class, coloured amber-gold. Brighten with rms + heat.
+  ctx.lineWidth = 0.7;
+  for (let i = 0; i < recentPetro.length; i++) {
+    for (let j = i + 1; j < recentPetro.length; j++) {
+      const a1 = recentPetro[i], a2 = recentPetro[j];
+      if (a1.pc !== a2.pc) continue;
+      const dx = a2.x - a1.x, dy = a2.y - a1.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > Math.max(w, h) * 0.55) continue;
+      const ageMax = Math.max(a1.age, a2.age);
+      const al = Math.max(0, 1 - ageMax / 3) * (0.10 + a.rms * 0.22 + petroHeat * 0.35);
+      if (al < 0.02) continue;
+      ctx.strokeStyle = `hsla(34, 60%, 55%, ${al})`;
+      ctx.beginPath();
+      ctx.moveTo(a1.x, a1.y);
+      ctx.lineTo(a2.x, a2.y);
+      ctx.stroke();
+    }
+  }
+
+  // ── Resonance bloom — on strong transient, every recent glyph gets
+  //    a brief bright aura. Spirits animating the carvings.
+  const bloomGate = petroHeat > 0.35 ? (petroHeat - 0.35) / 0.65 : 0;
+
+  // ── Live halos + peak ripple — breathing golden auras over each
+  //    fresh carving. Rosa Camuna also gets the live-cup pulse.
+  for (let i = 0; i < recentPetro.length; i++) {
+    const r = recentPetro[i];
+    const personalBreath = 0.5 + 0.5 * Math.sin(p.t * 0.8 + i * 1.3);
+    const pulse = Math.max(0, 1 - r.age / 2) * (0.14 + a.rms * 0.22 + petroHeat * 0.4 + bloomGate * 0.35) * personalBreath;
+    if (pulse < 0.02) continue;
+    const haloR = r.sz * (1.5 + petroHeat * 0.5 + bloomGate * 0.4);
+    const halo = ctx.createRadialGradient(r.x, r.y, r.sz * 0.55, r.x, r.y, haloR);
+    halo.addColorStop(0, "rgba(0,0,0,0)");
+    halo.addColorStop(0.5, `hsla(${28 + petroHeat * 10}, 65%, 55%, ${pulse * 0.3})`);
+    halo.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, haloR, 0, Math.PI * 2);
+    ctx.fill();
+    // Rosa Camuna cup pulse
+    if (r.gi === 4) {
+      const cupAl = (0.4 + a.rms * 0.55 + petroHeat * 0.3) * Math.max(0, 1 - r.age / 3);
+      if (cupAl > 0.05) {
+        const rot = now * 0.008;
+        const cosA = Math.cos(rot), sinA = Math.sin(rot);
+        ctx.fillStyle = `hsla(30, 75%, 58%, ${cupAl * 0.5})`;
+        for (let c = 0; c < ROSA_CUPS.length; c++) {
+          const [cx, cy, cr] = ROSA_CUPS[c];
+          const lx = r.x + (cx * r.sz) * cosA - (cy * r.sz) * sinA;
+          const ly = r.y + (cx * r.sz) * sinA + (cy * r.sz) * cosA;
+          const rad = cr * r.sz * (1 + petroHeat * 0.6 + a.rms * 0.3);
+          ctx.beginPath();
+          ctx.arc(lx, ly, rad * 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  // ── Pointer preview — faint amber ring at cursor when hovering
+  if (p.pointer && !pointerDown) {
+    const px = p.pointer.x * w;
+    const py = p.pointer.y * h;
+    ctx.strokeStyle = "rgba(200, 150, 90, 0.2)";
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(px, py, 14 + Math.sin(p.t * 2) * 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // ── Rising wisps (render + advect)
+  for (let i = petroWisps.length - 1; i >= 0; i--) {
+    const s = petroWisps[i];
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    // Very slight buoyancy acceleration
+    s.vy -= 0.004 * dt;
+    s.life -= 0.006 * dt;
+    if (s.life <= 0 || s.y < -10) { petroWisps.splice(i, 1); continue; }
+    // Render as soft amber radial blob
+    const sz = s.size * (1 + (1 - s.life) * 0.6);
+    const al = s.life * 0.25;
+    const gr = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, sz * 3);
+    gr.addColorStop(0, `hsla(26, 55%, 55%, ${al})`);
+    gr.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gr;
+    ctx.fillRect(s.x - sz * 3, s.y - sz * 3, sz * 6, sz * 6);
+  }
+
+  // ── Time-of-day patina — deeper ember at "dusk", cooler mineral
+  //    tones at "dawn". Slow 10-minute cycle.
+  const dayPhase = (p.t * 0.004) % (Math.PI * 2);
+  const daySat = 0.5 + 0.5 * Math.sin(dayPhase);
+  const dayHue = 16 + daySat * 14;
+  ctx.fillStyle = `hsla(${dayHue}, 30%, 20%, ${0.03 + a.rms * 0.025})`;
+  ctx.fillRect(0, 0, w, h);
+
+  // ── Cave-mouth vignette — deeper than before, more sacred darkness
+  const vg = ctx.createRadialGradient(w / 2, h * 0.55, Math.min(w, h) * 0.28,
+                                      w / 2, h * 0.55, Math.max(w, h) * 0.72);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(1, "rgba(0,0,0,0.68)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, w, h);
+
+  // ── Peak flash — warm ember, subtle
+  if (a.peak > 0.55) {
+    ctx.fillStyle = `rgba(180, 90, 40, ${(a.peak - 0.55) * 0.09})`;
+    ctx.fillRect(0, 0, w, h);
+  }
 }

@@ -203,10 +203,17 @@ const VISUALIZERS: readonly Visualizer[] = [
   "dreamMachine",
   "flowField",
   "feedbackTunnel",
-  "feedbackTunnelBW",
   "ironFilings",
   "sediment",
   "waveformRing",
+  "resonantBody",
+  "tapeDecay",
+  "voidMonolith",
+  "beatingField",
+  "tuningManuscript",
+  "granularWeather",
+  "petroglyphs",
+  "feedbackTunnelBW",
 ] as const;
 
 const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {

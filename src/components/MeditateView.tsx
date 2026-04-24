@@ -326,6 +326,10 @@ export function MeditateView({
       pointerDown: false,
       mood: { hue: 30, warmth: 0.5, brightness: 0.5, density: 0.5 },
       activePitches: new Float32Array(12),
+      voices: {
+        tanpura: 0, reed: 0, metal: 0, air: 0,
+        piano: 0, fm: 0, amp: 0, noise: 0,
+      },
     };
     // Scratch buffer the tick loop fills each frame with the
     // instantaneous pitch-class targets before smoothing them into
@@ -534,6 +538,17 @@ export function MeditateView({
         const activeLayers =
           (layers.tanpura ? 1 : 0) + (layers.reed ? 1 : 0) +
           (layers.metal ? 1 : 0) + (layers.air ? 1 : 0);
+        // Per-voice weights — layer ON × mixer level. resonantBody
+        // blends voice-specific anatomy silhouettes from this.
+        const vs = phase.voices!;
+        vs.tanpura = layers.tanpura ? engine.getVoiceLevel("tanpura") : 0;
+        vs.reed    = layers.reed    ? engine.getVoiceLevel("reed")    : 0;
+        vs.metal   = layers.metal   ? engine.getVoiceLevel("metal")   : 0;
+        vs.air     = layers.air     ? engine.getVoiceLevel("air")     : 0;
+        vs.piano   = layers.piano   ? engine.getVoiceLevel("piano")   : 0;
+        vs.fm      = layers.fm      ? engine.getVoiceLevel("fm")      : 0;
+        vs.amp     = layers.amp     ? engine.getVoiceLevel("amp")     : 0;
+        vs.noise   = layers.noise   ? engine.getVoiceLevel("noise")   : 0;
         // Hue: dark/sub → deep red-violet (~340); bright/air → amber (~35)
         const targetHue = 340 - climateX * 70 - air * 30 + (1 - sub) * 20;
         // Smoothly approach the target so the palette drifts rather than snaps
