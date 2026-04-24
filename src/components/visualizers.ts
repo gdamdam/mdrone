@@ -63,19 +63,24 @@ export const VISUALIZER_GROUPS: readonly {
   {
     label: "GEOMETRIC",
     items: [
+      // Flagship color mandala
       "mandala",
+      // Pitch family — radial, pitch-class reactive
       "pitchSpiral",
       "pitchTonnetz",
       "pitchBeats",
-      "flowField",
-      "waveformRing",
-      "sigil",
-      "cymatics",
       "partialConstellation",
+      // Waveform / phase-space pair
       "phasePortrait",
       "phaseMirror",
-      "astrolabe",
+      // Signal / spectrum geometry
+      "waveformRing",
+      "cymatics",
+      // Particle / ritual / specialised
+      "flowField",
+      "sigil",
       "crystalLattice",
+      "astrolabe",
     ],
   },
   {
@@ -88,17 +93,21 @@ export const VISUALIZER_GROUPS: readonly {
   {
     label: "FIELD / PAINTERLY",
     items: [
+      // Warm painterly fields
       "rothko",
       "dreamHouse",
-      "inkBloom",
-      "haloGlow",
-      "mirrorGlyphs",
       "horizon",
+      "haloGlow",
+      // Ink / textural
+      "inkBloom",
       "ironFilings",
-      "prayerRug",
-      "illuminatedGlyphs",
-      "scryingMirror",
+      // Print / textile
       "halftone",
+      "prayerRug",
+      // Ritual cluster (gilt / cream / Rorschach)
+      "illuminatedGlyphs",
+      "mirrorGlyphs",
+      "scryingMirror",
     ],
   },
   {
@@ -107,8 +116,8 @@ export const VISUALIZER_GROUPS: readonly {
       "feedbackTunnel",
       "starGate",
       "fractal",
-      "dreamMachine",
       "moireField",
+      "dreamMachine",
     ],
   },
 ];
