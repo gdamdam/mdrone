@@ -9,6 +9,7 @@ import { Footer } from "./Footer";
 import { NotificationTray } from "./NotificationTray";
 import { showNotification } from "../notifications";
 import { measureAllPresets } from "../devtools/measureLoudness";
+import { auditArrival } from "../devtools/auditArrival";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 import { MeditateView } from "./MeditateView";
@@ -92,8 +93,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // one-shot guard — which let preset.name overwrite a generated
   // drone name on the second fire.
   const handlePresetChange = useCallback(
-    (_presetId: string | null, presetName: string | null) => {
-      handlePresetNameChange(presetName);
+    (presetId: string | null, presetName: string | null) => {
+      handlePresetNameChange(presetId, presetName);
     },
     [handlePresetNameChange],
   );
@@ -194,9 +195,20 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         if (!engine.isPlaying()) holdToggleRef.current?.();
       },
     });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__auditArrival = (dwellMs?: number) => auditArrival({
+      applyPresetById: (id) => droneViewRef.current?.applyPresetById(id),
+      ensurePlaying: () => {
+        if (!engine.isPlaying()) holdToggleRef.current?.();
+      },
+    }, dwellMs);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__auditArrival.stop = () => auditArrival.stop();
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__measureAllPresets;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__auditArrival;
     };
   }, [engine]);
 
@@ -548,6 +560,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onRenameSession={sceneManager.handleRenameSession}
         getDefaultSessionName={sceneManager.getDefaultSessionName}
         displayText={sceneManager.displayText}
+        isArrivalPreset={sceneManager.isArrivalPreset}
+        rndArrivalRemaining={sceneManager.rndArrivalRemaining}
         tonic={headerTonic}
         octave={headerOctave}
         onChangeTonic={(pc) => droneViewRef.current?.setRoot(pc)}

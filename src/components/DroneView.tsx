@@ -15,7 +15,7 @@ const ScaleEditorModal = lazy(() =>
 );
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { VoiceType } from "../engine/VoiceBuilder";
-import { PRESETS, type PresetGroup } from "../engine/presets";
+import { PRESETS, ARRIVAL_PRESET_IDS, type PresetGroup } from "../engine/presets";
 import { JOURNEYS, JOURNEY_IDS, type JourneyId } from "../journey";
 import { PARTNER_RELATIONS, type PartnerRelation } from "../partner";
 import { VuMeter } from "./VuMeter";
@@ -1017,12 +1017,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           ))}
         </div>
         <div className="preset-grid">
-          {visiblePresets.map((p) => (
+          {visiblePresets.map((p) => {
+            const isArrival = (ARRIVAL_PRESET_IDS as readonly string[]).includes(p.id);
+            return (
             <button
               key={p.id}
               onClick={() => onPresetClick(p.id, p.group)}
               className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
-              title={`${p.name} — ${p.attribution}\n\n${p.hint}`}
+              title={`${p.name} — ${p.attribution}${isArrival ? "\n\n✦ Curated arrival preset" : ""}\n\n${p.hint}`}
             >
               <span
                 className="preset-btn-icon"
@@ -1030,11 +1032,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 aria-hidden="true"
               />
               <span className="preset-btn-meta">
-                <span className="preset-btn-name">{p.name}</span>
+                <span className="preset-btn-name">
+                  {isArrival && <span className="preset-btn-arrival" aria-hidden="true">✦ </span>}
+                  {p.name}
+                </span>
                 <span className="preset-btn-attr">{p.attribution}</span>
               </span>
             </button>
-          ))}
+            );
+          })}
         </div>
         </>
         )}

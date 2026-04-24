@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type { AudioEngine } from "../engine/AudioEngine";
 import { showNotification } from "../notifications";
 import { trackEvent } from "../analytics";
-import { PRESETS, createArrivalScene, createSafeRandomScene, createWelcomeScene, mutateScene, mulberry32 } from "../engine/presets";
+import { PRESETS, ARRIVAL_PRESET_IDS, createArrivalScene, createSafeRandomScene, createWelcomeScene, mutateScene, mulberry32 } from "../engine/presets";
 import { applyJourneyTick } from "../journey";
 import {
   SceneRecorder,
@@ -120,6 +120,7 @@ export function useSceneManager({
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(() => loadCurrentSessionId());
   const [currentSessionName, setCurrentSessionName] = useState(DEFAULT_SESSION_NAME);
   const [currentPresetName, setCurrentPresetName] = useState<string>("Random Scene");
+  const [currentPresetId, setCurrentPresetId] = useState<string | null>(null);
   const [meditateVisualizer, setMeditateVisualizer] = useState<Visualizer>(() => loadMeditateVisualizer());
   const initSceneRef = useRef(false);
   const ignoreNextPresetNameRef = useRef(false);
@@ -135,6 +136,9 @@ export function useSceneManager({
   // first impressions; subsequent calls fall through to the broader
   // safe-random pool for full library variety.
   const rndCallCountRef = useRef(0);
+  // Reactive mirror — used by the header RND hint so the "curated
+  // first · full library after" note can fade once the gate is spent.
+  const [rndArrivalRemaining, setRndArrivalRemaining] = useState(3);
   const SCENE_MUTATION_MIN_GAP_MS = 1500;
 
   // Tick-count for the URL-deterministic evolve loop. Reset whenever
@@ -188,6 +192,7 @@ export function useSceneManager({
       preset.attribution,
     );
     setCurrentPresetName(generated);
+    setCurrentPresetId(preset.id);
     saveCurrentSessionId(null);
   }, [droneViewRef]);
 
@@ -239,6 +244,7 @@ export function useSceneManager({
     setCurrentSessionId(options?.sessionId ?? null);
     setCurrentSessionName(scene.name);
     setCurrentPresetName(scene.name);
+    setCurrentPresetId(scene.drone.activePresetId ?? null);
     saveCurrentSessionId(options?.sessionId ?? null);
 
     // Cancel any previous motion replay (e.g. share-URL load arriving
@@ -466,6 +472,7 @@ export function useSceneManager({
     const ARRIVAL_RND_COUNT = 3;
     const useArrival = rndCallCountRef.current < ARRIVAL_RND_COUNT;
     rndCallCountRef.current += 1;
+    setRndArrivalRemaining(Math.max(0, ARRIVAL_RND_COUNT - rndCallCountRef.current));
     const { preset, snapshot } = useArrival
       ? createArrivalScene(randomTonic, FALLBACK_OCTAVE_RANGE, rng)
       : createSafeRandomScene(randomTonic, FALLBACK_OCTAVE_RANGE, rng);
@@ -489,6 +496,7 @@ export function useSceneManager({
       preset.attribution,
     );
     setCurrentPresetName(generated);
+    setCurrentPresetId(preset.id);
     saveCurrentSessionId(null);
   }, [droneViewRef]);
 
@@ -572,7 +580,7 @@ export function useSceneManager({
     };
   }, [captureCurrentScene]);
 
-  const handlePresetNameChange = useCallback((presetName: string | null) => {
+  const handlePresetNameChange = useCallback((presetId: string | null, presetName: string | null) => {
     if (ignoreNextPresetNameRef.current) {
       ignoreNextPresetNameRef.current = false;
       return;
@@ -582,6 +590,7 @@ export function useSceneManager({
     // which clobbered restored scene names and made Continue Last Scene
     // look broken.
     if (presetName) setCurrentPresetName(presetName);
+    setCurrentPresetId(presetId);
   }, []);
 
   // URL-deterministic evolve loop. When the current scene is playing
@@ -627,6 +636,9 @@ export function useSceneManager({
     ? currentSessionName
     : currentPresetName || currentSessionName || "Random Scene";
 
+  const isArrivalPreset = currentPresetId !== null
+    && (ARRIVAL_PRESET_IDS as readonly string[]).includes(currentPresetId);
+
   const shareInitialName = currentSessionId
     ? currentSessionName
     : (currentPresetName || "Drone Landscape");
@@ -638,6 +650,8 @@ export function useSceneManager({
     meditateVisualizer,
     setMeditateVisualizer,
     displayText,
+    isArrivalPreset,
+    rndArrivalRemaining,
     shareInitialName,
     handleSaveSession,
     handleRenameSession,

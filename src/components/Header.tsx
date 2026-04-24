@@ -39,6 +39,8 @@ interface HeaderProps {
   onRenameSession: (name: string) => void;
   getDefaultSessionName: () => string;
   displayText: string;
+  isArrivalPreset?: boolean;
+  rndArrivalRemaining?: number;
   tonic: PitchClass;
   octave: number;
   onChangeTonic: (pc: PitchClass) => void;
@@ -89,6 +91,8 @@ export function Header({
   onRenameSession,
   getDefaultSessionName,
   displayText,
+  isArrivalPreset,
+  rndArrivalRemaining,
   tonic,
   octave,
   onToggleHold,
@@ -359,20 +363,43 @@ export function Header({
           }}
         >
           <div className="header-display-track">
+            {isArrivalPreset && <span className="header-display-arrival" aria-label="curated arrival preset" title="Curated arrival preset">✦</span>}
             {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span> {displayText} <span className="header-display-sep">●</span>
           </div>
         </button>
 
         {/* Right — primary play controls */}
         <div className="header-center">
+        <span className="header-rnd-wrap">
         <button
           className="header-btn header-btn-random"
           onClick={onRandomScene}
-          title="Load a gentle random scene variation"
+          title={
+            rndArrivalRemaining && rndArrivalRemaining > 0
+              ? `Load a random scene — curated arrival pool for the next ${rndArrivalRemaining} roll${rndArrivalRemaining === 1 ? "" : "s"}, then full library variety`
+              : "Load a random scene from the full library"
+          }
         >
           <span className="header-btn-label-full">RND</span>
           <span className="header-btn-label-glyph" aria-hidden="true">RND</span>
         </button>
+        {rndArrivalRemaining && rndArrivalRemaining > 0 ? (
+          <span
+            className="header-rnd-pips"
+            aria-hidden="true"
+            title={`${rndArrivalRemaining} curated roll${rndArrivalRemaining === 1 ? "" : "s"} left`}
+          >
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className={i < rndArrivalRemaining ? "header-rnd-pip header-rnd-pip-on" : "header-rnd-pip"}
+              >
+                ✦
+              </span>
+            ))}
+          </span>
+        ) : null}
+        </span>
         <button
           data-tutor="share-btn"
           className="header-btn header-btn-share"

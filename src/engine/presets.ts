@@ -27,6 +27,7 @@ import { resolveTuning } from "../microtuning";
 import type { DroneSessionSnapshot } from "../session";
 import { DEFAULT_PARTNER } from "../partner";
 import { DEFAULT_ENTRAIN, type EntrainState } from "../entrain";
+import { sampleSubtleOffsets } from "../goodDrone";
 
 export type PresetGroup =
   | "Sacred / Ritual"
@@ -3005,7 +3006,14 @@ export function createArrivalScene(
     const range = preset.octaveRange ?? fallbackOctaveRange;
     const [lo, hi] = range;
     const octave = lo + Math.floor(random() * (hi - lo + 1));
-    return { preset, snapshot: createPresetVariation(preset, root, octave, random) };
+    const snapshot = createPresetVariation(preset, root, octave, random);
+    // Arrival presets should land as if the user had clicked GOOD DRONE:
+    // authored tuning/relation preserved, but with subtle ±2–5¢ detune
+    // per interval so every voice "breathes" on first impression.
+    if (snapshot.relationId) {
+      snapshot.fineTuneOffsets = sampleSubtleOffsets(snapshot.relationId, random);
+    }
+    return { preset, snapshot };
   }
   // Fallback to the broader pool
   return createSafeRandomScene(root, fallbackOctaveRange, random);

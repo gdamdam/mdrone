@@ -970,6 +970,43 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 0.7em;
 }
 
+/* ✦ marker — flagged on curated arrival presets so the user knows
+ * the scene started from the hand-tuned pool. */
+.header-display-arrival,
+.preset-btn-arrival {
+  color: #e8c86a;
+  opacity: 0.85;
+}
+.header-display-arrival {
+  margin-right: 6px;
+  font-size: 0.9em;
+}
+
+.header-rnd-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.header-rnd-pips {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 1px);
+  transform: translateX(-50%);
+  display: inline-flex;
+  gap: 2px;
+  pointer-events: none;
+  line-height: 1;
+}
+.header-rnd-pip {
+  font-size: 9px;
+  color: #e8c86a;
+  opacity: 0.2;
+  transition: opacity 200ms ease;
+}
+.header-rnd-pip-on {
+  opacity: 0.85;
+}
+
 @keyframes header-marquee {
   0% { transform: translateX(0); }
   100% { transform: translateX(-33.33%); }

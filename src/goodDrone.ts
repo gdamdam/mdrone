@@ -60,20 +60,26 @@ function subtleOffset(rng: () => number): number {
   return Math.round(magnitude * sign * 10) / 10;
 }
 
+/** Subtle per-interval detune array for a relation — root stays at 0,
+ *  every other pick gets ±2–5¢. Shared between sampleGoodDrone and
+ *  createArrivalScene so arrival presets "breathe" like a GOOD DRONE
+ *  state does. */
+export function sampleSubtleOffsets(
+  relationId: RelationId,
+  rng: () => number = Math.random,
+): number[] {
+  const relation = relationById(relationId);
+  const out = new Array<number>(relation.picks.length).fill(0);
+  for (let i = 1; i < out.length; i++) out[i] = subtleOffset(rng);
+  return out;
+}
+
 /** Sample a good-drone tuning state. Accepts an injectable RNG for
  *  tests; defaults to Math.random. */
 export function sampleGoodDrone(rng: () => number = Math.random): GoodDroneResult {
   const entry = pick(POOL, rng);
   const relationId = pick(entry.relations, rng);
-  const relation = relationById(relationId);
-  // fineTuneOffsets is indexed by position in the relation's picks
-  // (not by degree slot). Root stays at 0; every other resolved
-  // interval gets a subtle detune.
-  const fineTuneOffsets: number[] = new Array(relation.picks.length).fill(0);
-  for (let i = 1; i < fineTuneOffsets.length; i++) {
-    fineTuneOffsets[i] = subtleOffset(rng);
-  }
-  return { tuningId: entry.tuningId, relationId, fineTuneOffsets };
+  return { tuningId: entry.tuningId, relationId, fineTuneOffsets: sampleSubtleOffsets(relationId, rng) };
 }
 
 /** Exposed for tests: the valid tuning ids in the pool. */
