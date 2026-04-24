@@ -3559,7 +3559,7 @@ interface SmokeP {
   life: number; hue: number;
 }
 const smokeParticles: SmokeP[] = [];
-const SMOKE_MAX = 260;
+const SMOKE_MAX = 520;
 let smokePrevPeak = 0;
 export function drawSmokePlume(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
@@ -3578,12 +3578,15 @@ export function drawSmokePlume(
   // their own plume at x = (pc/12)*w, coloured by a hue derived from
   // that pitch class. Every frame, each active pitch spawns some
   // particles proportional to its energy.
+  // All particles share a neutral gray-incense hue — mood tint is
+  // subtle (low saturation) so the whole column reads as smoke, not
+  // as a rainbow stack.
+  const smokeHue = p.mood.hue;
   for (let pc = 0; pc < 12; pc++) {
     const e = p.activePitches[pc];
     if (e < 0.05) continue;
     const x0 = w * ((pc + 0.5) / 12);
-    const hue = (p.mood.hue + (pc - 6) * 14 + 360) % 360;
-    const rate = Math.ceil(e * 3 + a.rms * 2);
+    const rate = Math.ceil(e * 7 + a.rms * 5);
     for (let k = 0; k < rate && smokeParticles.length < SMOKE_MAX; k++) {
       smokeParticles.push({
         x: x0 + (Math.random() - 0.5) * 10,
@@ -3592,7 +3595,7 @@ export function drawSmokePlume(
         vy: -0.7 - Math.random() * 0.9 - e * 0.6,
         r: 4 + Math.random() * 6,
         life: 1,
-        hue,
+        hue: smokeHue,
       });
     }
   }
@@ -3604,8 +3607,7 @@ export function drawSmokePlume(
     if (actives.length > 0) {
       const pc = actives[Math.floor(Math.random() * actives.length)];
       const x0 = w * ((pc + 0.5) / 12);
-      const hue = (p.mood.hue + (pc - 6) * 14 + 360) % 360;
-      const puff = 12 + Math.round(a.peak * 14);
+      const puff = 18 + Math.round(a.peak * 22);
       for (let k = 0; k < puff && smokeParticles.length < SMOKE_MAX; k++) {
         smokeParticles.push({
           x: x0 + (Math.random() - 0.5) * 20,
@@ -3614,7 +3616,7 @@ export function drawSmokePlume(
           vy: -1.2 - Math.random() * 1.5,
           r: 6 + Math.random() * 8,
           life: 1,
-          hue,
+          hue: smokeHue,
         });
       }
     }
@@ -3649,7 +3651,9 @@ export function drawSmokePlume(
       continue;
     }
     const alpha = s.life * (0.4 + a.rms * 0.3);
-    ctx.fillStyle = `hsla(${s.hue}, ${15 + hi * 30}%, ${45 + hi * 25}%, ${alpha})`;
+    // Gray incense smoke — 5–12% saturation, lightness varies with
+    // high-band energy so rich drones read denser than pure tones.
+    ctx.fillStyle = `hsla(${s.hue}, ${5 + hi * 8}%, ${48 + hi * 20}%, ${alpha})`;
     ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
   }
 
