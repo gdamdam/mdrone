@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mdrone — Microtonal Drone Instrument in Your Browser</title>
+  <meta
+    name="description"
+    content="A free drone instrument that runs in your browser. Hold a sustained tone, shape its colour over minutes, explore 22 microtonal tunings. No install, no account."
+  />
+  <meta name="robots" content="index,follow,max-image-preview:large" />
+  <link rel="canonical" href="https://mdrone.org/about.html" />
+  <meta property="og:title" content="mdrone — Microtonal Drone Instrument in Your Browser" />
+  <meta
+    property="og:description"
+    content="A free drone instrument that runs in your browser. Hold a sustained tone, shape its colour over minutes, explore 22 microtonal tunings."
+  />
+  <meta property="og:url" content="https://mdrone.org/about.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="mdrone" />
+  <meta property="og:image" content="https://mdrone.org/mdrone_screenshot.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="mdrone — Microtonal Drone Instrument in Your Browser" />
+  <meta
+    name="twitter:description"
+    content="A free drone instrument that runs in your browser. Hold a sustained tone, shape its colour over minutes, explore 22 microtonal tunings."
+  />
+  <meta name="twitter:image" content="https://mdrone.org/mdrone_screenshot.png" />
+  <meta name="theme-color" content="#0d0906" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "AboutPage",
+      "name": "mdrone — Microtonal Drone Instrument in Your Browser",
+      "url": "https://mdrone.org/about.html",
+      "description": "A free drone instrument that runs in your browser. Hold a sustained tone, shape its colour over minutes, explore 22 microtonal tunings.",
+      "about": {
+        "@type": "SoftwareApplication",
+        "name": "mdrone",
+        "description": "Free open-source browser-native drone instrument. Microtonal tuning, long-form motion, shareable scenes.",
+        "applicationCategory": "MusicApplication",
+        "operatingSystem": "iOS, iPadOS, Android, Windows, macOS, Linux",
+        "browserRequirements": "Requires JavaScript and Web Audio support",
+        "url": "https://mdrone.org/",
+        "image": "https://mdrone.org/mdrone_screenshot.png",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "author": { "@type": "Person", "name": "gdamdam", "url": "https://github.com/gdamdam" }
+      }
+    }
+  </script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is a drone instrument?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A drone instrument produces one sustained tone — or a small set of tones — held for long durations. There is no melody or beat. The sound stays, and its colour and texture shift slowly. Drones appear in Indian classical music, bagpipes, Tibetan ritual, and the minimalist lineage of La Monte Young, Pauline Oliveros, and Éliane Radigue."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What does microtonal mean?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Western keyboards split the octave into twelve equal steps. Microtonal music uses intervals that sit between those keys — the intervals of Indian ragas, Arabic maqamat, Javanese gamelan, and every historical European tuning Bach wrote for. mdrone ships twenty-two tuning systems including Pythagorean, Kirnberger III, just intonation, 31-TET, Yaman, and Bayati."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I need music theory to use mdrone?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Every control makes one audible change, and an RND button hands you a fresh scene any time. Music theory helps if you want to author your own tunings, but ignoring it costs nothing."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does mdrone work on phones?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. mdrone runs in any modern browser on iPhone, iPad, Android, and desktop. There is no app to install. Open the page and tap HOLD."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is mdrone free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. mdrone is free and open source under the AGPL-3.0 licence. There are no accounts, no sign-up, no ads, and no tracking beyond anonymous page-view counting. The sound is synthesised on your device and sessions stay in your browser's local storage."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I share what I make?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Every scene you build can be encoded as a URL that reproduces it exactly for anyone who opens the link — including custom tunings. You can also record the output as a 24-bit WAV file."
+          }
+        }
+      ]
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #e9d6b9;
+      --ink-soft: #b9a281;
+      --ink-faint: #7d6849;
+      --parch: #0d0906;
+      --blood: #b8532a;
+      --serif: "Baskerville","Big Caslon","Palatino Linotype",serif;
+      --mono: "Menlo","SF Mono",monospace;
+    }
+    html, body { min-height: 100%; background: var(--parch); color: var(--ink); font-family: var(--serif); overflow-x: hidden; }
+    body {
+      background:
+        radial-gradient(ellipse at 50% 50%, rgba(184,83,42,0.09), transparent 55%),
+        radial-gradient(ellipse at 20% 80%, rgba(184,83,42,0.04), transparent 40%),
+        repeating-linear-gradient(94deg, transparent 0 3px, rgba(255,255,255,0.008) 3px 4px),
+        #0d0906;
+    }
+    a { color: inherit; text-decoration: none; }
+    a:hover { color: var(--blood); }
+
+    .vellum { position: relative; min-height: 100vh; padding: 28px 32px 48px; max-width: 1400px; margin: 0 auto; }
+    .corner { position: absolute; width: 52px; height: 52px; border: 1px solid var(--ink-faint); }
+    .c-tl { top: 28px; left: 28px; border-right: 0; border-bottom: 0; }
+    .c-tr { top: 28px; right: 28px; border-left: 0; border-bottom: 0; }
+    .c-bl { bottom: 28px; left: 28px; border-right: 0; border-top: 0; }
+    .c-br { bottom: 28px; right: 28px; border-left: 0; border-top: 0; }
+
+    .supra {
+      text-align: center; font-family: var(--mono); font-size: 12px;
+      letter-spacing: 0.5em; color: var(--ink-faint);
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+    .supra::before, .supra::after { content: " · "; color: var(--blood); }
+
+    .hero {
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+      margin-top: 48px;
+    }
+    .sigil {
+      width: min(90%, 320px); aspect-ratio: 1;
+      position: relative; display: block; cursor: pointer;
+      transition: filter 240ms ease, transform 240ms ease;
+    }
+    .sigil:hover { filter: drop-shadow(0 0 18px rgba(240,164,91,0.35)); transform: scale(1.015); }
+    .sigil svg { width: 100%; height: 100%; }
+    .sigil-ring { animation: slow-spin 240s linear infinite; transform-origin: center; }
+    @keyframes slow-spin { to { transform: rotate(360deg); } }
+
+    .mantra {
+      text-align: center; font-family: var(--serif); font-style: italic;
+      font-size: clamp(32px, 4.4vw, 50px); line-height: 1.04;
+      color: #fff7e4; max-width: 14ch; margin: 0 auto;
+    }
+    .subline {
+      text-align: center; font-family: var(--mono);
+      font-size: 13px; letter-spacing: 0.24em;
+      color: var(--ink-faint); text-transform: uppercase;
+    }
+
+    .invocation {
+      margin-top: 36px; text-align: center;
+      display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;
+    }
+    .rite {
+      font-family: var(--mono); font-size: 14px; letter-spacing: 0.24em;
+      text-transform: uppercase; padding: 18px 32px;
+      border: 1px solid var(--ink-faint); color: var(--ink);
+      transition: all 200ms ease; position: relative;
+    }
+    .rite:hover { border-color: var(--blood); color: var(--blood); letter-spacing: 0.32em; }
+    .rite.primary {
+      border-color: var(--blood); color: #ffd3b4;
+      background: rgba(184,83,42,0.08);
+      animation: rite-breathe 4.8s ease-in-out infinite, rite-vibrate 3.4s ease-in-out infinite;
+    }
+    .rite.primary:hover { animation-play-state: paused; }
+    @keyframes rite-breathe {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(184,83,42,0), 0 0 18px rgba(184,83,42,0.25), 0 0 36px rgba(184,83,42,0.10); background: rgba(184,83,42,0.08); }
+      50% { box-shadow: 0 0 0 6px rgba(184,83,42,0.22), 0 0 48px rgba(240,164,91,0.62), 0 0 96px rgba(240,164,91,0.28); background: rgba(184,83,42,0.18); }
+    }
+    @keyframes rite-vibrate {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(0.9px, -0.6px); }
+      40% { transform: translate(-0.7px, 0.9px); }
+      60% { transform: translate(0.8px, 0.4px); }
+      80% { transform: translate(-0.5px, -0.7px); }
+    }
+    @media (prefers-reduced-motion: reduce) { .rite.primary { animation: rite-breathe 6s ease-in-out infinite; } }
+
+    .aside-note {
+      text-align: center; margin-top: 22px;
+      color: var(--ink-faint); font-size: 14px; font-style: italic;
+    }
+
+    .relic {
+      margin: 80px auto 0; max-width: 900px; position: relative;
+      padding: 18px; border: 1px solid var(--ink-faint);
+      background: linear-gradient(180deg, rgba(232,207,174,0.03), rgba(232,207,174,0.01));
+    }
+    .relic::before, .relic::after {
+      content: ""; position: absolute; width: 22px; height: 22px; border: 1px solid var(--blood);
+    }
+    .relic::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+    .relic::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
+    .relic-inner {
+      position: relative; display: block; overflow: hidden;
+      background: #050302; border: 1px solid rgba(125,104,73,0.5);
+      cursor: pointer; transition: border-color 240ms ease, box-shadow 240ms ease;
+    }
+    .relic-inner:hover { border-color: var(--blood); box-shadow: 0 0 40px rgba(184,83,42,0.22); }
+    .relic-inner:hover img { filter: saturate(1.05) contrast(1.05) brightness(1.06); }
+    .relic-inner img { width: 100%; display: block; filter: saturate(0.95) contrast(1.02); }
+    .relic-caption {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 14px; padding: 0 6px;
+      font-family: var(--mono); font-size: 11px; letter-spacing: 0.28em;
+      text-transform: uppercase; color: var(--ink-faint);
+    }
+    .relic-caption em { color: var(--blood); font-style: normal; letter-spacing: 0.16em; }
+
+    .rubric {
+      max-width: 640px; margin: 90px auto 40px; text-align: center;
+      border-top: 1px solid var(--ink-faint); border-bottom: 1px solid var(--ink-faint);
+      padding: 32px 0;
+    }
+    .rubric p {
+      font-size: 20px; line-height: 1.82; color: var(--ink);
+      margin-bottom: 18px; font-weight: 300;
+    }
+    .rubric p:last-child { color: var(--ink-soft); margin-bottom: 0; }
+
+    /* FAQ — open questions as section headings */
+    .faq {
+      max-width: 720px;
+      margin: 60px auto 0;
+      padding: 0 6px;
+    }
+    .faq-item {
+      margin-bottom: 36px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--ink-faint);
+    }
+    .faq-item:last-child { border-bottom: 0; }
+    .faq-q {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 24px;
+      line-height: 1.3;
+      color: #fff7e4;
+      margin-bottom: 16px;
+      font-weight: 400;
+    }
+    .faq-q::before {
+      content: "? ";
+      font-family: var(--mono);
+      font-style: normal;
+      font-size: 16px;
+      color: var(--blood);
+      letter-spacing: 0.2em;
+    }
+    .faq-a {
+      font-size: 18px;
+      line-height: 1.78;
+      color: var(--ink);
+      font-weight: 300;
+    }
+    .faq-a em { color: var(--ink-soft); font-style: italic; }
+    .faq-a + .faq-a { margin-top: 12px; }
+
+    .colophon {
+      margin-top: 100px; text-align: center;
+      font-family: var(--mono); font-size: 12px;
+      letter-spacing: 0.24em; text-transform: uppercase;
+      color: var(--ink-faint);
+      padding-top: 30px; border-top: 1px solid var(--ink-faint);
+    }
+    .colophon a { color: var(--ink-soft); border-bottom: 1px dotted var(--ink-faint); }
+  </style>
+</head>
+<body>
+  <main class="vellum">
+    <span class="corner c-tl"></span>
+    <span class="corner c-tr"></span>
+    <span class="corner c-bl"></span>
+    <span class="corner c-br"></span>
+
+    <div class="supra">drone instrument · microtonal · browser-native</div>
+
+    <section class="hero">
+      <a class="sigil" href="https://mdrone.org/" aria-label="Open mdrone">
+        <svg viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="sglow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#b8532a" stop-opacity="0.28"/>
+              <stop offset="60%" stop-color="#b8532a" stop-opacity="0.05"/>
+              <stop offset="100%" stop-color="#b8532a" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="200" cy="200" r="190" fill="url(#sglow)"/>
+          <g class="sigil-ring" stroke="#7d6849" stroke-width="0.8" fill="none">
+            <circle cx="200" cy="200" r="190"/>
+            <circle cx="200" cy="200" r="172" stroke-dasharray="2 6"/>
+            <circle cx="200" cy="200" r="150"/>
+          </g>
+          <g stroke="#b9a281" stroke-width="0.6">
+            <line x1="200" y1="10" x2="200" y2="24"/>
+            <line x1="200" y1="390" x2="200" y2="376"/>
+            <line x1="10" y1="200" x2="24" y2="200"/>
+            <line x1="390" y1="200" x2="376" y2="200"/>
+            <line x1="62" y1="62" x2="72" y2="72"/>
+            <line x1="338" y1="62" x2="328" y2="72"/>
+            <line x1="62" y1="338" x2="72" y2="328"/>
+            <line x1="338" y1="338" x2="328" y2="328"/>
+          </g>
+          <g stroke="#e9d6b9" stroke-width="1.8" stroke-linecap="round" fill="none">
+            <path d="M200 70 Q 195 180 200 220 Q 205 260 200 330"/>
+            <path d="M200 110 Q 120 140 130 220 Q 140 280 200 300"/>
+            <path d="M200 110 Q 290 160 280 230 Q 268 296 200 320"/>
+            <path d="M140 200 Q 200 160 260 200"/>
+            <path d="M200 220 L 175 280"/>
+            <path d="M200 220 L 228 276"/>
+            <path d="M178 92 Q 200 78 222 92"/>
+            <circle cx="200" cy="70" r="3" fill="#b8532a" stroke="none"/>
+            <circle cx="200" cy="330" r="2.5" fill="#b8532a" stroke="none"/>
+          </g>
+          <g stroke="#7d6849" stroke-width="0.8" fill="none">
+            <path d="M86 112 L 96 108 L 92 122"/>
+            <path d="M306 106 L 318 112 L 310 124 L 318 130"/>
+            <path d="M90 292 L 100 300 L 94 310"/>
+            <path d="M302 298 L 314 290 L 308 308"/>
+          </g>
+        </svg>
+      </a>
+
+      <h1 class="mantra">A microtonal drone instrument.</h1>
+      <div class="subline">Browser-native. Long-form. Shareable.</div>
+    </section>
+
+    <div class="invocation">
+      <a class="rite primary" href="https://mdrone.org/">Open mdrone</a>
+      <a class="rite" href="https://github.com/gdamdam/mdrone">Source on GitHub</a>
+    </div>
+    <p class="aside-note">Local-first. The music stays in your browser unless you decide to share it.</p>
+
+    <figure class="relic">
+      <a class="relic-inner" href="https://mdrone.org/" aria-label="Open mdrone">
+        <img src="./mdrone_screenshot.png" alt="mdrone interface — drone, voices, weather, effects" />
+      </a>
+      <figcaption class="relic-caption">
+        <span>The instrument</span>
+        <em>mdrone in use</em>
+        <span>mdrone.org</span>
+      </figcaption>
+    </figure>
+
+    <section class="rubric">
+      <div class="supra" style="margin-bottom: 22px;">What it is</div>
+      <p><em>An instrument built around one sustained tone.</em> Layered voices, slow weather, microtonal tuning, a long reverb tail, and two slow modulators, so a held note stays interesting for hours. No clock, no beats, no quantize.</p>
+    </section>
+
+    <section class="faq">
+      <div class="faq-item">
+        <h2 class="faq-q">What is a drone instrument?</h2>
+        <p class="faq-a">
+          A drone instrument produces one sustained tone — or a small set of
+          tones — held for long durations. There is no melody chasing across
+          the top, no beat pushing it forward. A note simply <em>stays</em>,
+          and its colour and texture shift slowly underneath.
+        </p>
+        <p class="faq-a">
+          You've heard drones all your life: the steady hum under Indian
+          classical music, the bagpipe's low note, the ringing of Tibetan
+          bowls. As a modern genre, drone music runs through La Monte Young,
+          Pauline Oliveros, Éliane Radigue, Catherine Christer Hennix, and
+          Stars of the Lid.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h2 class="faq-q">What does microtonal mean?</h2>
+        <p class="faq-a">
+          A piano splits the octave into twelve equal steps. Most of the
+          world's music doesn't. The intervals of Indian ragas, Arabic
+          maqamat, Javanese gamelan, and every historical European tuning
+          Bach wrote for sit <em>between</em> the piano's keys.
+        </p>
+        <p class="faq-a">
+          mdrone ships twenty-two tuning systems — Pythagorean, Kirnberger III,
+          just intonation, 31-TET, Yaman, Bayati, Pelog and more — so you can
+          hold a sustained fifth in one tuning, switch to another, and hear
+          the difference. On a held drone those differences are striking.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h2 class="faq-q">Do I need to know music theory?</h2>
+        <p class="faq-a">
+          No. Every control makes one audible change. A RND button hands you
+          a fresh starting scene any time. Music theory helps if you want to
+          author your own tunings, but ignoring it costs nothing. Most of the
+          pleasure of a drone is listening, not analysing.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h2 class="faq-q">Does it work on phones?</h2>
+        <p class="faq-a">
+          Yes — on iPhone, iPad, Android, and desktop. There is no app to
+          install. Open the page, tap HOLD, and the drone begins. A pair of
+          headphones or a small speaker is more than enough.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h2 class="faq-q">Is it free?</h2>
+        <p class="faq-a">
+          Yes. mdrone is free and open source under the AGPL-3.0 licence.
+          There are no accounts, no sign-up, no ads, and no tracking beyond
+          anonymous page-view counting. The sound is synthesised on your
+          device in real time; your sessions live in your browser's local
+          storage.
+        </p>
+      </div>
+
+      <div class="faq-item">
+        <h2 class="faq-q">Can I share what I make?</h2>
+        <p class="faq-a">
+          Yes. Every scene you build can be encoded as a URL that reproduces
+          it exactly for anyone who opens the link — including custom
+          tunings. You can also record the output as a 24-bit WAV file,
+          rendered locally and downloaded straight to your device.
+        </p>
+      </div>
+    </section>
+
+    <footer class="colophon">
+      mdrone · Built by <a href="https://github.com/gdamdam/mdrone">gdamdam</a> · AGPL-3.0
+    </footer>
+  </main>
+</body>
+</html>
