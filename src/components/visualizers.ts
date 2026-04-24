@@ -2973,12 +2973,13 @@ export function drawAstrolabe(
 //   spectral centroid    → facet size (low centroid → big slabs,
 //                                      high → tiny shards)
 //   active-pitch mass    → spawn rate
-interface Facet { x: number; y: number; size: number; angle: number; sides: number; light: number; }
+interface Facet { x: number; y: number; size: number; angle: number; sides: number; light: number; parentIdx: number; }
 const facets: Facet[] = [];
 let crystalCanvas: HTMLCanvasElement | null = null;
 let crystalCtx: CanvasRenderingContext2D | null = null;
 let lastFacetSpawn = 0;
 let prevCrystalRms = 0;
+let lastSparkleT = 0;
 function ensureCrystal(w: number, h: number) {
   if (!crystalCanvas || crystalCanvas.width !== w || crystalCanvas.height !== h) {
     crystalCanvas = document.createElement("canvas");
@@ -2988,6 +2989,63 @@ function ensureCrystal(w: number, h: number) {
     facets.length = 0;
   }
 }
+function drawFacetInto(c: CanvasRenderingContext2D, facet: Facet) {
+  c.save();
+  c.translate(facet.x, facet.y);
+  c.rotate(facet.angle);
+  const s = facet.size;
+  // Asymmetric gradient — catches "light" from upper-left so each
+  // facet reads as a 3D gem rather than a flat polygon.
+  const grad = c.createLinearGradient(-s * 0.7, -s, s * 0.7, s);
+  const l1 = Math.min(255, Math.round(facet.light * 2.55 + 55));
+  const l2 = Math.round(facet.light * 2.55);
+  const l3 = Math.max(0, Math.round(facet.light * 2.55 - 45));
+  grad.addColorStop(0, `rgba(${l1}, ${l1}, ${l1}, 0.92)`);
+  grad.addColorStop(0.5, `rgba(${l2}, ${l2}, ${l2}, 0.85)`);
+  grad.addColorStop(1, `rgba(${l3}, ${l3}, ${l3}, 0.92)`);
+  c.fillStyle = grad;
+  c.beginPath();
+  for (let k = 0; k < facet.sides; k++) {
+    const ang = (k / facet.sides) * Math.PI * 2 - Math.PI / 2;
+    const vx = Math.cos(ang) * s;
+    const vy = Math.sin(ang) * s;
+    if (k === 0) c.moveTo(vx, vy); else c.lineTo(vx, vy);
+  }
+  c.closePath();
+  c.fill();
+  // Cleavage lines — centre to each vertex. Turns the flat polygon
+  // into a visibly faceted gem.
+  c.strokeStyle = "rgba(255, 255, 255, 0.18)";
+  c.lineWidth = 0.6;
+  for (let k = 0; k < facet.sides; k++) {
+    const ang = (k / facet.sides) * Math.PI * 2 - Math.PI / 2;
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.lineTo(Math.cos(ang) * s, Math.sin(ang) * s);
+    c.stroke();
+  }
+  // Edge
+  c.strokeStyle = "rgba(230, 230, 230, 0.4)";
+  c.lineWidth = 0.9;
+  c.beginPath();
+  for (let k = 0; k < facet.sides; k++) {
+    const ang = (k / facet.sides) * Math.PI * 2 - Math.PI / 2;
+    const vx = Math.cos(ang) * s;
+    const vy = Math.sin(ang) * s;
+    if (k === 0) c.moveTo(vx, vy); else c.lineTo(vx, vy);
+  }
+  c.closePath();
+  c.stroke();
+  // Light-catching diagonal — a short bright streak across the upper
+  // left of the facet. Reads as specular glint.
+  c.strokeStyle = "rgba(255, 255, 255, 0.45)";
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(-s * 0.4, -s * 0.5);
+  c.lineTo(s * 0.15, -s * 0.15);
+  c.stroke();
+  c.restore();
+}
 export function drawCrystalLattice(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
@@ -2996,15 +3054,11 @@ export function drawCrystalLattice(
   const stability = 1 - Math.min(1, Math.abs(a.rms - prevCrystalRms) * 20);
   prevCrystalRms = a.rms;
 
-  // Spectral centroid → size scale. Low centroid = big blocky slabs,
-  // high centroid = tiny shards.
   let num = 0, den = 0;
   for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
   const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
   const sizeScale = 1.4 - centroid * 0.9;
 
-  // Dominant pitch class → polygon sides (3..7). Different pitches
-  // choose different lattice geometries.
   let dom = 0, domE = 0, mass = 0;
   for (let i = 0; i < 12; i++) {
     mass += p.activePitches[i];
@@ -3012,18 +3066,24 @@ export function drawCrystalLattice(
   }
   const sides = 3 + (dom % 5);
 
-  // Spawn rate keys off active-pitch mass — silence barely grows,
-  // rich chord passages grow quickly.
   const spawnEvery = Math.max(0.1, 0.8 - mass * 0.25 - a.rms);
   if (stability > 0.55 && a.rms > 0.06 && p.t - lastFacetSpawn > spawnEvery) {
     lastFacetSpawn = p.t;
-    let fx, fy;
-    if (facets.length === 0) {
-      fx = w / 2; fy = h / 2;
-    } else {
-      const parent = facets[Math.floor(Math.random() * facets.length)];
+    let fx = w / 2, fy = h / 2;
+    let parentIdx = -1;
+    if (facets.length > 0) {
+      // Cluster growth — 90% of the time the new facet sprouts from
+      // one of the six most recent, so dendrites form. 10% nucleates
+      // from any random existing facet, starting a new sub-cluster.
+      if (Math.random() < 0.9) {
+        const lookBack = Math.min(6, facets.length);
+        parentIdx = facets.length - 1 - Math.floor(Math.random() * lookBack);
+      } else {
+        parentIdx = Math.floor(Math.random() * facets.length);
+      }
+      const parent = facets[parentIdx];
       const ang = Math.random() * Math.PI * 2;
-      const d = parent.size * 1.4;
+      const d = parent.size * (1.35 + Math.random() * 0.35);
       fx = parent.x + Math.cos(ang) * d;
       fy = parent.y + Math.sin(ang) * d;
       if (fx < 20 || fy < 20 || fx > w - 20 || fy > h - 20) return;
@@ -3034,35 +3094,24 @@ export function drawCrystalLattice(
       angle: Math.random() * Math.PI,
       sides,
       light: 45 + Math.random() * 25,
+      parentIdx,
     };
     facets.push(facet);
-    c.save();
-    c.translate(facet.x, facet.y);
-    c.rotate(facet.angle);
-    const s = facet.size;
-    const grad = c.createLinearGradient(-s, -s, s, s);
-    const l1 = Math.round(facet.light * 2.55 + 38);
-    const l2 = Math.round(facet.light * 2.55);
-    const l3 = Math.round(facet.light * 2.55 - 38);
-    grad.addColorStop(0, `rgba(${l1}, ${l1}, ${l1}, 0.9)`);
-    grad.addColorStop(0.5, `rgba(${l2}, ${l2}, ${l2}, 0.85)`);
-    grad.addColorStop(1, `rgba(${Math.max(0, l3)}, ${Math.max(0, l3)}, ${Math.max(0, l3)}, 0.9)`);
-    c.fillStyle = grad;
-    c.beginPath();
-    for (let k = 0; k < facet.sides; k++) {
-      const ang = (k / facet.sides) * Math.PI * 2 - Math.PI / 2;
-      const vx = Math.cos(ang) * s;
-      const vy = Math.sin(ang) * s;
-      if (k === 0) c.moveTo(vx, vy); else c.lineTo(vx, vy);
+    // Growth vein — a faint line from parent to child shows the
+    // crystal's dendritic history.
+    if (parentIdx >= 0) {
+      const par = facets[parentIdx];
+      c.strokeStyle = "rgba(180, 180, 180, 0.28)";
+      c.lineWidth = 0.7;
+      c.beginPath();
+      c.moveTo(par.x, par.y);
+      c.lineTo(facet.x, facet.y);
+      c.stroke();
     }
-    c.closePath();
-    c.fill();
-    c.strokeStyle = "rgba(230, 230, 230, 0.35)";
-    c.lineWidth = 0.8;
-    c.stroke();
-    c.restore();
+    drawFacetInto(c, facet);
   }
   ctx.drawImage(crystalCanvas!, 0, 0);
+
   const last = facets[facets.length - 1];
   if (last) {
     const glow = ctx.createRadialGradient(last.x, last.y, 0, last.x, last.y, last.size * 3);
@@ -3072,6 +3121,36 @@ export function drawCrystalLattice(
     ctx.beginPath();
     ctx.arc(last.x, last.y, last.size * 3, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // Peak-triggered sparkles — bright flicker + cross-shine on a handful
+  // of existing facets. The whole lattice appears to "flash through"
+  // on transients.
+  if (a.peak > 0.3 && facets.length > 0 && p.t - lastSparkleT > 0.08) {
+    lastSparkleT = p.t;
+    const count = 1 + Math.round(a.peak * 3);
+    ctx.lineCap = "round";
+    for (let k = 0; k < count; k++) {
+      const f = facets[Math.floor(Math.random() * facets.length)];
+      const spR = f.size * 2.2;
+      const spg = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, spR);
+      spg.addColorStop(0, `rgba(255, 255, 255, ${a.peak * 0.8})`);
+      spg.addColorStop(0.5, `rgba(255, 255, 255, ${a.peak * 0.3})`);
+      spg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = spg;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, spR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${a.peak * 0.6})`;
+      ctx.lineWidth = 0.8;
+      for (let d = 0; d < 2; d++) {
+        const ang = d * Math.PI / 2 + p.t;
+        ctx.beginPath();
+        ctx.moveTo(f.x - Math.cos(ang) * spR, f.y - Math.sin(ang) * spR);
+        ctx.lineTo(f.x + Math.cos(ang) * spR, f.y + Math.sin(ang) * spR);
+        ctx.stroke();
+      }
+    }
   }
 }
 
