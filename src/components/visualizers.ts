@@ -3010,7 +3010,7 @@ export function drawPhaseMirror(
     [1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1],
   ];
   ctx.lineWidth = 1;
-  ctx.strokeStyle = `hsla(${p.mood.hue}, 45%, 70%, ${0.18 + a.rms * 0.25})`;
+  ctx.strokeStyle = `rgba(220, 220, 220, ${0.18 + a.rms * 0.25})`;
   for (let m = 0; m < 8; m++) {
     const [mx, my, mz] = mirrors[m];
     ctx.beginPath();
@@ -3036,7 +3036,7 @@ export function drawPhaseMirror(
     ctx.stroke();
   }
   const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
-  core.addColorStop(0, `hsla(${p.mood.hue}, 60%, 90%, ${0.55 + a.peak * 0.35})`);
+  core.addColorStop(0, `rgba(240, 240, 240, ${0.55 + a.peak * 0.35})`);
   core.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = core;
   ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
