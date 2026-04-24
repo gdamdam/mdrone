@@ -76,8 +76,7 @@ export const VISUALIZER_GROUPS: readonly {
       // Signal / spectrum geometry
       "waveformRing",
       "cymatics",
-      // Particle / ritual / specialised
-      "flowField",
+      // Ritual / specialised
       "sigil",
       "crystalLattice",
       "astrolabe",
@@ -101,6 +100,7 @@ export const VISUALIZER_GROUPS: readonly {
       // Ink / textural
       "inkBloom",
       "ironFilings",
+      "flowField",
       // Print / textile
       "halftone",
       "prayerRug",
