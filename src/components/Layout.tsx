@@ -505,13 +505,21 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
       showNotification(`Loop saved (${loopLengthSec}s)`, "info");
     } catch (error) {
-      console.error("mdrone: loop bounce failed", error);
-      const message = error instanceof Error ? error.message : "Unknown error.";
-      showNotification(`Loop bounce failed — ${message}`, "error");
+      if (error instanceof Error && error.name === "BounceCancelledError") {
+        showNotification("Loop bounce cancelled", "info");
+      } else {
+        console.error("mdrone: loop bounce failed", error);
+        const message = error instanceof Error ? error.message : "Unknown error.";
+        showNotification(`Loop bounce failed — ${message}`, "error");
+      }
     } finally {
       setLoopBusy(false);
       setLoopProgress(null);
     }
+  };
+
+  const handleCancelBounceLoop = () => {
+    engine.cancelBounceLoop();
   };
 
   /**
@@ -636,6 +644,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             loopLengthSec={loopLengthSec}
             onLoopLengthChange={setLoopLengthSec}
             onBounceLoop={handleBounceLoop}
+            onCancelBounceLoop={handleCancelBounceLoop}
             loopBusy={loopBusy}
             loopProgress={loopProgress}
           />

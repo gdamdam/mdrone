@@ -262,6 +262,7 @@ interface DroneViewProps {
   loopLengthSec?: number;
   onLoopLengthChange?: (sec: number) => void;
   onBounceLoop?: () => void;
+  onCancelBounceLoop?: () => void;
   loopBusy?: boolean;
   loopProgress?: { elapsedSec: number; totalSec: number } | null;
 }
@@ -296,7 +297,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, isRec, onToggleRec, recTimeMs, recordingSupported, recordingBusy, recordingTitle, loopLengthSec, onLoopLengthChange, onBounceLoop, loopBusy, loopProgress }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, isRec, onToggleRec, recTimeMs, recordingSupported, recordingBusy, recordingTitle, loopLengthSec, onLoopLengthChange, onBounceLoop, onCancelBounceLoop, loopBusy, loopProgress }: DroneViewProps,
   ref,
 ) {
   const {
@@ -1470,16 +1471,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   <button
                     type="button"
                     className={loopBusy ? "preset-mut-btn preset-mut-btn-loop" : "preset-mut-btn"}
-                    onClick={onBounceLoop}
-                    disabled={loopBusy || isRec || recordingBusy || !recordingSupported}
+                    onClick={loopBusy ? onCancelBounceLoop : onBounceLoop}
+                    disabled={loopBusy ? !onCancelBounceLoop : (isRec || recordingBusy || !recordingSupported)}
                     title={
                       loopBusy
-                        ? "Bouncing a seamless loop — play stays live, just wait"
+                        ? "Stop — cancel the loop bounce (no WAV is saved)"
                         : "◌ LOOP — bounce a seamless loop at the selected length (WAV with sampler loop points)"
                     }
                   >
                     {loopBusy && loopProgress
-                      ? `LOOP ${Math.min(loopProgress.totalSec, Math.floor(loopProgress.elapsedSec))}/${Math.ceil(loopProgress.totalSec)}s`
+                      ? `■ STOP ${Math.min(loopProgress.totalSec, Math.floor(loopProgress.elapsedSec))}/${Math.ceil(loopProgress.totalSec)}s`
                       : "◌ LOOP"}
                   </button>
                 </span>

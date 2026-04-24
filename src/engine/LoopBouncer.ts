@@ -78,10 +78,18 @@ export interface BounceOptions {
 
 const DEFAULT_FADE_MS = 1500;
 
+export class BounceCancelledError extends Error {
+  constructor() {
+    super("Loop bounce cancelled.");
+    this.name = "BounceCancelledError";
+  }
+}
+
 export class LoopBouncer {
   private readonly ctx: AudioContext;
   private readonly tapNode: AudioNode;
   private running = false;
+  private cancelled = false;
 
   constructor(ctx: AudioContext, tapNode: AudioNode) {
     this.ctx = ctx;
@@ -89,6 +97,12 @@ export class LoopBouncer {
   }
 
   isBouncing(): boolean { return this.running; }
+
+  /** Abort an in-progress bounce. The pending `bounce()` promise rejects
+   *  with BounceCancelledError; no WAV is produced. No-op if idle. */
+  cancel(): void {
+    if (this.running) this.cancelled = true;
+  }
 
   async bounce(opts: BounceOptions): Promise<BounceResult> {
     if (this.running) throw new Error("A loop bounce is already in progress.");
@@ -106,6 +120,7 @@ export class LoopBouncer {
     const totalSec = totalFrames / sampleRate;
 
     this.running = true;
+    this.cancelled = false;
     if (this.ctx.state === "suspended") await this.ctx.resume();
 
     let node: AudioWorkletNode;
@@ -152,11 +167,12 @@ export class LoopBouncer {
       onProgress({ elapsedSec, totalSec, phase: "capturing" });
     }, 250);
 
-    // Wait for capture to complete.
+    // Wait for capture to complete (or cancel).
     try {
       await new Promise<void>((resolve) => {
         const start = this.ctx.currentTime;
         const tick = () => {
+          if (this.cancelled) { resolve(); return; }
           const elapsed = this.ctx.currentTime - start;
           if (elapsed >= totalSec || captured >= totalFrames) {
             resolve();
@@ -168,10 +184,18 @@ export class LoopBouncer {
       });
 
       node.port.postMessage({ type: "stop" });
+      // Even on cancel we wait for the worklet's "done" so the tap
+      // shuts down cleanly before we disconnect.
       await done;
     } finally {
       window.clearInterval(progressTimer);
       try { this.tapNode.disconnect(node); } catch { /* ok */ }
+    }
+
+    if (this.cancelled) {
+      this.running = false;
+      this.cancelled = false;
+      throw new BounceCancelledError();
     }
 
     onProgress?.({ elapsedSec: totalSec, totalSec, phase: "encoding" });

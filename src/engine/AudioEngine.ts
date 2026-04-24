@@ -239,6 +239,10 @@ export class AudioEngine {
     return this.loopBouncer.bounce(opts);
   }
 
+  /** Abort an in-progress loop bounce (the pending promise rejects
+   *  with BounceCancelledError). No-op if no bounce is running. */
+  cancelBounceLoop(): void { this.loopBouncer.cancel(); }
+
   isBouncingLoop(): boolean { return this.loopBouncer.isBouncing(); }
 
   setVoiceLayer(type: VoiceType, on: boolean): void {
