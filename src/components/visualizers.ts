@@ -2403,15 +2403,7 @@ export function drawIronFilings(
     ctx.stroke();
   }
 
-  // Poles — small bright anchors so the magnetic sources are visible
-  ctx.fillStyle = "#d4cfc2";
-  ctx.beginPath();
-  ctx.arc(cx, cy, 2 + a.rms * 1.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = `rgba(230, 210, 170, ${0.55 + pitchMass * 0.3 + a.peak * 0.2})`;
-  ctx.beginPath();
-  ctx.arc(poleX, poleY, 2 + a.rms * 1.2 + pitchMass * 1.4, 0, Math.PI * 2);
-  ctx.fill();
+  // Poles intentionally invisible — the field they shape reveals them.
 
   // Peak shockwave ring
   if (filingsShock > 0.05) {
