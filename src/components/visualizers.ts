@@ -20,7 +20,6 @@ import { showNotification } from "../notifications";
 export type Visualizer =
   | "mandala"
   | "haloGlow"
-  | "haloGlowBW"
   | "mirrorGlyphs"
   | "fractal"
   | "rothko"
@@ -43,7 +42,6 @@ export type Visualizer =
   | "prayerRug"
   | "partialConstellation"
   | "phasePortrait"
-  | "liquidLight"
   | "moireField"
   | "illuminatedGlyphs"
   | "scryingMirror"
@@ -94,12 +92,10 @@ export const VISUALIZER_GROUPS: readonly {
       "dreamHouse",
       "inkBloom",
       "haloGlow",
-      "haloGlowBW",
       "mirrorGlyphs",
       "horizon",
       "ironFilings",
       "prayerRug",
-      "liquidLight",
       "illuminatedGlyphs",
       "scryingMirror",
       "halftone",
@@ -128,7 +124,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   flowField: "FLOW FIELD · particle streams",
   waveformRing: "WAVEFORM RING · circular oscilloscope",
   haloGlow: "HALO & RAYS",
-  haloGlowBW: "HALO & RAYS · B&W",
   mirrorGlyphs: "MIRROR GLYPHS · scrying + gilt runes",
   fractal: "JULIA FRACTAL · heavy",
   rothko: "ROTHKO FIELD",
@@ -143,7 +138,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   partialConstellation: "PARTIAL CONSTELLATION",
   phasePortrait: "PHASE PORTRAIT · Lissajous attractor",
   phaseMirror: "PHASE MIRROR · 8-fold phase-space",
-  liquidLight: "LIQUID LIGHT · caustics",
   moireField: "MOIRÉ FIELD · interference grid",
   illuminatedGlyphs: "ILLUMINATED GLYPHS · gilt runes",
   scryingMirror: "SCRYING MIRROR · Rorschach bloom",
@@ -1345,7 +1339,7 @@ export function drawStarGate(
 }
 
 // Halo-and-rays visualizer (formerly the Buddha image gallery)
-import { drawHaloGlow, drawHaloGlowBW } from "./deities";
+import { drawHaloGlow } from "./deities";
 
 export const VISUALIZER_FNS: Record<
   Visualizer,
@@ -1353,7 +1347,6 @@ export const VISUALIZER_FNS: Record<
 > = {
   mandala: drawMandala,
   haloGlow: drawHaloGlow,
-  haloGlowBW: drawHaloGlowBW,
   mirrorGlyphs: drawMirrorGlyphs,
   cymatics: drawCymatics,
   inkBloom: drawInkBloom,
@@ -1377,7 +1370,6 @@ export const VISUALIZER_FNS: Record<
   partialConstellation: drawPartialConstellation,
   phasePortrait: drawPhasePortrait,
   phaseMirror: drawPhaseMirror,
-  liquidLight: drawLiquidLight,
   moireField: drawMoireField,
   illuminatedGlyphs: drawIlluminatedGlyphs,
   scryingMirror: drawScryingMirror,
@@ -2597,63 +2589,6 @@ export function drawPhaseMirror(
   ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
 }
 
-// LIQUID LIGHT — caustic ripples. Spectrum bands drive heightfield
-// sinusoids; refraction magnitude = |∂h/∂x, ∂h/∂y|. Palette warms
-// with low centroid, cools with high.
-let liqCanvas: HTMLCanvasElement | null = null;
-let liqCtx: CanvasRenderingContext2D | null = null;
-let liqData: ImageData | null = null;
-const LIQ_W = 160, LIQ_H = 100;
-function ensureLiq() {
-  if (!liqCanvas) {
-    liqCanvas = document.createElement("canvas");
-    liqCanvas.width = LIQ_W; liqCanvas.height = LIQ_H;
-    liqCtx = liqCanvas.getContext("2d");
-    liqData = liqCtx!.createImageData(LIQ_W, LIQ_H);
-  }
-}
-export function drawLiquidLight(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  ensureLiq();
-  const d = liqData!.data;
-  const spec = a.spectrum;
-  let num = 0, den = 0;
-  for (let i = 0; i < spec.length; i++) { num += i * spec[i]; den += spec[i]; }
-  const centroid = den > 0 ? (num / den) / spec.length : 0.3;
-  const t = p.t;
-  const gain = 0.4 + a.rms * 2 + a.peak * 0.6;
-  // Nearly grayscale — tiny warm→cool tint so different drones aren't
-  // indistinguishable, but the palette reads as silver/iron light on
-  // dark water rather than the previous amber→cyan spread.
-  const rR = 215 + (0.5 - centroid) * 20;
-  const gG = 215;
-  const bB = 215 + (centroid - 0.5) * 20;
-  for (let y = 0; y < LIQ_H; y++) {
-    for (let x = 0; x < LIQ_W; x++) {
-      const nx = x / LIQ_W - 0.5;
-      const ny = y / LIQ_H - 0.5;
-      let hX = 0, hY = 0;
-      for (let k = 0; k < 6; k++) {
-        const e = spec[k * 2] ?? 0;
-        if (e < 0.03) continue;
-        const f = 8 + k * 6;
-        const phase = t * (0.12 + k * 0.04) + k;
-        hX += e * f * Math.cos(nx * f + ny * (f * 0.7) + phase);
-        hY += e * (f * 0.7) * Math.sin(nx * (f * 0.7) + ny * f + phase * 1.1);
-      }
-      const mag = Math.min(1, Math.sqrt(hX * hX + hY * hY) * gain * 0.05);
-      const c = mag * mag * (3 - 2 * mag);
-      const i = (y * LIQ_W + x) * 4;
-      d[i] = Math.round(rR * c); d[i + 1] = Math.round(gG * c);
-      d[i + 2] = Math.round(bB * c); d[i + 3] = 255;
-    }
-  }
-  liqCtx!.putImageData(liqData!, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(liqCanvas!, 0, 0, w, h);
-}
 
 
 // MOIRÉ FIELD — two overlaid rotating grids. Differential rotation

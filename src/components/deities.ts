@@ -427,13 +427,3 @@ export function drawHaloGlow(
 // `filter` to desaturate everything drawn by the halo this frame,
 // so the exact same math produces a pure-grayscale sibling without
 // duplicating 400 lines of rendering code.
-export function drawHaloGlowBW(
-  ctx: CanvasRenderingContext2D,
-  w: number, h: number,
-  a: AudioFrame, p: PhaseClock,
-): void {
-  const prev = ctx.filter;
-  ctx.filter = "grayscale(1)";
-  drawHaloGlow(ctx, w, h, a, p);
-  ctx.filter = prev;
-}
