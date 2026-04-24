@@ -10,7 +10,7 @@ export function loadMeditateVisualizer(): Visualizer {
   } catch {
     // ignore storage failures
   }
-  return "mandala";
+  return "phasePortrait";
 }
 
 export function saveMeditateVisualizer(visualizer: Visualizer): void {

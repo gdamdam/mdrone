@@ -141,7 +141,7 @@ test("share codec round-trips a portable scene payload", async () => {
     },
     ui: {
       paletteId: "ember",
-      visualizer: "mandala",
+      visualizer: "phasePortrait",
     },
   });
 
@@ -154,7 +154,7 @@ test("share codec round-trips a portable scene payload", async () => {
   assert.equal(decoded.drone.tuningId, "just5");
   assert.equal(decoded.drone.relationId, "tonic-fifth");
   assert.deepEqual(decoded.drone.fineTuneOffsets, [0, 4.5]);
-  assert.equal(decoded.ui.visualizer, "mandala");
+  assert.equal(decoded.ui.visualizer, "phasePortrait");
 });
 
 test("share codec round-trips a scene carrying a custom tuning table", async () => {
@@ -190,7 +190,7 @@ test("share codec round-trips a scene carrying a custom tuning table", async () 
       enabled: { hall: true }, levels: { hall: 0.5 }, freezeOn: false,
       freezeMix: 0, freezeBlur: 0,
     },
-    ui: { paletteId: "ember", visualizer: "mandala" },
+    ui: { paletteId: "ember", visualizer: "phasePortrait" },
     customTuning: {
       id: "custom:foreign-scale",
       label: "Foreign Scale (14-limit pentatonic)",
@@ -315,7 +315,7 @@ test("autosaved scene round-trips through localStorage", () => {
     },
     ui: {
       paletteId: "ember",
-      visualizer: "mandala",
+      visualizer: "phasePortrait",
     },
   }, "Fallback"));
 

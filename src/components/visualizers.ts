@@ -17,17 +17,13 @@
 
 
 export type Visualizer =
-  | "mandala"
   | "haloGlow"
   | "mirrorGlyphs"
-  | "fractal"
   | "rothko"
-  | "sigil"
   | "starGate"
   | "cymatics"
   | "aurora"
   | "dreamMachine"
-  | "pitchSpiral"
   | "pitchTonnetz"
   | "pitchBeats"
   | "flowField"
@@ -35,7 +31,6 @@ export type Visualizer =
   | "ironFilings"
   | "sediment"
   | "prayerRug"
-  | "partialConstellation"
   | "phasePortrait"
   | "moireField"
   | "illuminatedGlyphs"
@@ -47,7 +42,6 @@ export type Visualizer =
   | "voidMonolith"
   | "beatingField"
   | "tuningManuscript"
-  | "granularWeather"
   | "petroglyphs"
   | "feedbackTunnelBW"
   | "stereoVectorscope"
@@ -69,9 +63,7 @@ export const VISUALIZER_GROUPS: readonly {
     label: "HARMONIC",
     items: [
       // B&W / monochromatic
-      "pitchSpiral",
       "pitchBeats",
-      "partialConstellation",
       "phasePortrait",
       "phaseMirror",
       "stereoVectorscope",
@@ -96,7 +88,6 @@ export const VISUALIZER_GROUPS: readonly {
       "aurora",
       "sediment",
       "prayerRug",
-      "granularWeather",
       "tapeDecay",
     ],
   },
@@ -107,12 +98,9 @@ export const VISUALIZER_GROUPS: readonly {
       // B&W / monochromatic
       "ironFilings",
       "cymatics",
-      "sigil",
       "crystalLattice",
       // Color
-      "mandala",
       "haloGlow",
-      "fractal",
       "scryingMirror",
       "rothko",
     ],
@@ -138,23 +126,18 @@ export const VISUALIZER_ORDER: readonly Visualizer[] =
   VISUALIZER_GROUPS.flatMap((g) => g.items);
 
 export const VISUALIZER_LABELS: Record<Visualizer, string> = {
-  mandala: "BREATHING MANDALA",
-  pitchSpiral: "PITCH SPIRAL · microtonal ring",
   pitchTonnetz: "PITCH TONNETZ · harmonic lattice",
   pitchBeats: "PITCH BEATS · interferometer",
   flowField: "FLOW FIELD · particle streams",
   waveformRing: "WAVEFORM RING · circular oscilloscope",
   haloGlow: "HALO & RAYS",
   mirrorGlyphs: "MIRROR GLYPHS · scrying + gilt runes",
-  fractal: "JULIA FRACTAL · heavy",
   rothko: "ROTHKO FIELD",
-  sigil: "SIGIL BLOOM",
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
   ironFilings: "IRON FILINGS · magnetic field",
   sediment: "SEDIMENT STRATA · spectral deposit",
   prayerRug: "SPECTRAL PRAYER RUG",
-  partialConstellation: "PARTIAL CONSTELLATION",
   phasePortrait: "PHASE PORTRAIT · Lissajous attractor",
   phaseMirror: "PHASE MIRROR · 8-fold phase-space",
   moireField: "MOIRÉ FIELD · interference grid",
@@ -168,7 +151,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   voidMonolith: "VOID MONOLITH · pressure line",
   beatingField: "BEATING FIELD · binaural interference",
   tuningManuscript: "TUNING MANUSCRIPT · interval score",
-  granularWeather: "GRANULAR WEATHER · dust field",
   petroglyphs: "PETROGLYPHS",
   feedbackTunnelBW: "FEEDBACK TUNNEL",
   stereoVectorscope: "STEREO VECTORSCOPE · L×R correlation",
@@ -241,212 +223,6 @@ export interface PhaseClock {
 // ── Shared colour helpers (ember-leaning but drifting) ─────────────
 function embToHsl(h: number, s: number, l: number, a = 1): string {
   return `hsla(${h.toFixed(1)},${s}%,${l}%,${a})`;
-}
-
-// ─────────────────────────────────────────────────────────────────────
-// 1. BREATHING MANDALA — layered lotus bands with filled petals,
-//    a bindu center, and thin separator rings. Not a spider-web.
-// ─────────────────────────────────────────────────────────────────────
-export function drawMandala(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  // Dark ink persistence so old bands linger a moment
-  ctx.fillStyle = "rgba(8, 5, 3, 0.28)";
-  ctx.fillRect(0, 0, w, h);
-
-  const cx = w / 2;
-  const cy = h / 2;
-  const maxR = Math.min(w, h) * 0.46;
-  const breath = 1 + a.rms * 0.22 + p.slow * 0.05;
-
-  // Band count grows from 4 → 9 over a few minutes. Each band is a
-  // ring of filled lotus petals with its own rotation and palette.
-  const bandCount = Math.round(4 + p.growth * 5);
-
-  for (let band = 0; band < bandCount; band++) {
-    // Inner / outer radii for this band
-    const r0 = maxR * ((band) / bandCount) * breath + maxR * 0.08;
-    const r1 = maxR * ((band + 1) / bandCount) * breath + maxR * 0.08;
-    const rMid = (r0 + r1) * 0.5;
-    const bandThick = r1 - r0;
-
-    // Petal count: 8 / 12 / 16 / 24 pattern, grows with band index
-    const PETAL_COUNTS = [8, 12, 16, 12, 24, 16, 32, 24, 16];
-    const petals = PETAL_COUNTS[band % PETAL_COUNTS.length];
-
-    // Each band rotates slowly at its own rate — alternating directions
-    const dir = band % 2 === 0 ? 1 : -1;
-    const rot = p.t * 0.02 * dir * (1 + band * 0.15);
-
-    // Ember palette drifting with hue clock
-    const hue = (p.hue + band * 24) % 360;
-    const fillColor = `hsla(${hue}, 75%, ${42 - band * 1.5}%, ${0.32 + a.peak * 0.25})`;
-    const edgeColor = `hsla(${hue}, 85%, ${68 - band * 2}%, ${0.55 + a.peak * 0.3})`;
-
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(rot);
-
-    // Thin separator ring at the outer edge of this band
-    ctx.strokeStyle = `hsla(${hue}, 60%, 75%, 0.22)`;
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    ctx.arc(0, 0, r1, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Lotus petals — pointed oval shapes drawn with quadratic curves.
-    // Each petal arcs outward from r0 to r1, its tip pinched.
-    ctx.fillStyle = fillColor;
-    ctx.strokeStyle = edgeColor;
-    ctx.lineWidth = 1;
-    for (let i = 0; i < petals; i++) {
-      const ang = (i / petals) * Math.PI * 2;
-      const half = (Math.PI / petals) * 0.82;
-      const a0 = ang - half;
-      const a1 = ang + half;
-      const tipR = r1 * (1 + 0.03 * Math.sin(p.t * 0.08 + band + i * 0.3));
-      const baseR = r0;
-      // Petal outline: base-left → tip → base-right, with side curves
-      const x0 = Math.cos(a0) * baseR;
-      const y0 = Math.sin(a0) * baseR;
-      const x1 = Math.cos(a1) * baseR;
-      const y1 = Math.sin(a1) * baseR;
-      const xt = Math.cos(ang) * tipR;
-      const yt = Math.sin(ang) * tipR;
-      // Side control points bulge the petal
-      const cbulge = (baseR + tipR) * 0.55;
-      const cxl = Math.cos(ang - half * 0.6) * cbulge;
-      const cyl = Math.sin(ang - half * 0.6) * cbulge;
-      const cxr = Math.cos(ang + half * 0.6) * cbulge;
-      const cyr = Math.sin(ang + half * 0.6) * cbulge;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.quadraticCurveTo(cxl, cyl, xt, yt);
-      ctx.quadraticCurveTo(cxr, cyr, x1, y1);
-      // Close along the inner arc
-      ctx.arc(0, 0, baseR, a1, a0, true);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    // Small dot ring at the mid-radius between petals — a traditional
-    // mandala motif that adds texture without clutter.
-    if (band < bandCount - 1) {
-      ctx.fillStyle = `hsla(${(hue + 30) % 360}, 80%, 80%, ${0.25 + a.peak * 0.2})`;
-      const dotCount = petals;
-      const dotR = Math.max(1, bandThick * 0.06);
-      for (let i = 0; i < dotCount; i++) {
-        const ang = (i / dotCount) * Math.PI * 2 + Math.PI / dotCount;
-        const dx = Math.cos(ang) * rMid;
-        const dy = Math.sin(ang) * rMid;
-        ctx.beginPath();
-        ctx.arc(dx, dy, dotR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    ctx.restore();
-  }
-
-  // ── Bindu (central dot + glow) ─────────────────────────────────
-  const binduR = maxR * 0.05 * (1 + a.rms * 0.4 + p.slow * 0.1);
-  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, binduR * 3.5);
-  glow.addColorStop(0, `hsla(${p.hue}, 90%, 85%, ${0.9 + a.rms * 0.1})`);
-  glow.addColorStop(0.4, `hsla(${p.hue}, 85%, 60%, 0.5)`);
-  glow.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(cx, cy, binduR * 3.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Outer frame ring — appears after ~1 min, the mandala's boundary
-  if (p.growth > 0.3) {
-    ctx.strokeStyle = `hsla(${(p.hue + 60) % 360}, 60%, 70%, ${0.2 * p.growth})`;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, maxR * breath * 1.04, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // ── Accreted complexity — each tier lights up as growth advances ──
-  // Radial spokes behind all bands. Count doubles as growth rises,
-  // giving the mandala a skeletal sacred-geometry layer over minutes.
-  if (p.growth > 0.4) {
-    const spokeAlpha = 0.06 + (p.growth - 0.4) * 0.18;
-    const spokeCount = 12 + Math.round((p.growth - 0.4) * 36); // 12 → 48
-    ctx.strokeStyle = `hsla(${(p.hue + 180) % 360}, 40%, 60%, ${spokeAlpha})`;
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    for (let i = 0; i < spokeCount; i++) {
-      const ang = (i / spokeCount) * Math.PI * 2;
-      const r0 = maxR * 0.18;
-      const r1 = maxR * breath * 0.98;
-      ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0);
-      ctx.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
-    }
-    ctx.stroke();
-  }
-
-  // Tick-marked halo ring just inside the frame. Count + density
-  // scale with growth, like a clock face gaining markers.
-  if (p.growth > 0.55) {
-    const g = (p.growth - 0.55) / 0.45;
-    const tickCount = 36 + Math.round(g * 72); // 36 → 108
-    const rh = maxR * breath * 1.09;
-    ctx.strokeStyle = `hsla(${(p.hue + 30) % 360}, 70%, 72%, ${0.18 + g * 0.22})`;
-    ctx.lineWidth = 0.9;
-    ctx.beginPath();
-    for (let i = 0; i < tickCount; i++) {
-      const ang = (i / tickCount) * Math.PI * 2;
-      const r0 = rh - 3;
-      const r1 = rh + 3;
-      ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0);
-      ctx.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
-    }
-    ctx.stroke();
-  }
-
-  // Perimeter dot ring beyond all bands — the mandala's aureole.
-  if (p.growth > 0.72) {
-    const g = (p.growth - 0.72) / 0.28;
-    const dotCount = 48 + Math.round(g * 96); // 48 → 144
-    const rp = maxR * breath * 1.16;
-    const dr = 0.9 + g * 0.8;
-    ctx.fillStyle = `hsla(${(p.hue + 90) % 360}, 70%, 78%, ${0.25 + g * 0.35})`;
-    for (let i = 0; i < dotCount; i++) {
-      const ang = (i / dotCount) * Math.PI * 2 + p.t * 0.015;
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(ang) * rp, cy + Math.sin(ang) * rp, dr, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // Tracery — a fine second frame ring with its own slow counter-rotation
-  // appears at deep growth as the final ornament.
-  if (p.growth > 0.85) {
-    const g = (p.growth - 0.85) / 0.15;
-    ctx.strokeStyle = `hsla(${(p.hue + 240) % 360}, 50%, 72%, ${0.14 + g * 0.18})`;
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    ctx.arc(cx, cy, maxR * breath * 1.22, 0, Math.PI * 2);
-    ctx.stroke();
-    // Fine cross-hairs across the outer ring, alternating direction
-    const crosses = 6 + Math.round(g * 12);
-    for (let i = 0; i < crosses; i++) {
-      const ang = (i / crosses) * Math.PI * 2 - p.t * 0.01;
-      const r0 = maxR * breath * 1.03;
-      const r1 = maxR * breath * 1.21;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0);
-      ctx.lineTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1);
-      ctx.stroke();
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -653,131 +429,6 @@ export function drawDreamMachine(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 8. JULIA FRACTAL — a slowly morphing Julia set. The seed `c`
-//    describes a tiny orbit in the complex plane, so the fractal
-//    shape continuously breathes. Rendered on a small offscreen
-//    buffer (resolution grows with growth) and stretched to the
-//    canvas — CPU-heavy but glorious. Opt-in heavy visualizer.
-// ─────────────────────────────────────────────────────────────────────
-let juliaCanvas: HTMLCanvasElement | null = null;
-let juliaCtx: CanvasRenderingContext2D | null = null;
-let juliaData: ImageData | null = null;
-let juliaW = 0;
-let juliaH = 0;
-function ensureJulia(bw: number, bh: number) {
-  if (!juliaCanvas || juliaW !== bw || juliaH !== bh) {
-    juliaCanvas = document.createElement("canvas");
-    juliaCanvas.width = bw;
-    juliaCanvas.height = bh;
-    juliaCtx = juliaCanvas.getContext("2d");
-    juliaData = juliaCtx!.createImageData(bw, bh);
-    juliaW = bw;
-    juliaH = bh;
-  }
-}
-export function drawFractal(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  // Resolution grows with growth — start cheap, get lush.
-  const bw = Math.round(160 + p.growth * 160);
-  const bh = Math.round(100 + p.growth * 100);
-  ensureJulia(bw, bh);
-  const pix = juliaData!.data;
-  const maxIter = Math.round(28 + p.growth * 50 + a.rms * 20);
-
-  // Sum spectral energy into three bands — each deforms a different
-  // dimension of the Julia parameter / transform so the fractal
-  // *reacts* rather than just drifting. Low = cr nudge, high = ci
-  // nudge, mid = zoom pulse, all-over RMS = rotation speed.
-  const bins = a.spectrum.length;
-  let lowE = 0, midE = 0, highE = 0;
-  const thirdA = Math.floor(bins / 3);
-  const thirdB = Math.floor((bins * 2) / 3);
-  for (let i = 0; i < thirdA; i++) lowE += a.spectrum[i];
-  for (let i = thirdA; i < thirdB; i++) midE += a.spectrum[i];
-  for (let i = thirdB; i < bins; i++) highE += a.spectrum[i];
-  lowE /= Math.max(1, thirdA);
-  midE /= Math.max(1, thirdB - thirdA);
-  highE /= Math.max(1, bins - thirdB);
-
-  // Julia c — slow Lissajous orbit pushed by spectral balance. Rich
-  // spectra push the parameter toward the rim of the Mandelbrot set
-  // where the shape changes dramatically; a pure tonic sits quietly
-  // near the classic 0.7885 radius.
-  const cr = 0.7885 * Math.cos(p.t * 0.02) + (lowE - 0.15) * 0.22;
-  const ci = 0.7885 * Math.sin(p.t * 0.017 + p.slow * 0.5) + (highE - 0.15) * 0.22;
-
-  // Zoom is now gentle and bounded so the Julia set never crops to
-  // a single escape-time band. Base 1.0 shows the whole interesting
-  // region; audio adds ±~0.25 so shape changes stay visible instead
-  // of pulling you inside the set.
-  const zoom = 1.0 + p.slow * 0.08 + a.rms * 0.15 + midE * 0.2;
-  const rot = p.t * (0.01 + a.rms * 0.04) * (0.3 + p.growth * 0.7);
-  const cosR = Math.cos(rot);
-  const sinR = Math.sin(rot);
-
-  // Indigo / violet / amber palette, different from the ember theme
-  for (let y = 0; y < bh; y++) {
-    for (let x = 0; x < bw; x++) {
-      // Wider base coord span (4.0 × 2.6) so more of the complex
-      // plane is visible at the default zoom.
-      const zx0 = (x / bw - 0.5) * 4.0 / zoom;
-      const zy0 = (y / bh - 0.5) * 2.6 / zoom;
-      // Rotate (zx0,zy0)
-      const zxr = zx0 * cosR - zy0 * sinR;
-      const zyr = zx0 * sinR + zy0 * cosR;
-      let zx = zxr;
-      let zy = zyr;
-      let it = 0;
-      while (zx * zx + zy * zy < 4 && it < maxIter) {
-        const nx = zx * zx - zy * zy + cr;
-        zy = 2 * zx * zy + ci;
-        zx = nx;
-        it++;
-      }
-      const idx = (y * bw + x) * 4;
-      if (it === maxIter) {
-        pix[idx] = 4;
-        pix[idx + 1] = 2;
-        pix[idx + 2] = 10;
-      } else {
-        // Smooth colouring
-        const modsq = zx * zx + zy * zy;
-        const mu = it + 1 - Math.log(Math.log(modsq) * 0.5) / Math.LN2;
-        const n = mu / maxIter;
-        // Indigo → violet → amber palette
-        const hue = (260 + n * 140 + p.t * 8) % 360;
-        const ll = Math.min(75, 10 + n * 90);
-        // HSL to RGB
-        const sat = 80;
-        const L = ll / 100;
-        const c = (1 - Math.abs(2 * L - 1)) * (sat / 100);
-        const hp = hue / 60;
-        const xc = c * (1 - Math.abs((hp % 2) - 1));
-        let r1 = 0, g1 = 0, b1 = 0;
-        if (hp < 1) { r1 = c; g1 = xc; }
-        else if (hp < 2) { r1 = xc; g1 = c; }
-        else if (hp < 3) { g1 = c; b1 = xc; }
-        else if (hp < 4) { g1 = xc; b1 = c; }
-        else if (hp < 5) { r1 = xc; b1 = c; }
-        else { r1 = c; b1 = xc; }
-        const m = L - c / 2;
-        pix[idx] = Math.round((r1 + m) * 255);
-        pix[idx + 1] = Math.round((g1 + m) * 255);
-        pix[idx + 2] = Math.round((b1 + m) * 255);
-      }
-      pix[idx + 3] = 255;
-    }
-  }
-  juliaCtx!.putImageData(juliaData!, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(juliaCanvas!, 0, 0, w, h);
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 9. ROTHKO FIELD — soft color blocks stacked like a Rothko canvas.
@@ -910,224 +561,6 @@ function drawRothkoBlock(
 
 
 // ─────────────────────────────────────────────────────────────────────
-// 12. SIGIL BLOOM — continuous-line ritual sigils drawn slowly from
-//     the center outward. Each sigil is generated from a seed (the
-//     current time). Old sigils fade to ghost as new ones replace
-//     them. Coil-style ritual-visual field.
-// ─────────────────────────────────────────────────────────────────────
-interface SigilPoint { x: number; y: number; }
-let sigilPoints: SigilPoint[] | null = null;
-let sigilDrawn = 0;
-let sigilSeed = 0;
-let sigilBirth = 0;
-/** External trigger — Layout calls this on RANDOM scene so the
- *  sigil visualizer always starts a fresh glyph for the new scene. */
-export function requestSigilRefresh(): void {
-  sigilPoints = null;
-  sigilDrawn = 0;
-  sigilBirth = -1e9;
-}
-function makeSigil(cx: number, cy: number, radius: number, seed: number): SigilPoint[] {
-  // Deterministic pseudo-random from seed — Mulberry32-style
-  let s = (seed * 2654435761) | 0;
-  const rand = () => {
-    s = (s + 1831565813) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-
-  // Austin Osman Spare sigils are single continuous lines that weave
-  // through a set of node points, with looping knots where the line
-  // crosses itself, terminal flourishes, and occasional arcs bending
-  // back on themselves. Here: 8–14 nodes, each visited in a non-
-  // linear order, each segment either straight-ish or a small loop,
-  // with a few knot-crossings forced in.
-  const nodeCount = 8 + Math.floor(rand() * 7);
-  const nodes: SigilPoint[] = [];
-  for (let i = 0; i < nodeCount; i++) {
-    // Spread nodes in a rough circle but jittered so they feel
-    // asymmetric like AOS glyphs.
-    const ang = (i / nodeCount) * Math.PI * 2 + (rand() - 0.5) * 0.8;
-    const r = radius * (0.35 + rand() * 0.55);
-    nodes.push({ x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r });
-  }
-
-  // Traversal order — a random permutation of the nodes, then back
-  // to the start. Sometimes revisit a node to force a knot.
-  const order: number[] = [];
-  const indices = nodes.map((_, i) => i);
-  while (indices.length) {
-    const k = Math.floor(rand() * indices.length);
-    order.push(indices.splice(k, 1)[0]);
-  }
-  order.push(order[0]);
-  // Inject 1–2 revisits (knot crossings)
-  const knots = 1 + Math.floor(rand() * 2);
-  for (let i = 0; i < knots; i++) {
-    const pos = 2 + Math.floor(rand() * (order.length - 3));
-    const rev = Math.floor(rand() * nodeCount);
-    order.splice(pos, 0, rev);
-  }
-
-  const path: SigilPoint[] = [];
-  const pushArc = (p0: SigilPoint, p1: SigilPoint, curl: number, steps: number) => {
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    // Perpendicular for arc control point
-    const mx = (p0.x + p1.x) / 2 + (-dy) * curl;
-    const my = (p0.y + p1.y) / 2 + (dx) * curl;
-    for (let s2 = 0; s2 < steps; s2++) {
-      const t = s2 / steps;
-      const u = 1 - t;
-      const x = u * u * p0.x + 2 * u * t * mx + t * t * p1.x;
-      const y = u * u * p0.y + 2 * u * t * my + t * t * p1.y;
-      path.push({ x, y });
-    }
-  };
-  const pushLoop = (pt: SigilPoint, r: number, dir: number) => {
-    // Small circular terminal loop — the trademark AOS "eye"
-    const loopSteps = 40;
-    // Start the loop from the current pen position so it attaches
-    const startAng = rand() * Math.PI * 2;
-    for (let s2 = 0; s2 < loopSteps; s2++) {
-      const t = s2 / loopSteps;
-      const ang = startAng + t * Math.PI * 2 * dir;
-      path.push({ x: pt.x + Math.cos(ang) * r, y: pt.y + Math.sin(ang) * r });
-    }
-  };
-
-  for (let i = 0; i < order.length - 1; i++) {
-    const p0 = nodes[order[i]];
-    const p1 = nodes[order[i + 1]];
-    const curl = (rand() - 0.5) * 0.6;
-    pushArc(p0, p1, curl, 90);
-    // Occasional loop at the intermediate node
-    if (rand() < 0.25) {
-      pushLoop(p1, radius * 0.05 * (0.5 + rand()), rand() < 0.5 ? 1 : -1);
-    }
-  }
-
-  // Terminal flourish: a small loop around the end node
-  const last = nodes[order[order.length - 1]];
-  pushLoop(last, radius * 0.06, 1);
-  return path;
-}
-export function drawSigilBloom(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  // Fade the previous frame so old sigils ghost out
-  ctx.fillStyle = "rgba(6, 4, 8, 0.04)";
-  ctx.fillRect(0, 0, w, h);
-
-  const cx = w / 2;
-  const cy = h / 2;
-  const radius = Math.min(w, h) * 0.35;
-
-  // Draw takes 3 minutes, new sigil every 5 minutes. Pointer
-  // press after the drawing has finished forces a new one.
-  const SIGIL_PEN_SECONDS = 180;  // 3 min to fully draw
-  const SIGIL_DURATION = 300;     // 5 min before refresh
-  const age = p.t - sigilBirth;
-  if (!sigilPoints || age > SIGIL_DURATION || (p.pointerDown && age > SIGIL_PEN_SECONDS + 5)) {
-    sigilSeed = Math.floor(p.t * 1000 + Math.random() * 100000);
-    sigilPoints = makeSigil(cx, cy, radius, sigilSeed);
-    sigilDrawn = 0;
-    sigilBirth = p.t;
-  }
-
-  const penSpeed = (sigilPoints!.length / SIGIL_PEN_SECONDS) / 60; // pts/frame at 60 fps
-  sigilDrawn = Math.min(sigilPoints!.length, sigilDrawn + penSpeed * (1 + a.rms * 0.4));
-
-  // Audio-reactive uniform pulse — the sigil sits flat on the plane
-  // and breathes with RMS + a slow sinus underlay. A small peak-
-  // driven jitter gives it an extra shimmer on transients. The old
-  // fake 3D "spinning coin" rotation (abs(cos(t)) scaleX + edgeDim
-  // fade) looked broken because it flipped through a zero-width
-  // sliver every 10 s; removed entirely.
-  const pulse = 1 + 0.04 * Math.sin(p.t * 0.9) + a.rms * 0.18 + a.peak * 0.04;
-
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.scale(pulse, pulse);
-  ctx.translate(-cx, -cy);
-
-  // Outer halo — soft white bloom around the ink, gives the mark
-  // a physical "catching light" feel.
-  ctx.strokeStyle = `rgba(255, 255, 255, ${0.14 + a.rms * 0.12})`;
-  ctx.lineWidth = 7 + a.peak * 5;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.shadowColor = "rgba(255, 255, 255, 0.35)";
-  ctx.shadowBlur = 6 + a.rms * 8;
-  ctx.beginPath();
-  const drawn = Math.floor(sigilDrawn);
-  for (let i = 0; i < drawn; i++) {
-    const pt = sigilPoints![i];
-    if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-  }
-  ctx.stroke();
-
-  // Ink bleed — mid-weight grey stroke, reads as watery sumi-e
-  // fringe where the ink soaked into the paper.
-  ctx.shadowBlur = 2;
-  ctx.strokeStyle = `rgba(200, 196, 190, ${0.35 + a.rms * 0.2})`;
-  ctx.lineWidth = 3.6 + a.peak * 2;
-  ctx.beginPath();
-  for (let i = 0; i < drawn; i++) {
-    const pt = sigilPoints![i];
-    if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-  }
-  ctx.stroke();
-
-  // Core ink — warm off-white (not pure white) so it feels like
-  // ink rather than a laser line. Thickness pulses with RMS + peak.
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = `rgba(245, 240, 230, ${0.88 + a.peak * 0.1})`;
-  ctx.lineWidth = 1.6 + a.rms * 0.6 + a.peak * 1.2;
-  ctx.beginPath();
-  for (let i = 0; i < drawn; i++) {
-    const pt = sigilPoints![i];
-    if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-  }
-  ctx.stroke();
-
-  // Bindu nodes — bright anchor dots along the drawn path.
-  if (sigilPoints) {
-    ctx.fillStyle = "rgba(255, 252, 242, 0.75)";
-    const n = Math.min(8, Math.floor(drawn / 160));
-    for (let i = 0; i < n; i++) {
-      const pt = sigilPoints[i * 160];
-      if (!pt) continue;
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // Peak sparks — on loud transients, a few random drawn points light
-  // up briefly, so loud passages appear to animate along the glyph
-  // like current running through a filament.
-  if (a.peak > 0.25 && drawn > 20) {
-    const sparks = 2 + Math.round(a.peak * 6);
-    ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + a.peak * 0.4})`;
-    for (let k = 0; k < sparks; k++) {
-      const idx = Math.floor(Math.random() * drawn);
-      const pt = sigilPoints![idx];
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 1.2 + a.peak * 1.8, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  ctx.restore();
-}
-
-// ─────────────────────────────────────────────────────────────────────
 // 13. STAR GATE — Coil Time Machines / 2001 monolith. A central
 //     vertical slit of white light, radial rays bending around it,
 //     particles streaming sideways through the slit.
@@ -1232,17 +665,13 @@ export const VISUALIZER_FNS: Record<
   Visualizer,
   (ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock) => void
 > = {
-  mandala: drawMandala,
   haloGlow: drawHaloGlow,
   mirrorGlyphs: drawMirrorGlyphs,
   cymatics: drawCymatics,
   aurora: drawAurora,
   dreamMachine: drawDreamMachine,
-  fractal: drawFractal,
   rothko: drawRothko,
-  sigil: drawSigilBloom,
   starGate: drawStarGate,
-  pitchSpiral: drawPitchSpiral,
   pitchTonnetz: drawPitchTonnetz,
   pitchBeats: drawPitchBeats,
   flowField: drawFlowField,
@@ -1250,7 +679,6 @@ export const VISUALIZER_FNS: Record<
   ironFilings: drawIronFilings,
   sediment: drawSediment,
   prayerRug: drawPrayerRug,
-  partialConstellation: drawPartialConstellation,
   phasePortrait: drawPhasePortrait,
   phaseMirror: drawPhaseMirror,
   moireField: drawMoireField,
@@ -1262,7 +690,6 @@ export const VISUALIZER_FNS: Record<
   voidMonolith: drawVoidMonolith,
   beatingField: drawBeatingField,
   tuningManuscript: drawTuningManuscript,
-  granularWeather: drawGranularWeather,
   petroglyphs: drawPetroglyphs,
   feedbackTunnelBW: drawFeedbackTunnelBW,
   stereoVectorscope: drawStereoVectorscope,
@@ -1386,145 +813,6 @@ export function drawFreqRing(
   ctx.restore();
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// PITCH SPIRAL — continuous ring with cents-flavour placement
-//
-// Angle = pitch-class position on a circle; no discrete sectors.
-// 12-TET canonical positions render as ghost tick marks so the
-// eye has a reference. Active pitches glow at their angle with a
-// small wobble driven by neighbour-pitch pressure — an evocation
-// of microtonal drift (a true cents reading would need engine
-// wiring; this stays self-contained).
-// ─────────────────────────────────────────────────────────────────────
-const tmpSpiralAngle = new Float32Array(12);
-const pitchSpiralAfterglow = new Float32Array(12);
-export function drawPitchSpiral(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
-  ctx.fillRect(0, 0, w, h);
-
-  const dt = p.dtScale ?? 1;
-
-  const cx = w / 2;
-  const cy = h / 2;
-  const rBase = Math.min(w, h) * 0.32;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(p.t * (0.018 + a.rms * 0.05));
-
-  ctx.strokeStyle = `rgba(170, 170, 170, ${0.25 + a.rms * 0.15})`;
-  ctx.lineWidth = 1 + a.rms * 2;
-  ctx.beginPath();
-  ctx.arc(0, 0, rBase, 0, Math.PI * 2);
-  ctx.stroke();
-  for (let pc = 0; pc < 12; pc++) {
-    const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2;
-    ctx.strokeStyle = `rgba(180, 180, 180, ${pc === 0 ? 0.65 : 0.22})`;
-    ctx.lineWidth = pc === 0 ? 1.4 : 1;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(ang) * (rBase - 10), Math.sin(ang) * (rBase - 10));
-    ctx.lineTo(Math.cos(ang) * (rBase + 10), Math.sin(ang) * (rBase + 10));
-    ctx.stroke();
-  }
-
-  const energies = p.activePitches;
-  let totalE = 0;
-  for (let i = 0; i < 12; i++) totalE += energies[i];
-
-  // Afterglow — past bright positions leave a slowly-fading wake so
-  // you can read the drone's history, not just the instant.
-  for (let i = 0; i < 12; i++) {
-    pitchSpiralAfterglow[i] = Math.max(pitchSpiralAfterglow[i] - 0.004 * dt, energies[i] * 0.7);
-  }
-  for (let pc = 0; pc < 12; pc++) {
-    const ag = pitchSpiralAfterglow[pc];
-    if (ag < 0.04) continue;
-    const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2;
-    const x = Math.cos(ang) * rBase;
-    const y = Math.sin(ang) * rBase;
-    const g = ctx.createRadialGradient(x, y, 0, x, y, rBase * 0.3);
-    g.addColorStop(0, `rgba(210, 210, 210, ${ag * 0.35})`);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, rBase * 0.3, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  for (let pc = 0; pc < 12; pc++) {
-    const e = energies[pc];
-    if (e < 0.04) continue;
-    const neighbor = (energies[(pc + 11) % 12] - energies[(pc + 1) % 12]) * 0.5;
-    const wobble = Math.sin(p.t * (0.3 + pc * 0.07)) * 0.008 + neighbor * 0.012;
-    const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2 + wobble;
-    tmpSpiralAngle[pc] = ang;
-
-    const x = Math.cos(ang) * rBase;
-    const y = Math.sin(ang) * rBase;
-
-    const beamR = rBase * 0.28 * (0.7 + e + a.rms * 0.3);
-    const beam = ctx.createRadialGradient(x, y, 0, x, y, beamR);
-    beam.addColorStop(0, `rgba(245, 245, 245, ${Math.min(1, e * 1.2 + 0.25)})`);
-    beam.addColorStop(0.5, `rgba(200, 200, 200, ${e * 0.45})`);
-    beam.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = beam;
-    ctx.beginPath();
-    ctx.arc(x, y, beamR, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Radial licks — number scales with energy + peak. Makes each
-    // active pitch feel like a flame, not a dot.
-    const licks = 3 + Math.round(e * 5 + a.peak * 4);
-    ctx.strokeStyle = `rgba(230, 230, 230, ${0.4 + e * 0.5})`;
-    ctx.lineWidth = 1 + e * 2.5;
-    for (let k = 0; k < licks; k++) {
-      const spread = (k / Math.max(1, licks - 1) - 0.5) * 0.18 * (0.6 + e);
-      const la = ang + spread;
-      const lr = rBase + 20 + e * rBase * 0.4 + Math.sin(p.t * 3 + pc * 2 + k) * 6;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(la) * (rBase + 8), Math.sin(la) * (rBase + 8));
-      ctx.lineTo(Math.cos(la) * lr, Math.sin(la) * lr);
-      ctx.stroke();
-    }
-  }
-
-  // Moiré arcs between close pitch pairs (≤ 4 semitones apart).
-  for (let i = 0; i < 12; i++) {
-    if (energies[i] < 0.18) continue;
-    for (let j = i + 1; j < 12; j++) {
-      if (energies[j] < 0.18) continue;
-      const dist = Math.min(j - i, 12 - (j - i));
-      if (dist > 4) continue;
-      const a1 = tmpSpiralAngle[i];
-      const a2 = tmpSpiralAngle[j];
-      const midR = rBase + 4 + Math.sin(p.t * (1 + dist * 0.3)) * 3;
-      ctx.strokeStyle = `rgba(220, 220, 220, ${Math.min(0.5, (energies[i] + energies[j]) * 0.2)})`;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(0, 0, midR, Math.min(a1, a2), Math.max(a1, a2));
-      ctx.stroke();
-    }
-  }
-
-  // Core hub — dramatic peak bloom
-  const hubPulse = Math.min(1, totalE * 0.25 + a.rms * 0.5 + a.peak * 0.8);
-  const hubR = Math.min(w, h) * (0.06 + 0.08 * hubPulse);
-  const hub = ctx.createRadialGradient(0, 0, 0, 0, 0, hubR * 2);
-  hub.addColorStop(0, `rgba(245, 245, 245, ${0.45 + hubPulse * 0.5})`);
-  hub.addColorStop(0.6, `rgba(180, 180, 180, ${hubPulse * 0.3})`);
-  hub.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = hub;
-  ctx.beginPath();
-  ctx.arc(0, 0, hubR * 2, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // PITCH TONNETZ — harmonic lattice
@@ -2410,71 +1698,6 @@ export function drawPrayerRug(
   ctx.fillRect(0, 0, w, h);
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// PARTIAL CONSTELLATION — harmonic partials become a star map. Bright
-// low-order partials anchor the image; consonant pitch classes connect.
-// ─────────────────────────────────────────────────────────────────────
-export function drawPartialConstellation(
-  ctx: CanvasRenderingContext2D,
-  w: number, h: number,
-  a: AudioFrame, p: PhaseClock,
-): void {
-  ctx.fillStyle = "rgba(4, 5, 6, 0.22)";
-  ctx.fillRect(0, 0, w, h);
-  const cx = w / 2, cy = h / 2;
-  const r = Math.min(w, h) * 0.42;
-
-  // Overall rotation + breath — whole constellation swirls with RMS.
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(p.t * (0.05 + a.rms * 0.12));
-  const breath = 1 + Math.sin(p.t * 0.4) * 0.04 + a.rms * 0.08;
-
-  const pts: { x: number; y: number; e: number; pc: number; n: number }[] = [];
-  for (let pc = 0; pc < 12; pc++) {
-    const base = p.activePitches[pc];
-    if (base < 0.04) continue;
-    for (let n = 1; n <= 5; n++) {
-      // Per-star wobble: independent sine phases per (pc, n) so every
-      // star trembles on its own microtonal orbit.
-      const wobAng = Math.sin(p.t * (0.7 + n * 0.13) + pc * 1.1) * 0.03;
-      const wobR = Math.sin(p.t * (1.2 + pc * 0.17) + n * 1.7) * 0.025 * r;
-      const ang = ((pc + Math.log2(n) * 12) / 12) * Math.PI * 2 - Math.PI / 2
-                + wobAng + p.t * 0.006;
-      const rr = (r * (0.18 + n * 0.14) + wobR) * breath;
-      const e = base / n;
-      const x = Math.cos(ang) * rr;
-      const y = Math.sin(ang) * rr;
-      pts.push({ x, y, e, pc, n });
-
-      // Twinkle — star brightness pulses independently + spikes on
-      // peaks so loud transients shimmer across the whole sky.
-      const twinkle = 0.8 + Math.sin(p.t * (2.1 + pc * 0.3 + n * 0.7)) * 0.25;
-      const bright = (0.18 + e * 0.72) * twinkle + a.peak * 0.25;
-      ctx.fillStyle = `rgba(235,230,215,${Math.min(1, bright)})`;
-      ctx.beginPath();
-      ctx.arc(x, y, 0.8 + e * 6 * (0.9 + a.rms * 0.4), 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // Connection lines flicker with per-pair timing so the web
-  // constantly re-weaves rather than sitting static.
-  ctx.lineWidth = 1;
-  for (let i = 0; i < pts.length; i++) {
-    for (let j = i + 1; j < Math.min(pts.length, i + 5); j++) {
-      if (pts[i].e + pts[j].e < 0.22) continue;
-      const flicker = 0.5 + Math.sin(p.t * (1.6 + i * 0.13 + j * 0.11)) * 0.5;
-      ctx.strokeStyle = `rgba(220,210,190,${(0.06 + a.rms * 0.22) * flicker})`;
-      ctx.beginPath();
-      ctx.moveTo(pts[i].x, pts[i].y);
-      ctx.lineTo(pts[j].x, pts[j].y);
-      ctx.stroke();
-    }
-  }
-  ctx.restore();
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // GAP-FILLING VISUALIZERS (2026-04)
 // Phase-space / fluid / ritual construction / moiré / illuminated /
@@ -3260,7 +2483,7 @@ export function drawMirrorGlyphs(
 
 // ═══════════════════════════════════════════════════════════════════════
 // NEW VISUALIZERS (2026-04 wave) — resonantBody, tapeDecay,
-// voidMonolith, beatingField, tuningManuscript, granularWeather,
+// voidMonolith, beatingField, tuningManuscript,
 // feedbackTunnelBW. All follow the ember/copper/bone palette and
 // accrete slowly; no rainbow spectra, no neon glow.
 // ═══════════════════════════════════════════════════════════════════════
@@ -3587,7 +2810,118 @@ export function drawResonantBody(
     }
   }
 
+  // ── Whole-assembly breathing — the organism itself swells with rms
+  //    and gets a tiny rotational drift so it feels alive. Compose the
+  //    offscreen onto the main canvas under this transform.
+  const breath = 1 + a.rms * 0.06 + Math.sin(p.t * 0.4) * 0.012;
+  const spin = Math.sin(p.t * 0.06) * 0.008 + a.peak * 0.004;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(spin);
+  ctx.scale(breath, breath);
+  ctx.translate(-cx, -cy);
   ctx.drawImage(bodyCanvas, 0, 0);
+  ctx.restore();
+
+  // ── Baseline peak-pulse — a bright bone ring that blooms on every
+  //    transient. Drawn live (not stamped) so it fades cleanly.
+  if (a.peak > 0.08) {
+    const ringR = R * (1 + a.peak * 0.15);
+    const ringAl = 0.12 + a.peak * 0.5;
+    ctx.strokeStyle = `rgba(230, 210, 180, ${ringAl * 0.45})`;
+    ctx.lineWidth = 0.9 + a.peak * 1.4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // ── Pitch-centroid amber sweep — the strongest active pitch class
+  //    tilts a long faint wedge from the centre outward, pointing to
+  //    its position on the circle of fifths. Shows what note is
+  //    dominating without needing a legend.
+  let bestPc = -1, bestE = 0.1;
+  for (let i = 0; i < 12; i++) {
+    if (p.activePitches[i] > bestE) { bestE = p.activePitches[i]; bestPc = i; }
+  }
+  if (bestPc >= 0) {
+    const fifth = (bestPc * 7) % 12;
+    const ang = (fifth / 12) * Math.PI * 2 - Math.PI / 2;
+    const tipX = cx + Math.cos(ang) * R * 1.05;
+    const tipY = cy + Math.sin(ang) * R * 1.05;
+    const wedge = ctx.createLinearGradient(cx, cy, tipX, tipY);
+    wedge.addColorStop(0, `hsla(30, 70%, 55%, ${bestE * 0.45 + a.peak * 0.15})`);
+    wedge.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.strokeStyle = wedge;
+    ctx.lineWidth = 1.6 + bestE * 2.2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+  }
+
+  // ── Cross-voice chord diagram — each active voice anchors a node on
+  //    a faint circle at R*0.85. Pairs of simultaneously-lit voices
+  //    connect with soft arcs whose brightness scales with the product
+  //    of their levels. Turns chord structure on the voice mixer into
+  //    a literal chord diagram over the body.
+  const voiceOrder: Array<{ key: keyof VoiceWeights; ang: number }> = [
+    { key: "tanpura", ang: -Math.PI * 0.5 },
+    { key: "reed",    ang: -Math.PI * 0.25 },
+    { key: "metal",   ang: 0 },
+    { key: "air",     ang: Math.PI * 0.25 },
+    { key: "piano",   ang: Math.PI * 0.5 },
+    { key: "fm",      ang: Math.PI * 0.75 },
+    { key: "amp",     ang: Math.PI },
+    { key: "noise",   ang: -Math.PI * 0.75 },
+  ];
+  const diagramR = R * 0.85;
+  // Collect lit voices
+  const lit: { x: number; y: number; lvl: number }[] = [];
+  for (const vo of voiceOrder) {
+    const lvl = v[vo.key];
+    if (lvl < 0.02) continue;
+    lit.push({
+      x: cx + Math.cos(vo.ang) * diagramR,
+      y: cy + Math.sin(vo.ang) * diagramR,
+      lvl,
+    });
+  }
+  // Faint ring
+  ctx.strokeStyle = `rgba(140, 120, 90, ${0.06 + a.rms * 0.05})`;
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.arc(cx, cy, diagramR, 0, Math.PI * 2);
+  ctx.stroke();
+  // Nodes
+  for (const n of lit) {
+    const nr = 2 + n.lvl * 4 + a.peak * 2;
+    const ng = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, nr * 3);
+    ng.addColorStop(0, `hsla(30, 65%, 58%, ${0.45 + n.lvl * 0.35 + a.peak * 0.2})`);
+    ng.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = ng;
+    ctx.fillRect(n.x - nr * 3, n.y - nr * 3, nr * 6, nr * 6);
+  }
+  // Chord arcs — pairs of lit voices, curved toward the centre
+  if (lit.length >= 2) {
+    for (let i = 0; i < lit.length; i++) {
+      for (let j = i + 1; j < lit.length; j++) {
+        const a1 = lit[i], a2 = lit[j];
+        const pairStrength = Math.min(1, a1.lvl * a2.lvl * 3);
+        const arcAl = (0.1 + pairStrength * 0.4) * (0.6 + a.rms * 0.5) + a.peak * 0.12;
+        if (arcAl < 0.04) continue;
+        ctx.strokeStyle = `hsla(28, 55%, 55%, ${arcAl})`;
+        ctx.lineWidth = 0.7 + pairStrength * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(a1.x, a1.y);
+        // Quadratic control point pulled toward centre, plus a beat
+        // wobble so chords breathe rather than stay rigid.
+        const wobX = Math.sin(p.t * 0.8 + i * 0.7) * 3 * a.rms;
+        const wobY = Math.cos(p.t * 0.8 + j * 0.7) * 3 * a.rms;
+        ctx.quadraticCurveTo(cx + wobX, cy + wobY, a2.x, a2.y);
+        ctx.stroke();
+      }
+    }
+  }
 }
 
 
@@ -4129,236 +3463,6 @@ export function drawTuningManuscript(
   ctx.fillRect(0, 0, w, h);
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// GRANULAR WEATHER — suspended dust / falling ash / tape-floor grain.
-// Persistent particle pool; density + fall speed driven by rms and
-// spectral brightness. Stays close to ember/bone; no rainbow.
-// ─────────────────────────────────────────────────────────────────────
-// Two populations with very different physics:
-//  • ASH  — heavy grains, fall downward, density tracks low/mid band
-//           energy, size varies, brown/dusty palette
-//  • DUST — light grains, suspended (brownian), high-band fills the
-//           air with fine suspended particles
-//  • EMBERS — rare, triggered by peaks, rise upward and fade, warm
-// Also: a vertical rain curtain when rms is sustained high, a wind
-// field that gusts (low-freq noise, not fixed sine), and a floor
-// accretion stripe where heavy grains pile over time.
-const WEATHER_ASH_N = 240;
-const WEATHER_DUST_N = 160;
-const WEATHER_EMBER_N = 40;
-// ash: x, y, vy, life (life = seed 0..1)
-const weatherAsh = new Float32Array(WEATHER_ASH_N * 4);
-// dust: x, y, vx, vy
-const weatherDust = new Float32Array(WEATHER_DUST_N * 4);
-// embers: x, y, vy, life (life decays to 0)
-const weatherEmbers = new Float32Array(WEATHER_EMBER_N * 4);
-let weatherEmberCursor = 0;
-let weatherInit2 = false;
-let weatherPrevPeak = 0;
-// Wind field — low-pass random walk so gusts feel organic not sinusoidal
-let weatherWind = 0;
-let weatherWindTarget = 0;
-let weatherWindTimer = 0;
-// Accreted drift stripe on the floor, very faint — a bottom offscreen
-// that collects the darkest grains over time. Rendered as a gradient
-// whose height grows with p.growth.
-let weatherDriftCanvas: HTMLCanvasElement | null = null;
-let weatherDriftCtx: CanvasRenderingContext2D | null = null;
-
-export function drawGranularWeather(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  const dt = p.dtScale ?? 1;
-  // Background fade — quiet passages clear more, loud passages leave
-  // a richer atmosphere.
-  ctx.fillStyle = `rgba(8, 6, 4, ${0.28 + (1 - a.rms) * 0.12})`;
-  ctx.fillRect(0, 0, w, h);
-
-  // ── Bands + transient ───────────────────────────────────────────
-  let total = 0, low = 0, mid = 0, high = 0;
-  for (let i = 0; i < 32; i++) total += a.spectrum[i] ?? 0;
-  for (let i = 0; i < 8; i++) low += a.spectrum[i] ?? 0;
-  for (let i = 8; i < 20; i++) mid += a.spectrum[i] ?? 0;
-  for (let i = 20; i < 32; i++) high += a.spectrum[i] ?? 0;
-  low /= 8; mid /= 12; high /= 12;
-  const bright = total > 1e-4 ? Math.min(1, high / (total / 32) * 0.1) : 0;
-
-  const peakDelta = a.peak - weatherPrevPeak;
-  const transient = peakDelta > 0.1;
-  weatherPrevPeak = a.peak * 0.85 + weatherPrevPeak * 0.15;
-
-  // Init pools
-  if (!weatherInit2) {
-    for (let i = 0; i < WEATHER_ASH_N; i++) {
-      const o = i * 4;
-      weatherAsh[o] = Math.random() * w;
-      weatherAsh[o + 1] = Math.random() * h;
-      weatherAsh[o + 2] = 0.4 + Math.random() * 1.6;
-      weatherAsh[o + 3] = Math.random();
-    }
-    for (let i = 0; i < WEATHER_DUST_N; i++) {
-      const o = i * 4;
-      weatherDust[o] = Math.random() * w;
-      weatherDust[o + 1] = Math.random() * h;
-      weatherDust[o + 2] = (Math.random() - 0.5) * 0.4;
-      weatherDust[o + 3] = (Math.random() - 0.5) * 0.3;
-    }
-    for (let i = 0; i < WEATHER_EMBER_N; i++) weatherEmbers[i * 4 + 3] = 0;
-    weatherInit2 = true;
-  }
-
-  if (!weatherDriftCanvas || weatherDriftCanvas.width !== w || weatherDriftCanvas.height !== h) {
-    weatherDriftCanvas = document.createElement("canvas");
-    weatherDriftCanvas.width = w; weatherDriftCanvas.height = h;
-    weatherDriftCtx = weatherDriftCanvas.getContext("2d");
-  }
-
-  // ── Wind — low-pass random walk. Change target every ~4s or on
-  //    strong peaks, so weather feels mood-driven.
-  weatherWindTimer -= dt;
-  if (weatherWindTimer <= 0 || (transient && a.peak > 0.5)) {
-    weatherWindTarget = (Math.random() - 0.5) * 1.6 * (0.5 + a.rms);
-    weatherWindTimer = 180 + Math.random() * 260;
-  }
-  weatherWind += (weatherWindTarget - weatherWind) * 0.015 * dt;
-
-  const hueBase = 30 + (p.mood.warmth - 0.5) * 16 - bright * 8;
-
-  // ── ASH — falling heavy grains. Count visible scales with low+mid.
-  const ashVisible = Math.floor(WEATHER_ASH_N * (0.25 + (low + mid) * 0.6 + a.rms * 0.35));
-  const fallK = 0.6 + a.rms * 2.6 + low * 1.8 + mid * 1.0;
-  for (let i = 0; i < Math.min(ashVisible, WEATHER_ASH_N); i++) {
-    const o = i * 4;
-    weatherAsh[o + 1] += weatherAsh[o + 2] * fallK * dt;
-    weatherAsh[o] += weatherWind * weatherAsh[o + 2] * dt * 0.8;
-    if (weatherAsh[o + 1] > h) {
-      // Heavier grains occasionally deposit on the drift floor
-      if (weatherDriftCtx && Math.random() < 0.3 * weatherAsh[o + 3]) {
-        weatherDriftCtx.fillStyle = `rgba(80, 55, 35, 0.08)`;
-        weatherDriftCtx.fillRect(weatherAsh[o], h - Math.random() * Math.max(8, p.growth * 28), 1, 1);
-      }
-      weatherAsh[o] = Math.random() * w;
-      weatherAsh[o + 1] = -2;
-      weatherAsh[o + 2] = 0.4 + Math.random() * 1.6;
-      weatherAsh[o + 3] = Math.random();
-    }
-    if (weatherAsh[o] < 0) weatherAsh[o] += w;
-    else if (weatherAsh[o] > w) weatherAsh[o] -= w;
-    const life = weatherAsh[o + 3];
-    const sz = 0.7 + life * 2.0;
-    const al = 0.2 + life * 0.5 + a.rms * 0.2;
-    const lig = 28 + life * 28 + bright * 10;
-    const sat = 14 + life * 28;
-    ctx.fillStyle = `hsla(${hueBase - life * 4}, ${sat}%, ${lig}%, ${al})`;
-    ctx.fillRect(weatherAsh[o], weatherAsh[o + 1], sz, sz);
-  }
-
-  // ── DUST — suspended fine grains, count scales with high band.
-  //    Brownian motion + wind drag; these render as very tiny specks.
-  const dustVisible = Math.floor(WEATHER_DUST_N * (0.25 + high * 1.2 + p.growth * 0.25));
-  for (let i = 0; i < Math.min(dustVisible, WEATHER_DUST_N); i++) {
-    const o = i * 4;
-    // Brownian jitter
-    weatherDust[o + 2] += (Math.random() - 0.5) * 0.08 + weatherWind * 0.012;
-    weatherDust[o + 3] += (Math.random() - 0.5) * 0.06 - 0.01; // slight buoyancy up
-    weatherDust[o + 2] *= 0.92;
-    weatherDust[o + 3] *= 0.92;
-    weatherDust[o] += weatherDust[o + 2] * dt;
-    weatherDust[o + 1] += weatherDust[o + 3] * dt;
-    // Wrap
-    if (weatherDust[o] < 0) weatherDust[o] += w;
-    else if (weatherDust[o] > w) weatherDust[o] -= w;
-    if (weatherDust[o + 1] < 0) weatherDust[o + 1] += h;
-    else if (weatherDust[o + 1] > h) weatherDust[o + 1] -= h;
-    const lig = 55 + bright * 18;
-    ctx.fillStyle = `hsla(${hueBase + 2}, 10%, ${lig}%, ${0.14 + high * 0.35})`;
-    ctx.fillRect(weatherDust[o], weatherDust[o + 1], 1, 1);
-  }
-
-  // ── EMBERS — rare bright particles spawned on transients; they
-  //    rise against gravity and fade. A weather event, not decoration.
-  if (transient && a.peak > 0.25) {
-    const spawn = 1 + Math.floor(a.peak * 4);
-    for (let k = 0; k < spawn; k++) {
-      const o = weatherEmberCursor * 4;
-      weatherEmbers[o] = Math.random() * w;
-      weatherEmbers[o + 1] = h - 2 - Math.random() * 20;
-      weatherEmbers[o + 2] = -(1 + Math.random() * 2.5) * (0.6 + a.peak);
-      weatherEmbers[o + 3] = 0.7 + Math.random() * 0.3;
-      weatherEmberCursor = (weatherEmberCursor + 1) % WEATHER_EMBER_N;
-    }
-  }
-  for (let i = 0; i < WEATHER_EMBER_N; i++) {
-    const o = i * 4;
-    const life = weatherEmbers[o + 3];
-    if (life <= 0) continue;
-    weatherEmbers[o + 1] += weatherEmbers[o + 2] * dt;
-    weatherEmbers[o] += weatherWind * 0.6 * dt;
-    weatherEmbers[o + 2] *= 0.98;
-    weatherEmbers[o + 3] *= Math.pow(0.975, dt);
-    if (weatherEmbers[o + 1] < -5) weatherEmbers[o + 3] = 0;
-    // Render as a small radial glow
-    const gr = 2 + life * 3;
-    const gg = ctx.createRadialGradient(weatherEmbers[o], weatherEmbers[o + 1], 0, weatherEmbers[o], weatherEmbers[o + 1], gr * 3);
-    gg.addColorStop(0, `hsla(26, 85%, 66%, ${life * 0.75})`);
-    gg.addColorStop(0.5, `hsla(22, 70%, 40%, ${life * 0.18})`);
-    gg.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = gg;
-    ctx.fillRect(weatherEmbers[o] - gr * 3, weatherEmbers[o + 1] - gr * 3, gr * 6, gr * 6);
-  }
-
-  // ── Rain curtain — vertical gust of dense grains when rms is
-  //    sustained high. Draws a moving column, not a random spray.
-  if (a.rms > 0.25 && p.growth > 0.15) {
-    const curtainStrength = Math.min(1, (a.rms - 0.25) * 3);
-    const cx0 = (p.t * 60 * (0.3 + a.rms)) % (w + 200) - 100;
-    const cw = 40 + curtainStrength * 140;
-    ctx.fillStyle = `hsla(${hueBase - 6}, 18%, ${34 + bright * 10}%, ${0.06 * curtainStrength})`;
-    ctx.fillRect(cx0, 0, cw, h);
-    // Sparse denser grains inside
-    const rainN = 30 + Math.floor(curtainStrength * 50);
-    ctx.fillStyle = `hsla(${hueBase - 4}, 16%, 48%, ${0.25 * curtainStrength})`;
-    for (let i = 0; i < rainN; i++) {
-      const rx = cx0 + Math.random() * cw;
-      const ry = Math.random() * h;
-      ctx.fillRect(rx, ry, 1, 2);
-    }
-  }
-
-  // ── Gust band — still used for fast transients, but now the
-  //    strength and angle are tied to the wind field.
-  if (transient && a.peak > 0.35) {
-    const gustY = Math.random() * h;
-    const gustN = 30 + Math.floor(a.peak * 60);
-    ctx.fillStyle = `hsla(${hueBase}, 20%, ${58 + bright * 10}%, ${0.22 + a.peak * 0.2})`;
-    for (let i = 0; i < gustN; i++) {
-      const gx = Math.random() * w;
-      const gy = gustY + (Math.random() - 0.5) * 40;
-      ctx.fillRect(gx, gy, 1 + Math.floor(Math.random() * 2), 1);
-    }
-  }
-
-  // ── Active pitch cloud — strongest pitch class leaves a barely-
-  //    visible tinted cloud positioned by its pc index, so the
-  //    weather faintly remembers the note being held.
-  let bestPc = -1, bestE = 0.15;
-  for (let i = 0; i < 12; i++) if (p.activePitches[i] > bestE) { bestE = p.activePitches[i]; bestPc = i; }
-  if (bestPc >= 0) {
-    const cxCloud = ((bestPc + 0.5) / 12) * w;
-    const cyCloud = h * 0.35 + Math.sin(p.t * 0.2 + bestPc) * 20;
-    const cr = Math.min(w, h) * 0.15;
-    const cg = ctx.createRadialGradient(cxCloud, cyCloud, 0, cxCloud, cyCloud, cr);
-    cg.addColorStop(0, `hsla(${hueBase + 4}, 22%, 45%, ${0.05 + bestE * 0.05})`);
-    cg.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = cg;
-    ctx.fillRect(cxCloud - cr, cyCloud - cr, cr * 2, cr * 2);
-  }
-
-  // ── Accreted drift — overlay the persistent floor deposit. Very
-  //    faint, grows over minutes since ash deposits every time a
-  //    heavy grain reaches the bottom.
-  if (weatherDriftCanvas) ctx.drawImage(weatherDriftCanvas, 0, 0);
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // FEEDBACK TUNNEL · B&W — same accumulating-zoom mechanic as the
@@ -5319,20 +4423,6 @@ export function drawStereoVectorscope(
     }
     off.stroke();
   }
-
-  // Cross-hair + M/S axis labels (minimal)
-  off.strokeStyle = "rgba(170, 170, 170, 0.14)";
-  off.lineWidth = 0.5;
-  off.beginPath();
-  off.moveTo(cx - rad, cy); off.lineTo(cx + rad, cy);
-  off.moveTo(cx, cy - rad); off.lineTo(cx, cy + rad);
-  off.stroke();
-  // Diagonal unity lines (mono = NW-SE)
-  off.strokeStyle = "rgba(170, 170, 170, 0.08)";
-  off.beginPath();
-  off.moveTo(cx - rad, cy - rad); off.lineTo(cx + rad, cy + rad);
-  off.moveTo(cx - rad, cy + rad); off.lineTo(cx + rad, cy - rad);
-  off.stroke();
 
   ctx.drawImage(vsCanvas, 0, 0);
 

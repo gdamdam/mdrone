@@ -54,7 +54,7 @@
 | View | Purpose |
 |---|---|
 | **DRONE** | The instrument: header tonic / octave / HOLD transport, preset library, voice stack, macros, breathing LFO, climate XY pad, effect chain, undo/redo + A/B snapshot slots, SCALE editor, GESTURES panel |
-| **MEDITATE** | 36 full-screen visualizers grouped by function: HARMONIC / LANDSCAPE / RITUAL / VOID · HYPNOTIC (B&W first, then colour within each), picked from a dropdown (double-click canvas to cycle). Many accrete complexity over minutes rather than react per-frame: PITCH MANDALA, BREATHING MANDALA, HALO & RAYS, SEDIMENT STRATA, TAPE DECAY, TUNING MANUSCRIPT, RESONANT BODY, PETROGLYPHS, and more. Also: a JULIA FRACTAL that reacts to low / mid / high spectral bands, a STEREO VECTORSCOPE, a HARMONIC EMBER polar log plot, and SHORTWAVE STATIC. |
+| **MEDITATE** | 30 full-screen visualizers grouped by function: HARMONIC / LANDSCAPE / RITUAL / VOID · HYPNOTIC (B&W first, then colour within each), picked from a dropdown (double-click canvas to cycle). Many accrete complexity over minutes rather than react per-frame: HALO & RAYS, SEDIMENT STRATA, TAPE DECAY, TUNING MANUSCRIPT, RESONANT BODY, PETROGLYPHS, and more. Also: a STEREO VECTORSCOPE, a HARMONIC EMBER polar log plot, and SHORTWAVE STATIC. |
 | **MIXER** | Master bus: HPF, 3-band EQ, glue compression, drive, brickwall limiter with ceiling, SAFE (headphone-safe) toggle, CLIP LED (pre-limiter peak), LUFS-S + PEAK metering, final output trim |
 
 ---
@@ -183,11 +183,11 @@ Master-bus controls matched to the mpump / mloop family vocabulary:
 
 ## MEDITATE view
 
-36 authored visualizers organised into four **function-based** groups in the picker. Within each group, **B&W / monochromatic** visualizers are listed first, then **colour**:
+30 authored visualizers organised into four **function-based** groups in the picker. Within each group, **B&W / monochromatic** visualizers are listed first, then **colour**:
 
-- **HARMONIC** — scenes that show the drone's pitch / tuning / phase / beats / voice identity. pitch spiral, pitch beats, partial constellation, phase portrait, phase mirror, stereo vectorscope, tuning manuscript, beating field, resonant body, pitch tonnetz, waveform ring, harmonic ember.
-- **LANDSCAPE** — slow accreting fields: rock carvings, textile, strata, dust, tape. petroglyphs, illuminated glyphs, mirror glyphs, aurora, sediment strata, spectral prayer rug, granular weather, tape decay.
-- **RITUAL** — ornate / painterly / ceremonial. iron filings, cymatics, sigil bloom, crystal lattice, breathing mandala, halo & rays, Julia fractal, scrying mirror, Rothko field.
+- **HARMONIC** — scenes that show the drone's pitch / tuning / phase / beats / voice identity. pitch beats, phase portrait, phase mirror, stereo vectorscope, tuning manuscript, beating field, resonant body, pitch tonnetz, waveform ring, harmonic ember.
+- **LANDSCAPE** — slow accreting fields: rock carvings, textile, strata, tape. petroglyphs, illuminated glyphs, mirror glyphs, aurora, sediment strata, spectral prayer rug, tape decay.
+- **RITUAL** — ornate / painterly / ceremonial. iron filings, cymatics, crystal lattice, halo & rays, scrying mirror, Rothko field.
 - **VOID · HYPNOTIC** — minimal negative space or stroboscopic / psychotropic. void monolith, moiré field, feedback tunnel, shortwave static, flow field, star gate, dream machine *(10 Hz flicker — warning shown; close eyes for the classic usage)*.
 
 Most visualizers follow a drone-native ethos: slow time, heavy / matte material, no glow or hue-from-audio, no per-frame fast reactivity. They **accrete over minutes** rather than react per-frame — PITCH MANDALA accrues pitch-class presence through a long integrator, BREATHING MANDALA and HALO & RAYS add new ornament tiers at growth > 0.3 / 0.5 / 0.7 / 0.85, SEDIMENT STRATA deposits rock layers at the bottom and the pile grows upward, TAPE DECAY scars its loop every pass and stamps dropout constellations, TUNING MANUSCRIPT writes ink ticks on a cents grid column by column, RESONANT BODY blends the anatomies of whichever voices (TANPURA / REED / METAL / AIR / PIANO / FM / AMP / NOISE) are currently active.

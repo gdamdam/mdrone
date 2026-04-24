@@ -174,12 +174,9 @@ const RELATION_IDS: readonly RelationId[] = ["unison", "tonic-fifth", "tonic-fou
 const LFO_SHAPES: readonly OscillatorType[] = ["sine", "triangle", "square", "sawtooth"] as const;
 const PALETTE_IDS: readonly PaletteId[] = ["ember", "copper", "dusk", "parchment"] as const;
 const VISUALIZERS: readonly Visualizer[] = [
-  "mandala",
-  "pitchSpiral",
   "pitchTonnetz",
   "pitchBeats",
   "prayerRug",
-  "partialConstellation",
   "phasePortrait",
   "phaseMirror",
   "moireField",
@@ -188,9 +185,7 @@ const VISUALIZERS: readonly Visualizer[] = [
   "crystalLattice",
   "haloGlow",
   "mirrorGlyphs",
-  "fractal",
   "rothko",
-  "sigil",
   "starGate",
   "cymatics",
   "aurora",
@@ -204,7 +199,6 @@ const VISUALIZERS: readonly Visualizer[] = [
   "voidMonolith",
   "beatingField",
   "tuningManuscript",
-  "granularWeather",
   "petroglyphs",
   "feedbackTunnelBW",
   "stereoVectorscope",
@@ -240,7 +234,7 @@ export const DEFAULT_FX_SNAPSHOT: FxSessionSnapshot = {
 
 export const DEFAULT_UI_SNAPSHOT: UiSessionSnapshot = {
   paletteId: "ember",
-  visualizer: "mandala",
+  visualizer: "phasePortrait",
 };
 
 const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {

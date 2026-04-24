@@ -83,7 +83,7 @@ import {
   type PortableScene,
   type SavedSession,
 } from "../session";
-import { requestSigilRefresh, type Visualizer } from "../components/visualizers";
+import { type Visualizer } from "../components/visualizers";
 import type { PitchClass } from "../types";
 import type { DroneViewHandle } from "../components/DroneView";
 import { applyFxSnapshot, applyMixerSnapshot, capturePortableScene } from "./sceneSnapshots";
@@ -189,7 +189,6 @@ export function useSceneManager({
     );
     setCurrentPresetName(generated);
     saveCurrentSessionId(null);
-    requestSigilRefresh();
   }, [droneViewRef]);
 
   const captureCurrentSceneSnapshot = useCallback((name: string): PortableScene | null => {
@@ -226,7 +225,6 @@ export function useSceneManager({
       saveCustomTuningAtId(ct.id, ct.label, ct.degrees);
     }
     setMeditateVisualizer(scene.ui.visualizer);
-    requestSigilRefresh();
     ignoreNextPresetNameRef.current = true;
     droneViewRef.current?.applySnapshot(scene.drone);
     applyMixerSnapshot(engine, scene.mixer);
@@ -492,7 +490,6 @@ export function useSceneManager({
     );
     setCurrentPresetName(generated);
     saveCurrentSessionId(null);
-    requestSigilRefresh();
   }, [droneViewRef]);
 
   /** Perturb the current scene's numeric parameters by `intensity`
