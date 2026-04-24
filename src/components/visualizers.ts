@@ -35,15 +35,12 @@ export type Visualizer =
   | "pitchTonnetz"
   | "pitchBeats"
   | "flowField"
-  | "waterfall"
   | "feedbackTunnel"
   | "waveformRing"
   | "saltDrift"
   | "ironFilings"
   | "sediment"
-  | "erosion"
   | "ashTrail"
-  | "harmonicLoom"
   | "prayerRug"
   | "partialConstellation"
   | "phasePortrait"
@@ -55,7 +52,8 @@ export type Visualizer =
   | "astrolabe"
   | "smokePlume"
   | "crystalLattice"
-  | "halftone";
+  | "halftone"
+  | "phaseMirror";
 
 /**
  * Visualizer categories — the meditate view dropdown renders these
@@ -78,9 +76,9 @@ export const VISUALIZER_GROUPS: readonly {
       "waveformRing",
       "sigil",
       "cymatics",
-      "harmonicLoom",
       "partialConstellation",
       "phasePortrait",
+      "phaseMirror",
       "sandMandala",
       "astrolabe",
       "crystalLattice",
@@ -90,9 +88,7 @@ export const VISUALIZER_GROUPS: readonly {
     label: "SPECTRAL",
     items: [
       "aurora",
-      "waterfall",
       "sediment",
-      "erosion",
     ],
   },
   {
@@ -145,17 +141,15 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   sigil: "SIGIL BLOOM",
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
-  waterfall: "SPECTRAL WATERFALL",
   feedbackTunnel: "FEEDBACK TUNNEL",
   saltDrift: "SALT DRIFT · particulate accretion",
   ironFilings: "IRON FILINGS · magnetic field",
   sediment: "SEDIMENT STRATA · spectral deposit",
-  erosion: "EROSION CONTOURS · spectral relief",
   ashTrail: "ASH TRAIL · per-voice smoke",
-  harmonicLoom: "HARMONIC LATTICE LOOM",
   prayerRug: "SPECTRAL PRAYER RUG",
   partialConstellation: "PARTIAL CONSTELLATION",
   phasePortrait: "PHASE PORTRAIT · Lissajous attractor",
+  phaseMirror: "PHASE MIRROR · 8-fold phase-space",
   liquidLight: "LIQUID LIGHT · caustics",
   sandMandala: "SAND MANDALA · ritual accretion",
   moireField: "MOIRÉ FIELD · interference grid",
@@ -527,54 +521,63 @@ export function drawInkBloom(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  // Fade the previous frame to give the impression of drifting ink
-  ctx.fillStyle = "rgba(8, 5, 3, 0.06)";
+  // Fade rate tied to RMS — quiet drones persist; loud drones churn.
+  ctx.fillStyle = `rgba(8, 5, 3, ${0.04 + a.rms * 0.06})`;
   ctx.fillRect(0, 0, w, h);
 
-  // Spawn a new blob on peaks, or occasionally on time
-  if (a.peak > 0.4 && a.peak - lastInkRms > 0.06) {
+  // Spectral centroid drives hue wheel
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+  const hueBase = 20 + centroid * 300;
+
+  // Peak-triggered bigger brighter blooms
+  if (a.peak > lastInkRms + 0.05) {
     inkBlobs.push({
-      x: w * (0.2 + Math.random() * 0.6),
-      y: h * (0.2 + Math.random() * 0.6),
-      r: 10 + Math.random() * 40,
-      vx: (Math.random() - 0.5) * 0.2,
-      vy: (Math.random() - 0.5) * 0.2,
-      h: (p.hue + Math.random() * 40) % 360,
+      x: w * (0.15 + Math.random() * 0.7),
+      y: h * (0.15 + Math.random() * 0.7),
+      r: 20 + Math.random() * 50 + a.peak * 40,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      h: (hueBase + Math.random() * 60 - 30 + 360) % 360,
       life: 0,
     });
-    const capacity = 24 + Math.round(p.growth * 40);
+    const capacity = 40 + Math.round(p.growth * 50);
     if (inkBlobs.length > capacity) inkBlobs.shift();
   }
   lastInkRms = a.peak;
-  // Idle spawn — rate climbs with growth so the field densifies slowly
-  if (Math.random() < 0.003 + p.growth * 0.009) {
+
+  // Continuous RMS-driven spawn — was 0.003 idle + 0.009*growth, now
+  // surges with RMS so drones always have activity.
+  const spawnRate = 0.004 + a.rms * 0.22 + p.growth * 0.01;
+  if (Math.random() < spawnRate && inkBlobs.length < 70) {
     inkBlobs.push({
       x: w * Math.random(),
       y: h * Math.random(),
-      r: 15 + Math.random() * 30,
-      vx: (Math.random() - 0.5) * 0.15,
-      vy: (Math.random() - 0.5) * 0.15,
-      h: (p.hue + 60 + Math.random() * 60) % 360,
+      r: 15 + Math.random() * 30 + a.rms * 50,
+      vx: (Math.random() - 0.5) * 0.2,
+      vy: (Math.random() - 0.5) * 0.2,
+      h: (hueBase + Math.random() * 120 - 60 + 360) % 360,
       life: 0,
     });
-    const capacity = 24 + Math.round(p.growth * 40);
-    if (inkBlobs.length > capacity) inkBlobs.shift();
   }
 
+  const breath = 1 + Math.sin(p.t * 0.3) * 0.15 + a.rms * 0.25;
   for (const b of inkBlobs) {
     b.life += 0.016;
-    // Slow drift pushed by a low-freq "current"
-    const curx = Math.cos(p.t * 0.05 + b.y * 0.002) * 0.3;
-    const cury = Math.sin(p.t * 0.04 + b.x * 0.002) * 0.3;
+    const curx = Math.cos(p.t * 0.05 + b.y * 0.002) * (0.3 + a.rms);
+    const cury = Math.sin(p.t * 0.04 + b.x * 0.002) * (0.3 + a.rms);
     b.x += b.vx + curx;
     b.y += b.vy + cury;
-    b.r += 0.15 + a.rms * 0.3;
-    const alpha = Math.max(0, 0.35 - b.life * 0.02) * (0.3 + a.rms);
-    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+    b.r += 0.25 + a.rms * 0.7;
+    const alpha = Math.max(0, 0.45 - b.life * 0.015) * (0.4 + a.rms * 1.2);
+    const er = b.r * breath;
+    const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, er);
     g.addColorStop(0, embToHsl(b.h, 80, 55, alpha));
+    g.addColorStop(0.5, embToHsl(b.h, 70, 40, alpha * 0.4));
     g.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = g;
-    ctx.fillRect(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2);
+    ctx.fillRect(b.x - er, b.y - er, er * 2, er * 2);
   }
   inkBlobs = inkBlobs.filter((b) => b.life < 30);
 }
@@ -1174,36 +1177,51 @@ export function drawDreamHouse(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  // The magenta field itself breathes through the Dream House palette:
-  //   magenta → ultraviolet → deep red → back
-  const baseHue = 300 + Math.sin(p.t * 0.015) * 40; // 260–340
-  const sat = 85 + Math.sin(p.t * 0.02) * 10;
-  const lig = 32 + a.rms * 8 + p.slow * 4;
+  // Spectral centroid pushes palette: low → deep magenta, high → amber.
+  // Peaks punch the hue and saturation; RMS drives lightness.
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+  const baseHue = (300 - centroid * 80 + Math.sin(p.t * 0.025) * 35 + a.peak * 30 + 360) % 360;
+  const sat = 72 + a.rms * 25;
+  const lig = 28 + a.rms * 14 + p.slow * 4;
   ctx.fillStyle = `hsl(${baseHue}, ${sat}%, ${lig}%)`;
   ctx.fillRect(0, 0, w, h);
 
-  const shapes = ensureDh(w, h);
-  // Wrap-around drift
-  for (const s of shapes) {
-    s.cx += s.vx + Math.cos(p.t * 0.05 + s.rot) * 0.1;
-    s.cy += s.vy + Math.sin(p.t * 0.04 + s.rot) * 0.08;
-    if (s.cx < -s.r) s.cx = w + s.r;
-    if (s.cx > w + s.r) s.cx = -s.r;
-    if (s.cy < -s.r) s.cy = h + s.r;
-    if (s.cy > h + s.r) s.cy = -s.r;
-
-    // Silhouette color — slightly darker/violet than the field
-    const g = ctx.createRadialGradient(s.cx, s.cy, 0, s.cx, s.cy, s.r * (1 + a.rms * 0.15));
-    g.addColorStop(0, `hsla(${(baseHue - 25) % 360}, 90%, 16%, 0.55)`);
-    g.addColorStop(0.7, `hsla(${(baseHue - 15) % 360}, 80%, 22%, 0.28)`);
+  // Shapes anchored to active pitch classes — each active pitch owns
+  // a dark silhouette orbiting the centre. Radius scales with its
+  // energy AND with RMS so silence drones are sparse / loud ones dense.
+  const cx = w * 0.5, cy = h * 0.5;
+  const orbitR = Math.min(w, h) * 0.36;
+  for (let pc = 0; pc < 12; pc++) {
+    const e = p.activePitches[pc];
+    if (e < 0.05) continue;
+    const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2 + p.t * 0.03;
+    const sx = cx + Math.cos(ang) * orbitR * (0.4 + 0.6 * e);
+    const sy = cy + Math.sin(ang) * orbitR * (0.4 + 0.6 * e);
+    const r = (60 + e * 140) * (1 + a.rms * 0.35);
+    const silHue = (baseHue - 25 + e * 50) % 360;
+    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+    g.addColorStop(0, `hsla(${silHue}, 90%, 16%, ${0.5 + e * 0.35})`);
+    g.addColorStop(0.7, `hsla(${(silHue + 15) % 360}, 80%, 24%, ${0.25 + e * 0.2})`);
     g.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(s.cx, s.cy, s.r * (1 + a.rms * 0.15), 0, Math.PI * 2);
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Pointer interactivity — tiny bright spot follows the pointer
+  // Central bright glow — pulses hard with RMS and peak
+  const centreR = 80 + a.rms * 160 + a.peak * 100;
+  const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, centreR);
+  cg.addColorStop(0, `hsla(${(baseHue + 50) % 360}, 100%, 78%, ${0.35 + a.rms * 0.5 + a.peak * 0.4})`);
+  cg.addColorStop(0.6, `hsla(${(baseHue + 30) % 360}, 90%, 55%, ${0.15 + a.rms * 0.2})`);
+  cg.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = cg;
+  ctx.beginPath();
+  ctx.arc(cx, cy, centreR, 0, Math.PI * 2);
+  ctx.fill();
+
   if (p.pointer) {
     const px = p.pointer.x * w;
     const py = p.pointer.y * h;
@@ -1217,16 +1235,19 @@ export function drawDreamHouse(
     ctx.fill();
   }
 
-  // Extra shapes fade in with growth for slow build
-  if (p.growth > 0.3 && shapes.length < 12) {
-    shapes.push({
-      cx: Math.random() * w,
-      cy: Math.random() * h,
-      r: 60 + Math.random() * 120,
-      vx: (Math.random() - 0.5) * 0.07,
-      vy: (Math.random() - 0.5) * 0.05,
-      rot: Math.random() * Math.PI * 2,
-    });
+  // Growth tier: radial beams emanating from centre
+  if (p.growth > 0.4) {
+    const beams = 6;
+    ctx.strokeStyle = `hsla(${(baseHue + 40) % 360}, 80%, 70%, ${(p.growth - 0.4) * 0.25 + a.rms * 0.15})`;
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < beams; i++) {
+      const ang = (i / beams) * Math.PI * 2 + p.t * 0.08;
+      const r = Math.min(w, h) * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(ang) * 40, cy + Math.sin(ang) * 40);
+      ctx.lineTo(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
+      ctx.stroke();
+    }
   }
 }
 
@@ -1540,17 +1561,15 @@ export const VISUALIZER_FNS: Record<
   pitchBeats: drawPitchBeats,
   flowField: drawFlowField,
   waveformRing: drawWaveformRing,
-  waterfall: drawWaterfall,
   feedbackTunnel: drawFeedbackTunnel,
   saltDrift: drawSaltDrift,
   ironFilings: drawIronFilings,
   sediment: drawSediment,
-  erosion: drawErosion,
   ashTrail: drawAshTrail,
-  harmonicLoom: drawHarmonicLoom,
   prayerRug: drawPrayerRug,
   partialConstellation: drawPartialConstellation,
   phasePortrait: drawPhasePortrait,
+  phaseMirror: drawPhaseMirror,
   liquidLight: drawLiquidLight,
   sandMandala: drawSandMandala,
   moireField: drawMoireField,
@@ -1689,6 +1708,7 @@ export function drawFreqRing(
 // wiring; this stays self-contained).
 // ─────────────────────────────────────────────────────────────────────
 const tmpSpiralAngle = new Float32Array(12);
+const pitchSpiralAfterglow = new Float32Array(12);
 export function drawPitchSpiral(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -1696,33 +1716,60 @@ export function drawPitchSpiral(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
   ctx.fillRect(0, 0, w, h);
+
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+  const hueBase = 32 + centroid * 180;
+  const dt = p.dtScale ?? 1;
 
   const cx = w / 2;
   const cy = h / 2;
   const rBase = Math.min(w, h) * 0.32;
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(p.t * 0.018);
+  ctx.rotate(p.t * (0.018 + a.rms * 0.05));
 
-  ctx.strokeStyle = "hsla(0, 0%, 35%, 0.25)";
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = `hsla(${hueBase}, 35%, 55%, ${0.25 + a.rms * 0.15})`;
+  ctx.lineWidth = 1 + a.rms * 2;
   ctx.beginPath();
   ctx.arc(0, 0, rBase, 0, Math.PI * 2);
   ctx.stroke();
   for (let pc = 0; pc < 12; pc++) {
     const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2;
-    ctx.strokeStyle = `hsla(0, 0%, 45%, ${pc === 0 ? 0.55 : 0.2})`;
+    ctx.strokeStyle = `hsla(${hueBase}, 40%, 55%, ${pc === 0 ? 0.65 : 0.22})`;
+    ctx.lineWidth = pc === 0 ? 1.4 : 1;
     ctx.beginPath();
-    ctx.moveTo(Math.cos(ang) * (rBase - 8), Math.sin(ang) * (rBase - 8));
-    ctx.lineTo(Math.cos(ang) * (rBase + 8), Math.sin(ang) * (rBase + 8));
+    ctx.moveTo(Math.cos(ang) * (rBase - 10), Math.sin(ang) * (rBase - 10));
+    ctx.lineTo(Math.cos(ang) * (rBase + 10), Math.sin(ang) * (rBase + 10));
     ctx.stroke();
   }
 
   const energies = p.activePitches;
   let totalE = 0;
   for (let i = 0; i < 12; i++) totalE += energies[i];
+
+  // Afterglow — past bright positions leave a slowly-fading wake so
+  // you can read the drone's history, not just the instant.
+  for (let i = 0; i < 12; i++) {
+    pitchSpiralAfterglow[i] = Math.max(pitchSpiralAfterglow[i] - 0.004 * dt, energies[i] * 0.7);
+  }
+  for (let pc = 0; pc < 12; pc++) {
+    const ag = pitchSpiralAfterglow[pc];
+    if (ag < 0.04) continue;
+    const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(ang) * rBase;
+    const y = Math.sin(ang) * rBase;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rBase * 0.3);
+    g.addColorStop(0, `hsla(${hueBase + 20}, 50%, 65%, ${ag * 0.35})`);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, rBase * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   for (let pc = 0; pc < 12; pc++) {
     const e = energies[pc];
@@ -1732,44 +1779,59 @@ export function drawPitchSpiral(
     const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2 + wobble;
     tmpSpiralAngle[pc] = ang;
 
-    const glowR = rBase + (rBase * 0.18) * Math.min(1, e + a.rms * 0.2);
-    const beam = ctx.createRadialGradient(
-      Math.cos(ang) * rBase, Math.sin(ang) * rBase, 0,
-      Math.cos(ang) * rBase, Math.sin(ang) * rBase, rBase * 0.22,
-    );
-    beam.addColorStop(0, `hsla(0, 0%, 100%, ${Math.min(1, e * 0.9 + 0.2)})`);
-    beam.addColorStop(0.6, `hsla(0, 0%, 100%, ${e * 0.25})`);
+    const x = Math.cos(ang) * rBase;
+    const y = Math.sin(ang) * rBase;
+
+    const beamR = rBase * 0.28 * (0.7 + e + a.rms * 0.3);
+    const beam = ctx.createRadialGradient(x, y, 0, x, y, beamR);
+    beam.addColorStop(0, `hsla(${hueBase + 30}, 70%, 85%, ${Math.min(1, e * 1.2 + 0.25)})`);
+    beam.addColorStop(0.5, `hsla(${hueBase + 15}, 55%, 65%, ${e * 0.45})`);
     beam.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = beam;
     ctx.beginPath();
-    ctx.arc(Math.cos(ang) * rBase, Math.sin(ang) * rBase, rBase * 0.22, 0, Math.PI * 2);
+    ctx.arc(x, y, beamR, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = `hsla(0, 0%, 92%, ${e * 0.6})`;
-    ctx.lineWidth = 1 + e * 2;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(ang) * (rBase - 16), Math.sin(ang) * (rBase - 16));
-    ctx.lineTo(Math.cos(ang) * glowR, Math.sin(ang) * glowR);
-    ctx.stroke();
-  }
-
-  for (let i = 0; i < 12; i++) {
-    if (energies[i] < 0.22) continue;
-    for (let j = i + 1; j < 12; j++) {
-      if (energies[j] < 0.22) continue;
-      const a1 = tmpSpiralAngle[i];
-      const a2 = tmpSpiralAngle[j];
-      ctx.strokeStyle = `hsla(0, 0%, 96%, ${Math.min(0.4, (energies[i] + energies[j]) * 0.15)})`;
-      ctx.lineWidth = 0.8;
+    // Radial licks — number scales with energy + peak. Makes each
+    // active pitch feel like a flame, not a dot.
+    const licks = 3 + Math.round(e * 5 + a.peak * 4);
+    ctx.strokeStyle = `hsla(${hueBase + 10}, 60%, 80%, ${0.4 + e * 0.5})`;
+    ctx.lineWidth = 1 + e * 2.5;
+    for (let k = 0; k < licks; k++) {
+      const spread = (k / Math.max(1, licks - 1) - 0.5) * 0.18 * (0.6 + e);
+      const la = ang + spread;
+      const lr = rBase + 20 + e * rBase * 0.4 + Math.sin(p.t * 3 + pc * 2 + k) * 6;
       ctx.beginPath();
-      ctx.arc(0, 0, rBase - 6, Math.min(a1, a2), Math.max(a1, a2));
+      ctx.moveTo(Math.cos(la) * (rBase + 8), Math.sin(la) * (rBase + 8));
+      ctx.lineTo(Math.cos(la) * lr, Math.sin(la) * lr);
       ctx.stroke();
     }
   }
 
-  const hubR = Math.min(w, h) * (0.06 + 0.04 * Math.min(1, totalE * 0.25 + a.rms * 0.5));
+  // Moiré arcs between close pitch pairs (≤ 4 semitones apart).
+  for (let i = 0; i < 12; i++) {
+    if (energies[i] < 0.18) continue;
+    for (let j = i + 1; j < 12; j++) {
+      if (energies[j] < 0.18) continue;
+      const dist = Math.min(j - i, 12 - (j - i));
+      if (dist > 4) continue;
+      const a1 = tmpSpiralAngle[i];
+      const a2 = tmpSpiralAngle[j];
+      const midR = rBase + 4 + Math.sin(p.t * (1 + dist * 0.3)) * 3;
+      ctx.strokeStyle = `hsla(${hueBase + 30}, 45%, 80%, ${Math.min(0.5, (energies[i] + energies[j]) * 0.2)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, midR, Math.min(a1, a2), Math.max(a1, a2));
+      ctx.stroke();
+    }
+  }
+
+  // Core hub — dramatic peak bloom
+  const hubPulse = Math.min(1, totalE * 0.25 + a.rms * 0.5 + a.peak * 0.8);
+  const hubR = Math.min(w, h) * (0.06 + 0.08 * hubPulse);
   const hub = ctx.createRadialGradient(0, 0, 0, 0, 0, hubR * 2);
-  hub.addColorStop(0, `hsla(0, 0%, 100%, ${0.35 + a.rms * 0.4})`);
+  hub.addColorStop(0, `hsla(${hueBase + 25}, 70%, 88%, ${0.45 + hubPulse * 0.5})`);
+  hub.addColorStop(0.6, `hsla(${hueBase + 10}, 50%, 60%, ${hubPulse * 0.3})`);
   hub.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = hub;
   ctx.beginPath();
@@ -2082,6 +2144,8 @@ function flowNoise(x: number, y: number): number {
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
 const flowParticles: { x: number; y: number; life: number; maxLife: number; size: number }[] = [];
+let flowPeakFlash = 0;
+let prevFlowPeak = 0;
 export function drawFlowField(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -2092,47 +2156,65 @@ export function drawFlowField(
   const rms = a.rms;
   const time = p.t;
 
-  // Motion blur
+  // Motion blur — trails lengthen on loud drones
   ctx.globalCompositeOperation = "destination-out";
-  ctx.globalAlpha = 0.06;
+  ctx.globalAlpha = 0.04 + (1 - rms) * 0.06;
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, w, h);
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
 
-  // Spawn
-  const spawnRate = rms * 3;
-  for (let s = 0; s < spawnRate && flowParticles.length < 120; s++) {
+  // Peak-triggered flash drives radial bursts
+  if (a.peak > prevFlowPeak + 0.1) flowPeakFlash = 1;
+  prevFlowPeak = a.peak;
+  flowPeakFlash *= 0.92;
+
+  // Active-pitch centroid tilts the whole field so different chords
+  // produce visibly different flow directions.
+  let pitchCx = 0, pitchCy = 0, pitchMass = 0;
+  for (let i = 0; i < 12; i++) {
+    const e = p.activePitches[i];
+    const ang = (i / 12) * Math.PI * 2;
+    pitchCx += Math.cos(ang) * e;
+    pitchCy += Math.sin(ang) * e;
+    pitchMass += e;
+  }
+  const pitchAng = pitchMass > 0.01 ? Math.atan2(pitchCy, pitchCx) : 0;
+
+  // Quadratic-in-RMS spawn so transients really blossom
+  const spawnRate = rms * rms * 12 + 1;
+  for (let s = 0; s < spawnRate && flowParticles.length < 180; s++) {
+    const fromCentre = flowPeakFlash > 0.3 && Math.random() < 0.5;
     flowParticles.push({
-      x: Math.random() * w, y: Math.random() * h,
-      life: 0, maxLife: 100 + Math.random() * 120,
-      size: 1.5 + Math.random() * 2,
+      x: fromCentre ? w / 2 : Math.random() * w,
+      y: fromCentre ? h / 2 : Math.random() * h,
+      life: 0, maxLife: 120 + Math.random() * 160,
+      size: 1.2 + Math.random() * 2.2,
     });
   }
 
   const fieldScale = 0.004;
-  const fieldSpeed = 0.5 + rms * 2;
-
+  const fieldSpeed = 0.3 + rms * 3 + flowPeakFlash * 2;
+  const hue = p.mood.hue;
   for (let i = flowParticles.length - 1; i >= 0; i--) {
     const fp = flowParticles[i];
     const n = flowNoise(fp.x * fieldScale + time * 0.06, fp.y * fieldScale + time * 0.03);
-    const angle = n * Math.PI * 4 + time * 0.1;
+    const angle = n * Math.PI * 4 + time * 0.1 + pitchAng * 0.4;
     fp.x += Math.cos(angle) * fieldSpeed;
     fp.y += Math.sin(angle) * fieldSpeed;
     fp.life++;
-
     if (fp.life >= fp.maxLife || fp.x < -10 || fp.x > w + 10 || fp.y < -10 || fp.y > h + 10) {
       flowParticles.splice(i, 1);
       continue;
     }
-
     const t = fp.life / fp.maxLife;
     const alpha = (t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1);
-    ctx.globalAlpha = alpha * (0.2 + rms * 0.4);
+    ctx.globalAlpha = alpha * (0.25 + rms * 0.6);
     ctx.beginPath();
-    ctx.arc(fp.x, fp.y, fp.size, 0, Math.PI * 2);
-    const lum = Math.round(180 + rms * 75);
-    ctx.fillStyle = `rgb(${lum},${lum},${lum})`;
+    ctx.arc(fp.x, fp.y, fp.size + flowPeakFlash * 1.5, 0, Math.PI * 2);
+    const sat = Math.round(20 + rms * 55);
+    const lig = Math.round(55 + rms * 30);
+    ctx.fillStyle = `hsl(${hue}, ${sat}%, ${lig}%)`;
     ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -2206,57 +2288,6 @@ export function drawWaveformRing(
   ctx.fill();
 }
 
-let waterfallCanvas: HTMLCanvasElement | null = null;
-let waterfallCtx: CanvasRenderingContext2D | null = null;
-let waterfallLastScroll = 0;
-export function drawWaterfall(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  // Lazy (re)create offscreen canvas on size change
-  if (!waterfallCanvas || waterfallCanvas.width !== w || waterfallCanvas.height !== h) {
-    waterfallCanvas = document.createElement("canvas");
-    waterfallCanvas.width = w;
-    waterfallCanvas.height = h;
-    waterfallCtx = waterfallCanvas.getContext("2d");
-    if (waterfallCtx) {
-      waterfallCtx.fillStyle = "#060408";
-      waterfallCtx.fillRect(0, 0, w, h);
-    }
-  }
-  const off = waterfallCtx;
-  if (!off || !waterfallCanvas) return;
-
-  // Fast scroll: ~80 rows/sec (a 500-px canvas fills in ~6 s).
-  const SCROLL_PX = 3;
-  if (p.t - waterfallLastScroll >= 0.016) {
-    waterfallLastScroll = p.t;
-    // Scroll everything down by SCROLL_PX.
-    off.drawImage(waterfallCanvas, 0, 0, w, h - SCROLL_PX, 0, SCROLL_PX, w, h - SCROLL_PX);
-
-    // Draw the new top row from the current spectrum. Frequencies
-    // increase left→right; higher energy = brighter + warmer hue.
-    const bins = a.spectrum.length;
-    for (let i = 0; i < bins; i++) {
-      const energy = a.spectrum[i];
-      const x = (i / bins) * w;
-      const xEnd = ((i + 1) / bins) * w;
-      const hue = (p.hue + i * 4) % 360;
-      const lightness = 10 + energy * 60;
-      off.fillStyle = `hsla(${hue}, 85%, ${lightness}%, ${0.1 + energy})`;
-      off.fillRect(x, 0, xEnd - x + 1, SCROLL_PX);
-    }
-
-    // Slow global fade so ancient rows don't persist forever
-    off.fillStyle = "rgba(6, 4, 8, 0.005)";
-    off.fillRect(0, 0, w, h);
-  }
-
-  ctx.drawImage(waterfallCanvas, 0, 0);
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 19. DRONE STRATA — horizontal frequency bands layered like weather
@@ -2414,24 +2445,36 @@ export function drawSaltDrift(
     saltFloor = new Float32Array(FLOOR_BINS);
   }
 
-  ctx.fillStyle = "#1a1612";
+  // Spectral centroid → wind direction. Low centroid = leftward drift,
+  // high = rightward. Rich drones produce crosscurrents.
+  let num = 0, den = 0;
+  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
+  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
+  const windDir = 0.4 + centroid * 0.8;
+
+  ctx.fillStyle = `hsl(${p.mood.hue}, 10%, ${10 + a.rms * 5}%)`;
   ctx.fillRect(0, 0, w, h);
 
-  const gust = Math.sin(p.t * 0.05) * 0.25 + p.slow * 0.15;
-  const gravity = 0.02 + a.rms * 0.02;
+  const gust = (Math.sin(p.t * 0.05) * 0.25 + p.slow * 0.15) * (1 + a.rms);
+  const gravity = 0.02 + a.rms * 0.04;
   const floor = saltFloor!;
+  const speedMul = 1 + a.rms * 2;
 
-  ctx.fillStyle = `hsl(${p.mood.hue}, 12%, 82%)`;
+  // Grains coloured by the pitch-class they're tied to — different
+  // drones produce visibly different palettes on the salt.
   for (let i = 0; i < N; i++) {
     const g = saltGrains[i];
-    g.x += g.vx + gust;
-    g.y += g.vy + gravity;
+    const pc = i % 12;
+    const pe = p.activePitches[pc];
+    const hue = (p.mood.hue + (pc - 6) * 12 + 360) % 360;
+    g.x += (g.vx + gust) * speedMul * windDir + (windDir - 0.5) * 0.15;
+    g.y += (g.vy + gravity) * speedMul;
     if (g.x > w) g.x -= w;
     if (g.x < 0) g.x += w;
     const floorIdx = Math.min(FLOOR_BINS - 1, Math.max(0, Math.floor((g.x / w) * FLOOR_BINS)));
     const floorY = h - floor[floorIdx];
     if (g.y >= floorY) {
-      const spread = 1.5 + Math.random() * 0.8;
+      const spread = 1.5 + Math.random() * 0.8 + pe * 3;
       floor[floorIdx] += spread;
       const nL = Math.max(0, floorIdx - 1);
       const nR = Math.min(FLOOR_BINS - 1, floorIdx + 1);
@@ -2443,14 +2486,15 @@ export function drawSaltDrift(
       g.vy = 0.05 + Math.random() * 0.15;
       continue;
     }
-    const r = 0.6 + g.bright * 0.7;
+    const r = 0.6 + g.bright * 0.9 + pe * 0.8;
     ctx.globalAlpha = 0.55 + g.bright * 0.35;
+    ctx.fillStyle = `hsl(${hue}, ${18 + pe * 55}%, ${70 + pe * 20}%)`;
     ctx.fillRect(g.x, g.y, r, r);
   }
   ctx.globalAlpha = 1;
 
-  const erosion = 0.04 + a.rms * 0.04;
-  const maxH = h * 0.45;
+  const erosion = 0.04 + a.rms * 0.12;
+  const maxH = h * 0.48;
   const nextFloor = new Float32Array(FLOOR_BINS);
   for (let i = 0; i < FLOOR_BINS; i++) {
     const l = floor[Math.max(0, i - 1)];
@@ -2460,7 +2504,7 @@ export function drawSaltDrift(
   }
   saltFloor = nextFloor;
 
-  ctx.fillStyle = "#2a221c";
+  ctx.fillStyle = `hsl(${p.mood.hue}, 15%, ${14 + a.rms * 3}%)`;
   ctx.beginPath();
   ctx.moveTo(0, h);
   for (let i = 0; i < FLOOR_BINS; i++) {
@@ -2470,8 +2514,8 @@ export function drawSaltDrift(
   ctx.lineTo(w, h);
   ctx.closePath();
   ctx.fill();
-  ctx.strokeStyle = "#3a2e24";
-  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = `hsl(${p.mood.hue}, 25%, ${22 + a.rms * 5}%)`;
+  ctx.lineWidth = 0.8 + a.rms * 0.8;
   ctx.beginPath();
   ctx.moveTo(0, h - nextFloor[0]);
   for (let i = 1; i < FLOOR_BINS; i++) {
@@ -2607,83 +2651,6 @@ export function drawSediment(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// EROSION CONTOURS — low-resolution heightmap quantised into discrete
-// elevation levels, rendered as flat shaded bands with darker seam
-// lines between levels — reads like a USGS topographic map whose
-// coastline breathes with the drone.
-// ─────────────────────────────────────────────────────────────────────
-const EROSION_GW = 96;
-const EROSION_GH = 64;
-const EROSION_LEVELS = 7;
-let erosionHeight: Float32Array | null = null;
-
-export function drawErosion(
-  ctx: CanvasRenderingContext2D,
-  w: number, h: number,
-  a: AudioFrame, p: PhaseClock,
-): void {
-  if (!erosionHeight) {
-    erosionHeight = new Float32Array(EROSION_GW * EROSION_GH);
-  }
-  const height = erosionHeight;
-
-  const bins = a.spectrum.length;
-  const lowpass = 0.04;
-  for (let gy = 0; gy < EROSION_GH; gy++) {
-    for (let gx = 0; gx < EROSION_GW; gx++) {
-      const bin = Math.floor(((gx + gy * 0.5) / (EROSION_GW + EROSION_GH * 0.5)) * bins) % bins;
-      const e = a.spectrum[bin] ?? 0;
-      const wave =
-        Math.sin(gx * 0.09 + p.t * 0.05) * 0.2 +
-        Math.cos(gy * 0.13 - p.t * 0.03) * 0.15 +
-        Math.sin((gx + gy) * 0.05 + p.slow * 3) * 0.1;
-      const target = e * 0.7 + wave + 0.4 + a.rms * 0.2;
-      const idx = gy * EROSION_GW + gx;
-      height[idx] += (target - height[idx]) * lowpass;
-    }
-  }
-
-  const cellW = w / EROSION_GW;
-  const cellH = h / EROSION_GH;
-  const baseHue = 28 + (p.mood.warmth - 0.5) * 14;
-  for (let gy = 0; gy < EROSION_GH; gy++) {
-    for (let gx = 0; gx < EROSION_GW; gx++) {
-      const val = height[gy * EROSION_GW + gx];
-      const level = Math.max(0, Math.min(EROSION_LEVELS - 1,
-        Math.floor(val * EROSION_LEVELS)));
-      const lig = 8 + level * 6;
-      ctx.fillStyle = `hsl(${baseHue}, 12%, ${lig}%)`;
-      ctx.fillRect(gx * cellW, gy * cellH, cellW + 1, cellH + 1);
-    }
-  }
-
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
-  ctx.lineWidth = 0.7;
-  ctx.beginPath();
-  for (let gy = 0; gy < EROSION_GH; gy++) {
-    for (let gx = 0; gx < EROSION_GW; gx++) {
-      const i = gy * EROSION_GW + gx;
-      const lvl = Math.floor(height[i] * EROSION_LEVELS);
-      if (gx < EROSION_GW - 1) {
-        const lvlR = Math.floor(height[i + 1] * EROSION_LEVELS);
-        if (lvlR !== lvl) {
-          const x = (gx + 1) * cellW;
-          ctx.moveTo(x, gy * cellH);
-          ctx.lineTo(x, (gy + 1) * cellH);
-        }
-      }
-      if (gy < EROSION_GH - 1) {
-        const lvlB = Math.floor(height[i + EROSION_GW] * EROSION_LEVELS);
-        if (lvlB !== lvl) {
-          const y = (gy + 1) * cellH;
-          ctx.moveTo(gx * cellW, y);
-          ctx.lineTo((gx + 1) * cellW, y);
-        }
-      }
-    }
-  }
-  ctx.stroke();
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // ASH TRAIL — three slowly-drifting point sources leave charcoal ink
@@ -2755,19 +2722,25 @@ export function drawAshTrail(
   // Source motion speed — slow by default, visibly faster with loud
   // drones. Base 0.02 matches the original pace; peak ~0.18.
   const speed = 0.02 + a.rms * 0.16 + midE * 0.04;
-  // Core blob radius + opacity
-  const blobR = 3 + lowE * 22 + a.peak * 10 + a.rms * 6;
-  const blobAlpha = 0.06 + a.rms * 0.14 + lowE * 0.08;
-  // Three matte soot tones — warm, cool, neutral
+  // Core blob radius + opacity — gain cranked so quiet drones leave
+  // ghost trails and loud ones lay down visible ink instead of the old
+  // barely-there dots.
+  const blobR = 3 + lowE * 28 + a.peak * 16 + a.rms * 10;
+  const blobAlpha = 0.09 + a.rms * 0.38 + lowE * 0.15;
+  // Tinted soots — warm/neutral/cool shifts around the scene mood hue
+  // so different drones produce visibly different charcoal palettes.
+  const h1 = p.mood.hue;
+  const h2 = (p.mood.hue + 20) % 360;
+  const h3 = (p.mood.hue - 20 + 360) % 360;
   const soots = [
-    `rgba(25, 22, 20, ${blobAlpha})`,
-    `rgba(40, 32, 26, ${blobAlpha * 0.9})`,
-    `rgba(22, 26, 32, ${blobAlpha * 0.9})`,
+    `hsla(${h1}, 25%, 10%, ${blobAlpha})`,
+    `hsla(${h2}, 30%, 14%, ${blobAlpha * 0.9})`,
+    `hsla(${h3}, 25%, 12%, ${blobAlpha * 0.9})`,
   ];
   const halos = [
-    `rgba(25, 22, 20, ${blobAlpha * 0.28})`,
-    `rgba(40, 32, 26, ${blobAlpha * 0.26})`,
-    `rgba(22, 26, 32, ${blobAlpha * 0.26})`,
+    `hsla(${h1}, 25%, 10%, ${blobAlpha * 0.3})`,
+    `hsla(${h2}, 30%, 14%, ${blobAlpha * 0.28})`,
+    `hsla(${h3}, 25%, 12%, ${blobAlpha * 0.28})`,
   ];
 
   for (let s = 0; s < ashSources.length; s++) {
@@ -2814,52 +2787,6 @@ export function drawAshTrail(
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// HARMONIC LATTICE LOOM — a woven ratio diagram. Nodes are pitch
-// classes, but the geometry reads like just-intonation threads rather
-// than UI telemetry.
-// ─────────────────────────────────────────────────────────────────────
-const loomRatios = [
-  [0, 7], [0, 5], [0, 4], [0, 3], [7, 2], [5, 9],
-  [3, 10], [4, 11], [2, 9], [8, 3], [10, 5], [11, 6],
-] as const;
-export function drawHarmonicLoom(
-  ctx: CanvasRenderingContext2D,
-  w: number, h: number,
-  a: AudioFrame, p: PhaseClock,
-): void {
-  ctx.fillStyle = "rgba(13, 10, 8, 0.22)";
-  ctx.fillRect(0, 0, w, h);
-  const cx = w / 2, cy = h / 2;
-  const rx = Math.min(w, h) * 0.34;
-  const ry = rx * 0.72;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(Math.sin(p.t * 0.018) * 0.05);
-  for (const [i, j] of loomRatios) {
-    const e = Math.max(p.activePitches[i], p.activePitches[j]);
-    const a1 = i / 12 * Math.PI * 2 - Math.PI / 2;
-    const a2 = j / 12 * Math.PI * 2 - Math.PI / 2;
-    const x1 = Math.cos(a1) * rx, y1 = Math.sin(a1) * ry;
-    const x2 = Math.cos(a2) * rx, y2 = Math.sin(a2) * ry;
-    ctx.strokeStyle = `hsla(${p.mood.hue + 18}, 28%, ${45 + e * 35}%, ${0.08 + e * 0.42})`;
-    ctx.lineWidth = 0.8 + e * 2.3;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    const bow = Math.sin(p.t * 0.04 + i + j) * 18 * (0.4 + e);
-    ctx.quadraticCurveTo(bow, -bow, x2, y2);
-    ctx.stroke();
-  }
-  for (let i = 0; i < 12; i++) {
-    const e = p.activePitches[i];
-    const ang = i / 12 * Math.PI * 2 - Math.PI / 2;
-    const x = Math.cos(ang) * rx, y = Math.sin(ang) * ry;
-    ctx.fillStyle = `rgba(230,220,198,${0.18 + e * 0.75})`;
-    ctx.beginPath();
-    ctx.arc(x, y, 2 + e * 7 + a.rms * 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // SPECTRAL PRAYER RUG — the spectrum weaves persistent thread rows.
@@ -2917,38 +2844,60 @@ export function drawPartialConstellation(
   w: number, h: number,
   a: AudioFrame, p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(4, 5, 6, 0.20)";
+  ctx.fillStyle = "rgba(4, 5, 6, 0.22)";
   ctx.fillRect(0, 0, w, h);
   const cx = w / 2, cy = h / 2;
   const r = Math.min(w, h) * 0.42;
-  const pts: { x: number; y: number; e: number }[] = [];
+
+  // Overall rotation + breath — whole constellation swirls with RMS.
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(p.t * (0.05 + a.rms * 0.12));
+  const breath = 1 + Math.sin(p.t * 0.4) * 0.04 + a.rms * 0.08;
+
+  const pts: { x: number; y: number; e: number; pc: number; n: number }[] = [];
   for (let pc = 0; pc < 12; pc++) {
     const base = p.activePitches[pc];
     if (base < 0.04) continue;
     for (let n = 1; n <= 5; n++) {
-      const ang = ((pc + Math.log2(n) * 12) / 12) * Math.PI * 2 - Math.PI / 2 + p.t * 0.006;
-      const rr = r * (0.18 + n * 0.14 + Math.sin(p.t * 0.03 + pc) * 0.02);
+      // Per-star wobble: independent sine phases per (pc, n) so every
+      // star trembles on its own microtonal orbit.
+      const wobAng = Math.sin(p.t * (0.7 + n * 0.13) + pc * 1.1) * 0.03;
+      const wobR = Math.sin(p.t * (1.2 + pc * 0.17) + n * 1.7) * 0.025 * r;
+      const ang = ((pc + Math.log2(n) * 12) / 12) * Math.PI * 2 - Math.PI / 2
+                + wobAng + p.t * 0.006;
+      const rr = (r * (0.18 + n * 0.14) + wobR) * breath;
       const e = base / n;
-      const x = cx + Math.cos(ang) * rr;
-      const y = cy + Math.sin(ang) * rr;
-      pts.push({ x, y, e });
-      ctx.fillStyle = `rgba(235,230,215,${0.18 + e * 0.72})`;
+      const x = Math.cos(ang) * rr;
+      const y = Math.sin(ang) * rr;
+      pts.push({ x, y, e, pc, n });
+
+      // Twinkle — star brightness pulses independently + spikes on
+      // peaks so loud transients shimmer across the whole sky.
+      const twinkle = 0.8 + Math.sin(p.t * (2.1 + pc * 0.3 + n * 0.7)) * 0.25;
+      const bright = (0.18 + e * 0.72) * twinkle + a.peak * 0.25;
+      ctx.fillStyle = `rgba(235,230,215,${Math.min(1, bright)})`;
       ctx.beginPath();
-      ctx.arc(x, y, 0.8 + e * 6, 0, Math.PI * 2);
+      ctx.arc(x, y, 0.8 + e * 6 * (0.9 + a.rms * 0.4), 0, Math.PI * 2);
       ctx.fill();
     }
   }
-  ctx.strokeStyle = `rgba(220,210,190,${0.06 + a.rms * 0.18})`;
+
+  // Connection lines flicker with per-pair timing so the web
+  // constantly re-weaves rather than sitting static.
   ctx.lineWidth = 0.7;
   for (let i = 0; i < pts.length; i++) {
     for (let j = i + 1; j < Math.min(pts.length, i + 5); j++) {
       if (pts[i].e + pts[j].e < 0.22) continue;
+      const flicker = 0.5 + Math.sin(p.t * (1.6 + i * 0.13 + j * 0.11)) * 0.5;
+      ctx.strokeStyle = `rgba(220,210,190,${(0.06 + a.rms * 0.22) * flicker})`;
       ctx.beginPath();
       ctx.moveTo(pts[i].x, pts[i].y);
       ctx.lineTo(pts[j].x, pts[j].y);
       ctx.stroke();
     }
   }
+  ctx.restore();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2961,33 +2910,62 @@ export function drawPartialConstellation(
 // closes into an ellipse; rich drone traces a rosette; microtonal
 // beating makes the curve slowly precess.
 const PHASE_TRAIL = 1600;
-const phaseTrail = new Float32Array(PHASE_TRAIL * 2);
+// 3 floats per point (x, y, z). Samples are plotted in 3-space against
+// two delay taps; a slowly-rotating projection gives the curve visible
+// orientation change over time.
+const phaseTrail = new Float32Array(PHASE_TRAIL * 3);
 let phaseHead = 0, phaseLen = 0;
 export function drawPhasePortrait(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
   ctx.fillStyle = "rgba(0, 0, 0, 0.12)"; ctx.fillRect(0, 0, w, h);
   const wf = a.waveform;
-  if (!wf || wf.length < 32) return;
+  if (!wf || wf.length < 64) return;
   const cx = w / 2, cy = h / 2;
   const scale = Math.min(w, h) * 0.42;
-  const tau = 12;
-  for (let i = tau; i < wf.length; i++) {
+  const tau1 = 12, tau2 = 27;
+  for (let i = tau2; i < wf.length; i++) {
     const x = (wf[i] - 128) / 128;
-    const y = (wf[i - tau] - 128) / 128;
-    phaseTrail[phaseHead * 2] = x;
-    phaseTrail[phaseHead * 2 + 1] = y;
+    const y = (wf[i - tau1] - 128) / 128;
+    const z = (wf[i - tau2] - 128) / 128;
+    phaseTrail[phaseHead * 3] = x;
+    phaseTrail[phaseHead * 3 + 1] = y;
+    phaseTrail[phaseHead * 3 + 2] = z;
     phaseHead = (phaseHead + 1) % PHASE_TRAIL;
     if (phaseLen < PHASE_TRAIL) phaseLen++;
   }
+  // 3D orientation — three incommensurate rotation rates so the axis
+  // of rotation itself slowly drifts, never repeating. RMS accelerates
+  // all three so louder drones tumble faster.
+  const speed = 1 + a.rms * 2;
+  const ax = p.t * 0.04 * speed;
+  const ay = p.t * 0.029 * speed + Math.sin(p.t * 0.011) * 0.4;
+  const az = p.t * 0.017 * speed;
+  const cxR = Math.cos(ax), sxR = Math.sin(ax);
+  const cyR = Math.cos(ay), syR = Math.sin(ay);
+  const czR = Math.cos(az), szR = Math.sin(az);
   ctx.lineWidth = 1;
   ctx.strokeStyle = `hsla(${p.mood.hue}, 45%, 75%, ${0.35 + a.rms * 0.4})`;
   ctx.beginPath();
   for (let i = 0; i < phaseLen; i++) {
-    const idx = ((phaseHead - phaseLen + i + PHASE_TRAIL) % PHASE_TRAIL) * 2;
-    const x = cx + phaseTrail[idx] * scale;
-    const y = cy + phaseTrail[idx + 1] * scale;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    const base = ((phaseHead - phaseLen + i + PHASE_TRAIL) % PHASE_TRAIL) * 3;
+    let x = phaseTrail[base];
+    let y = phaseTrail[base + 1];
+    let z = phaseTrail[base + 2];
+    // Rotate X then Y then Z
+    let ny = y * cxR - z * sxR;
+    let nz = y * sxR + z * cxR;
+    y = ny; z = nz;
+    let nx = x * cyR + z * syR;
+    nz = -x * syR + z * cyR;
+    x = nx; z = nz;
+    nx = x * czR - y * szR;
+    ny = x * szR + y * czR;
+    x = nx; y = ny;
+    const persp = 1 + z * 0.3;
+    const px = cx + x * scale * persp;
+    const py = cy + y * scale * persp;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   }
   ctx.stroke();
   const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 24);
@@ -2995,6 +2973,73 @@ export function drawPhasePortrait(
   core.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = core;
   ctx.beginPath(); ctx.arc(cx, cy, 24, 0, Math.PI * 2); ctx.fill();
+}
+
+// PHASE MIRROR — 8-fold central mirror of the phase portrait. The 3D
+// curve is rendered once per orthant with signs flipped on x, y, z,
+// yielding triple-axis symmetry around the origin. Kaleidoscopic sibling
+// of PHASE PORTRAIT — same data, eight views.
+export function drawPhaseMirror(
+  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
+): void {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.12)"; ctx.fillRect(0, 0, w, h);
+  const wf = a.waveform;
+  if (!wf || wf.length < 64) return;
+  const cx = w / 2, cy = h / 2;
+  const scale = Math.min(w, h) * 0.38;
+  const tau1 = 12, tau2 = 27;
+  for (let i = tau2; i < wf.length; i++) {
+    const x = (wf[i] - 128) / 128;
+    const y = (wf[i - tau1] - 128) / 128;
+    const z = (wf[i - tau2] - 128) / 128;
+    phaseTrail[phaseHead * 3] = x;
+    phaseTrail[phaseHead * 3 + 1] = y;
+    phaseTrail[phaseHead * 3 + 2] = z;
+    phaseHead = (phaseHead + 1) % PHASE_TRAIL;
+    if (phaseLen < PHASE_TRAIL) phaseLen++;
+  }
+  const speed = 1 + a.rms * 2;
+  const ax = p.t * 0.04 * speed;
+  const ay = p.t * 0.029 * speed;
+  const az = p.t * 0.017 * speed;
+  const cxR = Math.cos(ax), sxR = Math.sin(ax);
+  const cyR = Math.cos(ay), syR = Math.sin(ay);
+  const czR = Math.cos(az), szR = Math.sin(az);
+  const mirrors: Array<[number, number, number]> = [
+    [1, 1, 1], [-1, 1, 1], [1, -1, 1], [-1, -1, 1],
+    [1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1],
+  ];
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = `hsla(${p.mood.hue}, 45%, 70%, ${0.18 + a.rms * 0.25})`;
+  for (let m = 0; m < 8; m++) {
+    const [mx, my, mz] = mirrors[m];
+    ctx.beginPath();
+    for (let i = 0; i < phaseLen; i++) {
+      const base = ((phaseHead - phaseLen + i + PHASE_TRAIL) % PHASE_TRAIL) * 3;
+      let x = phaseTrail[base] * mx;
+      let y = phaseTrail[base + 1] * my;
+      let z = phaseTrail[base + 2] * mz;
+      let ny = y * cxR - z * sxR;
+      let nz = y * sxR + z * cxR;
+      y = ny; z = nz;
+      let nx = x * cyR + z * syR;
+      nz = -x * syR + z * cyR;
+      x = nx; z = nz;
+      nx = x * czR - y * szR;
+      ny = x * szR + y * czR;
+      x = nx; y = ny;
+      const persp = 1 + z * 0.3;
+      const px = cx + x * scale * persp;
+      const py = cy + y * scale * persp;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+  core.addColorStop(0, `hsla(${p.mood.hue}, 60%, 90%, ${0.55 + a.peak * 0.35})`);
+  core.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
 }
 
 // LIQUID LIGHT — caustic ripples. Spectrum bands drive heightfield
@@ -3023,9 +3068,12 @@ export function drawLiquidLight(
   const centroid = den > 0 ? (num / den) / spec.length : 0.3;
   const t = p.t;
   const gain = 0.4 + a.rms * 2 + a.peak * 0.6;
-  const rR = 235 - centroid * 130;
-  const gG = 150 - centroid * 50;
-  const bB = 60 + centroid * 180;
+  // Nearly grayscale — tiny warm→cool tint so different drones aren't
+  // indistinguishable, but the palette reads as silver/iron light on
+  // dark water rather than the previous amber→cyan spread.
+  const rR = 215 + (0.5 - centroid) * 20;
+  const gG = 215;
+  const bB = 215 + (centroid - 0.5) * 20;
   for (let y = 0; y < LIQ_H; y++) {
     for (let x = 0; x < LIQ_W; x++) {
       const nx = x / LIQ_W - 0.5;
@@ -3182,11 +3230,11 @@ export function drawMoireField(
   for (let i = 0; i < 8; i++) low += spec[i];
   for (let i = 16; i < 32; i++) high += spec[i];
   low /= 8; high /= 16;
-  const drawGrid = (rot: number, spacing: number, alpha: number, hue: number) => {
+  const drawGrid = (rot: number, spacing: number, alpha: number, gray: number) => {
     ctx.save();
     ctx.translate(w / 2, h / 2);
     ctx.rotate(rot);
-    ctx.strokeStyle = `hsla(${hue}, 45%, 65%, ${alpha})`;
+    ctx.strokeStyle = `rgba(${gray},${gray},${gray},${alpha})`;
     ctx.lineWidth = 0.8;
     const reach = Math.hypot(w, h);
     for (let d = -reach; d <= reach; d += spacing) {
@@ -3198,12 +3246,12 @@ export function drawMoireField(
     ctx.restore();
   };
   const base = 14 + Math.sin(p.t * 0.04) * 2;
-  drawGrid(p.t * 0.008, base, 0.22 + a.rms * 0.15, p.mood.hue);
+  drawGrid(p.t * 0.008, base, 0.25 + a.rms * 0.2, 230);
   drawGrid(
     p.t * 0.008 + 0.03 + low * 0.04,
     base * (1 + 0.04 + high * 0.12),
-    0.22 + a.rms * 0.15,
-    (p.mood.hue + 40) % 360,
+    0.25 + a.rms * 0.2,
+    190,
   );
 }
 
@@ -3290,103 +3338,176 @@ export function drawIlluminatedGlyphs(
 interface MirrorBloom { x: number; y: number; r: number; maxR: number; hue: number; age: number; }
 const mirrorBlooms: MirrorBloom[] = [];
 let mirrorLastPeak = 0;
+let mirrorSpawnTimer = 0;
 export function drawScryingMirror(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(4, 3, 3, 0.06)"; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(12, 8, 8, 0.04)"; ctx.fillRect(0, 0, w, h);
   let num = 0, den = 0;
   for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
   const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
   const hue = 350 * (1 - centroid) + 220 * centroid;
-  if (a.peak > mirrorLastPeak + 0.08 && mirrorBlooms.length < 20) {
+
+  // Continuous ambient spawn — was only on peak transients, which
+  // almost never happen on a drone, leaving the mirror dark.
+  mirrorSpawnTimer += 0.02 + a.rms * 0.1;
+  if (mirrorSpawnTimer > 1 && mirrorBlooms.length < 32) {
+    mirrorSpawnTimer = 0;
     mirrorBlooms.push({
-      x: w * 0.5 + Math.random() * w * 0.4,
+      x: w * 0.5 + Math.random() * w * 0.45,
       y: Math.random() * h,
-      r: 6, maxR: 40 + Math.random() * 120, hue, age: 0,
+      r: 6, maxR: 30 + Math.random() * 80 + a.rms * 60, hue, age: 0,
+    });
+  }
+  if (a.peak > mirrorLastPeak + 0.05 && mirrorBlooms.length < 42) {
+    mirrorBlooms.push({
+      x: w * 0.5 + Math.random() * w * 0.45,
+      y: Math.random() * h,
+      r: 10, maxR: 80 + Math.random() * 120, hue, age: 0,
     });
   }
   mirrorLastPeak = a.peak;
+
   const cx = w / 2;
   const dt = p.dtScale ?? 1;
+
+  // Baseline vertical pillar of light — the mirror is never fully dark.
+  const pillarR = 60 + a.rms * 80;
+  const pillar = ctx.createRadialGradient(cx, h / 2, 0, cx, h / 2, pillarR);
+  pillar.addColorStop(0, `hsla(${hue}, 30%, 55%, ${0.18 + a.rms * 0.25})`);
+  pillar.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = pillar;
+  ctx.fillRect(0, 0, w, h);
+
   for (let i = mirrorBlooms.length - 1; i >= 0; i--) {
     const b = mirrorBlooms[i];
-    b.age += 0.02 * dt;
+    b.age += 0.012 * dt;
     if (b.age > 1) { mirrorBlooms.splice(i, 1); continue; }
-    b.r += (b.maxR - b.r) * 0.02;
-    const alpha = Math.max(0, 0.35 * (1 - b.age));
+    b.r += (b.maxR - b.r) * 0.03;
+    const alpha = Math.max(0, 0.45 * (1 - b.age));
     const gr = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-    gr.addColorStop(0, `hsla(${b.hue}, 60%, 55%, ${alpha})`);
+    gr.addColorStop(0, `hsla(${b.hue}, 65%, 60%, ${alpha})`);
     gr.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gr;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
     const mx = 2 * cx - b.x;
     const gL = ctx.createRadialGradient(mx, b.y, 0, mx, b.y, b.r);
-    gL.addColorStop(0, `hsla(${b.hue}, 60%, 55%, ${alpha})`);
+    gL.addColorStop(0, `hsla(${b.hue}, 65%, 60%, ${alpha})`);
     gL.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gL;
     ctx.beginPath(); ctx.arc(mx, b.y, b.r, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.strokeStyle = "rgba(0,0,0,0.3)";
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = `rgba(255,230,200,${0.08 + a.rms * 0.2})`;
+  ctx.lineWidth = 1 + a.peak * 2;
   ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
 }
 
 // ASTROLABE — three concentric rotating rings. Outer = pitch-class
 // ticks brightened by activePitches; middle = spectrum dots; inner
 // = six slow spokes. A central gilt sigil pulses with peak.
+let astroPeakFlash = 0;
+let prevAstroPeak = 0;
 export function drawAstrolabe(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(5, 4, 3, 0.18)"; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = `rgba(5, 4, 3, ${0.12 + a.rms * 0.1})`;
+  ctx.fillRect(0, 0, w, h);
   const cx = w / 2, cy = h / 2;
   const R = Math.min(w, h) * 0.42;
+
+  if (a.peak > prevAstroPeak + 0.08) astroPeakFlash = 1;
+  prevAstroPeak = a.peak;
+  astroPeakFlash *= 0.9;
+
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.strokeStyle = "hsla(42, 30%, 55%, 0.3)";
-  ctx.lineWidth = 1;
+
+  // Concordance radials — each active pitch emits a ray to the rim.
+  const rotOuter = p.t * (0.02 + a.rms * 0.08);
+  for (let i = 0; i < 12; i++) {
+    const e = p.activePitches[i];
+    if (e < 0.05) continue;
+    const ang = rotOuter + (i / 12) * Math.PI * 2 - Math.PI / 2;
+    ctx.strokeStyle = `hsla(42, 55%, 70%, ${(e * 0.35 + astroPeakFlash * 0.4) * (0.7 + a.rms)})`;
+    ctx.lineWidth = 0.6 + e * 1.8;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(ang) * R * 0.9, Math.sin(ang) * R * 0.9);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = `hsla(42, 30%, 55%, ${0.3 + a.rms * 0.2})`;
+  ctx.lineWidth = 1 + a.rms;
   ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(0, 0, R * 0.72, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(0, 0, R * 0.44, 0, Math.PI * 2); ctx.stroke();
-  const rotOuter = p.t * 0.02;
+
+  // Outer ring ticks extend outward with pitch energy
   for (let i = 0; i < 12; i++) {
     const e = p.activePitches[i];
     const ang = rotOuter + (i / 12) * Math.PI * 2 - Math.PI / 2;
-    const inR = R - 6, outR = R + 10;
-    ctx.strokeStyle = `hsla(42, ${40 + e * 40}%, ${55 + e * 25}%, ${0.35 + e * 0.55})`;
-    ctx.lineWidth = 1 + e * 2;
+    const inR = R - 6 - e * 10;
+    const outR = R + 10 + e * 30 + astroPeakFlash * 20;
+    ctx.strokeStyle = `hsla(42, ${40 + e * 50}%, ${55 + e * 30}%, ${0.4 + e * 0.6})`;
+    ctx.lineWidth = 1 + e * 3;
     ctx.beginPath();
     ctx.moveTo(Math.cos(ang) * inR, Math.sin(ang) * inR);
     ctx.lineTo(Math.cos(ang) * outR, Math.sin(ang) * outR);
     ctx.stroke();
   }
-  const rotMid = -p.t * 0.028;
+
+  // Middle ring — 16 spectrum dots, counter-rotation accelerated by RMS
+  const rotMid = -p.t * (0.028 + a.rms * 0.08);
   ctx.rotate(rotMid);
-  for (let i = 0; i < 8; i++) {
-    const e = a.spectrum[i * 4] ?? 0;
-    const ang = (i / 8) * Math.PI * 2;
+  for (let i = 0; i < 16; i++) {
+    const e = a.spectrum[i * 2] ?? 0;
+    const ang = (i / 16) * Math.PI * 2;
     const rr = R * 0.72;
-    ctx.fillStyle = `hsla(${p.mood.hue}, ${30 + e * 40}%, ${50 + e * 25}%, ${0.4 + e * 0.5})`;
+    ctx.fillStyle = `hsla(${p.mood.hue}, ${30 + e * 55}%, ${50 + e * 35}%, ${0.35 + e * 0.6})`;
     ctx.beginPath();
-    ctx.arc(Math.cos(ang) * rr, Math.sin(ang) * rr, 2 + e * 5, 0, Math.PI * 2);
+    ctx.arc(Math.cos(ang) * rr, Math.sin(ang) * rr, 2 + e * 7, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.rotate(-rotMid);
-  const rotIn = p.t * 0.012;
-  ctx.strokeStyle = `hsla(${p.mood.hue + 20}, 40%, 60%, ${0.35 + a.rms * 0.3})`;
-  for (let i = 0; i < 6; i++) {
-    const ang = rotIn + (i / 6) * Math.PI * 2;
+
+  // Inner ring — 6 spokes, 12 on growth tier
+  const rotIn = p.t * (0.012 + a.rms * 0.03);
+  const spokes = p.growth > 0.5 ? 12 : 6;
+  ctx.strokeStyle = `hsla(${p.mood.hue + 20}, 45%, 65%, ${0.35 + a.rms * 0.4 + astroPeakFlash * 0.3})`;
+  for (let i = 0; i < spokes; i++) {
+    const ang = rotIn + (i / spokes) * Math.PI * 2;
     const rr = R * 0.44;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 + astroPeakFlash;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
     ctx.stroke();
   }
-  ctx.fillStyle = `hsla(42, 55%, 70%, ${0.45 + a.peak * 0.4})`;
-  ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = "hsla(42, 60%, 75%, 0.6)";
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.stroke();
+
+  // Peak sparks from the rim
+  if (astroPeakFlash > 0.2) {
+    const sparks = Math.round(astroPeakFlash * 16);
+    ctx.strokeStyle = `hsla(42, 80%, 80%, ${astroPeakFlash * 0.7})`;
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < sparks; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const r1 = R + 5;
+      const r2 = R + 15 + Math.random() * 30 * astroPeakFlash;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ang) * r1, Math.sin(ang) * r1);
+      ctx.lineTo(Math.cos(ang) * r2, Math.sin(ang) * r2);
+      ctx.stroke();
+    }
+  }
+
+  // Central sigil — dramatic peak bloom
+  const sigilR = 6 + astroPeakFlash * 20 + a.rms * 8;
+  ctx.fillStyle = `hsla(42, 60%, 75%, ${0.5 + a.peak * 0.4 + astroPeakFlash * 0.3})`;
+  ctx.beginPath(); ctx.arc(0, 0, sigilR, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = `hsla(42, 65%, 80%, ${0.5 + astroPeakFlash * 0.4})`;
+  ctx.lineWidth = 1 + astroPeakFlash * 1.5;
+  ctx.beginPath(); ctx.arc(0, 0, sigilR + 4, 0, Math.PI * 2); ctx.stroke();
+
   ctx.restore();
 }
 
