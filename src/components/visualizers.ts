@@ -770,9 +770,11 @@ export function drawFractal(
   const cr = 0.7885 * Math.cos(p.t * 0.02) + (lowE - 0.15) * 0.22;
   const ci = 0.7885 * Math.sin(p.t * 0.017 + p.slow * 0.5) + (highE - 0.15) * 0.22;
 
-  // Zoom pulses with mid-band energy + breath + overall RMS.
-  const zoom = 1.3 + p.slow * 0.15 + a.rms * 0.35 + midE * 0.6;
-  // Rotation speed scales with RMS so loud moments spin a bit faster.
+  // Zoom is now gentle and bounded so the Julia set never crops to
+  // a single escape-time band. Base 1.0 shows the whole interesting
+  // region; audio adds ±~0.25 so shape changes stay visible instead
+  // of pulling you inside the set.
+  const zoom = 1.0 + p.slow * 0.08 + a.rms * 0.15 + midE * 0.2;
   const rot = p.t * (0.01 + a.rms * 0.04) * (0.3 + p.growth * 0.7);
   const cosR = Math.cos(rot);
   const sinR = Math.sin(rot);
@@ -780,8 +782,10 @@ export function drawFractal(
   // Indigo / violet / amber palette, different from the ember theme
   for (let y = 0; y < bh; y++) {
     for (let x = 0; x < bw; x++) {
-      const zx0 = (x / bw - 0.5) * 3.2 / zoom;
-      const zy0 = (y / bh - 0.5) * 2.0 / zoom;
+      // Wider base coord span (4.0 × 2.6) so more of the complex
+      // plane is visible at the default zoom.
+      const zx0 = (x / bw - 0.5) * 4.0 / zoom;
+      const zy0 = (y / bh - 0.5) * 2.6 / zoom;
       // Rotate (zx0,zy0)
       const zxr = zx0 * cosR - zy0 * sinR;
       const zyr = zx0 * sinR + zy0 * cosR;
@@ -3279,39 +3283,87 @@ export function drawCrystalLattice(
 export function drawHalftone(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
-  ctx.fillStyle = "#0d0906"; ctx.fillRect(0, 0, w, h);
+  // Fade instead of solid fill → old dots leave ghost trails so the
+  // page accumulates riso texture.
+  ctx.fillStyle = `rgba(13, 9, 6, ${0.2 + (1 - a.rms) * 0.1})`;
+  ctx.fillRect(0, 0, w, h);
+
   const spec = a.spectrum;
-  let low = 0, mid = 0;
+  const bins = spec.length;
+  let low = 0, mid = 0, high = 0;
   for (let i = 0; i < 8; i++) low += spec[i];
   for (let i = 8; i < 20; i++) mid += spec[i];
-  low /= 8; mid /= 12;
+  for (let i = 20; i < 32; i++) high += spec[i];
+  low /= 8; mid /= 12; high /= 12;
+
   const spacing = 18 - Math.min(10, low * 30);
-  const dotSize = 2 + Math.min(6, a.rms * 10);
+  const dotBase = 2 + Math.min(6, a.rms * 10);
   ctx.save();
   ctx.translate(w / 2, h / 2);
-  ctx.rotate(p.t * 0.015);
+  ctx.rotate(p.t * 0.02 + a.rms * 0.15);
   ctx.translate(-w / 2, -h / 2);
+
+  // Layer 1 — ember dots. Per-cell dot radius samples the spectrum
+  // bin mapped to (x, y) position so the plate visually encodes the
+  // current timbre as a rolling halftone of energy.
   ctx.fillStyle = `hsla(25, 80%, 58%, ${0.5 + a.peak * 0.3})`;
   for (let y = -spacing; y < h + spacing; y += spacing) {
+    // Row-wise vertical wave breathing — whole grid swims with RMS.
+    const rowWave = Math.sin(y * 0.02 + p.t * 0.8) * 2 * a.rms;
     for (let x = -spacing; x < w + spacing; x += spacing) {
+      const u = (x / w + 0.5) % 1;
+      const v = (y / h + 0.5) % 1;
+      const bin = Math.floor((u * 0.7 + v * 0.3) * bins) % bins;
+      const e = spec[bin] ?? 0;
+      const r = dotBase * (0.5 + low) * (0.6 + e * 1.6);
       ctx.beginPath();
-      ctx.arc(x, y, dotSize * (0.6 + low), 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.fillStyle = "hsla(15, 55%, 42%, 0.45)";
-  const off = spacing * 0.5;
-  const sp2 = spacing * (1.03 + mid * 0.08);
-  for (let y = -sp2 + off; y < h + sp2; y += sp2) {
-    for (let x = -sp2 + off; x < w + sp2; x += sp2) {
-      ctx.beginPath();
-      ctx.arc(x, y, dotSize * (0.5 + mid), 0, Math.PI * 2);
+      ctx.arc(x, y + rowWave, r, 0, Math.PI * 2);
       ctx.fill();
     }
   }
   ctx.restore();
-  ctx.fillStyle = "rgba(232, 207, 174, 0.015)";
-  for (let i = 0; i < 40; i++) {
+
+  // Layer 2 — copper dots, offset grid + different rotation →
+  // travelling moire between the two layers.
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(-p.t * 0.027 - high * 0.2);
+  ctx.translate(-w / 2, -h / 2);
+  ctx.fillStyle = "hsla(15, 55%, 42%, 0.45)";
+  const off = spacing * 0.5;
+  const sp2 = spacing * (1.03 + mid * 0.08);
+  for (let y = -sp2 + off; y < h + sp2; y += sp2) {
+    const rowWave = Math.cos(y * 0.025 + p.t * 0.5) * 1.5 * a.rms;
+    for (let x = -sp2 + off; x < w + sp2; x += sp2) {
+      const u = (x / w + 0.5) % 1;
+      const v = (y / h + 0.5) % 1;
+      const bin = Math.floor((v * 0.7 + u * 0.3) * bins) % bins;
+      const e = spec[bin] ?? 0;
+      ctx.beginPath();
+      ctx.arc(x + rowWave, y, dotBase * (0.5 + mid) * (0.6 + e * 1.4), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // Layer 3 — sparse cream accent dots on peak transients. A small
+  // burst of bright pops scattered across the canvas each spike.
+  if (a.peak > 0.25) {
+    const count = Math.round(a.peak * 30);
+    ctx.fillStyle = `rgba(232, 207, 174, ${a.peak * 0.55})`;
+    for (let i = 0; i < count; i++) {
+      const x = Math.random() * w;
+      const y = Math.random() * h;
+      ctx.beginPath();
+      ctx.arc(x, y, 1 + a.peak * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Paper-grain flecks (live overlay, not stamped) so the page stays
+  // lively between dot cycles.
+  ctx.fillStyle = "rgba(232, 207, 174, 0.03)";
+  for (let i = 0; i < 60; i++) {
     ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
   }
 }
