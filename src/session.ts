@@ -208,7 +208,6 @@ const VISUALIZERS: readonly Visualizer[] = [
   "saltDrift",
   "ironFilings",
   "sediment",
-  "ashTrail",
   "waveformRing",
 ] as const;
 

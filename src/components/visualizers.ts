@@ -40,7 +40,6 @@ export type Visualizer =
   | "saltDrift"
   | "ironFilings"
   | "sediment"
-  | "ashTrail"
   | "prayerRug"
   | "partialConstellation"
   | "phasePortrait"
@@ -102,7 +101,6 @@ export const VISUALIZER_GROUPS: readonly {
       "horizon",
       "saltDrift",
       "ironFilings",
-      "ashTrail",
       "prayerRug",
       "liquidLight",
       "illuminatedGlyphs",
@@ -145,7 +143,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   saltDrift: "SALT DRIFT · particulate accretion",
   ironFilings: "IRON FILINGS · magnetic field",
   sediment: "SEDIMENT STRATA · spectral deposit",
-  ashTrail: "ASH TRAIL · per-voice smoke",
   prayerRug: "SPECTRAL PRAYER RUG",
   partialConstellation: "PARTIAL CONSTELLATION",
   phasePortrait: "PHASE PORTRAIT · Lissajous attractor",
@@ -461,10 +458,11 @@ export function drawCymatics(
   // at ~1.3× on peaks; this lifts it to ~3.5× so loud drones pop.
   const amp = 0.3 + a.rms * 2.6 + a.peak * 0.9;
 
-  // Palette interpolates amber (low centroid) → pink → cyan (high).
-  const paletteR = 230 - centroid * 150;
-  const paletteG = 120 - centroid * 20;
-  const paletteB = 30 + centroid * 220;
+  // Grayscale palette — contrast is the whole story.
+  const paletteR = 230;
+  const paletteG = 230;
+  const paletteB = 230;
+  void centroid;
 
   const t = p.t;
 
@@ -1589,7 +1587,6 @@ export const VISUALIZER_FNS: Record<
   saltDrift: drawSaltDrift,
   ironFilings: drawIronFilings,
   sediment: drawSediment,
-  ashTrail: drawAshTrail,
   prayerRug: drawPrayerRug,
   partialConstellation: drawPartialConstellation,
   phasePortrait: drawPhasePortrait,
@@ -1743,10 +1740,6 @@ export function drawPitchSpiral(
   ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
   ctx.fillRect(0, 0, w, h);
 
-  let num = 0, den = 0;
-  for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
-  const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
-  const hueBase = 32 + centroid * 180;
   const dt = p.dtScale ?? 1;
 
   const cx = w / 2;
@@ -1756,14 +1749,14 @@ export function drawPitchSpiral(
   ctx.translate(cx, cy);
   ctx.rotate(p.t * (0.018 + a.rms * 0.05));
 
-  ctx.strokeStyle = `hsla(${hueBase}, 35%, 55%, ${0.25 + a.rms * 0.15})`;
+  ctx.strokeStyle = `rgba(170, 170, 170, ${0.25 + a.rms * 0.15})`;
   ctx.lineWidth = 1 + a.rms * 2;
   ctx.beginPath();
   ctx.arc(0, 0, rBase, 0, Math.PI * 2);
   ctx.stroke();
   for (let pc = 0; pc < 12; pc++) {
     const ang = (pc / 12) * Math.PI * 2 - Math.PI / 2;
-    ctx.strokeStyle = `hsla(${hueBase}, 40%, 55%, ${pc === 0 ? 0.65 : 0.22})`;
+    ctx.strokeStyle = `rgba(180, 180, 180, ${pc === 0 ? 0.65 : 0.22})`;
     ctx.lineWidth = pc === 0 ? 1.4 : 1;
     ctx.beginPath();
     ctx.moveTo(Math.cos(ang) * (rBase - 10), Math.sin(ang) * (rBase - 10));
@@ -1787,7 +1780,7 @@ export function drawPitchSpiral(
     const x = Math.cos(ang) * rBase;
     const y = Math.sin(ang) * rBase;
     const g = ctx.createRadialGradient(x, y, 0, x, y, rBase * 0.3);
-    g.addColorStop(0, `hsla(${hueBase + 20}, 50%, 65%, ${ag * 0.35})`);
+    g.addColorStop(0, `rgba(210, 210, 210, ${ag * 0.35})`);
     g.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = g;
     ctx.beginPath();
@@ -1808,8 +1801,8 @@ export function drawPitchSpiral(
 
     const beamR = rBase * 0.28 * (0.7 + e + a.rms * 0.3);
     const beam = ctx.createRadialGradient(x, y, 0, x, y, beamR);
-    beam.addColorStop(0, `hsla(${hueBase + 30}, 70%, 85%, ${Math.min(1, e * 1.2 + 0.25)})`);
-    beam.addColorStop(0.5, `hsla(${hueBase + 15}, 55%, 65%, ${e * 0.45})`);
+    beam.addColorStop(0, `rgba(245, 245, 245, ${Math.min(1, e * 1.2 + 0.25)})`);
+    beam.addColorStop(0.5, `rgba(200, 200, 200, ${e * 0.45})`);
     beam.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = beam;
     ctx.beginPath();
@@ -1819,7 +1812,7 @@ export function drawPitchSpiral(
     // Radial licks — number scales with energy + peak. Makes each
     // active pitch feel like a flame, not a dot.
     const licks = 3 + Math.round(e * 5 + a.peak * 4);
-    ctx.strokeStyle = `hsla(${hueBase + 10}, 60%, 80%, ${0.4 + e * 0.5})`;
+    ctx.strokeStyle = `rgba(230, 230, 230, ${0.4 + e * 0.5})`;
     ctx.lineWidth = 1 + e * 2.5;
     for (let k = 0; k < licks; k++) {
       const spread = (k / Math.max(1, licks - 1) - 0.5) * 0.18 * (0.6 + e);
@@ -1842,7 +1835,7 @@ export function drawPitchSpiral(
       const a1 = tmpSpiralAngle[i];
       const a2 = tmpSpiralAngle[j];
       const midR = rBase + 4 + Math.sin(p.t * (1 + dist * 0.3)) * 3;
-      ctx.strokeStyle = `hsla(${hueBase + 30}, 45%, 80%, ${Math.min(0.5, (energies[i] + energies[j]) * 0.2)})`;
+      ctx.strokeStyle = `rgba(220, 220, 220, ${Math.min(0.5, (energies[i] + energies[j]) * 0.2)})`;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(0, 0, midR, Math.min(a1, a2), Math.max(a1, a2));
@@ -1854,8 +1847,8 @@ export function drawPitchSpiral(
   const hubPulse = Math.min(1, totalE * 0.25 + a.rms * 0.5 + a.peak * 0.8);
   const hubR = Math.min(w, h) * (0.06 + 0.08 * hubPulse);
   const hub = ctx.createRadialGradient(0, 0, 0, 0, 0, hubR * 2);
-  hub.addColorStop(0, `hsla(${hueBase + 25}, 70%, 88%, ${0.45 + hubPulse * 0.5})`);
-  hub.addColorStop(0.6, `hsla(${hueBase + 10}, 50%, 60%, ${hubPulse * 0.3})`);
+  hub.addColorStop(0, `rgba(245, 245, 245, ${0.45 + hubPulse * 0.5})`);
+  hub.addColorStop(0.6, `rgba(180, 180, 180, ${hubPulse * 0.3})`);
   hub.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = hub;
   ctx.beginPath();
@@ -2677,139 +2670,6 @@ export function drawSediment(
 
 // ─────────────────────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────────────
-// ASH TRAIL — three slowly-drifting point sources leave charcoal ink
-// trails on a persistent paper canvas. Sources wander across 60-80%
-// of the canvas; speed, spread, blob size, and sparkle fleck density
-// all react to the drone's character:
-//   overall RMS → source speed + blob size + core opacity
-//   low band    → core blob radius (bass = fatter strokes)
-//   mid band    → orbital amplitude (mid = bigger travel)
-//   high band   → charcoal flecks spraying around each source
-// Trails fade very slowly so minutes of listening accrete into a
-// drifting smoke drawing.
-// ─────────────────────────────────────────────────────────────────────
-let ashCanvas: HTMLCanvasElement | null = null;
-let ashCtx: CanvasRenderingContext2D | null = null;
-interface AshSource { fx: number; fy: number; fbx: number; fby: number; offset: number; phase: number; }
-const ashSources: AshSource[] = [
-  // Lissajous frequency pairs (fx, fy) chosen so the curves don't
-  // repeat quickly; offset seeds each source at a different phase.
-  { fx: 1.7, fy: 2.3, fbx: 0.19, fby: 0.23, offset: 0.0, phase: 0 },
-  { fx: 2.1, fy: 1.9, fbx: 0.23, fby: 0.17, offset: 2.1, phase: 2.1 },
-  { fx: 1.3, fy: 2.7, fbx: 0.17, fby: 0.21, offset: 4.3, phase: 4.3 },
-];
-
-export function drawAshTrail(
-  ctx: CanvasRenderingContext2D,
-  w: number, h: number,
-  a: AudioFrame, p: PhaseClock,
-): void {
-  if (!ashCanvas || ashCanvas.width !== w || ashCanvas.height !== h) {
-    ashCanvas = document.createElement("canvas");
-    ashCanvas.width = w;
-    ashCanvas.height = h;
-    ashCtx = ashCanvas.getContext("2d");
-    if (ashCtx) {
-      ashCtx.fillStyle = "#efe8dc";
-      ashCtx.fillRect(0, 0, w, h);
-    }
-  }
-  const off = ashCtx!;
-
-  // Very slow fade toward paper colour so trails persist for minutes.
-  off.fillStyle = "rgba(239, 232, 220, 0.008)";
-  off.fillRect(0, 0, w, h);
-
-  // Spectral bands
-  const bins = a.spectrum.length;
-  let lowE = 0, midE = 0, highE = 0;
-  const tA = Math.floor(bins / 3);
-  const tB = Math.floor((bins * 2) / 3);
-  for (let i = 0; i < tA; i++) lowE += a.spectrum[i];
-  for (let i = tA; i < tB; i++) midE += a.spectrum[i];
-  for (let i = tB; i < bins; i++) highE += a.spectrum[i];
-  lowE /= Math.max(1, tA);
-  midE /= Math.max(1, tB - tA);
-  highE /= Math.max(1, bins - tB);
-
-  const cx = w * 0.5;
-  const cy = h * 0.5;
-  // Orbital extent — sources wander over practically the whole
-  // canvas even at silence. 85% at silence, up to ~120% at loud
-  // rich passages so sources occasionally slip past the edges and
-  // the trails get a natural cropped framing (instead of being
-  // polite little orbits in the middle). The secondary orbital adds
-  // another ~18% on top.
-  const reach = 0.85 + 0.20 * midE + 0.15 * a.rms + 0.05 * p.slow;
-  const ampX = w * reach;
-  const ampY = h * reach;
-  // Source motion speed — slow by default, visibly faster with loud
-  // drones. Base 0.02 matches the original pace; peak ~0.18.
-  const speed = 0.02 + a.rms * 0.16 + midE * 0.04;
-  // Core blob radius + opacity — gain cranked so quiet drones leave
-  // ghost trails and loud ones lay down visible ink instead of the old
-  // barely-there dots.
-  const blobR = 3 + lowE * 28 + a.peak * 16 + a.rms * 10;
-  const blobAlpha = 0.09 + a.rms * 0.38 + lowE * 0.15;
-  // Tinted soots — warm/neutral/cool shifts around the scene mood hue
-  // so different drones produce visibly different charcoal palettes.
-  const h1 = p.mood.hue;
-  const h2 = (p.mood.hue + 20) % 360;
-  const h3 = (p.mood.hue - 20 + 360) % 360;
-  const soots = [
-    `hsla(${h1}, 25%, 10%, ${blobAlpha})`,
-    `hsla(${h2}, 30%, 14%, ${blobAlpha * 0.9})`,
-    `hsla(${h3}, 25%, 12%, ${blobAlpha * 0.9})`,
-  ];
-  const halos = [
-    `hsla(${h1}, 25%, 10%, ${blobAlpha * 0.3})`,
-    `hsla(${h2}, 30%, 14%, ${blobAlpha * 0.28})`,
-    `hsla(${h3}, 25%, 12%, ${blobAlpha * 0.28})`,
-  ];
-
-  for (let s = 0; s < ashSources.length; s++) {
-    const src = ashSources[s];
-    src.phase += speed;
-    const th = src.phase + src.offset;
-    // Primary Lissajous: fx/fy are incommensurate so the curve never
-    // closes exactly — the source wanders indefinitely.
-    const x = cx + Math.cos(th * src.fx) * ampX +
-              Math.sin(th * src.fbx) * ampX * 0.18;
-    const y = cy + Math.sin(th * src.fy) * ampY +
-              Math.cos(th * src.fby) * ampY * 0.18;
-
-    // Core soft blob
-    off.fillStyle = soots[s];
-    off.beginPath();
-    off.arc(x, y, blobR, 0, Math.PI * 2);
-    off.fill();
-
-    // Outer halo — softer, wider
-    off.fillStyle = halos[s];
-    off.beginPath();
-    off.arc(x, y, blobR * 2.5, 0, Math.PI * 2);
-    off.fill();
-
-    // High-band charcoal flecks — little specks sprayed around the
-    // source on treble-rich drones. Silent / bass-only drones have
-    // zero flecks, which keeps the quiet image clean.
-    const flecks = Math.round(highE * 10);
-    if (flecks > 0) {
-      off.fillStyle = `rgba(25, 22, 20, ${0.15 + highE * 0.25})`;
-      for (let i = 0; i < flecks; i++) {
-        const fa = th * 0.8 + i * 1.7 + s * 0.9;
-        const fr = blobR + 6 + (i * 3);
-        const fx2 = x + Math.cos(fa) * fr + (Math.random() - 0.5) * 2;
-        const fy2 = y + Math.sin(fa) * fr + (Math.random() - 0.5) * 2;
-        const sz = 0.8 + Math.random() * 0.9;
-        off.fillRect(fx2, fy2, sz, sz);
-      }
-    }
-  }
-
-  ctx.drawImage(ashCanvas, 0, 0);
-}
 
 // ─────────────────────────────────────────────────────────────────────
 
@@ -2970,7 +2830,7 @@ export function drawPhasePortrait(
   const cyR = Math.cos(ay), syR = Math.sin(ay);
   const czR = Math.cos(az), szR = Math.sin(az);
   ctx.lineWidth = 1;
-  ctx.strokeStyle = `hsla(${p.mood.hue}, 45%, 75%, ${0.35 + a.rms * 0.4})`;
+  ctx.strokeStyle = `rgba(225, 225, 225, ${0.35 + a.rms * 0.4})`;
   ctx.beginPath();
   for (let i = 0; i < phaseLen; i++) {
     const base = ((phaseHead - phaseLen + i + PHASE_TRAIL) % PHASE_TRAIL) * 3;
@@ -2994,7 +2854,7 @@ export function drawPhasePortrait(
   }
   ctx.stroke();
   const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 24);
-  core.addColorStop(0, `hsla(${p.mood.hue}, 60%, 85%, ${0.5 + a.peak * 0.4})`);
+  core.addColorStop(0, `rgba(240, 240, 240, ${0.5 + a.peak * 0.4})`);
   core.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = core;
   ctx.beginPath(); ctx.arc(cx, cy, 24, 0, Math.PI * 2); ctx.fill();
@@ -3468,7 +3328,7 @@ export function drawAstrolabe(
     const e = p.activePitches[i];
     if (e < 0.05) continue;
     const ang = rotOuter + (i / 12) * Math.PI * 2 - Math.PI / 2;
-    ctx.strokeStyle = `hsla(42, 55%, 70%, ${(e * 0.35 + astroPeakFlash * 0.4) * (0.7 + a.rms)})`;
+    ctx.strokeStyle = `rgba(220, 220, 220, ${(e * 0.35 + astroPeakFlash * 0.4) * (0.7 + a.rms)})`;
     ctx.lineWidth = 0.6 + e * 1.8;
     ctx.beginPath();
     ctx.moveTo(0, 0);
@@ -3476,7 +3336,7 @@ export function drawAstrolabe(
     ctx.stroke();
   }
 
-  ctx.strokeStyle = `hsla(42, 30%, 55%, ${0.3 + a.rms * 0.2})`;
+  ctx.strokeStyle = `rgba(180, 180, 180, ${0.3 + a.rms * 0.2})`;
   ctx.lineWidth = 1 + a.rms;
   ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(0, 0, R * 0.72, 0, Math.PI * 2); ctx.stroke();
@@ -3488,7 +3348,7 @@ export function drawAstrolabe(
     const ang = rotOuter + (i / 12) * Math.PI * 2 - Math.PI / 2;
     const inR = R - 6 - e * 10;
     const outR = R + 10 + e * 30 + astroPeakFlash * 20;
-    ctx.strokeStyle = `hsla(42, ${40 + e * 50}%, ${55 + e * 30}%, ${0.4 + e * 0.6})`;
+    ctx.strokeStyle = `rgba(${Math.round(200 + e * 55)}, ${Math.round(200 + e * 55)}, ${Math.round(200 + e * 55)}, ${0.4 + e * 0.6})`;
     ctx.lineWidth = 1 + e * 3;
     ctx.beginPath();
     ctx.moveTo(Math.cos(ang) * inR, Math.sin(ang) * inR);
@@ -3503,7 +3363,8 @@ export function drawAstrolabe(
     const e = a.spectrum[i * 2] ?? 0;
     const ang = (i / 16) * Math.PI * 2;
     const rr = R * 0.72;
-    ctx.fillStyle = `hsla(${p.mood.hue}, ${30 + e * 55}%, ${50 + e * 35}%, ${0.35 + e * 0.6})`;
+    const g = Math.round(170 + e * 80);
+    ctx.fillStyle = `rgba(${g}, ${g}, ${g}, ${0.35 + e * 0.6})`;
     ctx.beginPath();
     ctx.arc(Math.cos(ang) * rr, Math.sin(ang) * rr, 2 + e * 7, 0, Math.PI * 2);
     ctx.fill();
@@ -3513,7 +3374,7 @@ export function drawAstrolabe(
   // Inner ring — 6 spokes, 12 on growth tier
   const rotIn = p.t * (0.012 + a.rms * 0.03);
   const spokes = p.growth > 0.5 ? 12 : 6;
-  ctx.strokeStyle = `hsla(${p.mood.hue + 20}, 45%, 65%, ${0.35 + a.rms * 0.4 + astroPeakFlash * 0.3})`;
+  ctx.strokeStyle = `rgba(200, 200, 200, ${0.35 + a.rms * 0.4 + astroPeakFlash * 0.3})`;
   for (let i = 0; i < spokes; i++) {
     const ang = rotIn + (i / spokes) * Math.PI * 2;
     const rr = R * 0.44;
@@ -3527,7 +3388,7 @@ export function drawAstrolabe(
   // Peak sparks from the rim
   if (astroPeakFlash > 0.2) {
     const sparks = Math.round(astroPeakFlash * 16);
-    ctx.strokeStyle = `hsla(42, 80%, 80%, ${astroPeakFlash * 0.7})`;
+    ctx.strokeStyle = `rgba(240, 240, 240, ${astroPeakFlash * 0.7})`;
     ctx.lineWidth = 1.2;
     for (let i = 0; i < sparks; i++) {
       const ang = Math.random() * Math.PI * 2;
@@ -3542,9 +3403,9 @@ export function drawAstrolabe(
 
   // Central sigil — dramatic peak bloom
   const sigilR = 6 + astroPeakFlash * 20 + a.rms * 8;
-  ctx.fillStyle = `hsla(42, 60%, 75%, ${0.5 + a.peak * 0.4 + astroPeakFlash * 0.3})`;
+  ctx.fillStyle = `rgba(230, 230, 230, ${0.5 + a.peak * 0.4 + astroPeakFlash * 0.3})`;
   ctx.beginPath(); ctx.arc(0, 0, sigilR, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = `hsla(42, 65%, 80%, ${0.5 + astroPeakFlash * 0.4})`;
+  ctx.strokeStyle = `rgba(240, 240, 240, ${0.5 + astroPeakFlash * 0.4})`;
   ctx.lineWidth = 1 + astroPeakFlash * 1.5;
   ctx.beginPath(); ctx.arc(0, 0, sigilR + 4, 0, Math.PI * 2); ctx.stroke();
 
@@ -3718,7 +3579,7 @@ export function drawCrystalLattice(
       x: fx, y: fy,
       size: 8 + Math.random() * 10,
       angle: Math.random() * Math.PI,
-      hue: p.mood.hue + (Math.random() - 0.5) * 20,
+      hue: 0,
       light: 45 + Math.random() * 25,
     };
     facets.push(facet);
@@ -3727,15 +3588,18 @@ export function drawCrystalLattice(
     c.rotate(facet.angle);
     const s = facet.size;
     const grad = c.createLinearGradient(-s, -s, s, s);
-    grad.addColorStop(0, `hsla(${facet.hue}, 25%, ${facet.light + 15}%, 0.9)`);
-    grad.addColorStop(0.5, `hsla(${facet.hue}, 30%, ${facet.light}%, 0.85)`);
-    grad.addColorStop(1, `hsla(${facet.hue}, 20%, ${facet.light - 15}%, 0.9)`);
+    const l1 = Math.round(facet.light * 2.55 + 38);
+    const l2 = Math.round(facet.light * 2.55);
+    const l3 = Math.round(facet.light * 2.55 - 38);
+    grad.addColorStop(0, `rgba(${l1}, ${l1}, ${l1}, 0.9)`);
+    grad.addColorStop(0.5, `rgba(${l2}, ${l2}, ${l2}, 0.85)`);
+    grad.addColorStop(1, `rgba(${Math.max(0, l3)}, ${Math.max(0, l3)}, ${Math.max(0, l3)}, 0.9)`);
     c.fillStyle = grad;
     c.beginPath();
     c.moveTo(0, -s); c.lineTo(s, 0); c.lineTo(0, s); c.lineTo(-s, 0);
     c.closePath();
     c.fill();
-    c.strokeStyle = "hsla(42, 50%, 80%, 0.35)";
+    c.strokeStyle = "rgba(230, 230, 230, 0.35)";
     c.lineWidth = 0.8;
     c.stroke();
     c.restore();
@@ -3744,7 +3608,7 @@ export function drawCrystalLattice(
   const last = facets[facets.length - 1];
   if (last) {
     const glow = ctx.createRadialGradient(last.x, last.y, 0, last.x, last.y, last.size * 3);
-    glow.addColorStop(0, `hsla(42, 70%, 70%, ${0.25 + a.rms * 0.4})`);
+    glow.addColorStop(0, `rgba(240, 240, 240, ${0.25 + a.rms * 0.4})`);
     glow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = glow;
     ctx.beginPath();
