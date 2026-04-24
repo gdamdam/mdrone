@@ -3375,30 +3375,35 @@ export function drawScryingMirror(
   for (let i = 0; i < a.spectrum.length; i++) { num += i * a.spectrum[i]; den += a.spectrum[i]; }
   const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
 
-  mirrorSpawnTimer += 0.02 + a.rms * 0.1;
-  if (mirrorSpawnTimer > 1 && mirrorBlooms.length < 32) {
+  // Spawning is strictly audio-gated — no RMS, no new stains. Silence
+  // means the card is held. Existing blooms continue their life cycle.
+  if (a.rms > 0.03) {
+    mirrorSpawnTimer += a.rms * 0.22;
+    if (mirrorSpawnTimer > 1 && mirrorBlooms.length < 32) {
+      mirrorSpawnTimer = 0;
+      const coloured = Math.random() < 0.15;
+      const hue = coloured
+        ? (Math.random() < 0.5 ? 0 : 220) + (Math.random() - 0.5) * 20
+        : 25;
+      mirrorBlooms.push({
+        x: w * 0.5 + Math.random() * w * 0.45,
+        y: Math.random() * h,
+        r: 10,
+        maxR: 60 + Math.random() * 160 + a.rms * 180,
+        hue: coloured ? hue : -1,
+        age: 0,
+      });
+    }
+  } else {
     mirrorSpawnTimer = 0;
-    // ~15% of blooms are coloured (some Rorschach cards have red or
-    // blue accents); the rest are ink-black.
-    const coloured = Math.random() < 0.15;
-    const hue = coloured
-      ? (Math.random() < 0.5 ? 0 : 220) + (Math.random() - 0.5) * 20
-      : 25;
-    mirrorBlooms.push({
-      x: w * 0.5 + Math.random() * w * 0.45,
-      y: Math.random() * h,
-      r: 6,
-      maxR: 30 + Math.random() * 80 + a.rms * 60,
-      hue: coloured ? hue : -1,  // -1 marks ink-black blooms
-      age: 0,
-    });
   }
-  if (a.peak > mirrorLastPeak + 0.05 && mirrorBlooms.length < 42) {
+  // Peaks trigger bigger blooms regardless, but still require audible signal.
+  if (a.rms > 0.03 && a.peak > mirrorLastPeak + 0.05 && mirrorBlooms.length < 42) {
     mirrorBlooms.push({
       x: w * 0.5 + Math.random() * w * 0.45,
       y: Math.random() * h,
-      r: 10,
-      maxR: 80 + Math.random() * 120,
+      r: 14,
+      maxR: 120 + Math.random() * 180 + a.peak * 120,
       hue: -1,
       age: 0,
     });
@@ -3413,9 +3418,9 @@ export function drawScryingMirror(
 
   for (let i = mirrorBlooms.length - 1; i >= 0; i--) {
     const b = mirrorBlooms[i];
-    // Age increments ~3× slower than before — blooms linger for
-    // ~20s each rather than ~6s, so the card accumulates texture.
-    b.age += 0.004 * dt;
+    // Age increments slowly so blooms linger ~30 s each, letting the
+    // card accumulate visible texture.
+    b.age += 0.0028 * dt;
     if (b.age > 1) { mirrorBlooms.splice(i, 1); continue; }
     b.r += (b.maxR - b.r) * 0.03;
     const alpha = Math.max(0, 0.6 * (1 - b.age));
