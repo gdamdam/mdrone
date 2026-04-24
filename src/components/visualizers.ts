@@ -79,6 +79,9 @@ export const VISUALIZER_GROUPS: readonly {
       // Ritual / specialised
       "sigil",
       "crystalLattice",
+      // Vector-field strokes
+      "flowField",
+      "ironFilings",
       "astrolabe",
     ],
   },
@@ -99,8 +102,6 @@ export const VISUALIZER_GROUPS: readonly {
       "haloGlow",
       // Ink / textural
       "inkBloom",
-      "ironFilings",
-      "flowField",
       // Print / textile
       "halftone",
       "prayerRug",
