@@ -2787,7 +2787,13 @@ let glyphCanvas: HTMLCanvasElement | null = null;
 let glyphCtx: CanvasRenderingContext2D | null = null;
 let glyphLast = 0;
 let glyphPrevPeak = 0;
+// 24 rune shapes — two variants per pitch class. Each glyph is a
+// list of poly-lines in normalized [-1, 1] space. Indexing: the
+// first 12 are the original canonical runes (one per pc), the
+// second 12 are alternates chosen 50/50 at placement time so the
+// page accumulates visual variety.
 const GLYPH_STROKES: number[][][] = [
+  // ── Canonical 12 (original) ──────────────────────────────────
   [[0, -1, 0, 1]],
   [[-1, 0, 0, -1, 1, 0, 0, 1, -1, 0]],
   [[-1, -1, 1, 1], [-1, 1, 1, -1]],
@@ -2800,7 +2806,44 @@ const GLYPH_STROKES: number[][][] = [
   [[-1, -0.5, 0, -1, 1, -0.5, 0, 0.5, -1, -0.5], [0, 0.5, 0, 1]],
   [[-0.9, 0.9, 0, -0.9, 0.9, 0.9], [-0.5, 0, 0.5, 0]],
   [[-1, -1, 1, -1], [0, -1, 0, 1], [-0.6, 1, 0.6, 1]],
+  // ── Alternates 12 ────────────────────────────────────────────
+  // 12 ankh — small loop atop vertical + crossbar
+  [[0, -0.6, 0.4, -0.3, 0.4, 0, 0, 0.2, -0.4, 0, -0.4, -0.3, 0, -0.6],
+   [0, 0.2, 0, 1], [-0.6, 0.4, 0.6, 0.4]],
+  // 13 three solid bars (I-Ching)
+  [[-0.8, -0.6, 0.8, -0.6], [-0.8, 0, 0.8, 0], [-0.8, 0.6, 0.8, 0.6]],
+  // 14 pentagram — single-line 5-point star
+  [[0, -1, 0.588, 0.809, -0.951, -0.309, 0.951, -0.309, -0.588, 0.809, 0, -1]],
+  // 15 inward zigzag spiral
+  [[-0.9, 0.9, 0.9, 0.9, 0.9, -0.3, -0.3, -0.3, -0.3, 0.3, 0.3, 0.3]],
+  // 16 double-V chevrons
+  [[-0.8, -0.4, 0, 0.2, 0.8, -0.4], [-0.8, 0.2, 0, 0.8, 0.8, 0.2]],
+  // 17 trident
+  [[-0.5, -0.8, -0.5, 0], [0, -0.8, 0, 0.3], [0.5, -0.8, 0.5, 0],
+   [-0.5, 0, 0.5, 0], [0, 0.3, 0, 1]],
+  // 18 lightning bolt
+  [[-0.4, -1, 0.2, -0.2, -0.3, 0.1, 0.4, 1]],
+  // 19 crescent (outer arc)
+  [[0.4, -0.9, -0.2, -0.6, -0.6, 0, -0.2, 0.6, 0.4, 0.9]],
+  // 20 hexagram (two triangles)
+  [[-0.87, -0.5, 0.87, -0.5, 0, 1, -0.87, -0.5],
+   [-0.87, 0.5, 0.87, 0.5, 0, -1, -0.87, 0.5]],
+  // 21 eight-ray star (cross + X)
+  [[0, -1, 0, 1], [-1, 0, 1, 0],
+   [-0.7, -0.7, 0.7, 0.7], [-0.7, 0.7, 0.7, -0.7]],
+  // 22 concentric diamonds
+  [[0, -1, 1, 0, 0, 1, -1, 0, 0, -1],
+   [0, -0.5, 0.5, 0, 0, 0.5, -0.5, 0, 0, -0.5]],
+  // 23 sun — small square centre + 8 short rays
+  [[-0.3, -0.3, 0.3, -0.3, 0.3, 0.3, -0.3, 0.3, -0.3, -0.3],
+   [0, -0.7, 0, -0.45], [0, 0.45, 0, 0.7],
+   [-0.7, 0, -0.45, 0], [0.45, 0, 0.7, 0],
+   [-0.55, -0.55, -0.35, -0.35], [0.55, -0.55, 0.35, -0.35],
+   [-0.55, 0.55, -0.35, 0.35], [0.55, 0.55, 0.35, 0.35]],
 ];
+function pickGlyphIdx(pc: number): number {
+  return (pc + (Math.random() < 0.5 ? 0 : 12)) % 24;
+}
 // Recent glyph placements — live overlay breathes halos around them.
 interface RecentGlyph { x: number; y: number; sz: number; pc: number; age: number; }
 const recentGlyphs: RecentGlyph[] = [];
@@ -2823,7 +2866,7 @@ function stampGlyph(
   gx: number, gy: number, sz: number, pc: number, energy: number,
   growth: number,
 ) {
-  const strokes = GLYPH_STROKES[pc];
+  const strokes = GLYPH_STROKES[pickGlyphIdx(pc)];
   g.save();
   g.translate(gx, gy);
   g.lineWidth = 1.4 + energy * 1.8;
@@ -3504,7 +3547,7 @@ export function drawMirrorGlyphs(
       if (p.activePitches[i] > best) { best = p.activePitches[i]; pc = i; }
     }
     if (best > 0.08) {
-      const strokes = GLYPH_STROKES[pc];
+      const strokes = GLYPH_STROKES[pickGlyphIdx(pc)];
       const sz = 18 + best * 22;
       const gx = cx + 40 + Math.random() * (w * 0.35);
       const gy = 60 + Math.random() * (h - 120);
