@@ -2167,7 +2167,10 @@ function flowNoise(x: number, y: number): number {
   const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
-const flowParticles: { x: number; y: number; life: number; maxLife: number; size: number }[] = [];
+const flowParticles: {
+  x: number; y: number; px: number; py: number;
+  life: number; maxLife: number; size: number;
+}[] = [];
 let flowPeakFlash = 0;
 let prevFlowPeak = 0;
 export function drawFlowField(
@@ -2180,21 +2183,16 @@ export function drawFlowField(
   const rms = a.rms;
   const time = p.t;
 
-  // Motion blur — trails lengthen on loud drones
-  ctx.globalCompositeOperation = "destination-out";
-  ctx.globalAlpha = 0.04 + (1 - rms) * 0.06;
-  ctx.fillStyle = "black";
+  // Cream/ink fade. Slow — particles leave strokes that persist for
+  // several seconds so the flow field reads as a drawing being
+  // inscribed, not a dot cloud.
+  ctx.fillStyle = `rgba(10, 8, 6, ${0.03 + (1 - rms) * 0.04})`;
   ctx.fillRect(0, 0, w, h);
-  ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha = 1;
 
-  // Peak-triggered flash drives radial bursts
   if (a.peak > prevFlowPeak + 0.1) flowPeakFlash = 1;
   prevFlowPeak = a.peak;
   flowPeakFlash *= 0.92;
 
-  // Active-pitch centroid tilts the whole field so different chords
-  // produce visibly different flow directions.
   let pitchCx = 0, pitchCy = 0, pitchMass = 0;
   for (let i = 0; i < 12; i++) {
     const e = p.activePitches[i];
@@ -2205,23 +2203,25 @@ export function drawFlowField(
   }
   const pitchAng = pitchMass > 0.01 ? Math.atan2(pitchCy, pitchCx) : 0;
 
-  // Quadratic-in-RMS spawn so transients really blossom
-  const spawnRate = rms * rms * 12 + 1;
-  for (let s = 0; s < spawnRate && flowParticles.length < 180; s++) {
+  // Higher ceiling + stronger RMS gain for denser strokes.
+  const spawnRate = rms * rms * 22 + 2;
+  for (let s = 0; s < spawnRate && flowParticles.length < 320; s++) {
     const fromCentre = flowPeakFlash > 0.3 && Math.random() < 0.5;
+    const x = fromCentre ? w / 2 : Math.random() * w;
+    const y = fromCentre ? h / 2 : Math.random() * h;
     flowParticles.push({
-      x: fromCentre ? w / 2 : Math.random() * w,
-      y: fromCentre ? h / 2 : Math.random() * h,
-      life: 0, maxLife: 120 + Math.random() * 160,
-      size: 1.2 + Math.random() * 2.2,
+      x, y, px: x, py: y,
+      life: 0, maxLife: 160 + Math.random() * 200,
+      size: 0.6 + Math.random() * 1.6,
     });
   }
 
   const fieldScale = 0.004;
-  const fieldSpeed = 0.3 + rms * 3 + flowPeakFlash * 2;
-  const hue = p.mood.hue;
+  const fieldSpeed = 0.4 + rms * 3.5 + flowPeakFlash * 2.5;
+  ctx.lineCap = "round";
   for (let i = flowParticles.length - 1; i >= 0; i--) {
     const fp = flowParticles[i];
+    fp.px = fp.x; fp.py = fp.y;
     const n = flowNoise(fp.x * fieldScale + time * 0.06, fp.y * fieldScale + time * 0.03);
     const angle = n * Math.PI * 4 + time * 0.1 + pitchAng * 0.4;
     fp.x += Math.cos(angle) * fieldSpeed;
@@ -2233,15 +2233,16 @@ export function drawFlowField(
     }
     const t = fp.life / fp.maxLife;
     const alpha = (t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1);
-    ctx.globalAlpha = alpha * (0.25 + rms * 0.6);
+    // White ink strokes on dark background. Thickness responds to
+    // RMS + peak so loud drones inscribe boldly, quiet ones whisper.
+    const gray = 210 + Math.round(rms * 40 + flowPeakFlash * 15);
+    ctx.strokeStyle = `rgba(${gray},${gray},${gray},${alpha * (0.35 + rms * 0.6)})`;
+    ctx.lineWidth = fp.size + rms * 1.6 + flowPeakFlash * 1.2;
     ctx.beginPath();
-    ctx.arc(fp.x, fp.y, fp.size + flowPeakFlash * 1.5, 0, Math.PI * 2);
-    const sat = Math.round(20 + rms * 55);
-    const lig = Math.round(55 + rms * 30);
-    ctx.fillStyle = `hsl(${hue}, ${sat}%, ${lig}%)`;
-    ctx.fill();
+    ctx.moveTo(fp.px, fp.py);
+    ctx.lineTo(fp.x, fp.y);
+    ctx.stroke();
   }
-  ctx.globalAlpha = 1;
 }
 
 // ─────────────────────────────────────────────────────────────────────
