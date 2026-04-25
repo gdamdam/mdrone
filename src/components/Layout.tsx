@@ -204,11 +204,20 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     }, dwellMs);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__auditArrival.stop = () => auditArrival.stop();
+    // Console handle for the engine — useful for ad-hoc debugging
+    // (e.g. `__engine.setRoomAmount(1)` to bypass the mixer slider
+    // and sanity-check the master room path). Stays in production
+    // because it's tiny and the audit hooks above already do the
+    // same trick.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__engine = engine;
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__measureAllPresets;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__auditArrival;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__engine;
     };
   }, [engine]);
 
