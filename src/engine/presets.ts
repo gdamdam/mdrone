@@ -319,7 +319,9 @@ export const PRESETS: Preset[] = [
     effects: ["plate"],
     scale: "drone",  // tanpura is a single open drone, not a modal set
     tuningId: "just5", relationId: "tonic-fifth",
-    gain: 0.74,
+    // 0.74 → 1.0: compensates for the global tanpura post-sum trim
+    // (0.22 → 0.16) so this solo preset stays at its prior loudness.
+    gain: 1.0,
     motionProfile: motionProfile({
       climateXRange: [0.36, 0.48],
       climateYRange: [0.05, 0.18],

@@ -631,7 +631,12 @@ test("full-engine integration — 16-voice stack + FX chain stable", () => {
     dcMax: 0.05,
     dcDriftMax: 0.05,
     rmsClimbMaxDb: 3,
-    rmsMin: 0.05,
+    // 0.05 → 0.04: tanpura's intrinsic-loudness trim (0.22 → 0.16)
+    // dropped the stack RMS just under the prior threshold. This is
+    // a stability test, not a level test — 0.04 is still well above
+    // the silence floor (~1e-4) and any voice/FX failure would land
+    // far below it.
+    rmsMin: 0.04,
   });
 });
 
