@@ -619,16 +619,16 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
       this.jawBridgeBusL = bridgeAccL;
       this.jawBridgeBusR = bridgeAccR;
 
-      // 0.3 → 0.26: bridge content (jawari envelope) is added on top
-      // of the halfband-shaped KS output (line 214), which raised the
-      // per-string peak budget without retrimming the post-sum scalar.
-      // Audit (-19.3 LUFS / crest 5.31 on ritual-tanpura-shruti) showed
-      // tanpura presets were sitting against the limiter ceiling and
-      // saturating disproportionately when master drive was pushed.
-      // Trim restores ~1.2 dB of headroom without changing the jawari
-      // tone (KS and bridge scale together).
-      sumL *= 0.26;
-      sumR *= 0.26;
+      // 0.3 → 0.26 → 0.22: tanpura presets sit in the top quintile of
+      // the loudness budget with crest factor ~4.5 (peaks 14 dB over
+      // RMS — the bridge envelope adds non-linear peak growth on top
+      // of yKsL). The first trim restored regression headroom; this
+      // second trim buys ~3 dB more drive headroom so master DRIVE up
+      // to ~1.5 stays out of the curve's steep saturation knee. KS and
+      // bridge scale together, so jawari tone is preserved — just
+      // quieter overall.
+      sumL *= 0.22;
+      sumR *= 0.22;
 
       const bodyHighL = sumL - this.ksBodyLowL - this.ksBodyDamp * this.ksBodyBandL;
       this.ksBodyBandL += this.ksBodyF * bodyHighL;
