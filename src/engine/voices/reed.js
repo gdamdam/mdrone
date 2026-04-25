@@ -99,6 +99,14 @@ DroneVoiceProcessor.prototype.initReed = function() {
     // limiting. Matches the technique used in airProcess().
     this.hsReedL = 0;
     this.hsReedR = 0;
+    // 2× halfband oversamplers around the source-level tanh — without
+    // these, the saturation harmonics of a 12-partial "even" stack or
+    // a PolyBLEP saw alias back into the audible band, audible as a
+    // "crispy"/"fizzy" hash on top of the formant body. The presence
+    // shelf below then re-emphasises exactly that aliased band, so
+    // oversampling the tanh is the only correct fix.
+    this.reedHbL = new Halfband2x();
+    this.reedHbR = new Halfband2x();
 };
 
 DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) {
@@ -110,6 +118,10 @@ DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) 
     // Nyquist. Matters now that even/balanced shapes have 12 partials:
     // at high tonics partial 12 can reach above 20 kHz.
     const nyquist = sampleRate * 0.45;
+    // Hoisted shaper — allocating the arrow inside the sample loop
+    // creates a per-sample closure (Safari/JSC GC hash inside the
+    // realtime audio callback). Same pattern as amp.js / metal.js.
+    const reedShaper = (v) => Math.tanh(v * 1.6) * 0.7;
 
     for (let i = 0; i < n; i++) {
       // Advance bellows amplitude LFO
@@ -199,8 +211,12 @@ DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) 
       // both physically more correct (the instrument body colours
       // then the reed bites) and prevents formant state from
       // bleeding unbounded peaks into downstream effects.
-      l = Math.tanh(l * 1.6) * 0.7;
-      r = Math.tanh(r * 1.6) * 0.7;
+      // Wrapped in a 2× halfband oversampler so the harmonics
+      // generated above Nyquist don't fold back into the audible
+      // band — without this, slow per-partial AM jitter alignment
+      // produces audible "crispy/fizzy" bursts on top of the body.
+      l = this.reedHbL.process(l, reedShaper);
+      r = this.reedHbR.process(r, reedShaper);
 
       // Presence shelf — one-pole LP subtracted back at 0.3 gain
       // gives ~+2.3 dB shelf above ~3 kHz. Compensates the body
