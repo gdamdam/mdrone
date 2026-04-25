@@ -545,6 +545,34 @@ export class MasterBus {
     }
   }
 
+  /** Diagnostic — fresh osc → fresh convolver (loaded IR) →
+   *  destination. Tests whether IR + ConvolverNode produce audio
+   *  in this browser, independent of the live engine graph. */
+  testRoomStandalone(seconds: number): void {
+    const buf = this.roomConvolver.buffer;
+    if (!buf) { console.warn("[mdrone] standalone: roomConvolver.buffer is null"); return; }
+    const osc = this.ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = 220;
+    const oscGain = this.ctx.createGain();
+    oscGain.gain.value = 0.15;
+    const conv = this.ctx.createConvolver();
+    conv.normalize = true;
+    conv.buffer = buf;
+    const out = this.ctx.createGain();
+    out.gain.value = 0.6;
+    osc.connect(oscGain).connect(conv).connect(out).connect(this.ctx.destination);
+    osc.start();
+    console.info(`[mdrone] standalone osc → convolver for ${seconds}s — should be a wet 220 Hz saw`);
+    setTimeout(() => {
+      try { osc.stop(); } catch { /* ok */ }
+      try { osc.disconnect(); } catch { /* ok */ }
+      try { oscGain.disconnect(); } catch { /* ok */ }
+      try { conv.disconnect(); } catch { /* ok */ }
+      try { out.disconnect(); } catch { /* ok */ }
+    }, seconds * 1000);
+  }
+
   /** Diagnostic — splice a direct-to-destination tap from
    *  roomConvolver at boosted gain for `seconds`. Bypasses
    *  outputTrim, bass-mono fold, width matrix, analyser. */
