@@ -19,6 +19,7 @@ import { dirname, join } from "node:path";
 import { execSync } from "node:child_process";
 import {
   SR, BLK, makeParamArr, integratedLufs, bandEnergyDb, basicStats,
+  normalizeVoiceLevels,
 } from "./audit-helpers.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -110,7 +111,8 @@ function renderVoiceBus(preset, VoiceProc, seconds, seedBase) {
     tanpuraTuning: preset.tanpuraTuning,
   };
   const layers = preset.voiceLayers ?? [];
-  const levels = preset.voiceLevels ?? {};
+  // Match the engine's voice-level budget normalisation.
+  const levels = normalizeVoiceLevels(layers, preset.voiceLevels);
   for (let i = 0; i < layers.length; i++) {
     const v = layers[i];
     const level = levels[v] ?? 1.0;

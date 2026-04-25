@@ -148,11 +148,100 @@ export function lrCorrelation(left, right) {
   return cov / Math.sqrt(varL * varR);
 }
 
+// ─── Preset application accuracy ────────────────────────────────────
+// Mirrors the engine's voice-level budget normalisation in applyPreset
+// (presets.ts: ACTIVE_LEVEL_BUDGET = 1.0). Without this the audit
+// renders multi-layer presets hotter than the engine actually does;
+// e.g. tanpura:1 + reed:0.7 sums to 1.7 in raw form vs the engine's
+// 0.588 + 0.412 = 1.0 after normalisation. Single-layer presets
+// stay at 1.0.
+export const ACTIVE_LEVEL_BUDGET = 1.0;
+
+export function normalizeVoiceLevels(voiceLayers, voiceLevels) {
+  const layers = voiceLayers ?? [];
+  const out = {};
+  let activeSum = 0;
+  for (const v of layers) {
+    const lv = voiceLevels?.[v] ?? 1.0;
+    out[v] = lv;
+    activeSum += lv;
+  }
+  if (activeSum > 0.0001) {
+    const k = ACTIVE_LEVEL_BUDGET / activeSum;
+    for (const v of Object.keys(out)) {
+      out[v] = Math.max(0, Math.min(1, out[v] * k));
+    }
+  }
+  return out;
+}
+
+// Mirrors FxChain.setAir: airAmount [0..1] → factor [0.4..1] applied
+// to parallel reverb send levels. Without this the audit's parallel
+// sends are too wet for arid presets (oliveros-accordion air=0.12,
+// fm-glass-bell air=0.11) and too dry for wet ones (fennesz-endless
+// air=0.58, sotl-tired-eyes air=0.45 wait actually that's also mid).
+export function airAmountFactor(airMacro) {
+  return 0.4 + 0.6 * Math.max(0, Math.min(1, airMacro ?? 0.6));
+}
+
+// ─── SUB effect ─────────────────────────────────────────────────────
+// Mirrors FxChain.wireSub: a triangle oscillator at rootFreq/2,
+// amplitude-modulated by an envelope follower (full-wave rectify
+// scaled ×2 → 10 Hz lowpass) of the input, lowpassed at 180 Hz, then
+// summed in parallel with the dry signal at trim 0.6. Output: dry +
+// 0.6 × LP180(triangle × envelope).
+function biquadLp(input, fc, q, sr) {
+  const w0 = 2 * Math.PI * fc / sr;
+  const alpha = Math.sin(w0) / (2 * q);
+  const cosw = Math.cos(w0);
+  const a0 = 1 + alpha;
+  return biquadFilter(input,
+    (1 - cosw) / 2 / a0, (1 - cosw) / a0, (1 - cosw) / 2 / a0,
+    -2 * cosw / a0, (1 - alpha) / a0);
+}
+
+export function applySubEffect(input, rootFreq, sr = SR) {
+  const N = input[0].length;
+  const subFreq = rootFreq / 2;
+  // Envelope follower per channel — full-wave rectify × 2 → 10 Hz LP Q=0.707.
+  const rectifyMul2 = (x) => {
+    const o = new Float32Array(x.length);
+    for (let i = 0; i < x.length; i++) o[i] = Math.abs(x[i]) * 2;
+    return o;
+  };
+  const envL = biquadLp(rectifyMul2(input[0]), 10, 0.707, sr);
+  const envR = biquadLp(rectifyMul2(input[1]), 10, 0.707, sr);
+  // Triangle wave at subFreq. Bandlimited approximation isn't needed
+  // because the 180 Hz output LP discards harmonics anyway.
+  const tri = new Float32Array(N);
+  let phase = 0;
+  const phaseInc = subFreq / sr;
+  for (let i = 0; i < N; i++) {
+    const ph = phase - Math.floor(phase);
+    tri[i] = 2 * Math.abs(2 * ph - 1) - 1;
+    phase += phaseInc;
+  }
+  const subL = new Float32Array(N), subR = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    subL[i] = tri[i] * envL[i];
+    subR[i] = tri[i] * envR[i];
+  }
+  const lpL = biquadLp(subL, 180, 0.707, sr);
+  const lpR = biquadLp(subR, 180, 0.707, sr);
+  const trim = 0.6;
+  const outL = new Float32Array(N), outR = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    outL[i] = input[0][i] + lpL[i] * trim;
+    outR[i] = input[1][i] + lpR[i] * trim;
+  }
+  return [outL, outR];
+}
+
 // ─── FX chain rendering ─────────────────────────────────────────────
-// Worklet-based effects only. Inline-coded effects in FxChain.ts
-// (tape, wow, sub waveshaper, comb, ringmod, formant, delay, freeze)
-// are skipped by callers — the audit-presets CLI surfaces them as
-// `skippedFx` per preset.
+// Worklet-based effects + the SUB effect (modelled inline above).
+// Effects that remain skipped (Web Audio inline nodes in FxChain.ts):
+// tape, wow, comb, ringmod, formant, delay, freeze. Surfaced as
+// `skippedFx` per preset by the audit CLI.
 export const EFFECT_PROC = {
   plate:    "fx-plate",
   shimmer:  "fx-shimmer",
@@ -179,7 +268,7 @@ export function parallelParams(effectId) {
 }
 
 export const SKIPPED_EFFECTS = new Set([
-  "tape", "wow", "sub", "comb", "ringmod", "formant", "delay", "freeze",
+  "tape", "wow", "comb", "ringmod", "formant", "delay", "freeze",
 ]);
 
 export function applyFxBlocks(input, procName, paramObj, fxReg) {
@@ -201,27 +290,38 @@ export function applyFxBlocks(input, procName, paramObj, fxReg) {
   return out;
 }
 
-// Routes voiceSum through preset.effects (serial) → preset.parallelSends
-// (parallel reverbs scaled by send level) → master fx-brickwall limiter.
+// Routes voiceSum through preset.effects (serial, with the SUB effect
+// modelled inline) → preset.parallelSends (parallel reverbs at
+// send × airAmount factor) → master fx-brickwall limiter.
+// `rootFreq` is the voice fundamental (55 × 2^octave); used by the
+// SUB effect to set the sub-octave triangle pitch.
 // Returns { out: [L, R], skipped: [effectId, ...] }.
-export function applyEffectChain(voiceSum, preset, fxReg) {
+export function applyEffectChain(voiceSum, preset, fxReg, rootFreq = 110) {
   const skipped = [];
   let serial = voiceSum;
   for (const effectId of preset.effects ?? []) {
+    if (effectId === "sub") {
+      serial = applySubEffect(serial, rootFreq);
+      continue;
+    }
     if (SKIPPED_EFFECTS.has(effectId)) { skipped.push(effectId); continue; }
     const procName = EFFECT_PROC[effectId];
     if (!procName) { skipped.push(`${effectId}(unknown)`); continue; }
     serial = applyFxBlocks(serial, procName, EFFECT_PARAMS_SERIAL[effectId] ?? {}, fxReg);
   }
+  // Parallel sends scaled by airAmount factor (0.4 + 0.6 × air macro)
+  // — mirrors FxChain.setAir's effect on parallel reverb levels.
+  const airFactor = airAmountFactor(preset.air);
   for (const [effectId, sendLevel] of Object.entries(preset.parallelSends ?? {})) {
     if (sendLevel == null || sendLevel <= 0) continue;
     const procName = EFFECT_PROC[effectId];
     if (!procName) { skipped.push(`${effectId}(parallel)`); continue; }
+    const effectiveSend = sendLevel * airFactor;
     const N = voiceSum[0].length;
     const scaled = [new Float32Array(N), new Float32Array(N)];
     for (let i = 0; i < N; i++) {
-      scaled[0][i] = voiceSum[0][i] * sendLevel;
-      scaled[1][i] = voiceSum[1][i] * sendLevel;
+      scaled[0][i] = voiceSum[0][i] * effectiveSend;
+      scaled[1][i] = voiceSum[1][i] * effectiveSend;
     }
     const sendOut = applyFxBlocks(scaled, procName, parallelParams(effectId), fxReg);
     for (let i = 0; i < N; i++) {

@@ -44,7 +44,7 @@ import { execSync } from "node:child_process";
 import {
   SR, BLK, makeBuffers, makeParamArr,
   integratedLufs, bandEnergyDb, basicStats, lrCorrelation,
-  applyEffectChain,
+  applyEffectChain, normalizeVoiceLevels,
 } from "./audit-helpers.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -153,7 +153,10 @@ function renderPreset(preset, VoiceProc, seconds, seedBase) {
     tanpuraTuning: preset.tanpuraTuning,
   };
   const layers = preset.voiceLayers ?? [];
-  const levels = preset.voiceLevels ?? {};
+  // Normalise active-layer levels to a budget of 1.0 — mirrors the
+  // engine's applyPreset() behaviour. Without this, multi-voice
+  // presets render hotter than the engine actually plays them.
+  const levels = normalizeVoiceLevels(layers, preset.voiceLevels);
   for (let i = 0; i < layers.length; i++) {
     const v = layers[i];
     const level = levels[v] ?? 1.0;
@@ -245,7 +248,7 @@ async function main() {
     const [vL, vR] = renderPreset(preset, VoiceProc, args.seconds, 0xA0DA ^ i * 0x9E3779B1);
     let L = vL, R = vR, skipped = [];
     if (fxReg) {
-      const fxResult = applyEffectChain([vL, vR], preset, fxReg);
+      const fxResult = applyEffectChain([vL, vR], preset, fxReg, presetVoiceFreq(preset));
       L = fxResult.out[0]; R = fxResult.out[1]; skipped = fxResult.skipped;
     }
     const stats = basicStats(L, R);

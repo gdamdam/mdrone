@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
-  integratedLufs, bandEnergyDb, applyEffectChain,
+  integratedLufs, bandEnergyDb, applyEffectChain, normalizeVoiceLevels,
 } from "../scripts/audit-helpers.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -517,7 +517,9 @@ test("preset fingerprints — render matches checked-in baseline", async () => {
       color: makeParamArr(preset.noiseColor ?? 0.3),
     };
     const layers = preset.voiceLayers ?? [];
-    const levels = preset.voiceLevels ?? {};
+    // Match the engine's voice-level budget normalisation (and the
+    // baseline generator).
+    const levels = normalizeVoiceLevels(layers, preset.voiceLevels);
     for (let i = 0; i < layers.length; i++) {
       const v = layers[i];
       const level = levels[v] ?? 1.0;
