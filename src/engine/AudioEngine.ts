@@ -525,6 +525,10 @@ export class AudioEngine {
    *  destination at +6 dB for `seconds`. Audible thickening = the
    *  production convolver works. Silent = convolver path is broken. */
   testRoomDirect(seconds = 4): void { this.masterBus.testRoomDirect(seconds); }
+  /** @internal diagnostic — fresh osc → fresh convolver → destination
+   *  using the loaded IR buffer. Audible saw with reverb = IR loaded
+   *  + convolver type works in the browser. Silent = IR didn't load. */
+  testRoomStandalone(seconds = 3): void { this.masterBus.testRoomStandalone(seconds); }
 
   /** COLOR — single user-facing knob that drives parallel saturation
    *  and the air-band exciter together. They live on the same

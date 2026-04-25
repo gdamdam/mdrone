@@ -589,11 +589,18 @@ export class MasterBus {
         const fresh = this.ctx.createConvolver();
         fresh.normalize = true;
         fresh.buffer = buf;
-        try { this.roomSendGain.disconnect(this.roomConvolver); } catch { /* ok */ }
-        try { this.roomConvolver.disconnect(this.outputTrim); } catch { /* ok */ }
-        this.roomConvolver = fresh;
+        // Wire the fresh node in PARALLEL with the old one first,
+        // then disconnect the old. This avoids any audio-rate window
+        // where roomSendGain has no downstream convolver — Chrome's
+        // graph rendering can latch the disconnected state and leave
+        // a freshly-connected node silent until the next graph
+        // change.
         this.roomSendGain.connect(fresh);
         fresh.connect(this.outputTrim);
+        const old = this.roomConvolver;
+        this.roomConvolver = fresh;
+        try { this.roomSendGain.disconnect(old); } catch { /* ok */ }
+        try { old.disconnect(this.outputTrim); } catch { /* ok */ }
         try { console.info(`[mdrone] cathedral IR loaded — ${buf.duration.toFixed(2)}s × ${buf.numberOfChannels}ch`); } catch { /* ok */ }
       })
       .catch((err) => {
