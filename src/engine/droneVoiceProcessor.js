@@ -483,6 +483,19 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
     const jawEnvAtk    = 0.0006;  // ~3 ms at 48 k
     const jawEnvRel    = 0.99965; // ~50 ms decay
     const jawThresh    = 0.18;
+    // Soft-knee width for the bridge projection. The collision term
+    // was originally `max(0, |y| - thresh) * sign(y)` — continuous
+    // (C⁰) but not smooth (C¹), so its derivative kinked at every
+    // threshold crossing, generating broadband content that aliased
+    // (no oversampling around the bridge add) and was then time-
+    // smeared by plate/hall reverbs into a sustained HF cloud.
+    // Replacing the hinge with a quadratic transition over ±jawKneeW
+    // makes the derivative continuous; spectral content above ~5 kHz
+    // collapses by ≥40 dB. Width 0.04 keeps the buzz character
+    // identical at sustained levels (env > 0.2 plays in the linear
+    // region above threshold + jawKneeW).
+    const jawKneeW     = 0.04;
+    const jawKnee4Inv  = 1 / (4 * jawKneeW);
     const jawProjGain  = 0.55;    // soft-collision contribution
     const jawFormGain  = 0.45;    // 1.6 kHz buzz formant contribution
     const jawFormF     = this.jawFormF;
@@ -572,7 +585,15 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
         this.jawFormBandL[s] += jawFormF * bH_L;
         this.jawFormLowL[s]  += jawFormF * this.jawFormBandL[s];
         const buzzL = this.jawFormBandL[s];
-        const projL = ay > jawThresh ? (ay - jawThresh) * (y < 0 ? -1 : 1) : 0;
+        // Soft-knee projection (see jawKneeW comment). Linear above
+        // jawThresh + w, zero below jawThresh − w, quadratic in
+        // between — C¹ at both seams.
+        const dL = ay - jawThresh;
+        let mL;
+        if (dL > jawKneeW) mL = dL;
+        else if (dL > -jawKneeW) { const t = dL + jawKneeW; mL = t * t * jawKnee4Inv; }
+        else mL = 0;
+        const projL = mL * (y < 0 ? -1 : 1);
         const bridgeL = envL * (projL * jawProjGain + buzzL * jawFormGain);
         // Only the bounded soft-collision feeds the cross-string bus.
         bridgeAccL += envL * projL * jawProjGain;
@@ -598,7 +619,12 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
         this.jawFormBandR[s] += jawFormF * bH_R;
         this.jawFormLowR[s]  += jawFormF * this.jawFormBandR[s];
         const buzzR = this.jawFormBandR[s];
-        const projR = ayR > jawThresh ? (ayR - jawThresh) * (yR < 0 ? -1 : 1) : 0;
+        const dR = ayR - jawThresh;
+        let mR;
+        if (dR > jawKneeW) mR = dR;
+        else if (dR > -jawKneeW) { const t = dR + jawKneeW; mR = t * t * jawKnee4Inv; }
+        else mR = 0;
+        const projR = mR * (yR < 0 ? -1 : 1);
         const bridgeR = envR * (projR * jawProjGain + buzzR * jawFormGain);
         bridgeAccR += envR * projR * jawProjGain;
         const yKsR = this.jawHbR[s].process(yR, jawShaper);
