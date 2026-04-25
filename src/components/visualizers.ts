@@ -22,7 +22,6 @@ export type Visualizer =
   | "rothko"
   | "starGate"
   | "cymatics"
-  | "aurora"
   | "dreamMachine"
   | "pitchTonnetz"
   | "pitchBeats"
@@ -85,7 +84,6 @@ export const VISUALIZER_GROUPS: readonly {
       "illuminatedGlyphs",
       "mirrorGlyphs",
       // Color
-      "aurora",
       "sediment",
       "prayerRug",
       "tapeDecay",
@@ -144,7 +142,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   illuminatedGlyphs: "ILLUMINATED GLYPHS · gilt runes",
   scryingMirror: "SCRYING MIRROR · Rorschach bloom",
   crystalLattice: "CRYSTAL LATTICE · accreting facets",
-  aurora: "SPECTRAL AURORA",
   dreamMachine: "DREAM MACHINE",
   resonantBody: "RESONANT BODY · voice anatomy",
   tapeDecay: "TAPE DECAY · oxide archive",
@@ -325,41 +322,6 @@ export function drawCymatics(
 }
 
 
-
-// ─────────────────────────────────────────────────────────────────────
-// 5. SPECTRAL AURORA — FFT bars bent into curtains
-// ─────────────────────────────────────────────────────────────────────
-export function drawAurora(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  a: AudioFrame,
-  p: PhaseClock,
-): void {
-  ctx.fillStyle = "rgba(5, 3, 6, 0.2)";
-  ctx.fillRect(0, 0, w, h);
-
-  // Bands used — starts with 16 and rises to all 32 with growth so
-  // the curtain gets more detailed the longer you watch.
-  const bands = Math.min(a.spectrum.length, 16 + Math.round(p.growth * 16));
-  for (let b = 0; b < bands; b++) {
-    const energy = a.spectrum[b];
-    const hue = (p.hue + b * (360 / bands) + p.t * 0.8) % 360;
-    ctx.strokeStyle = embToHsl(hue, 80, 40 + energy * 50, 0.06 + energy * 0.3);
-    ctx.lineWidth = 1 + energy * 3;
-    ctx.beginPath();
-    for (let x = 0; x <= w; x += 6) {
-      const phaseX = x * 0.01 + p.t * 0.035 + b * 0.2;
-      const y =
-        h * 0.5 +
-        Math.sin(phaseX) * (h * 0.2) +
-        Math.sin(phaseX * 2.1 + p.slow * 6) * (h * 0.1) * energy +
-        (b - bands / 2) * (6 + a.rms * 2);
-      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // 7. DREAM MACHINE — Brion Gysin / Burroughs style stroboscopic
@@ -668,7 +630,6 @@ export const VISUALIZER_FNS: Record<
   haloGlow: drawHaloGlow,
   mirrorGlyphs: drawMirrorGlyphs,
   cymatics: drawCymatics,
-  aurora: drawAurora,
   dreamMachine: drawDreamMachine,
   rothko: drawRothko,
   starGate: drawStarGate,

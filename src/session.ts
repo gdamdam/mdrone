@@ -188,7 +188,6 @@ const VISUALIZERS: readonly Visualizer[] = [
   "rothko",
   "starGate",
   "cymatics",
-  "aurora",
   "dreamMachine",
   "flowField",
   "ironFilings",
