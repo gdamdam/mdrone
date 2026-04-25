@@ -232,6 +232,58 @@ test("amp — tighter cab voicing stable on long hold near body resonance", () =
   }
 });
 
+// ─── Metal long-hold stability ──────────────────────────────────────
+// Covers the modal upgrade — doublet pairs across 6 main modes plus 4
+// single high modes (16 oscillators total), with mode-dependent decay
+// times that range from ~30 s (fundamental) down to ~1 s (top mode).
+// The slower fundamental decay layered with the 0.08 Hz restrike LFO
+// is the regression hotspot: if the restrike depth or decay floor
+// changes, the bowl could either runaway-resonate or fade silent on
+// long holds. 8 s drive at 110 Hz exercises both.
+test("metal — modal doublets stable on long hold across restrike LFO", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const p = new VoiceProc();
+  p.voiceType = "metal";
+  p.rng = mulberry32(0xB0BB);
+  p.pink = { b0:0,b1:0,b2:0,b3:0,b4:0,b5:0,b6:0 };
+  p.stopped = false;
+  p.initMetal();
+
+  const params = {
+    freq: makeParamArr(110),
+    drift: makeParamArr(0.4),
+    amp: makeParamArr(0.6),
+    pluckRate: makeParamArr(1),
+  };
+  const BLK = 128, BLOCKS = Math.ceil(8 * SR / BLK);
+  const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+
+  for (let c = 0; c < 2; c++) {
+    const buf = out[c];
+    const half = (buf.length / 2) | 0;
+    const a = stats(buf.subarray(0, half));
+    const b = stats(buf.subarray(half));
+    assert.ok(a.finite && b.finite, `metal[${c}] long hold non-finite`);
+    assert.ok(a.peak < 2.5 && b.peak < 2.5,
+      `metal[${c}] long-hold peaks ${a.peak.toFixed(3)} / ${b.peak.toFixed(3)} exceed safety ceiling`);
+    assert.ok(Math.abs(a.dc) < 0.05 && Math.abs(b.dc) < 0.05,
+      `metal[${c}] long-hold DC ${a.dc.toFixed(4)} / ${b.dc.toFixed(4)} too high`);
+    // Restrike LFO is 0.08 Hz (12.5 s period); over 4 s halves the LFO
+    // phase covers ~115° per half so RMS varies a bit by design — but
+    // not by more than ±3 dB. Tighter than that would catch genuine
+    // runaway from the slower fundamental decay.
+    const climbDb = 20 * Math.log10((b.rms + 1e-12) / (a.rms + 1e-12));
+    assert.ok(Math.abs(climbDb) < 3,
+      `metal[${c}] RMS swing ${climbDb.toFixed(2)} dB across halves — modal/restrike interaction unstable`);
+    // Mode 0 fundamental at 110 Hz must remain audible — if the new
+    // decay floor or doublet split silenced it we'd see RMS collapse.
+    assert.ok(a.rms > 0.02 && b.rms > 0.02,
+      `metal[${c}] RMS ${a.rms.toFixed(4)} / ${b.rms.toFixed(4)} too quiet — fundamental likely starved`);
+  }
+});
+
 // ─── Plate + shimmer + freeze smoke ─────────────────────────────────
 test("fx worklets — plate / shimmer / freeze stay finite under silent + impulsive input", () => {
   const SR = 48000;

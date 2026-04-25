@@ -2,52 +2,101 @@
 // Prototype extensions on DroneVoiceProcessor; concatenated
 // after core.js by scripts/build-worklet.mjs.
 
+// Measured-inspired bowl modal table. Each entry is one *physical* mode
+// (m=2,3,4…) with a doublet split where applicable — real bowls are not
+// perfectly axisymmetric, so each circumferential mode appears as a
+// close pair whose interference produces the characteristic slow
+// shimmer-beat ("hum note → strike note" envelope). Settle times are
+// the linear ramp-to-floor used by the per-sample decay update; with
+// the 0.08 Hz restrike LFO they describe how *quickly the strike
+// transient relaxes* between re-excitations, not the perceived ring
+// of the steady-state. Low circumferential modes (m=2,3) settle over
+// 30–12 s so they sit at ≈0.6–0.8 between restrikes (always audible);
+// upper deformation modes settle in 1–4 s so they fade and pulse with
+// the LFO, which is the bowl's "breathing".
+//
+// Doublet split ratios narrow with mode order — the asymmetry energy
+// budget is roughly fixed, so higher-order modes split proportionally
+// less. Splits chosen to fall in the 0.2–0.8 % band measured on small
+// hand-hammered Tibetan bowls (Rossing/Inácio).
+//
+// Top four modes are single oscillators: they decay too fast and their
+// amplitude is too low for the doublet beat to be perceptually relevant
+// — doubling the oscillator count there is wasted CPU.
+const METAL_MODES = [
+  // ratio   split    amp    decay     panW   walk    (decay = per-sample
+  //                                                    floor-ramp rate)
+  { ratio: 1.00,  split: 0.006,  amp: 0.88, decay: 6.6e-7, panW: 0.04, walk: 0.012 },
+  { ratio: 2.23,  split: 0.005,  amp: 0.30, decay: 1.6e-6, panW: 0.12, walk: 0.018 },
+  { ratio: 3.98,  split: 0.004,  amp: 0.18, decay: 3.3e-6, panW: 0.18, walk: 0.026 },
+  { ratio: 6.18,  split: 0.003,  amp: 0.11, decay: 5.0e-6, panW: 0.22, walk: 0.032 },
+  { ratio: 8.92,  split: 0.0025, amp: 0.07, decay: 8.0e-6, panW: 0.26, walk: 0.038 },
+  { ratio: 11.34, split: 0.0020, amp: 0.04, decay: 1.1e-5, panW: 0.28, walk: 0.042 },
+  { ratio: 14.08, split: null,   amp: 0.022,decay: 1.5e-5, panW: 0.32, walk: 0.045 },
+  { ratio: 17.6,  split: null,   amp: 0.013,decay: 2.0e-5, panW: 0.32, walk: 0.045 },
+  { ratio: 21.9,  split: null,   amp: 0.008,decay: 3.0e-5, panW: 0.34, walk: 0.045 },
+  { ratio: 27.1,  split: null,   amp: 0.004,decay: 4.5e-5, panW: 0.34, walk: 0.045 },
+];
+
 DroneVoiceProcessor.prototype.initMetal = function() {
-    // Bowl-like modal layout. Tibetan singing bowls are dominated by a
-    // low fundamental mode plus sparse higher deformation modes whose
-    // frequencies rise much faster than the harmonic series; struck
-    // spectra also exhibit split low peaks because real bowls are not
-    // perfectly symmetric.
-    this.metalN = 12;
-    this.metalRatios = new Float32Array([
-      1.0, 1.006, 2.23, 2.27, 3.98, 6.18, 8.92,
-      11.34, 14.08, 17.6, 21.9, 27.1,
-    ]);
-    this.metalBaseAmps = new Float32Array([
-      0.88, 0.28, 0.30, 0.18, 0.12, 0.07, 0.04,
-      0.022, 0.014, 0.008, 0.005, 0.003,
-    ]);
+    // Expand the modal table into flat per-oscillator arrays. Doublet
+    // pairs share decay/walk/pan width so they breathe together but get
+    // independent random phases (so beats start at zero crossing, not
+    // at peak — the spec calls this out as a phasey/seasick failure
+    // mode if missed) and small independent pan offsets within panW.
+    const oscRatios = [];
+    const oscAmps   = [];
+    const oscDecays = [];
+    const oscPanW   = [];
+    const oscWalks  = [];
+    for (const m of METAL_MODES) {
+      if (m.split == null) {
+        oscRatios.push(m.ratio);
+        oscAmps.push(m.amp);
+        oscDecays.push(m.decay);
+        oscPanW.push(m.panW);
+        oscWalks.push(m.walk);
+      } else {
+        // Energy split equally across the doublet pair so the pair's
+        // total RMS matches a single-mode entry of the same `amp`
+        // (≈ −3 dB per partial, summed-incoherent).
+        const a = m.amp * Math.SQRT1_2;
+        oscRatios.push(m.ratio * (1 - m.split * 0.5));
+        oscRatios.push(m.ratio * (1 + m.split * 0.5));
+        oscAmps.push(a); oscAmps.push(a);
+        oscDecays.push(m.decay); oscDecays.push(m.decay);
+        oscPanW.push(m.panW);    oscPanW.push(m.panW);
+        oscWalks.push(m.walk);   oscWalks.push(m.walk);
+      }
+    }
+    this.metalN          = oscRatios.length;
+    this.metalRatios     = new Float32Array(oscRatios);
+    this.metalBaseAmps   = new Float32Array(oscAmps);
+    this.metalDecayRates = new Float32Array(oscDecays);
     this.metalPhasesL = new Float32Array(this.metalN);
     this.metalPhasesR = new Float32Array(this.metalN);
     this.metalPans    = new Float32Array(this.metalN);
-    // Per-partial random walk state (amplitude + detune)
-    this.metalAmpWalks   = new Float32Array(this.metalN).fill(1);
-    this.metalAmpTargets = new Float32Array(this.metalN).fill(1);
+    this.metalAmpWalks      = new Float32Array(this.metalN).fill(1);
+    this.metalAmpTargets    = new Float32Array(this.metalN).fill(1);
     this.metalDetuneWalks   = new Float32Array(this.metalN);
     this.metalDetuneTargets = new Float32Array(this.metalN);
-    // Walk phase accumulators — each partial steps at its own slow rate
     this.metalWalkPhases = new Float32Array(this.metalN);
     this.metalWalkRates  = new Float32Array(this.metalN);
     for (let i = 0; i < this.metalN; i++) {
       this.metalPhasesL[i] = this.rng() * Math.PI * 2;
       this.metalPhasesR[i] = this.rng() * Math.PI * 2;
-      this.metalPans[i] = (this.rng() - 0.5) * 0.34; // keep bowl mostly centered
-      this.metalWalkRates[i] = 0.01 + this.rng() * 0.05; // very slow movement
+      // Pan width is per-mode (low modes near centre, upper modes
+      // diffuse) — but each oscillator gets its own random offset
+      // within that band so doublet pairs don't sit on the same point.
+      this.metalPans[i] = (this.rng() - 0.5) * oscPanW[i];
+      this.metalWalkRates[i] = oscWalks[i] * (0.7 + this.rng() * 0.6);
     }
     this.metalTickCounter = 0;
-    // Per-partial decay — high modes settle over ~5-15s while the
-    // fundamental sustains. A slow re-excitation LFO periodically
-    // "re-strikes" the upper partials so the bowl breathes.
     this.metalDecay = new Float32Array(this.metalN).fill(1);
-    this.metalDecayRates = new Float32Array(this.metalN);
-    for (let i = 0; i < this.metalN; i++) {
-      // Fundamental barely decays; highest mode decays in ~5s
-      this.metalDecayRates[i] = i < 2 ? 0.00001 : 0.00004 + i * 0.000015;
-    }
     this.metalRestrikePhase = 0;
-    // 2× halfband oversamplers around the output tanh — partial 12 at
-    // 27.1× fundamental can reach 8–10 kHz on a low tonic; without
-    // oversampling its tanh image folds below Nyquist as dissonant hiss.
+    // 2× halfband oversamplers around the output tanh — top mode at
+    // 27.1× fundamental reaches ~3 kHz on a 110 Hz tonic; tanh harmonics
+    // would otherwise fold below Nyquist as dissonant hiss.
     this.metalHbL = new Halfband2x();
     this.metalHbR = new Halfband2x();
 };
@@ -65,7 +114,11 @@ DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp)
       this.metalTickCounter++;
       if ((this.metalTickCounter & 255) === 0) {
         for (let p = 0; p < this.metalN; p++) {
-          const breadth = p < 2 ? 0.08 : 0.26 + p * 0.03;
+          // Fundamental doublet (entries 0,1) walks tightly so the
+          // pitch never wavers; everything else gets a wider breadth
+          // for liveness, capped to 0.5 so upper-mode amp flutter stays
+          // musical rather than seasick.
+          const breadth = p < 2 ? 0.08 : Math.min(0.5, 0.26 + p * 0.03);
           const center  = p < 2 ? 0.99 : 0.78;
           this.metalAmpTargets[p] = center - breadth * 0.5 + this.rng() * breadth;
           this.metalDetuneTargets[p] = (this.rng() * 2 - 1) * driftDepth;
