@@ -39,3 +39,6 @@ worker/.dev.vars
 
 # Claude Code local workspace
 .claude/
+
+# Audit / measurement output (npm run audit:presets)
+tmp/
