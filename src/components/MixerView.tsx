@@ -72,6 +72,8 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
   const volume = volumeProp ?? volumeInternal;
   const [headphoneSafe, setHeadphoneSafe] = useState(() => engine?.isHeadphoneSafe() ?? false);
   const [width, setWidth] = useState(() => engine?.getWidth() ?? 1);
+  const [room, setRoom] = useState(() => engine?.getRoomAmount() ?? 0);
+  const [color, setColor] = useState(() => engine?.getColorAmount() ?? 0);
   // Slow-envelope / fade controller. Duration cycles through
   // drone-friendly values (30 s / 2 min / 5 min / 20 min). The
   // actual fade is a linearRampToValueAtTime on the master output
@@ -165,6 +167,8 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
     setLimiterOn(true);   if (engine) engine.setLimiterEnabled(true);
     setCeiling(-1);       if (engine) engine.setLimiterCeiling(-1);
     setWidth(1);          if (engine) engine.setWidth(1);
+    setRoom(0);           if (engine) engine.setRoomAmount(0);
+    setColor(0);          if (engine) engine.setColorAmount(0);
     if (onVolumeChange) onVolumeChange(1);
     else {
       setVolumeInternal(1);
@@ -192,6 +196,8 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
     }
   };
   const onWidth = (v: number) => { setWidth(v); if (engine) engine.setWidth(v); };
+  const onRoom = (v: number) => { setRoom(v); if (engine) engine.setRoomAmount(v); };
+  const onColor = (v: number) => { setColor(v); if (engine) engine.setColorAmount(v); };
 
   const hpfOn = hpfHz > 10;
 
@@ -263,6 +269,12 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
 
         <Strip label="WIDTH" value={width} min={0} max={2} step={0.01} unit="" onChange={onWidth} centre={1}
           title="Stereo width — M/S matrix. 1 = identity, 0 = mono, 2 = wide (phase-inverted side)." />
+
+        <Strip label="ROOM" value={room} min={0} max={1} step={0.01} unit="" onChange={onRoom}
+          title="Master room — parallel cathedral-IR send. 0 = dry, 1 = max ambience. Adds depth without touching per-preset reverbs." />
+
+        <Strip label="COLOR" value={color} min={0} max={1} step={0.01} unit="" onChange={onColor}
+          title="Analog color — parallel saturation + air-band exciter together. 0 = clean, 1 = warm and open. Subtle even at full." />
 
         <div className="mixer-strip" title="Slow envelope — master-gain fade over minutes. Click IN / OUT to start; tap the duration to cycle 30 s / 2 min / 5 min / 20 min.">
           <div className="mixer-strip-label">FADE</div>
@@ -344,12 +356,12 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
           type="button"
           className="mixer-reset-btn"
           onClick={resetMixer}
-          title="Reset all mixer levels to defaults (HPF OFF, flat EQ, glue 0, drive 1, limiter on at -1 dBFS, volume unity). Headphone-safe is not touched."
+          title="Reset all mixer levels to defaults (HPF OFF, flat EQ, glue 0, drive 1, limiter on at -1 dBFS, width 1, room 0, color 0, volume unity). Headphone-safe is not touched."
         >
           RESET
         </button>
         <div className="mixer-hint">
-          Master bus: HPF → 3-band EQ → glue → drive → limiter → trim → out
+          Master bus: HPF → 3-band EQ → glue → drive → (color · room) → limiter → trim → out
         </div>
       </div>
     </div>

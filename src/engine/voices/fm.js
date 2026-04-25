@@ -29,6 +29,16 @@ DroneVoiceProcessor.prototype.fmProcess = function(L, R, n, freq, drift, amp) {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const depth = drift * 0.004;
+    // Anti-alias headroom — Carson's rule says FM bandwidth ≈
+    // 2·modFreq·(1 + index), so the highest reproduced sideband is
+    // at ≈ carrier + modFreq·(1 + index). For aliasing to stay
+    // inaudible we keep that under Nyquist · 0.85. Solving for
+    // index gives a per-sample upper bound; we soft-cap dynIndex
+    // through tanh so the bell still rings at high frequencies but
+    // can never push energy past the alias headroom. Cheap (one
+    // tanh per sample) and avoids the per-voice halfband we would
+    // otherwise need for an oscillator-style 2× oversample.
+    const aliasHeadroom = sampleRate * 0.5 * 0.85;
 
     for (let i = 0; i < n; i++) {
       this.fmLfoPhase += twoPi * this.fmLfoRate * invSr;
@@ -39,10 +49,12 @@ DroneVoiceProcessor.prototype.fmProcess = function(L, R, n, freq, drift, amp) {
       // of seconds so the voice is never harmonically static.
       this.fmIndexLfoPhase += twoPi * this.fmIndexLfoRate * invSr;
       if (this.fmIndexLfoPhase > twoPi) this.fmIndexLfoPhase -= twoPi;
-      const dynIndex = this.fmIndex * (1 + Math.sin(this.fmIndexLfoPhase) * 0.55);
-
-      // Modulator oscillator — with optional self-feedback
+      const rawIndex = this.fmIndex * (1 + Math.sin(this.fmIndexLfoPhase) * 0.55);
+      // Modulator frequency for this sample — used both for the
+      // oscillator and for the alias headroom calculation.
       const modFreq = freq * this.fmRatio * (1 + depth);
+      const maxIndex = Math.max(0.1, (aliasHeadroom - freq) / Math.max(modFreq, 1) - 1);
+      const dynIndex = maxIndex * Math.tanh(rawIndex / maxIndex);
       const fbPhase = this.fmModPhase + this.fmFeedback * this.fmModFbSample;
       this.fmModPhase += twoPi * modFreq * invSr;
       if (this.fmModPhase > twoPi) this.fmModPhase -= twoPi;

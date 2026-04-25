@@ -498,7 +498,12 @@ export function useSceneManager({
     setCurrentPresetName(generated);
     setCurrentPresetId(preset.id);
     saveCurrentSessionId(null);
-  }, [droneViewRef]);
+    // Loudness-aware leveling — new preset's authored gain may sit
+    // a few dB louder or quieter than the previous one. Schedule a
+    // 3-second settle + median-LUFS measurement → trim adjustment so
+    // a string of RND clicks reads as roughly equal-loudness.
+    engine.levelLoudnessAfterRnd();
+  }, [droneViewRef, engine]);
 
   /** Perturb the current scene's numeric parameters by `intensity`
    *  (0..1). The full scene-history stack in DroneView captures the

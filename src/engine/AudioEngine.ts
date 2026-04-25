@@ -518,6 +518,70 @@ export class AudioEngine {
   setWidth(w: number): void { this.masterBus.setWidth(w); }
   getWidth(): number { return this.masterBus.getWidth(); }
 
+  /** Master room — parallel cathedral-IR send. 0..1, default 0. */
+  setRoomAmount(a: number): void { this.masterBus.setRoomAmount(a); }
+  getRoomAmount(): number { return this.masterBus.getRoomAmount(); }
+
+  /** Loudness-aware leveler. Resets the master loudness trim to 1.0,
+   *  collects LUFS-S samples for `settleSec` seconds (skipping the
+   *  first 1.5 s while the new preset blooms in), then ramps the
+   *  trim to land the median observed LUFS on `targetLufs`. Used by
+   *  RND so a string of random presets reads as equal-loudness
+   *  rather than jumping ±6 dB between picks.
+   *
+   *  No-op if the loudness meter worklet hasn't loaded yet, or if
+   *  fewer than 5 valid samples arrive — better to leave the trim
+   *  alone than to commit to a bad measurement. */
+  private levelLoudnessTimer: number | null = null;
+  private levelLoudnessUnsub: (() => void) | null = null;
+  levelLoudnessAfterRnd(targetLufs: number = -15, settleSec: number = 3): void {
+    // Cancel any in-flight leveling cycle from the previous RND.
+    if (this.levelLoudnessTimer !== null) {
+      window.clearTimeout(this.levelLoudnessTimer);
+      this.levelLoudnessTimer = null;
+    }
+    if (this.levelLoudnessUnsub) {
+      this.levelLoudnessUnsub();
+      this.levelLoudnessUnsub = null;
+    }
+    // Reset to neutral so the new preset starts at its authored gain
+    // and the leveler nudges from there.
+    this.masterBus.setLoudnessTrim(1.0, 0.4);
+    const samples: number[] = [];
+    const startedAt = this.ctx.currentTime;
+    const collectAfter = 1.5;
+    this.levelLoudnessUnsub = this.masterBus.onLoudnessUpdate(({ lufsShort }) => {
+      if (!Number.isFinite(lufsShort)) return;
+      if (this.ctx.currentTime - startedAt < collectAfter) return;
+      samples.push(lufsShort);
+    });
+    this.levelLoudnessTimer = window.setTimeout(() => {
+      if (this.levelLoudnessUnsub) { this.levelLoudnessUnsub(); this.levelLoudnessUnsub = null; }
+      this.levelLoudnessTimer = null;
+      if (samples.length < 5) return;
+      const sorted = samples.slice().sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const trim = Math.pow(10, (targetLufs - median) / 20);
+      this.masterBus.setLoudnessTrim(trim, 1.5);
+    }, settleSec * 1000);
+  }
+
+  /** COLOR — single user-facing knob that drives parallel saturation
+   *  and the air-band exciter together. They live on the same
+   *  perceptual axis (analog density / openness) so most users will
+   *  ride them in tandem; exposing two separate knobs creates
+   *  decision fatigue without a meaningful mix difference. Internal
+   *  ratio: exciter = sat × 0.8 (the air band needs slightly less
+   *  send to read than the broadband saturation does). */
+  private colorAmount = 0;
+  setColorAmount(a: number): void {
+    const clamped = Math.max(0, Math.min(1, a));
+    this.colorAmount = clamped;
+    this.masterBus.setSaturationAmount(clamped);
+    this.masterBus.setExciterAmount(clamped * 0.8);
+  }
+  getColorAmount(): number { return this.colorAmount; }
+
   /** Start a slow master-gain fade to the given linear target over
    *  `seconds` (clamped 1..3600). Transient performance gesture —
    *  not persisted in saved scenes. */
