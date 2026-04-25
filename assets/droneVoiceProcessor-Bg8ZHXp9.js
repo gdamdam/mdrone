@@ -645,16 +645,16 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
       this.jawBridgeBusL = bridgeAccL;
       this.jawBridgeBusR = bridgeAccR;
 
-      // 0.3 → 0.26 → 0.22: tanpura presets sit in the top quintile of
-      // the loudness budget with crest factor ~4.5 (peaks 14 dB over
-      // RMS — the bridge envelope adds non-linear peak growth on top
-      // of yKsL). The first trim restored regression headroom; this
-      // second trim buys ~3 dB more drive headroom so master DRIVE up
-      // to ~1.5 stays out of the curve's steep saturation knee. KS and
-      // bridge scale together, so jawari tone is preserved — just
-      // quieter overall.
-      sumL *= 0.22;
-      sumR *= 0.22;
+      // 0.3 → 0.26 → 0.22 → 0.16: solo-LUFS audit showed tanpura at
+      // voiceLevel=1.0 was ~13 dB louder than reed (shruti-box) and
+      // 25+ dB louder than metal at the same setting — so multi-voice
+      // presets had to set tanpura: 0.3..0.5 just to fight the source-
+      // level imbalance. This trim closes ~3 dB of that gap globally;
+      // solo tanpura presets compensate via preset `gain:` to keep
+      // their target loudness. Jawari character preserved (KS and
+      // bridge scale together).
+      sumL *= 0.16;
+      sumR *= 0.16;
 
       const bodyHighL = sumL - this.ksBodyLowL - this.ksBodyDamp * this.ksBodyBandL;
       this.ksBodyBandL += this.ksBodyF * bodyHighL;
