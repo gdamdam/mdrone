@@ -62,6 +62,39 @@ export class MasterBus {
   private readonly widthRR: GainNode;
   private widthValue = 1;
 
+  /** Bass-mono fold-down — sits between outputTrim and the width
+   *  matrix. Below ~120 Hz, L and R are summed and re-distributed so
+   *  the low end stays phase-coherent on club/PA systems and on
+   *  earbuds where any stereo bass is wasted. Above 120 Hz, L/R pass
+   *  through untouched so the per-voice pan + width matrix can do
+   *  their work on the band where stereo actually reads. Standard
+   *  pro-mix move; "subs are mono" is a near-universal rule. */
+  private readonly bassMonoSplitter: ChannelSplitterNode;
+  private readonly bassMonoMerger: ChannelMergerNode;
+  private readonly bassMonoHpfL: BiquadFilterNode;
+  private readonly bassMonoHpfR: BiquadFilterNode;
+  private readonly bassMonoLpfL: BiquadFilterNode;
+  private readonly bassMonoLpfR: BiquadFilterNode;
+  private readonly bassMonoSum: GainNode;
+
+  /** Master room — synthesized cathedral-IR ConvolverNode wired as a
+   *  parallel send from masterGain into limiterIn. Default send level
+   *  is 0 (off) so existing presets sound identical until a caller
+   *  opts in via setRoomAmount(). The IR is generated procedurally
+   *  (see makeCathedralIR) so this ships zero audio assets. */
+  private readonly roomConvolver: ConvolverNode;
+  private readonly roomSendGain: GainNode;
+  private roomAmount = 0;
+
+  /** Look-ahead brickwall limiter (worklet). Spliced in front of the
+   *  native DynamicsCompressor on non-Safari browsers when the worklet
+   *  module is loaded; on Safari we keep the native comp because the
+   *  worklet stage produced signal-correlated hash there (see the
+   *  earlier "frrrr" diagnostic work). True peak ceiling, 96-sample
+   *  look-ahead, 4-point Lagrange intersample-peak interpolation. */
+  private brickwallNode: AudioWorkletNode | null = null;
+  private brickwallActive = false;
+
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
 
@@ -159,6 +192,38 @@ export class MasterBus {
     this.widthLR.gain.value = 0;
     this.widthRL.gain.value = 0;
 
+    // Bass-mono fold — Linkwitz-Riley-ish 24 dB/oct via two cascaded
+    // 12 dB biquads would be cleaner, but a single 12 dB pair gives
+    // enough low-end mono pull for a perceptual win at half the
+    // node count. Crossover at 120 Hz: most stereo content above
+    // sits in the imaging band; below is sub territory where stereo
+    // separation rarely survives translation anyway.
+    this.bassMonoSplitter = this.ctx.createChannelSplitter(2);
+    this.bassMonoMerger = this.ctx.createChannelMerger(2);
+    this.bassMonoHpfL = this.ctx.createBiquadFilter();
+    this.bassMonoHpfR = this.ctx.createBiquadFilter();
+    this.bassMonoLpfL = this.ctx.createBiquadFilter();
+    this.bassMonoLpfR = this.ctx.createBiquadFilter();
+    for (const f of [this.bassMonoHpfL, this.bassMonoHpfR]) {
+      f.type = "highpass"; f.frequency.value = 120; f.Q.value = 0.707;
+    }
+    for (const f of [this.bassMonoLpfL, this.bassMonoLpfR]) {
+      f.type = "lowpass"; f.frequency.value = 120; f.Q.value = 0.707;
+    }
+    // Sum L+R bass at 0.5× so the mono fold preserves total bass
+    // energy when L and R already share content; correlated content
+    // sums to L+R, halved → original level. Uncorrelated content
+    // halves (correct: stereo bass is the thing we want to suppress).
+    this.bassMonoSum = this.ctx.createGain();
+    this.bassMonoSum.gain.value = 0.5;
+
+    // Master room — synthesized cathedral IR. Generated lazily on
+    // first construction; ~768 KB AudioBuffer (2 s × 48 kHz × 2 ch).
+    this.roomConvolver = this.ctx.createConvolver();
+    this.roomConvolver.buffer = MasterBus.makeCathedralIR(this.ctx, 2.0);
+    this.roomSendGain = this.ctx.createGain();
+    this.roomSendGain.gain.value = 0; // off by default
+
     this.analyser = this.ctx.createAnalyser();
     // 1024 is enough for Header/VuMeter RMS; MeditateView upsizes
     // to 2048 on mount when it needs spectrum resolution.
@@ -187,10 +252,28 @@ export class MasterBus {
     this.drivePre.connect(this.drive);
     this.drive.connect(this.drivePost);
     this.drivePost.connect(this.limiterIn);
+    // Master room — parallel send tap from masterGain. Lands in
+    // limiterIn so the limiter still catches the combined energy
+    // when room is enabled. Send level set by setRoomAmount.
+    this.masterGain.connect(this.roomSendGain);
+    this.roomSendGain.connect(this.roomConvolver);
+    this.roomConvolver.connect(this.limiterIn);
     // limiterIn → limiterComp → limiterOut wiring done at construction.
     this.limiterOut.connect(this.outputTrim);
-    // outputTrim → [ M/S width matrix ] → analyser → destination
-    this.outputTrim.connect(this.widthSplitter);
+    // outputTrim → bass-mono fold → [ M/S width matrix ] → analyser → destination.
+    this.outputTrim.connect(this.bassMonoSplitter);
+    this.bassMonoSplitter.connect(this.bassMonoHpfL, 0);
+    this.bassMonoSplitter.connect(this.bassMonoHpfR, 1);
+    this.bassMonoSplitter.connect(this.bassMonoLpfL, 0);
+    this.bassMonoSplitter.connect(this.bassMonoLpfR, 1);
+    this.bassMonoHpfL.connect(this.bassMonoMerger, 0, 0);
+    this.bassMonoHpfR.connect(this.bassMonoMerger, 0, 1);
+    this.bassMonoLpfL.connect(this.bassMonoSum);
+    this.bassMonoLpfR.connect(this.bassMonoSum);
+    // Re-distribute the summed mono bass into both output channels.
+    this.bassMonoSum.connect(this.bassMonoMerger, 0, 0);
+    this.bassMonoSum.connect(this.bassMonoMerger, 0, 1);
+    this.bassMonoMerger.connect(this.widthSplitter);
     this.widthSplitter.connect(this.widthLL, 0);
     this.widthSplitter.connect(this.widthLR, 1);
     this.widthSplitter.connect(this.widthRL, 0);
@@ -267,7 +350,7 @@ export class MasterBus {
     }
 
     if (skipWidth) {
-      try { this.outputTrim.disconnect(this.widthSplitter); } catch { /* ok */ }
+      try { this.outputTrim.disconnect(this.bassMonoSplitter); } catch { /* ok */ }
       cursor.connect(this.outputTrim);
       this.outputTrim.connect(this.analyser);
     } else {
@@ -275,30 +358,127 @@ export class MasterBus {
     }
   }
 
-  /** Install the loudness meter worklet. Limiter is now a native
-   *  DynamicsCompressor wired in the constructor; only the loudness
-   *  meter tap still needs the fx worklet module. Called by
-   *  `AudioEngine` after the fx worklet module has loaded. */
+  /** Install the loudness meter worklet, plus splice the look-ahead
+   *  brickwall limiter on non-Safari browsers. Called by `AudioEngine`
+   *  after the fx worklet module has loaded. */
   onWorkletReady(): void {
-    if (this.loudnessMeter) return;
     // Debug: `?audio-debug=no-loudness` skips wiring the meter tap.
-    if (readAudioDebugFlags().has("no-loudness")) return;
-    // Loudness meter — tap off outputTrim so it reads what the user
-    // actually hears (post-limiter, post-volume). The tap is parallel:
-    // the signal continues to analyser / destination untouched.
+    if (!this.loudnessMeter && !readAudioDebugFlags().has("no-loudness")) {
+      try {
+        this.loudnessMeter = new AudioWorkletNode(this.ctx, "fx-loudness-meter", {
+          numberOfInputs: 1,
+          numberOfOutputs: 0,
+        });
+        this.outputTrim.connect(this.loudnessMeter);
+        this.loudnessMeter.port.onmessage = (e) => {
+          const msg = e.data;
+          if (msg && msg.type === "meter" && this.loudnessListener) {
+            this.loudnessListener({ lufsShort: msg.lufsShort, peakDb: msg.peakDb });
+          }
+        };
+      } catch { /* registration may race; leave null */ }
+    }
+
+    // Look-ahead brickwall limiter — non-Safari only. Replaces the
+    // native DynamicsCompressor for the limiting stage; the native
+    // node is left in place but flattened to a transparent passthrough
+    // (threshold 0 / ratio 1) so the existing graph wiring stays
+    // intact and we can fall back instantly if the worklet errors.
+    if (!this.brickwallNode && !readAudioDebugFlags().has("no-limiter") && MasterBus.isLookaheadLimiterSafe()) {
+      try {
+        this.brickwallNode = new AudioWorkletNode(this.ctx, "fx-brickwall", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [2],
+        });
+        // Configure ceiling / release to match the native limiter's
+        // current state so the swap is sonically continuous.
+        const ceilLin = Math.pow(10, this.limiterCeiling / 20);
+        const cParam = this.brickwallNode.parameters.get("ceiling");
+        const rParam = this.brickwallNode.parameters.get("releaseSec");
+        const eParam = this.brickwallNode.parameters.get("enabled");
+        if (cParam) cParam.value = ceilLin;
+        if (rParam) rParam.value = this.limiterReleaseSec;
+        if (eParam) eParam.value = this.limiterEnabled ? 1 : 0;
+        // Re-route: drivePost → brickwall → outputTrim, bypassing the
+        // native comp branch. Disconnect drivePost from the native
+        // limiterIn first; flatten the native comp to passthrough so
+        // even stray taps stay transparent.
+        try { this.drivePost.disconnect(this.limiterIn); } catch { /* ok */ }
+        this.drivePost.connect(this.brickwallNode);
+        this.brickwallNode.connect(this.outputTrim);
+        // Native limiter still receives the room-send tap (which goes
+        // to limiterIn directly); flatten it so it doesn't double-limit.
+        const now = this.ctx.currentTime;
+        this.limiterComp.threshold.setTargetAtTime(0, now, 0.01);
+        this.limiterComp.ratio.setTargetAtTime(1, now, 0.01);
+        this.brickwallActive = true;
+      } catch {
+        // Worklet failed — leave the native limiter wired as-is.
+        this.brickwallNode = null;
+        this.brickwallActive = false;
+      }
+    }
+  }
+
+  /** Look-ahead limiter is Chrome/Firefox-only. On Safari the
+   *  AudioWorklet stage produced a faint signal-correlated hash on
+   *  long drone material (the "frrrr" diagnostic from earlier), so
+   *  we keep the native DynamicsCompressor there for parity. */
+  private static isLookaheadLimiterSafe(): boolean {
     try {
-      this.loudnessMeter = new AudioWorkletNode(this.ctx, "fx-loudness-meter", {
-        numberOfInputs: 1,
-        numberOfOutputs: 0,
-      });
-      this.outputTrim.connect(this.loudnessMeter);
-      this.loudnessMeter.port.onmessage = (e) => {
-        const msg = e.data;
-        if (msg && msg.type === "meter" && this.loudnessListener) {
-          this.loudnessListener({ lufsShort: msg.lufsShort, peakDb: msg.peakDb });
-        }
+      const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+      // Safari UA contains "Safari" but Chrome's UA *also* contains
+      // "Safari" — true Safari is the one without "Chrome", "CriOS",
+      // "FxiOS", or "Edg".
+      const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|Edg/.test(ua);
+      return !isSafari;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Procedurally-generated cathedral IR. 2 s decaying noise with
+   *  early-reflection cluster (0–80 ms) and an exponential tail
+   *  shaped by a low-shelf bias (warm) plus a mild high-cut to
+   *  taper presence over time. Channels are independently seeded
+   *  so the IR has natural stereo decorrelation — convolution with
+   *  a stereo IR widens any input by definition. */
+  private static makeCathedralIR(ctx: BaseAudioContext, seconds: number): AudioBuffer {
+    const sr = ctx.sampleRate;
+    const len = Math.floor(sr * seconds);
+    const buf = ctx.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buf.getChannelData(ch);
+      // Mulberry32 — deterministic per channel for stable IR shape
+      // across reloads (no run-to-run variance in the room sound).
+      let s = (ch === 0 ? 0x9e3779b9 : 0x6a09e667) | 0;
+      const rand = () => {
+        s = (s + 1831565813) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296 * 2 - 1;
       };
-    } catch { /* registration may race; leave null */ }
+      const earlyMs = 80;
+      const earlyN = Math.floor(sr * earlyMs / 1000);
+      // Decay constant: ≈ -60 dB at `seconds` (a 2 s RT60).
+      const decayK = Math.log(1000) / len; // e^(-decayK * i) hits ~1/1000
+      // Simple 1-pole LPF state to gently warm the tail.
+      let lp = 0;
+      const lpA = 0.05; // mild high-cut, ~3.5 kHz @ 48 kHz
+      for (let i = 0; i < len; i++) {
+        const env = Math.exp(-decayK * i);
+        // Early reflections: sparser, spikier within the first 80 ms.
+        const spike = i < earlyN && rand() > 0.985 ? rand() * 1.5 : 0;
+        const x = rand() * env + spike * env;
+        lp += (x - lp) * lpA;
+        data[i] = lp * 0.6;
+      }
+      // Soft fade-in to suppress click at IR start.
+      const fadeN = Math.min(64, len);
+      for (let i = 0; i < fadeN; i++) data[i] *= i / fadeN;
+    }
+    return buf;
   }
 
   onLoudnessUpdate(cb: (m: { lufsShort: number; peakDb: number }) => void): () => void {
@@ -308,6 +488,21 @@ export class MasterBus {
 
   private applyLimiterParams(): void {
     const now = this.ctx.currentTime;
+    if (this.brickwallActive && this.brickwallNode) {
+      // Drive the look-ahead worklet directly. Native comp stays
+      // flattened (threshold 0 / ratio 1) to remain transparent on
+      // the parallel room-send path that lands at limiterIn.
+      const cParam = this.brickwallNode.parameters.get("ceiling");
+      const rParam = this.brickwallNode.parameters.get("releaseSec");
+      const eParam = this.brickwallNode.parameters.get("enabled");
+      const ceilLin = Math.pow(10, this.limiterCeiling / 20);
+      if (cParam) cParam.setTargetAtTime(ceilLin, now, 0.01);
+      if (rParam) rParam.setTargetAtTime(this.limiterReleaseSec, now, 0.01);
+      if (eParam) eParam.setTargetAtTime(this.limiterEnabled ? 1 : 0, now, 0.01);
+      this.limiterComp.threshold.setTargetAtTime(0, now, 0.01);
+      this.limiterComp.ratio.setTargetAtTime(1, now, 0.01);
+      return;
+    }
     // When enabled: threshold = ceiling, ratio 4 (gentle).
     // When disabled: threshold 0, ratio 1 → effectively transparent.
     const thresh = this.limiterEnabled ? this.limiterCeiling : 0;
@@ -316,6 +511,21 @@ export class MasterBus {
     this.limiterComp.ratio.setTargetAtTime(ratio, now, 0.01);
     this.limiterComp.release.setTargetAtTime(this.limiterReleaseSec, now, 0.01);
   }
+
+  /** Master room amount (0..1). Controls the parallel cathedral
+   *  ConvolverNode send level. 0 (default) is a true bypass; the
+   *  send gain is hard-zeroed so there is no contribution from the
+   *  convolver path until the user opts in. */
+  setRoomAmount(amount: number): void {
+    const a = Math.max(0, Math.min(1, amount));
+    this.roomAmount = a;
+    // Send level scales conservatively: a=1 maps to ~0.25 linear so
+    // the room never drowns the dry. Drone material with long
+    // sustains can quickly become smeared even at small amounts.
+    this.roomSendGain.gain.setTargetAtTime(a * 0.25, this.ctx.currentTime, 0.05);
+  }
+
+  getRoomAmount(): number { return this.roomAmount; }
 
   connectInput(node: AudioNode): void {
     node.connect(this.masterGain);

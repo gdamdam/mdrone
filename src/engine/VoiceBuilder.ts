@@ -88,6 +88,7 @@ export function buildVoice(
   fmIndex = 2.4,
   fmFeedback = 0,
   tanpuraTuning: TanpuraTuningId = "classic",
+  pan: number = 0,
 ): Voice {
   const targetFreq = rootFreq * Math.pow(2, intervalCents / 1200);
 
@@ -119,7 +120,32 @@ export function buildVoice(
   // applies uniformly across all voices in the stack.
   ampParam.setValueAtTime(1, startAt);
 
-  node.connect(target);
+  // Slow drift LFO (~±2 cents) — additive modulation on the freq
+  // AudioParam. Sub-Hz random period per voice means each layer
+  // member rides its own micro-vibrato; with 3+ voices per layer
+  // this builds the "alive, not frozen" character pro drones depend
+  // on. Depth is scaled to the *current* voice frequency in Hz so
+  // ±2 cents stays musically constant after glides.
+  const lfoHz = 0.05 + Math.random() * 0.25; // 0.05–0.30 Hz
+  const pitchLfo = ctx.createOscillator();
+  pitchLfo.type = "sine";
+  pitchLfo.frequency.value = lfoHz;
+  const pitchLfoGain = ctx.createGain();
+  // 2 cents in Hz = freq * (2^(2/1200) - 1) ≈ freq * 0.001156
+  pitchLfoGain.gain.value = targetFreq * 0.001156;
+  pitchLfo.connect(pitchLfoGain).connect(freqParam);
+  pitchLfo.start(startAt);
+
+  // Per-voice stereo positioning. StereoPannerNode is a simple
+  // gain matrix that preserves the worklet's intrinsic L/R timbre
+  // (e.g. reed odd/even split, metal partial pans) while shifting
+  // its center across the field. Caller spreads pans across a
+  // layer's intervals to build true stereo separation rather than
+  // relying on FX-stage width alone.
+  const panner = ctx.createStereoPanner();
+  panner.pan.value = Math.max(-1, Math.min(1, pan));
+
+  node.connect(panner).connect(target);
 
   return {
     setFreq(hz, glideSec) {
@@ -127,6 +153,11 @@ export function buildVoice(
       freqParam.cancelScheduledValues(now);
       freqParam.setValueAtTime(freqParam.value, now);
       freqParam.linearRampToValueAtTime(hz, now + glideSec);
+      // Re-scale drift depth to the new fundamental so ±2 cents
+      // tracks musically across glides instead of drifting in
+      // absolute Hz.
+      pitchLfoGain.gain.cancelScheduledValues(now);
+      pitchLfoGain.gain.setTargetAtTime(hz * 0.001156, now, glideSec * 0.5 + 0.05);
     },
     setDrift(amt) {
       const now = ctx.currentTime;
@@ -158,10 +189,18 @@ export function buildVoice(
         ampParam.linearRampToValueAtTime(0, now + 0.15);
         setTimeout(() => {
           try { node.port.postMessage({ type: "stop" }); } catch { /* ok */ }
+          try { pitchLfo.stop(); } catch { /* ok */ }
+          try { pitchLfo.disconnect(); } catch { /* ok */ }
+          try { pitchLfoGain.disconnect(); } catch { /* ok */ }
+          try { panner.disconnect(); } catch { /* ok */ }
           try { node.disconnect(); } catch { /* ok */ }
         }, 220);
       } catch {
         try { node.port.postMessage({ type: "stop" }); } catch { /* ok */ }
+        try { pitchLfo.stop(); } catch { /* ok */ }
+        try { pitchLfo.disconnect(); } catch { /* ok */ }
+        try { pitchLfoGain.disconnect(); } catch { /* ok */ }
+        try { panner.disconnect(); } catch { /* ok */ }
         try { node.disconnect(); } catch { /* ok */ }
       }
     },

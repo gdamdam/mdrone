@@ -4,6 +4,16 @@ import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
 import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type TanpuraTuningId, type Voice, type VoiceType } from "./VoiceBuilder";
 import { readAudioDebugFlags } from "./audioDebug";
 
+/** Spread a layer's voices across the stereo field. With N copies of
+ *  the same voice timbre at different intervals, panning each copy
+ *  to a distinct position turns a mono-sounding stack into a true
+ *  ensemble. ±0.6 keeps everything within the perceptually safe
+ *  inner field — full hard-pan ±1 sounds gimmicky on headphones. */
+function layerVoicePan(i: number, n: number): number {
+  if (n <= 1) return 0;
+  return ((i / (n - 1)) - 0.5) * 1.2;
+}
+
 export class VoiceEngine {
   private static readonly MIN_REBUILD_XFADE_SEC = 0.3;
   private static readonly MAX_REBUILD_XFADE_SEC = 1.8;
@@ -185,8 +195,10 @@ export class VoiceEngine {
       if (!capped[type]) continue;
       const layerGain = this.ensureLayerGain(type);
       const voices: Voice[] = [];
-      for (const c of intervals) {
-        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning);
+      for (let i = 0; i < intervals.length; i++) {
+        const c = intervals[i];
+        const pan = layerVoicePan(i, intervals.length);
+        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
@@ -585,8 +597,10 @@ export class VoiceEngine {
       this.layerGains.set(type, layerGain);
 
       const voices: Voice[] = [];
-      for (const c of intervals) {
-        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning);
+      for (let i = 0; i < intervals.length; i++) {
+        const c = intervals[i];
+        const pan = layerVoicePan(i, intervals.length);
+        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
