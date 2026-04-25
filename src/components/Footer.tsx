@@ -49,6 +49,13 @@ export function Footer() {
           AGPL-3.0
         </a>
         {" · "}
+        <a
+          href="/about.html"
+          style={{ color: "var(--text-dim)", textDecoration: "none" }}
+        >
+          About
+        </a>
+        {" · "}
         <button
           type="button"
           onClick={() => setPrivacyOpen(true)}
