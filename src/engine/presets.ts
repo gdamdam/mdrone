@@ -597,7 +597,7 @@ export const PRESETS: Preset[] = [
     hint: "Tanpura plucks under a shruti-box reed organ, tonic + fifth. Warm practice-room feel.",
     tuningId: "just5", relationId: "tonic-fifth",
     voiceLayers: ["tanpura", "reed"],
-    voiceLevels: { tanpura: 1, reed: 0.7 },
+    voiceLevels: { tanpura: 0.3, reed: 0.7 },
     reedShape: "odd",
     octaveRange: [2, 3],
     drift: 0.15,
