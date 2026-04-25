@@ -1,0 +1,12 @@
+Greg Hopkins EMT 140 Plate Reverb Impulse Response
+
+Source:  https://oramics.github.io/sampled/IR/EMT140-Plate/
+File:    emt_140_medium_1.wav (medium tone, shortest decay)
+License: Creative Commons Attribution
+
+Hosted in the oramics/sampled repository, originally from Hopkins
+Media Services. The "medium" flavour is the most neutral of the
+three tonalities (bright / medium / dark); _1 is the shortest
+decay (~1 s). Picked for use as an alternative tail to mdrone's
+algorithmic Dattorro fx-plate when authentic plate character is
+preferred over the parametric model.
