@@ -521,6 +521,10 @@ export class AudioEngine {
   /** Master room — parallel cathedral-IR send. 0..1, default 0. */
   setRoomAmount(a: number): void { this.masterBus.setRoomAmount(a); }
   getRoomAmount(): number { return this.masterBus.getRoomAmount(); }
+  /** @internal diagnostic — direct-tap of the live roomConvolver to
+   *  destination at +6 dB for `seconds`. Audible thickening = the
+   *  production convolver works. Silent = convolver path is broken. */
+  testRoomDirect(seconds = 4): void { this.masterBus.testRoomDirect(seconds); }
 
   /** COLOR — single user-facing knob that drives parallel saturation
    *  and the air-band exciter together. They live on the same

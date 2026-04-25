@@ -545,6 +545,27 @@ export class MasterBus {
     }
   }
 
+  /** Diagnostic — splice a direct-to-destination tap from
+   *  roomConvolver at boosted gain for `seconds`. Bypasses
+   *  outputTrim, bass-mono fold, width matrix, analyser. */
+  testRoomDirect(seconds: number): void {
+    const test = this.ctx.createGain();
+    test.gain.value = 2.0;
+    try {
+      this.roomConvolver.connect(test);
+      test.connect(this.ctx.destination);
+      console.info(`[mdrone] room-direct tap on for ${seconds}s`);
+    } catch (e) {
+      console.warn("[mdrone] room-direct tap failed:", e);
+      return;
+    }
+    setTimeout(() => {
+      try { this.roomConvolver.disconnect(test); } catch { /* ok */ }
+      try { test.disconnect(); } catch { /* ok */ }
+      console.info("[mdrone] room-direct tap off");
+    }, seconds * 1000);
+  }
+
   /** Async-load the recorded cathedral IR shipped at
    *  /irs/cathedral.wav (Saint-Lawrence Church, Molenbeek-Wersbeek
    *  — OpenAirLib, Public Domain CC; see public/irs/
