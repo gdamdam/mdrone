@@ -83,7 +83,7 @@ export class MasterBus {
    *  opts in via setRoomAmount(). The IR is generated procedurally
    *  (see makeCathedralIR) so this ships zero audio assets. */
   private roomConvolver: ConvolverNode;
-  private readonly roomSendGain: GainNode;
+  private roomSendGain: GainNode;
   private roomAmount = 0;
 
   /** Look-ahead brickwall limiter (worklet). Spliced in front of the
@@ -614,21 +614,30 @@ export class MasterBus {
       .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`ir HTTP ${r.status}`))))
       .then((bytes) => this.ctx.decodeAudioData(bytes))
       .then((buf) => {
-        const fresh = this.ctx.createConvolver();
-        fresh.normalize = true;
-        fresh.buffer = buf;
-        // Wire the fresh node in PARALLEL with the old one first,
-        // then disconnect the old. This avoids any audio-rate window
-        // where roomSendGain has no downstream convolver — Chrome's
-        // graph rendering can latch the disconnected state and leave
-        // a freshly-connected node silent until the next graph
-        // change.
-        this.roomSendGain.connect(fresh);
-        fresh.connect(this.outputTrim);
-        const old = this.roomConvolver;
-        this.roomConvolver = fresh;
-        try { this.roomSendGain.disconnect(old); } catch { /* ok */ }
-        try { old.disconnect(this.outputTrim); } catch { /* ok */ }
+        // Replace BOTH the send-gain and the convolver. The previous
+        // attempt at swapping just the convolver kept testRoomDirect
+        // silent in production, suggesting the long-lived sendGain
+        // node also gets stuck — possibly a Chrome graph-render
+        // ordering issue around mid-stream rewiring on a node that
+        // already has automation history. Rebuilding the whole
+        // sub-chain from masterGain forward is heavy-handed but
+        // sidesteps the bug entirely.
+        const freshSend = this.ctx.createGain();
+        freshSend.gain.value = this.roomSendGain.gain.value;
+        const freshConv = this.ctx.createConvolver();
+        freshConv.normalize = true;
+        freshConv.buffer = buf;
+        this.masterGain.connect(freshSend);
+        freshSend.connect(freshConv);
+        freshConv.connect(this.outputTrim);
+        // Now disconnect the old chain.
+        const oldSend = this.roomSendGain;
+        const oldConv = this.roomConvolver;
+        this.roomSendGain = freshSend;
+        this.roomConvolver = freshConv;
+        try { this.masterGain.disconnect(oldSend); } catch { /* ok */ }
+        try { oldSend.disconnect(oldConv); } catch { /* ok */ }
+        try { oldConv.disconnect(this.outputTrim); } catch { /* ok */ }
         try { console.info(`[mdrone] cathedral IR loaded — ${buf.duration.toFixed(2)}s × ${buf.numberOfChannels}ch`); } catch { /* ok */ }
       })
       .catch((err) => {
