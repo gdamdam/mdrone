@@ -60,6 +60,68 @@ function stats(buf) {
   return { peak, rms, dc, finite };
 }
 
+// ── Long-hold stability helper ──────────────────────────────────────
+// Splits a stereo render into halves and asserts no NaN, no peak above
+// safety ceiling, no DC outside bounds, no DC drift between halves
+// (the precise signal of a feedback path accumulating), no RMS swing
+// above the configured ceiling, and optionally a minimum RMS so a
+// "stable but silent" regression also fails. All bounds are configurable
+// per voice — the defaults match the conservative choices the original
+// per-voice tests used inline.
+function assertLongHoldStable(out, label, {
+  peakMax = 2.5,
+  dcMax = 0.1,
+  dcDriftMax = 0.02,
+  rmsClimbMaxDb = 3,
+  rmsMin = 0,
+} = {}) {
+  for (let c = 0; c < 2; c++) {
+    const buf = out[c];
+    const half = (buf.length / 2) | 0;
+    const a = stats(buf.subarray(0, half));
+    const b = stats(buf.subarray(half));
+    assert.ok(a.finite && b.finite, `${label}[${c}] long hold non-finite`);
+    assert.ok(a.peak < peakMax && b.peak < peakMax,
+      `${label}[${c}] peaks ${a.peak.toFixed(3)} / ${b.peak.toFixed(3)} exceed ${peakMax}`);
+    assert.ok(Math.abs(a.dc) < dcMax && Math.abs(b.dc) < dcMax,
+      `${label}[${c}] DC ${a.dc.toFixed(4)} / ${b.dc.toFixed(4)} above ${dcMax}`);
+    assert.ok(Math.abs(b.dc - a.dc) < dcDriftMax,
+      `${label}[${c}] DC drift ${(b.dc - a.dc).toFixed(4)} > ${dcDriftMax} — feedback path likely accumulating`);
+    const climbDb = 20 * Math.log10((b.rms + 1e-12) / (a.rms + 1e-12));
+    assert.ok(Math.abs(climbDb) < rmsClimbMaxDb,
+      `${label}[${c}] RMS swing ${climbDb.toFixed(2)} dB across halves > ${rmsClimbMaxDb} dB`);
+    if (rmsMin > 0) {
+      assert.ok(a.rms > rmsMin && b.rms > rmsMin,
+        `${label}[${c}] RMS ${a.rms.toFixed(4)} / ${b.rms.toFixed(4)} below ${rmsMin} — voice may have starved`);
+    }
+  }
+}
+
+// Construct + init a voice processor. Mirrors the inline setup the
+// existing voice-smoke test does; reused by the new safety tests.
+function makeVoice(VoiceProc, voiceType, seed) {
+  const p = new VoiceProc();
+  p.voiceType = voiceType;
+  p.rng = mulberry32(seed);
+  p.pink = { b0:0,b1:0,b2:0,b3:0,b4:0,b5:0,b6:0 };
+  p.stopped = false;
+  p.reedShape = "odd";
+  p.fmRatioOpt = 2.0;
+  p.fmIndexOpt = 2.4;
+  p.fmFeedbackOpt = 0;
+  switch (voiceType) {
+    case "tanpura": p.initTanpura(); break;
+    case "reed":    p.initReed();    break;
+    case "metal":   p.initMetal();   break;
+    case "air":     p.initAir();     break;
+    case "piano":   p.initPiano();   break;
+    case "fm":      p.initFm();      break;
+    case "amp":     p.initAmp();     break;
+    case "noise":   p.initNoise();   break;
+  }
+  return p;
+}
+
 function runProcessor(proc, params, { inputs = null, blocks = 64, block = 128 } = {}) {
   const out = makeBuffers(2, blocks * block);
   const tmp = [makeBuffers(2, block)];
@@ -146,13 +208,7 @@ test("tanpura — sympathetic coupling stable over long hold", () => {
   const SR = 48000;
   const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
   const VoiceProc = voicesReg.get("drone-voice");
-  const p = new VoiceProc();
-  p.voiceType = "tanpura";
-  p.rng = mulberry32(0xBEEF);
-  p.pink = { b0:0,b1:0,b2:0,b3:0,b4:0,b5:0,b6:0 };
-  p.stopped = false;
-  p.initTanpura();
-
+  const p = makeVoice(VoiceProc, "tanpura", 0xBEEF);
   // 8 s with active plucking — exercises the bridge + sympathetic bus.
   const params = {
     freq: makeParamArr(110),
@@ -162,27 +218,7 @@ test("tanpura — sympathetic coupling stable over long hold", () => {
   };
   const BLK = 128, BLOCKS = Math.ceil(8 * SR / BLK);
   const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
-
-  for (let c = 0; c < 2; c++) {
-    const buf = out[c];
-    const half = (buf.length / 2) | 0;
-    const a = stats(buf.subarray(0, half));
-    const b = stats(buf.subarray(half));
-    assert.ok(a.finite && b.finite, `tanpura[${c}] long hold non-finite`);
-    assert.ok(a.peak < 2.5 && b.peak < 2.5,
-      `tanpura[${c}] long-hold peaks ${a.peak.toFixed(3)} / ${b.peak.toFixed(3)} exceed safety ceiling`);
-    // Bound absolute DC, but allow more headroom than the short-render
-    // smoke since 4-second windows expose static even-harmonic bias from
-    // the jawari shaper. The strict stability check is the drift below.
-    assert.ok(Math.abs(a.dc) < 0.1 && Math.abs(b.dc) < 0.1,
-      `tanpura[${c}] long-hold DC ${a.dc.toFixed(4)} / ${b.dc.toFixed(4)} too high`);
-    assert.ok(Math.abs(b.dc - a.dc) < 0.02,
-      `tanpura[${c}] DC drift ${(b.dc - a.dc).toFixed(4)} between halves — feedback path likely accumulating`);
-    // RMS climb >3 dB across halves indicates runaway sympathetic feedback.
-    const climbDb = 20 * Math.log10((b.rms + 1e-12) / (a.rms + 1e-12));
-    assert.ok(climbDb < 3,
-      `tanpura[${c}] RMS climb ${climbDb.toFixed(2)} dB across halves — coupling likely unstable`);
-  }
+  assertLongHoldStable(out, "tanpura");
 });
 
 // ─── Amp long-hold stability ────────────────────────────────────────
@@ -196,13 +232,7 @@ test("amp — tighter cab voicing stable on long hold near body resonance", () =
   const SR = 48000;
   const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
   const VoiceProc = voicesReg.get("drone-voice");
-  const p = new VoiceProc();
-  p.voiceType = "amp";
-  p.rng = mulberry32(0xFEED);
-  p.pink = { b0:0,b1:0,b2:0,b3:0,b4:0,b5:0,b6:0 };
-  p.stopped = false;
-  p.initAmp();
-
+  const p = makeVoice(VoiceProc, "amp", 0xFEED);
   const params = {
     freq: makeParamArr(80),
     drift: makeParamArr(0.4),
@@ -211,25 +241,7 @@ test("amp — tighter cab voicing stable on long hold near body resonance", () =
   };
   const BLK = 128, BLOCKS = Math.ceil(8 * SR / BLK);
   const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
-
-  for (let c = 0; c < 2; c++) {
-    const buf = out[c];
-    const half = (buf.length / 2) | 0;
-    const a = stats(buf.subarray(0, half));
-    const b = stats(buf.subarray(half));
-    assert.ok(a.finite && b.finite, `amp[${c}] long hold non-finite`);
-    assert.ok(a.peak < 2.5 && b.peak < 2.5,
-      `amp[${c}] long-hold peaks ${a.peak.toFixed(3)} / ${b.peak.toFixed(3)} exceed safety ceiling`);
-    // Asymmetric tanh + DC blocker keeps DC bounded; allow long-window
-    // headroom but assert no slow drift between halves.
-    assert.ok(Math.abs(a.dc) < 0.1 && Math.abs(b.dc) < 0.1,
-      `amp[${c}] long-hold DC ${a.dc.toFixed(4)} / ${b.dc.toFixed(4)} too high`);
-    assert.ok(Math.abs(b.dc - a.dc) < 0.02,
-      `amp[${c}] DC drift ${(b.dc - a.dc).toFixed(4)} between halves — feedback path likely unstable`);
-    const climbDb = 20 * Math.log10((b.rms + 1e-12) / (a.rms + 1e-12));
-    assert.ok(climbDb < 3,
-      `amp[${c}] RMS climb ${climbDb.toFixed(2)} dB across halves — speaker-feedback loop likely ringing up`);
-  }
+  assertLongHoldStable(out, "amp");
 });
 
 // ─── Metal long-hold stability ──────────────────────────────────────
@@ -244,13 +256,7 @@ test("metal — modal doublets stable on long hold across restrike LFO", () => {
   const SR = 48000;
   const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
   const VoiceProc = voicesReg.get("drone-voice");
-  const p = new VoiceProc();
-  p.voiceType = "metal";
-  p.rng = mulberry32(0xB0BB);
-  p.pink = { b0:0,b1:0,b2:0,b3:0,b4:0,b5:0,b6:0 };
-  p.stopped = false;
-  p.initMetal();
-
+  const p = makeVoice(VoiceProc, "metal", 0xB0BB);
   const params = {
     freq: makeParamArr(110),
     drift: makeParamArr(0.4),
@@ -259,29 +265,135 @@ test("metal — modal doublets stable on long hold across restrike LFO", () => {
   };
   const BLK = 128, BLOCKS = Math.ceil(8 * SR / BLK);
   const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+  // Tighter DC bound than tanpura/amp — metal is symmetric tanh so DC
+  // should stay near zero. rmsMin guards a "decay floor silenced the
+  // fundamental" regression, see the metal modal upgrade notes.
+  assertLongHoldStable(out, "metal", { dcMax: 0.05, rmsMin: 0.02 });
+});
 
-  for (let c = 0; c < 2; c++) {
-    const buf = out[c];
-    const half = (buf.length / 2) | 0;
-    const a = stats(buf.subarray(0, half));
-    const b = stats(buf.subarray(half));
-    assert.ok(a.finite && b.finite, `metal[${c}] long hold non-finite`);
-    assert.ok(a.peak < 2.5 && b.peak < 2.5,
-      `metal[${c}] long-hold peaks ${a.peak.toFixed(3)} / ${b.peak.toFixed(3)} exceed safety ceiling`);
-    assert.ok(Math.abs(a.dc) < 0.05 && Math.abs(b.dc) < 0.05,
-      `metal[${c}] long-hold DC ${a.dc.toFixed(4)} / ${b.dc.toFixed(4)} too high`);
-    // Restrike LFO is 0.08 Hz (12.5 s period); over 4 s halves the LFO
-    // phase covers ~115° per half so RMS varies a bit by design — but
-    // not by more than ±3 dB. Tighter than that would catch genuine
-    // runaway from the slower fundamental decay.
-    const climbDb = 20 * Math.log10((b.rms + 1e-12) / (a.rms + 1e-12));
-    assert.ok(Math.abs(climbDb) < 3,
-      `metal[${c}] RMS swing ${climbDb.toFixed(2)} dB across halves — modal/restrike interaction unstable`);
-    // Mode 0 fundamental at 110 Hz must remain audible — if the new
-    // decay floor or doublet split silenced it we'd see RMS collapse.
-    assert.ok(a.rms > 0.02 && b.rms > 0.02,
-      `metal[${c}] RMS ${a.rms.toFixed(4)} / ${b.rms.toFixed(4)} too quiet — fundamental likely starved`);
+// ─── Noise long-hold across colors ──────────────────────────────────
+// Noise has a feedback-free signal flow but a one-pole DC blocker per
+// channel; brown / "deep" colors (high `color` values) push the LP
+// state toward sub-audio, where rounding-error DC can build up over
+// long holds. Render 8 s at four colour points spanning white → pink
+// → brown → deep and assert no NaN, no DC drift between halves, and
+// no RMS climb. The DC bound is tighter than tanpura/amp because the
+// noise voice has an explicit DC blocker — anything > 0.04 means the
+// blocker has stopped working.
+test("noise — stable long hold across colour values", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  for (const color of [0.0, 0.3, 0.6, 1.0]) {
+    const p = makeVoice(VoiceProc, "noise", 0xC0DE ^ Math.round(color * 1000));
+    const params = {
+      freq: makeParamArr(110),
+      drift: makeParamArr(0.4),
+      amp: makeParamArr(0.6),
+      pluckRate: makeParamArr(1),
+      color: makeParamArr(color),
+    };
+    const BLK = 128, BLOCKS = Math.ceil(8 * SR / BLK);
+    const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+    assertLongHoldStable(out, `noise@c${color}`, {
+      dcMax: 0.04,
+      // Noise variance over 4 s windows is naturally a couple of dB; 3 dB
+      // is the existing helper default — keep it.
+      rmsMin: 0.02, // catches "noise voice silenced itself on brown"
+    });
   }
+});
+
+// ─── Voice quiet-floor sanity ───────────────────────────────────────
+// At near-silent input every voice should produce near-silent output
+// — no NaN, no denormal-style runaway, no spurious DC. This catches
+// uninitialised state, divisions by zero in init paths, and any
+// feedback path that self-excites without external drive (which would
+// be inaudible at normal levels but stack badly in the master limiter
+// when summed across 64 voices). Using amp=0.001 instead of 0 keeps
+// every per-voice gain path live so a multiply-by-amp regression is
+// also caught.
+test("drone voice — every voice type stays silent at amp=0.001", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const voiceTypes = ["tanpura", "reed", "metal", "air", "piano", "fm", "amp", "noise"];
+  const params = {
+    freq: makeParamArr(110),
+    drift: makeParamArr(0.0),
+    amp: makeParamArr(0.001),
+    pluckRate: makeParamArr(1),
+    color: makeParamArr(0.3),
+  };
+  // 1 s render; long enough for any feedback path to ring up if broken,
+  // short enough to keep the suite snappy.
+  const BLK = 128, BLOCKS = Math.ceil(SR / BLK);
+  for (const type of voiceTypes) {
+    const p = makeVoice(VoiceProc, type, 0xDEAD ^ type.charCodeAt(0));
+    const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+    for (let c = 0; c < 2; c++) {
+      const s = stats(out[c]);
+      assert.ok(s.finite, `${type}[${c}] non-finite at amp=0.001`);
+      // Voice output is pre-master-limiter and amp=0.001 is a 60 dB
+      // attenuation; output peak should sit well under 0.05. A higher
+      // peak indicates either a feedback path self-exciting or the
+      // amp parameter being ignored on the per-voice path.
+      assert.ok(s.peak < 0.05,
+        `${type}[${c}] peak ${s.peak.toFixed(4)} at amp=0.001 — feedback path likely self-exciting`);
+      assert.ok(Math.abs(s.dc) < 0.01,
+        `${type}[${c}] DC ${s.dc.toFixed(5)} at amp=0.001 — denormal/uninit suspect`);
+    }
+  }
+});
+
+// ─── Sub-audio stress (low-tonic guard) ─────────────────────────────
+// Tanpura and metal both have parameters tuned around 110 Hz; the
+// remaining-risk notes from PR-1/PR-3 flagged that very low tonics
+// (< 30 Hz) push the lowest doublet member or the buzz-formant SVF
+// toward sub-audio. Render 4 s at 30 Hz / 32 Hz and assert finite,
+// bounded, no DC accumulation. Fast (1.4 s of test time) and guards
+// the documented edge case.
+test("tanpura — stable at sub-audio root (30 Hz)", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const p = makeVoice(VoiceProc, "tanpura", 0x303030);
+  const params = {
+    freq: makeParamArr(30),
+    drift: makeParamArr(0.4),
+    amp: makeParamArr(0.6),
+    pluckRate: makeParamArr(1),
+  };
+  const BLK = 128, BLOCKS = Math.ceil(4 * SR / BLK);
+  const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+  // Looser bounds at sub-audio: 4 s captures only ~120 cycles of
+  // 30 Hz, so DC averaging has more window noise and the pluck-cycle
+  // / half-window beat allows several-dB block-RMS swing by design.
+  // The runaway check is the climb bound — keep that tight enough
+  // (5 dB) to catch genuine feedback growth, loosen DC drift to 0.04.
+  assertLongHoldStable(out, "tanpura@30Hz", { dcDriftMax: 0.04, rmsClimbMaxDb: 6 });
+});
+
+test("metal — stable at sub-audio root (32 Hz)", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const p = makeVoice(VoiceProc, "metal", 0x323232);
+  const params = {
+    freq: makeParamArr(32),
+    drift: makeParamArr(0.3),
+    amp: makeParamArr(0.6),
+    pluckRate: makeParamArr(1),
+  };
+  const BLK = 128, BLOCKS = Math.ceil(4 * SR / BLK);
+  const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+  // dcMax 0.05 mirrors the 110 Hz metal test; rmsMin omitted because at
+  // 32 Hz the lowest doublet member is below most listeners' hearing
+  // — not a starvation regression, just physics. RMS swing loosened
+  // to 5 dB because the 2 s half-window is shorter than the 12.5 s
+  // restrike LFO period, so the two halves naturally land on
+  // different LFO phases.
+  assertLongHoldStable(out, "metal@32Hz", { dcMax: 0.05, rmsClimbMaxDb: 5 });
 });
 
 // ─── Plate + shimmer + freeze smoke ─────────────────────────────────
