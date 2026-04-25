@@ -677,13 +677,16 @@ export class MasterBus {
   setRoomAmount(amount: number): void {
     const a = Math.max(0, Math.min(1, amount));
     this.roomAmount = a;
-    // Send level: a=1 maps to ~0.7 linear (≈ -3 dB). The earlier
-    // 0.25 (≈ -12 dB) was inaudible on steady drone material —
-    // convolution tails are dominated by transients, and a sustained
-    // drone has very few. -3 dB at full is loud enough that even
-    // the steady-state spectral coloring of the IR reads, while
-    // headroom into the limiter is still ample.
-    this.roomSendGain.gain.setTargetAtTime(a * 0.7, this.ctx.currentTime, 0.05);
+    // Send level: a=1 maps to 1.0 linear (0 dB / unity blend) so
+    // slider=1 means "as much room as possible." The dry path
+    // still passes through the brickwall limiter (or native comp
+    // on Safari), so even at full wet+dry the master peak stays
+    // controlled. Earlier conservative ceilings (0.25, then 0.7)
+    // were inaudible / barely audible on steady drone material —
+    // convolution tails are transient-dominated, and drones have
+    // few transients, so the wet has to be at full level to read
+    // as a "room around the source" on sustained content.
+    this.roomSendGain.gain.setTargetAtTime(a, this.ctx.currentTime, 0.05);
   }
 
   getRoomAmount(): number { return this.roomAmount; }
