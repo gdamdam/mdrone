@@ -16,6 +16,8 @@
     "test": "tsc -p tsconfig.test.json && node scripts/fix-test-imports.mjs && node --test tests/*.test.mjs",
     "preaudit:presets": "tsc -p tsconfig.test.json && node scripts/fix-test-imports.mjs && node scripts/build-worklet.mjs",
     "audit:presets": "node scripts/audit-presets.mjs",
+    "preaudit:fingerprints": "tsc -p tsconfig.test.json && node scripts/fix-test-imports.mjs && node scripts/build-worklet.mjs",
+    "audit:fingerprints": "node scripts/build-preset-fingerprints.mjs",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "preview": "vite preview",

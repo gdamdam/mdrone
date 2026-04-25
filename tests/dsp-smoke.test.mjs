@@ -12,6 +12,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import {
+  integratedLufs, bandEnergyDb, applyEffectChain,
+} from "../scripts/audit-helpers.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..");
@@ -99,16 +102,19 @@ function assertLongHoldStable(out, label, {
 
 // Construct + init a voice processor. Mirrors the inline setup the
 // existing voice-smoke test does; reused by the new safety tests.
-function makeVoice(VoiceProc, voiceType, seed) {
+// `opts` overrides per-voice option fields BEFORE init runs (init
+// functions read this.reedShape / this.fmRatioOpt / etc. directly).
+function makeVoice(VoiceProc, voiceType, seed, opts = {}) {
   const p = new VoiceProc();
   p.voiceType = voiceType;
   p.rng = mulberry32(seed);
   p.pink = { b0:0,b1:0,b2:0,b3:0,b4:0,b5:0,b6:0 };
   p.stopped = false;
-  p.reedShape = "odd";
-  p.fmRatioOpt = 2.0;
-  p.fmIndexOpt = 2.4;
-  p.fmFeedbackOpt = 0;
+  p.reedShape = opts.reedShape ?? "odd";
+  p.fmRatioOpt = opts.fmRatio ?? 2.0;
+  p.fmIndexOpt = opts.fmIndex ?? 2.4;
+  p.fmFeedbackOpt = opts.fmFeedback ?? 0;
+  p.tanpuraTuningOpt = opts.tanpuraTuning ?? "classic";
   switch (voiceType) {
     case "tanpura": p.initTanpura(); break;
     case "reed":    p.initReed();    break;
@@ -460,6 +466,170 @@ test("cross-voice — hot stack (tanpura + reed + metal + amp + noise) stable", 
   // on the sum implies one voice is genuinely ringing up.
   assertLongHoldStable([sumL, sumR], "stack", {
     peakMax: 3.0, dcMax: 0.3, dcDriftMax: 0.15, rmsClimbMaxDb: 3, rmsMin: 0.05,
+  });
+});
+
+// ─── Spectral fingerprint regression ────────────────────────────────
+// For each preset in tests/baselines/preset-fingerprints.json, render
+// the voice bus (no FX) at the same seconds/seed-base the baseline
+// generator used and assert LUFS / sample-peak / RMS / DC / 4-band
+// energies match within a tolerance. Catches silent tonal regressions
+// — e.g. a coefficient typo that doesn't break stability but shifts
+// the spectrum — that the long-hold tests would miss.
+//
+// Update procedure when a DSP change is intentional:
+//   1. npm run audit:fingerprints  (regenerates the JSON in place)
+//   2. eyeball the diff to confirm the deltas match the change's intent
+//   3. check in the new baseline; this test now locks the new tone
+test("preset fingerprints — render matches checked-in baseline", async () => {
+  const SR = 48000;
+  const baseline = JSON.parse(readFileSync(
+    join(ROOT, "tests/baselines/preset-fingerprints.json"), "utf8"));
+  const { PRESETS } = await import(join(ROOT, ".test-dist/engine/presets.js"));
+  const byId = new Map(PRESETS.map((p) => [p.id, p]));
+
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const seconds = baseline.renderSeconds;
+  const seedBase = baseline.seedBase;
+  const blocks = Math.ceil(seconds * SR / 128);
+  const N = blocks * 128;
+
+  // Tolerances. Looser on the bands than on LUFS because narrow-band
+  // RMS is noisier; tight DC bound because the DC blockers should
+  // hold any voice's offset near zero.
+  const TOL = { lufs: 1.5, peak: 1.5, rms: 1.5, dc: 0.005, band: 2.0 };
+
+  for (const id of Object.keys(baseline.fingerprints)) {
+    const expected = baseline.fingerprints[id];
+    const preset = byId.get(id);
+    assert.ok(preset, `fingerprint preset '${id}' missing from PRESETS`);
+
+    // Render voice bus exactly the way build-preset-fingerprints.mjs does.
+    const sumL = new Float32Array(N), sumR = new Float32Array(N);
+    const lo = preset.octaveRange?.[0] ?? 2;
+    const freq = 55 * Math.pow(2, lo);
+    const params = {
+      freq: makeParamArr(freq),
+      drift: makeParamArr(preset.drift ?? 0.2),
+      amp: makeParamArr(0.6),
+      pluckRate: makeParamArr(1),
+      color: makeParamArr(preset.noiseColor ?? 0.3),
+    };
+    const layers = preset.voiceLayers ?? [];
+    const levels = preset.voiceLevels ?? {};
+    for (let i = 0; i < layers.length; i++) {
+      const v = layers[i];
+      const level = levels[v] ?? 1.0;
+      if (level <= 0) continue;
+      const seed = (seedBase ^ id.charCodeAt(0) ^ (i * 0x9E3779B1) ^ v.charCodeAt(0)) >>> 0;
+      // Pass preset overrides as opts so they reach init() — reed /
+      // fm / tanpura init functions read these fields directly.
+      const p = makeVoice(VoiceProc, v, seed, {
+        reedShape: preset.reedShape,
+        fmRatio: preset.fmRatio,
+        fmIndex: preset.fmIndex,
+        fmFeedback: preset.fmFeedback,
+        tanpuraTuning: preset.tanpuraTuning,
+      });
+      const out = runProcessor(p, params, { blocks, block: 128 });
+      for (let n = 0; n < N; n++) {
+        sumL[n] += out[0][n] * level;
+        sumR[n] += out[1][n] * level;
+      }
+    }
+    const gain = preset.gain ?? 1.0;
+    if (gain !== 1.0) {
+      for (let n = 0; n < N; n++) { sumL[n] *= gain; sumR[n] *= gain; }
+    }
+
+    const s = stats(sumL); // L only; baseline DC is L too
+    const sumStats = stats(sumR); // for finite check on R
+    assert.ok(s.finite && sumStats.finite, `${id} non-finite`);
+    const lufs = integratedLufs(sumL, sumR, SR);
+    const peakDb = 20 * Math.log10(s.peak);
+    const rmsDb = 20 * Math.log10(s.rms);
+    const bands = bandEnergyDb(sumL, SR);
+
+    const close = (actual, expected, tol, label) =>
+      assert.ok(Math.abs(actual - expected) < tol,
+        `${id}.${label}: ${actual.toFixed(2)} vs baseline ${expected.toFixed(2)} (Δ ${(actual - expected).toFixed(2)} > ${tol})`);
+    close(lufs,    expected.lufs,         TOL.lufs, "lufs");
+    close(peakDb,  expected.samplePeakDb, TOL.peak, "samplePeakDb");
+    close(rmsDb,   expected.rmsDb,        TOL.rms,  "rmsDb");
+    assert.ok(Math.abs(s.dc - expected.dcL) < TOL.dc,
+      `${id}.dcL: ${s.dc.toFixed(5)} vs baseline ${expected.dcL.toFixed(5)} (Δ > ${TOL.dc})`);
+    close(bands.lowDb,   expected.bands.lowDb,   TOL.band, "bands.lowDb");
+    close(bands.mudDb,   expected.bands.mudDb,   TOL.band, "bands.mudDb");
+    close(bands.harshDb, expected.bands.harshDb, TOL.band, "bands.harshDb");
+    close(bands.airDb,   expected.bands.airDb,   TOL.band, "bands.airDb");
+  }
+});
+
+// ─── Full-engine integration (16-voice + FX chain) ──────────────────
+// Synthetic stress preset: 4 voiceLayers × 4 decorrelated voices each
+// (16 total) summed at preset-style levels, then routed through a
+// realistic FX chain (plate + hall serial + cistern parallel send) +
+// master brickwall limiter via the audit's applyEffectChain. The
+// per-voice and cross-voice tests catch single-source runaway; this
+// test catches regressions that only manifest under the full stack:
+// per-voice DC offsets accumulating across 16 voices, FX-chain
+// resonances on summed input, limiter pumping, etc.
+test("full-engine integration — 16-voice stack + FX chain stable", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const fxReg = loadWorklet("src/engine/fxChainProcessor.js", SR);
+  const BLK = 128, BLOCKS = Math.ceil(3 * SR / BLK);
+  const N = BLOCKS * BLK;
+
+  // Preset-shaped object — mirrors the audit tool's contract for
+  // applyEffectChain (effects + parallelSends).
+  const stressPreset = {
+    effects: ["plate", "hall"],
+    parallelSends: { cistern: 0.4 },
+  };
+  // 4 voices per layer to approximate a busy preset's voice cloud.
+  // Levels chosen to land in the same loud-but-not-clipping band
+  // typical preset bus voltages occupy.
+  const stack = [
+    { type: "tanpura", count: 4, level: 0.45 },
+    { type: "amp",     count: 4, level: 0.40 },
+    { type: "metal",   count: 4, level: 0.30 },
+    { type: "noise",   count: 4, level: 0.20 },
+  ];
+  const params = {
+    freq: makeParamArr(110),
+    drift: makeParamArr(0.3),
+    amp: makeParamArr(0.6),
+    pluckRate: makeParamArr(1),
+    color: makeParamArr(0.4),
+  };
+
+  const sumL = new Float32Array(N), sumR = new Float32Array(N);
+  for (const { type, count, level } of stack) {
+    for (let n = 0; n < count; n++) {
+      const seed = (0xF11B ^ (n * 0x9E3779B1) ^ type.charCodeAt(0)) >>> 0;
+      const p = makeVoice(VoiceProc, type, seed);
+      const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+      for (let i = 0; i < N; i++) {
+        sumL[i] += out[0][i] * level;
+        sumR[i] += out[1][i] * level;
+      }
+    }
+  }
+  // Apply preset.effects + parallelSends + master brickwall limiter.
+  const { out: [L, R] } = applyEffectChain([sumL, sumR], stressPreset, fxReg);
+
+  // Brickwall ceiling 0.891 → -1 dBFS hard limit, so peak must stay
+  // well under 1.0 if the limiter is doing its job. A peak over the
+  // ceiling implies the limiter ran out of release headroom (bad).
+  assertLongHoldStable([L, R], "16-voice+FX", {
+    peakMax: 0.95,
+    dcMax: 0.05,
+    dcDriftMax: 0.05,
+    rmsClimbMaxDb: 3,
+    rmsMin: 0.05,
   });
 });
 
