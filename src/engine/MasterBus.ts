@@ -28,7 +28,13 @@ export class MasterBus {
   private readonly preLimiterAnalyser: AnalyserNode;
   private limiterEnabled = true;
   private limiterCeiling = -1;
-  private limiterReleaseSec = 0.12;
+  // Release tuned for sustained drone material: 0.18 s lets the
+  // limiter recover gracefully across slow swells without pumping,
+  // while still catching transients fast enough that peaks don't
+  // smash through the −1 dBFS ceiling. Earlier 0.12 s came from a
+  // mix-bus default but on long tones produced an audible breathing
+  // around bloom peaks.
+  private limiterReleaseSec = 0.18;
   /** Headphone-safe mode: when true, outputTrim is clamped to a
    *  conservative -6 dBFS ceiling (≈ 0.5 linear) regardless of the
    *  user's volume control. Protects listeners on phones / cheap
@@ -64,7 +70,14 @@ export class MasterBus {
 
     this.hpf = this.ctx.createBiquadFilter();
     this.hpf.type = "highpass";
-    this.hpf.frequency.value = 10;
+    // 18 Hz @ Q 0.707. Inaudible subsonic energy below ~20 Hz costs
+    // peak headroom and pumps the limiter without any audible benefit
+    // — speakers and most listeners can't reproduce / hear it. 18 Hz
+    // leaves octave-1 fundamentals (C1 ≈ 32.7 Hz) effectively
+    // untouched (~−0.5 dB at 32 Hz) while removing rumble that was
+    // previously eating into the limiter's gain reduction. Earlier
+    // value of 10 Hz left ~6 dB of subsonic content riding the bus.
+    this.hpf.frequency.value = 18;
     this.hpf.Q.value = 0.707;
 
     this.eqLow = this.ctx.createBiquadFilter();

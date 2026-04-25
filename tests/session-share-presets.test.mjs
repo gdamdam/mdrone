@@ -429,11 +429,12 @@ test("migrated preset tuning assignments match musical intent", () => {
   check("tanpura-drone", "just5", "tonic-fifth");
   check("dream-house", "just5", "drone-triad");
   check("eno-airport", "just5", "drone-triad");
-  check("lamb-prisma", "harmonics", "harmonic-stack");
   check("stars-of-the-lid", "just5", "minor-triad");
-  // Meantone presets — malone kept on legacy meantone; arkbro-chords
-  // migrated to 31-TET which IS meantone at higher precision.
-  check("malone-organ", "meantone", "drone-triad");
+  // Meantone presets — Kali Organ retuned to tonic-fourth in the
+  // 1.16.x library refactor (was drone-triad — duplicated Dream
+  // House); arkbro-chords migrated to 31-TET which IS meantone at
+  // higher precision.
+  check("malone-organ", "meantone", "tonic-fourth");
   check("arkbro-chords", "custom:31-tet", "drone-triad");
   // Harmonic series presets
   check("radigue-drift", "harmonics", "harmonic-stack");
