@@ -209,10 +209,13 @@ export class MasterBus {
 
     this.drive = this.ctx.createWaveShaper();
     this.drive.curve = MasterBus.makeDriveCurve(1.1);
-    // "none" matches mpump's Safari-clean pattern — "2x" on Safari
-    // contributed signal-correlated hash. Gentle tanh is still smooth
-    // enough at unity without oversampling.
-    this.drive.oversample = "none";
+    // 2× oversampling around the drive WaveShaper to keep tanh's
+    // harmonics from folding back as alias hash when the voice-bus
+    // LP (climateX BRIGHT) opens and feeds drive richer content.
+    // Earlier rewrites of master bus + voice paths cleaned up the
+    // 2024 Safari "signal-correlated hash" that originally forced
+    // this to "none"; re-enabled and verified clean.
+    this.drive.oversample = "2x";
 
     this.drivePost = this.ctx.createGain();
     this.drivePost.gain.value = 1 / Math.sqrt(1.1);
