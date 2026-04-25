@@ -527,6 +527,11 @@ export class AudioEngine {
    *  to ctx.destination so we can hear whether the convolver itself
    *  is producing audio, separate from limiter / outputTrim / width. */
   testRoomDirect(seconds = 4): void { this.masterBus.testRoomDirect(seconds); }
+  /** @internal diagnostic — sanity test that does NOT touch the
+   *  engine graph at all: builds a fresh oscillator → convolver →
+   *  destination subgraph using the loaded cathedral IR. If this is
+   *  silent the IR / convolver pair is the problem. */
+  testRoomStandalone(seconds = 3): void { this.masterBus.testRoomStandalone(seconds); }
 
   /** COLOR — single user-facing knob that drives parallel saturation
    *  and the air-band exciter together. They live on the same

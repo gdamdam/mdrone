@@ -653,6 +653,43 @@ export class MasterBus {
 
   getRoomAmount(): number { return this.roomAmount; }
 
+  /** Diagnostic — completely standalone test bench. Builds a fresh
+   *  oscillator → fresh convolver (with the same loaded IR) → fresh
+   *  destination chain that does not touch the engine's graph at
+   *  all. If this is silent, the IR / convolver pair is broken
+   *  independent of any wiring elsewhere in MasterBus. */
+  testRoomStandalone(seconds: number): void {
+    const buf = this.roomConvolver.buffer;
+    if (!buf) {
+      console.warn("[mdrone] standalone test: roomConvolver.buffer is null");
+      return;
+    }
+    const osc = this.ctx.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.value = 220;
+    const oscGain = this.ctx.createGain();
+    oscGain.gain.value = 0.15;
+    const conv = this.ctx.createConvolver();
+    conv.normalize = true;
+    conv.buffer = buf;
+    const out = this.ctx.createGain();
+    out.gain.value = 0.6;
+    osc.connect(oscGain);
+    oscGain.connect(conv);
+    conv.connect(out);
+    out.connect(this.ctx.destination);
+    osc.start();
+    console.info(`[mdrone] standalone osc → convolver → destination for ${seconds}s — should be a wet 220 Hz saw`);
+    setTimeout(() => {
+      try { osc.stop(); } catch { /* ok */ }
+      try { osc.disconnect(); } catch { /* ok */ }
+      try { oscGain.disconnect(); } catch { /* ok */ }
+      try { conv.disconnect(); } catch { /* ok */ }
+      try { out.disconnect(); } catch { /* ok */ }
+      console.info("[mdrone] standalone test off");
+    }, seconds * 1000);
+  }
+
   /** Diagnostic — splice a direct-to-destination tap from
    *  roomConvolver at boosted gain for `seconds`. Bypasses the
    *  limiter chain and outputTrim entirely so we can hear whether
