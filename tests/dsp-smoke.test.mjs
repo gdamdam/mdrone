@@ -396,6 +396,73 @@ test("metal — stable at sub-audio root (32 Hz)", () => {
   assertLongHoldStable(out, "metal@32Hz", { dcMax: 0.05, rmsClimbMaxDb: 5 });
 });
 
+// ─── Cross-voice "hot stack" stability ──────────────────────────────
+// Single-voice tests catch per-voice runaway. Real presets stack five
+// voices at audible levels and feed the sum through the master
+// limiter; a regression that's inaudible in isolation can still pin
+// the limiter or accumulate DC across the bus. This renders five
+// voices separately at preset-style levels, sums them pre-limiter,
+// and checks stability invariants on the sum. 4 s × 5 voices keeps
+// total runtime ≲ 600 ms.
+test("cross-voice — hot stack (tanpura + reed + metal + amp + noise) stable", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const BLK = 128, BLOCKS = Math.ceil(4 * SR / BLK);
+  const N = BLOCKS * BLK;
+
+  // Per-voice render levels approximate the louder end of the preset
+  // library at canonical 110 Hz / drift 0.3 / amp 0.6. Tanpura leads,
+  // reed and metal mid, amp adds bottom, noise adds breath.
+  const stack = [
+    { type: "tanpura", seed: 0xA001, level: 0.70 },
+    { type: "reed",    seed: 0xA002, level: 0.50 },
+    { type: "metal",   seed: 0xA003, level: 0.40 },
+    { type: "amp",     seed: 0xA004, level: 0.50 },
+    { type: "noise",   seed: 0xA005, level: 0.30 },
+  ];
+  const params = {
+    freq: makeParamArr(110),
+    drift: makeParamArr(0.3),
+    amp: makeParamArr(0.6),
+    pluckRate: makeParamArr(1),
+    color: makeParamArr(0.4),
+  };
+
+  const sumL = new Float32Array(N), sumR = new Float32Array(N);
+  for (const { type, seed, level } of stack) {
+    const p = makeVoice(VoiceProc, type, seed);
+    const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+    for (let i = 0; i < N; i++) {
+      sumL[i] += out[0][i] * level;
+      sumR[i] += out[1][i] * level;
+    }
+  }
+
+  // peakMax 3.0: pre-limiter sum can briefly hit ~2× a single voice
+  // when partials align across voices (this is exactly what the master
+  // limiter's job is to catch). Anything above 3.0 means a voice is
+  // genuinely runaway in the stack context.
+  // dcMax 0.3: summed DC across 5 voices can stack; the master DC
+  // blocker handles the rest. >0.3 means a voice has lost its
+  // per-voice DC blocking under stack conditions.
+  // dcDriftMax 0.15: per-voice drift is bounded to 0.02, but with 5
+  // voices each at slightly different LFO/restrike phases between
+  // the two halves the sum can legitimately hit ~0.1 from window-
+  // averaging alone (and the dichotic R-channel detune means L and
+  // R land on different phase points). The check's purpose is to
+  // catch a true *accumulator* — a feedback path where DC grows
+  // linearly with time — which would diverge well past 0.15 over
+  // a longer hold. Loose enough to be deterministic, tight enough
+  // to catch runaway.
+  // rmsClimbMaxDb 3: stricter than per-voice 5 dB — the sum averages
+  // the LFO/restrike phase variance across 5 sources, so a 3 dB swing
+  // on the sum implies one voice is genuinely ringing up.
+  assertLongHoldStable([sumL, sumR], "stack", {
+    peakMax: 3.0, dcMax: 0.3, dcDriftMax: 0.15, rmsClimbMaxDb: 3, rmsMin: 0.05,
+  });
+});
+
 // ─── Plate + shimmer + freeze smoke ─────────────────────────────────
 test("fx worklets — plate / shimmer / freeze stay finite under silent + impulsive input", () => {
   const SR = 48000;
