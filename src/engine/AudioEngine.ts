@@ -523,6 +523,10 @@ export class AudioEngine {
   getRoomAmount(): number { return this.masterBus.getRoomAmount(); }
   /** @internal diagnostic — printable room/color path state. */
   diagnoseRoom(): unknown { return this.masterBus.diagnoseRoom(); }
+  /** @internal diagnostic — temporarily tap roomConvolver straight
+   *  to ctx.destination so we can hear whether the convolver itself
+   *  is producing audio, separate from limiter / outputTrim / width. */
+  testRoomDirect(seconds = 4): void { this.masterBus.testRoomDirect(seconds); }
 
   /** COLOR — single user-facing knob that drives parallel saturation
    *  and the air-band exciter together. They live on the same

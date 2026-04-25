@@ -653,6 +653,28 @@ export class MasterBus {
 
   getRoomAmount(): number { return this.roomAmount; }
 
+  /** Diagnostic — splice a direct-to-destination tap from
+   *  roomConvolver at boosted gain for `seconds`. Bypasses the
+   *  limiter chain and outputTrim entirely so we can hear whether
+   *  the convolver itself is producing audible signal. */
+  testRoomDirect(seconds: number): void {
+    const test = this.ctx.createGain();
+    test.gain.value = 2.0;
+    try {
+      this.roomConvolver.connect(test);
+      test.connect(this.ctx.destination);
+      console.info(`[mdrone] room-direct tap on for ${seconds}s — listen for any wet signal`);
+    } catch (e) {
+      console.warn("[mdrone] room-direct tap failed:", e);
+      return;
+    }
+    setTimeout(() => {
+      try { this.roomConvolver.disconnect(test); } catch { /* ok */ }
+      try { test.disconnect(); } catch { /* ok */ }
+      console.info("[mdrone] room-direct tap off");
+    }, seconds * 1000);
+  }
+
   /** Console diagnostic — dumps the live state of the room +
    *  saturation + exciter sends so we can tell from a single line
    *  whether a knob change is reaching the audio graph. */
