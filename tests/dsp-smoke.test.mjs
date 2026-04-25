@@ -134,6 +134,57 @@ test("drone voice — every voice type renders finite, bounded, DC-free", () => 
   }
 });
 
+// ─── Tanpura long-hold stability ────────────────────────────────────
+// Covers the envelope-driven jawari bridge + sympathetic cross-string
+// coupling added in the jawari upgrade. The coupling bus feeds energy
+// between KS lines; bounded coupling gain keeps the system stable, but
+// a regression here (e.g. raising coupling above the damping budget,
+// or removing the previous-sample latch) would cause slow monotonic
+// energy growth on long holds. We render ~8 s, compare first-half vs
+// second-half RMS, and assert no NaN / runaway / DC drift.
+test("tanpura — sympathetic coupling stable over long hold", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const p = new VoiceProc();
+  p.voiceType = "tanpura";
+  p.rng = mulberry32(0xBEEF);
+  p.pink = { b0:0,b1:0,b2:0,b3:0,b4:0,b5:0,b6:0 };
+  p.stopped = false;
+  p.initTanpura();
+
+  // 8 s with active plucking — exercises the bridge + sympathetic bus.
+  const params = {
+    freq: makeParamArr(110),
+    drift: makeParamArr(0.4),
+    amp: makeParamArr(0.6),
+    pluckRate: makeParamArr(1),
+  };
+  const BLK = 128, BLOCKS = Math.ceil(8 * SR / BLK);
+  const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+
+  for (let c = 0; c < 2; c++) {
+    const buf = out[c];
+    const half = (buf.length / 2) | 0;
+    const a = stats(buf.subarray(0, half));
+    const b = stats(buf.subarray(half));
+    assert.ok(a.finite && b.finite, `tanpura[${c}] long hold non-finite`);
+    assert.ok(a.peak < 2.5 && b.peak < 2.5,
+      `tanpura[${c}] long-hold peaks ${a.peak.toFixed(3)} / ${b.peak.toFixed(3)} exceed safety ceiling`);
+    // Bound absolute DC, but allow more headroom than the short-render
+    // smoke since 4-second windows expose static even-harmonic bias from
+    // the jawari shaper. The strict stability check is the drift below.
+    assert.ok(Math.abs(a.dc) < 0.1 && Math.abs(b.dc) < 0.1,
+      `tanpura[${c}] long-hold DC ${a.dc.toFixed(4)} / ${b.dc.toFixed(4)} too high`);
+    assert.ok(Math.abs(b.dc - a.dc) < 0.02,
+      `tanpura[${c}] DC drift ${(b.dc - a.dc).toFixed(4)} between halves — feedback path likely accumulating`);
+    // RMS climb >3 dB across halves indicates runaway sympathetic feedback.
+    const climbDb = 20 * Math.log10((b.rms + 1e-12) / (a.rms + 1e-12));
+    assert.ok(climbDb < 3,
+      `tanpura[${c}] RMS climb ${climbDb.toFixed(2)} dB across halves — coupling likely unstable`);
+  }
+});
+
 // ─── Plate + shimmer + freeze smoke ─────────────────────────────────
 test("fx worklets — plate / shimmer / freeze stay finite under silent + impulsive input", () => {
   const SR = 48000;

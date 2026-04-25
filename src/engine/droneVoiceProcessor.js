@@ -432,6 +432,27 @@ DroneVoiceProcessor.prototype.initTanpura = function() {
       this.jawHbL.push(new Halfband2x());
       this.jawHbR.push(new Halfband2x());
     }
+    // Envelope-driven jawari bridge state (per-string, per-channel).
+    // Real jawari buzz is *envelope-gated*: the string only collides
+    // with the curved bone bridge when its amplitude is high. A leaky
+    // |y| follower drives a soft-collision term and a 1.6 kHz buzz
+    // formant SVF. Below threshold, the shaper degenerates back to
+    // the plain tanh tone.
+    this.jawEnvL = new Float32Array(this.NUM_STRINGS);
+    this.jawEnvR = new Float32Array(this.NUM_STRINGS);
+    this.jawFormLowL  = new Float32Array(this.NUM_STRINGS);
+    this.jawFormBandL = new Float32Array(this.NUM_STRINGS);
+    this.jawFormLowR  = new Float32Array(this.NUM_STRINGS);
+    this.jawFormBandR = new Float32Array(this.NUM_STRINGS);
+    this.jawFormF    = 2 * Math.sin(Math.PI * 1600 / sampleRate);
+    this.jawFormDamp = 0.25; // Q ≈ 4
+    // Sympathetic-coupling bus — accumulates each string's bridge
+    // contribution at the end of a sample, then feeds a tiny fraction
+    // back into all KS write-backs the *following* sample. This is the
+    // "shimmer halo" between strings; gain is bounded well under the
+    // KS damping budget so the coupled system stays stable on holds.
+    this.jawBridgeBusL = 0;
+    this.jawBridgeBusR = 0;
 };
 
 DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, amp, pluckRate) {
@@ -445,6 +466,23 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
     // realtime audio callback produced the "frrrr" hash on Safari.
     const jawShaper = (v) =>
       v * 0.78 + (Math.tanh(jawK * v) + jawMix * fastSin(jawK * 2.1 * v)) * 0.22;
+    // Envelope-driven bridge constants. Threshold and gains chosen
+    // so that at sustain (env ≈ 0.05–0.15) the bridge contribution
+    // is near silent, and only loud transients (env > 0.2) produce
+    // audible buzz/formant — same behaviour as a real jawari.
+    const jawEnvAtk    = 0.0006;  // ~3 ms at 48 k
+    const jawEnvRel    = 0.99965; // ~50 ms decay
+    const jawThresh    = 0.18;
+    const jawProjGain  = 0.55;    // soft-collision contribution
+    const jawFormGain  = 0.45;    // 1.6 kHz buzz formant contribution
+    const jawFormF     = this.jawFormF;
+    const jawFormDamp  = this.jawFormDamp;
+    // Sympathetic coupling — only the bounded soft-collision term
+    // (slope ≤ 1 above threshold) feeds the bus; the Q=4 buzz formant
+    // would create envelope-dependent loop gain and ring up to NaN
+    // on long holds. The local string still gets the buzz formant;
+    // it just doesn't propagate through the cross-string bus.
+    const jawCoupling  = 0.0012;
 
     // Pluck scheduling — round-robin, each string on its own timer
     const blockSec = n / sampleRate;
@@ -489,6 +527,12 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
 
     for (let i = 0; i < n; i++) {
       let sumL = 0, sumR = 0;
+      // Bridge bus accumulators — used to compute *next sample*'s
+      // sympathetic injection. We cannot inject same-sample without
+      // creating a delay-free feedback loop across the strings.
+      let bridgeAccL = 0, bridgeAccR = 0;
+      const injectL = this.jawBridgeBusL * jawCoupling;
+      const injectR = this.jawBridgeBusR * jawCoupling;
 
       for (let s = 0; s < this.NUM_STRINGS; s++) {
         const buf = this.ksBufs[s];
@@ -504,26 +548,66 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
         let y = cur * (1 - fracsL[s]) + nxt * fracsL[s] + 1e-25;
         this.ksLasts[s] = this.ksLasts[s] * 0.35 + y * 0.65;
         y = this.ksLasts[s] * damp;
-        // Oversampled jawari — the tanh+sin compound is the alias-prone
-        // part of the string tone; running it through a halfband kills
-        // the audible imaging without changing the dry/wet mix (0.78/0.22).
-        y = this.jawHbL[s].process(y, jawShaper);
+        // Envelope-driven bridge: leaky |y| follower gates a soft-
+        // collision term + 1.6 kHz buzz formant. Sustain is near-
+        // silent (env small); only loud transients buzz, mirroring
+        // the curved-bridge behaviour of a real tanpura.
+        // Peak-tracking one-pole: fast attack on rising |y|, slow release.
+        const ay = y < 0 ? -y : y;
+        let envL = this.jawEnvL[s] * jawEnvRel + ay * (1 - jawEnvRel);
+        if (ay > envL) envL = envL + (ay - envL) * jawEnvAtk;
+        this.jawEnvL[s] = envL;
+        // Buzz formant SVF (input = pre-shape y).
+        const bH_L = y - this.jawFormLowL[s] - jawFormDamp * this.jawFormBandL[s];
+        this.jawFormBandL[s] += jawFormF * bH_L;
+        this.jawFormLowL[s]  += jawFormF * this.jawFormBandL[s];
+        const buzzL = this.jawFormBandL[s];
+        const projL = ay > jawThresh ? (ay - jawThresh) * (y < 0 ? -1 : 1) : 0;
+        const bridgeL = envL * (projL * jawProjGain + buzzL * jawFormGain);
+        // Only the bounded soft-collision feeds the cross-string bus.
+        bridgeAccL += envL * projL * jawProjGain;
+        // Halfband-shaped KS output — written back into the KS buffer
+        // (this preserves the original string state machine).
+        const yKsL = this.jawHbL[s].process(y, jawShaper);
+        // Output path adds the envelope-gated bridge content. Bridge
+        // is *not* written back to the KS buffer: feeding the Q=4 buzz
+        // formant into the comb tuned at the string fundamental created
+        // a resonant loop that ran up to NaN on long holds.
+        y = yKsL + bridgeL;
 
         const curR = bufR[idxR];
         const nxtR = bufR[(idxR + 1) % dLenR];
         let yR = curR * (1 - fracsR[s]) + nxtR * fracsR[s] + 1e-25;
         this.ksLastsR[s] = this.ksLastsR[s] * 0.35 + yR * 0.65;
         yR = this.ksLastsR[s] * damp;
-        yR = this.jawHbR[s].process(yR, jawShaper);
+        const ayR = yR < 0 ? -yR : yR;
+        let envR = this.jawEnvR[s] * jawEnvRel + ayR * (1 - jawEnvRel);
+        if (ayR > envR) envR = envR + (ayR - envR) * jawEnvAtk;
+        this.jawEnvR[s] = envR;
+        const bH_R = yR - this.jawFormLowR[s] - jawFormDamp * this.jawFormBandR[s];
+        this.jawFormBandR[s] += jawFormF * bH_R;
+        this.jawFormLowR[s]  += jawFormF * this.jawFormBandR[s];
+        const buzzR = this.jawFormBandR[s];
+        const projR = ayR > jawThresh ? (ayR - jawThresh) * (yR < 0 ? -1 : 1) : 0;
+        const bridgeR = envR * (projR * jawProjGain + buzzR * jawFormGain);
+        bridgeAccR += envR * projR * jawProjGain;
+        const yKsR = this.jawHbR[s].process(yR, jawShaper);
+        yR = yKsR + bridgeR;
 
-        buf[idx] = y;
+        // KS buffer carries only the shaped string state plus a tiny
+        // sympathetic forcing from the previous sample's bus (bounded
+        // soft-collision only — see jawCoupling note above).
+        buf[idx] = yKsL + injectL;
         this.ksIdxs[s] = (idx + 1) % dLen;
-        bufR[idxR] = yR;
+        bufR[idxR] = yKsR + injectR;
         this.ksIdxsR[s] = (idxR + 1) % dLenR;
 
         sumL += y * this.stringPanL[s];
         sumR += yR * this.stringPanR[s];
       }
+      // Latch this sample's bridge sum for next-sample injection.
+      this.jawBridgeBusL = bridgeAccL;
+      this.jawBridgeBusR = bridgeAccR;
 
       sumL *= 0.3;
       sumR *= 0.3;
