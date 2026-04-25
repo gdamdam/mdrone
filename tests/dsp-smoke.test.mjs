@@ -85,7 +85,7 @@ test("drone voice — every voice type renders finite, bounded, DC-free", () => 
   const VoiceProc = voicesReg.get("drone-voice");
   assert.ok(VoiceProc, "drone-voice processor must register");
 
-  const voiceTypes = ["tanpura", "reed", "metal", "air", "piano", "fm", "amp"];
+  const voiceTypes = ["tanpura", "reed", "metal", "air", "piano", "fm", "amp", "noise"];
   const params = {
     freq: makeParamArr(110),
     drift: makeParamArr(0.3),
@@ -114,6 +114,7 @@ test("drone voice — every voice type renders finite, bounded, DC-free", () => 
       case "piano":   p.initPiano();   break;
       case "fm":      p.initFm();      break;
       case "amp":     p.initAmp();     break;
+      case "noise":   p.initNoise();   break;
     }
 
     // 64 × 128 frames = 8192 samples ≈ 170 ms @ 48k — long enough
