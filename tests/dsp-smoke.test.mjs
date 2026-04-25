@@ -185,6 +185,53 @@ test("tanpura — sympathetic coupling stable over long hold", () => {
   }
 });
 
+// ─── Amp long-hold stability ────────────────────────────────────────
+// Covers the tighter cab voicing in the amp realism upgrade — body
+// Q≈3 at 95 Hz + presence Q≈5 at 2.8 kHz + 2-stage 6.5 kHz LP. The
+// speaker-feedback path now reads from the second cascade stage; if a
+// regression raised the body Q without also lowering the feedback gain,
+// 80–100 Hz drives would ring up. Driving the voice at 80 Hz (right
+// in the body peak) for 8 s exercises the worst case.
+test("amp — tighter cab voicing stable on long hold near body resonance", () => {
+  const SR = 48000;
+  const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
+  const VoiceProc = voicesReg.get("drone-voice");
+  const p = new VoiceProc();
+  p.voiceType = "amp";
+  p.rng = mulberry32(0xFEED);
+  p.pink = { b0:0,b1:0,b2:0,b3:0,b4:0,b5:0,b6:0 };
+  p.stopped = false;
+  p.initAmp();
+
+  const params = {
+    freq: makeParamArr(80),
+    drift: makeParamArr(0.4),
+    amp: makeParamArr(0.6),
+    pluckRate: makeParamArr(1),
+  };
+  const BLK = 128, BLOCKS = Math.ceil(8 * SR / BLK);
+  const out = runProcessor(p, params, { blocks: BLOCKS, block: BLK });
+
+  for (let c = 0; c < 2; c++) {
+    const buf = out[c];
+    const half = (buf.length / 2) | 0;
+    const a = stats(buf.subarray(0, half));
+    const b = stats(buf.subarray(half));
+    assert.ok(a.finite && b.finite, `amp[${c}] long hold non-finite`);
+    assert.ok(a.peak < 2.5 && b.peak < 2.5,
+      `amp[${c}] long-hold peaks ${a.peak.toFixed(3)} / ${b.peak.toFixed(3)} exceed safety ceiling`);
+    // Asymmetric tanh + DC blocker keeps DC bounded; allow long-window
+    // headroom but assert no slow drift between halves.
+    assert.ok(Math.abs(a.dc) < 0.1 && Math.abs(b.dc) < 0.1,
+      `amp[${c}] long-hold DC ${a.dc.toFixed(4)} / ${b.dc.toFixed(4)} too high`);
+    assert.ok(Math.abs(b.dc - a.dc) < 0.02,
+      `amp[${c}] DC drift ${(b.dc - a.dc).toFixed(4)} between halves — feedback path likely unstable`);
+    const climbDb = 20 * Math.log10((b.rms + 1e-12) / (a.rms + 1e-12));
+    assert.ok(climbDb < 3,
+      `amp[${c}] RMS climb ${climbDb.toFixed(2)} dB across halves — speaker-feedback loop likely ringing up`);
+  }
+});
+
 // ─── Plate + shimmer + freeze smoke ─────────────────────────────────
 test("fx worklets — plate / shimmer / freeze stay finite under silent + impulsive input", () => {
   const SR = 48000;
