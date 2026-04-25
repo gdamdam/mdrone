@@ -546,10 +546,19 @@ export class MasterBus {
   private loadCathedralIR(): void {
     if (typeof fetch === "undefined") return;
     fetch("/irs/cathedral.wav")
-      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error("ir 404"))))
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`ir HTTP ${r.status}`))))
       .then((bytes) => this.ctx.decodeAudioData(bytes))
-      .then((buf) => { this.roomConvolver.buffer = buf; })
-      .catch(() => { /* keep the synthesized fallback */ });
+      .then((buf) => {
+        this.roomConvolver.buffer = buf;
+        // One-off load notice — confirms in DevTools that the real
+        // IR replaced the synthesized fallback. Stays in production
+        // because it's a single line at engine start and helps users
+        // diagnose offline / 404 / decode failures.
+        try { console.info(`[mdrone] cathedral IR loaded — ${buf.duration.toFixed(2)}s × ${buf.numberOfChannels}ch`); } catch { /* ok */ }
+      })
+      .catch((err) => {
+        try { console.warn("[mdrone] cathedral IR fetch/decode failed; using synth fallback:", err); } catch { /* ok */ }
+      });
   }
 
   /** Procedurally-generated cathedral IR. 2 s decaying noise with
@@ -633,10 +642,13 @@ export class MasterBus {
   setRoomAmount(amount: number): void {
     const a = Math.max(0, Math.min(1, amount));
     this.roomAmount = a;
-    // Send level scales conservatively: a=1 maps to ~0.25 linear so
-    // the room never drowns the dry. Drone material with long
-    // sustains can quickly become smeared even at small amounts.
-    this.roomSendGain.gain.setTargetAtTime(a * 0.25, this.ctx.currentTime, 0.05);
+    // Send level: a=1 maps to ~0.7 linear (≈ -3 dB). The earlier
+    // 0.25 (≈ -12 dB) was inaudible on steady drone material —
+    // convolution tails are dominated by transients, and a sustained
+    // drone has very few. -3 dB at full is loud enough that even
+    // the steady-state spectral coloring of the IR reads, while
+    // headroom into the limiter is still ample.
+    this.roomSendGain.gain.setTargetAtTime(a * 0.7, this.ctx.currentTime, 0.05);
   }
 
   getRoomAmount(): number { return this.roomAmount; }
