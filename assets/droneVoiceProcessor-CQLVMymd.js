@@ -432,6 +432,37 @@ DroneVoiceProcessor.prototype.initTanpura = function() {
       this.jawHbL.push(new Halfband2x());
       this.jawHbR.push(new Halfband2x());
     }
+    // Envelope-driven jawari bridge state (per-string, per-channel).
+    // Real jawari buzz is *envelope-gated*: the string only collides
+    // with the curved bone bridge when its amplitude is high. A leaky
+    // |y| follower drives a soft-collision term and a 1.6 kHz buzz
+    // formant SVF. Below threshold, the shaper degenerates back to
+    // the plain tanh tone.
+    this.jawEnvL = new Float32Array(this.NUM_STRINGS);
+    this.jawEnvR = new Float32Array(this.NUM_STRINGS);
+    this.jawFormLowL  = new Float32Array(this.NUM_STRINGS);
+    this.jawFormBandL = new Float32Array(this.NUM_STRINGS);
+    this.jawFormLowR  = new Float32Array(this.NUM_STRINGS);
+    this.jawFormBandR = new Float32Array(this.NUM_STRINGS);
+    this.jawFormF    = 2 * Math.sin(Math.PI * 1600 / sampleRate);
+    this.jawFormDamp = 0.25; // Q ≈ 4
+    // Sympathetic-coupling bus — accumulates each string's bridge
+    // contribution at the end of a sample, then feeds a tiny fraction
+    // back into all KS write-backs the *following* sample. This is the
+    // "shimmer halo" between strings; gain is bounded well under the
+    // KS damping budget so the coupled system stays stable on holds.
+    this.jawBridgeBusL = 0;
+    this.jawBridgeBusR = 0;
+    // DC-blocker state — the asymmetric jawari bridge content (soft-
+    // collision + halfband-shaped tanh) accumulates a small static
+    // even-harmonic DC bias that the offline audit measured at 0.07–
+    // 0.18 across tanpura-led presets, well above the engine-wide
+    // ±0.005 target. One-pole HPF at ~38 Hz mirrors the pattern used
+    // in amp / air / noise.
+    this.tanDcPrevInL  = 0;
+    this.tanDcPrevOutL = 0;
+    this.tanDcPrevInR  = 0;
+    this.tanDcPrevOutR = 0;
 };
 
 DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, amp, pluckRate) {
@@ -445,6 +476,23 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
     // realtime audio callback produced the "frrrr" hash on Safari.
     const jawShaper = (v) =>
       v * 0.78 + (Math.tanh(jawK * v) + jawMix * fastSin(jawK * 2.1 * v)) * 0.22;
+    // Envelope-driven bridge constants. Threshold and gains chosen
+    // so that at sustain (env ≈ 0.05–0.15) the bridge contribution
+    // is near silent, and only loud transients (env > 0.2) produce
+    // audible buzz/formant — same behaviour as a real jawari.
+    const jawEnvAtk    = 0.0006;  // ~3 ms at 48 k
+    const jawEnvRel    = 0.99965; // ~50 ms decay
+    const jawThresh    = 0.18;
+    const jawProjGain  = 0.55;    // soft-collision contribution
+    const jawFormGain  = 0.45;    // 1.6 kHz buzz formant contribution
+    const jawFormF     = this.jawFormF;
+    const jawFormDamp  = this.jawFormDamp;
+    // Sympathetic coupling — only the bounded soft-collision term
+    // (slope ≤ 1 above threshold) feeds the bus; the Q=4 buzz formant
+    // would create envelope-dependent loop gain and ring up to NaN
+    // on long holds. The local string still gets the buzz formant;
+    // it just doesn't propagate through the cross-string bus.
+    const jawCoupling  = 0.0012;
 
     // Pluck scheduling — round-robin, each string on its own timer
     const blockSec = n / sampleRate;
@@ -489,6 +537,12 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
 
     for (let i = 0; i < n; i++) {
       let sumL = 0, sumR = 0;
+      // Bridge bus accumulators — used to compute *next sample*'s
+      // sympathetic injection. We cannot inject same-sample without
+      // creating a delay-free feedback loop across the strings.
+      let bridgeAccL = 0, bridgeAccR = 0;
+      const injectL = this.jawBridgeBusL * jawCoupling;
+      const injectR = this.jawBridgeBusR * jawCoupling;
 
       for (let s = 0; s < this.NUM_STRINGS; s++) {
         const buf = this.ksBufs[s];
@@ -504,26 +558,66 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
         let y = cur * (1 - fracsL[s]) + nxt * fracsL[s] + 1e-25;
         this.ksLasts[s] = this.ksLasts[s] * 0.35 + y * 0.65;
         y = this.ksLasts[s] * damp;
-        // Oversampled jawari — the tanh+sin compound is the alias-prone
-        // part of the string tone; running it through a halfband kills
-        // the audible imaging without changing the dry/wet mix (0.78/0.22).
-        y = this.jawHbL[s].process(y, jawShaper);
+        // Envelope-driven bridge: leaky |y| follower gates a soft-
+        // collision term + 1.6 kHz buzz formant. Sustain is near-
+        // silent (env small); only loud transients buzz, mirroring
+        // the curved-bridge behaviour of a real tanpura.
+        // Peak-tracking one-pole: fast attack on rising |y|, slow release.
+        const ay = y < 0 ? -y : y;
+        let envL = this.jawEnvL[s] * jawEnvRel + ay * (1 - jawEnvRel);
+        if (ay > envL) envL = envL + (ay - envL) * jawEnvAtk;
+        this.jawEnvL[s] = envL;
+        // Buzz formant SVF (input = pre-shape y).
+        const bH_L = y - this.jawFormLowL[s] - jawFormDamp * this.jawFormBandL[s];
+        this.jawFormBandL[s] += jawFormF * bH_L;
+        this.jawFormLowL[s]  += jawFormF * this.jawFormBandL[s];
+        const buzzL = this.jawFormBandL[s];
+        const projL = ay > jawThresh ? (ay - jawThresh) * (y < 0 ? -1 : 1) : 0;
+        const bridgeL = envL * (projL * jawProjGain + buzzL * jawFormGain);
+        // Only the bounded soft-collision feeds the cross-string bus.
+        bridgeAccL += envL * projL * jawProjGain;
+        // Halfband-shaped KS output — written back into the KS buffer
+        // (this preserves the original string state machine).
+        const yKsL = this.jawHbL[s].process(y, jawShaper);
+        // Output path adds the envelope-gated bridge content. Bridge
+        // is *not* written back to the KS buffer: feeding the Q=4 buzz
+        // formant into the comb tuned at the string fundamental created
+        // a resonant loop that ran up to NaN on long holds.
+        y = yKsL + bridgeL;
 
         const curR = bufR[idxR];
         const nxtR = bufR[(idxR + 1) % dLenR];
         let yR = curR * (1 - fracsR[s]) + nxtR * fracsR[s] + 1e-25;
         this.ksLastsR[s] = this.ksLastsR[s] * 0.35 + yR * 0.65;
         yR = this.ksLastsR[s] * damp;
-        yR = this.jawHbR[s].process(yR, jawShaper);
+        const ayR = yR < 0 ? -yR : yR;
+        let envR = this.jawEnvR[s] * jawEnvRel + ayR * (1 - jawEnvRel);
+        if (ayR > envR) envR = envR + (ayR - envR) * jawEnvAtk;
+        this.jawEnvR[s] = envR;
+        const bH_R = yR - this.jawFormLowR[s] - jawFormDamp * this.jawFormBandR[s];
+        this.jawFormBandR[s] += jawFormF * bH_R;
+        this.jawFormLowR[s]  += jawFormF * this.jawFormBandR[s];
+        const buzzR = this.jawFormBandR[s];
+        const projR = ayR > jawThresh ? (ayR - jawThresh) * (yR < 0 ? -1 : 1) : 0;
+        const bridgeR = envR * (projR * jawProjGain + buzzR * jawFormGain);
+        bridgeAccR += envR * projR * jawProjGain;
+        const yKsR = this.jawHbR[s].process(yR, jawShaper);
+        yR = yKsR + bridgeR;
 
-        buf[idx] = y;
+        // KS buffer carries only the shaped string state plus a tiny
+        // sympathetic forcing from the previous sample's bus (bounded
+        // soft-collision only — see jawCoupling note above).
+        buf[idx] = yKsL + injectL;
         this.ksIdxs[s] = (idx + 1) % dLen;
-        bufR[idxR] = yR;
+        bufR[idxR] = yKsR + injectR;
         this.ksIdxsR[s] = (idxR + 1) % dLenR;
 
         sumL += y * this.stringPanL[s];
         sumR += yR * this.stringPanR[s];
       }
+      // Latch this sample's bridge sum for next-sample injection.
+      this.jawBridgeBusL = bridgeAccL;
+      this.jawBridgeBusR = bridgeAccR;
 
       sumL *= 0.3;
       sumR *= 0.3;
@@ -542,8 +636,16 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
       postL += (postL - this.hsKsL) * 0.3;
       postR += (postR - this.hsKsR) * 0.3;
 
-      L[i] = postL * amp;
-      R[i] = postR * amp;
+      // DC-blocker — strips the static even-harmonic bias accumulated
+      // by the jawari shaper (audit measured 0.07–0.18 DC pre-blocker).
+      const dcCoef = 0.995;
+      const dcOutL = postL - this.tanDcPrevInL + dcCoef * this.tanDcPrevOutL;
+      this.tanDcPrevInL = postL; this.tanDcPrevOutL = dcOutL;
+      const dcOutR = postR - this.tanDcPrevInR + dcCoef * this.tanDcPrevOutR;
+      this.tanDcPrevInR = postR; this.tanDcPrevOutR = dcOutR;
+
+      L[i] = dcOutL * amp;
+      R[i] = dcOutR * amp;
     }
 };
 
@@ -800,52 +902,101 @@ DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) 
 // Prototype extensions on DroneVoiceProcessor; concatenated
 // after core.js by scripts/build-worklet.mjs.
 
+// Measured-inspired bowl modal table. Each entry is one *physical* mode
+// (m=2,3,4…) with a doublet split where applicable — real bowls are not
+// perfectly axisymmetric, so each circumferential mode appears as a
+// close pair whose interference produces the characteristic slow
+// shimmer-beat ("hum note → strike note" envelope). Settle times are
+// the linear ramp-to-floor used by the per-sample decay update; with
+// the 0.08 Hz restrike LFO they describe how *quickly the strike
+// transient relaxes* between re-excitations, not the perceived ring
+// of the steady-state. Low circumferential modes (m=2,3) settle over
+// 30–12 s so they sit at ≈0.6–0.8 between restrikes (always audible);
+// upper deformation modes settle in 1–4 s so they fade and pulse with
+// the LFO, which is the bowl's "breathing".
+//
+// Doublet split ratios narrow with mode order — the asymmetry energy
+// budget is roughly fixed, so higher-order modes split proportionally
+// less. Splits chosen to fall in the 0.2–0.8 % band measured on small
+// hand-hammered Tibetan bowls (Rossing/Inácio).
+//
+// Top four modes are single oscillators: they decay too fast and their
+// amplitude is too low for the doublet beat to be perceptually relevant
+// — doubling the oscillator count there is wasted CPU.
+const METAL_MODES = [
+  // ratio   split    amp    decay     panW   walk    (decay = per-sample
+  //                                                    floor-ramp rate)
+  { ratio: 1.00,  split: 0.006,  amp: 0.88, decay: 6.6e-7, panW: 0.04, walk: 0.012 },
+  { ratio: 2.23,  split: 0.005,  amp: 0.30, decay: 1.6e-6, panW: 0.12, walk: 0.018 },
+  { ratio: 3.98,  split: 0.004,  amp: 0.18, decay: 3.3e-6, panW: 0.18, walk: 0.026 },
+  { ratio: 6.18,  split: 0.003,  amp: 0.11, decay: 5.0e-6, panW: 0.22, walk: 0.032 },
+  { ratio: 8.92,  split: 0.0025, amp: 0.07, decay: 8.0e-6, panW: 0.26, walk: 0.038 },
+  { ratio: 11.34, split: 0.0020, amp: 0.04, decay: 1.1e-5, panW: 0.28, walk: 0.042 },
+  { ratio: 14.08, split: null,   amp: 0.022,decay: 1.5e-5, panW: 0.32, walk: 0.045 },
+  { ratio: 17.6,  split: null,   amp: 0.013,decay: 2.0e-5, panW: 0.32, walk: 0.045 },
+  { ratio: 21.9,  split: null,   amp: 0.008,decay: 3.0e-5, panW: 0.34, walk: 0.045 },
+  { ratio: 27.1,  split: null,   amp: 0.004,decay: 4.5e-5, panW: 0.34, walk: 0.045 },
+];
+
 DroneVoiceProcessor.prototype.initMetal = function() {
-    // Bowl-like modal layout. Tibetan singing bowls are dominated by a
-    // low fundamental mode plus sparse higher deformation modes whose
-    // frequencies rise much faster than the harmonic series; struck
-    // spectra also exhibit split low peaks because real bowls are not
-    // perfectly symmetric.
-    this.metalN = 12;
-    this.metalRatios = new Float32Array([
-      1.0, 1.006, 2.23, 2.27, 3.98, 6.18, 8.92,
-      11.34, 14.08, 17.6, 21.9, 27.1,
-    ]);
-    this.metalBaseAmps = new Float32Array([
-      0.88, 0.28, 0.30, 0.18, 0.12, 0.07, 0.04,
-      0.022, 0.014, 0.008, 0.005, 0.003,
-    ]);
+    // Expand the modal table into flat per-oscillator arrays. Doublet
+    // pairs share decay/walk/pan width so they breathe together but get
+    // independent random phases (so beats start at zero crossing, not
+    // at peak — the spec calls this out as a phasey/seasick failure
+    // mode if missed) and small independent pan offsets within panW.
+    const oscRatios = [];
+    const oscAmps   = [];
+    const oscDecays = [];
+    const oscPanW   = [];
+    const oscWalks  = [];
+    for (const m of METAL_MODES) {
+      if (m.split == null) {
+        oscRatios.push(m.ratio);
+        oscAmps.push(m.amp);
+        oscDecays.push(m.decay);
+        oscPanW.push(m.panW);
+        oscWalks.push(m.walk);
+      } else {
+        // Energy split equally across the doublet pair so the pair's
+        // total RMS matches a single-mode entry of the same `amp`
+        // (≈ −3 dB per partial, summed-incoherent).
+        const a = m.amp * Math.SQRT1_2;
+        oscRatios.push(m.ratio * (1 - m.split * 0.5));
+        oscRatios.push(m.ratio * (1 + m.split * 0.5));
+        oscAmps.push(a); oscAmps.push(a);
+        oscDecays.push(m.decay); oscDecays.push(m.decay);
+        oscPanW.push(m.panW);    oscPanW.push(m.panW);
+        oscWalks.push(m.walk);   oscWalks.push(m.walk);
+      }
+    }
+    this.metalN          = oscRatios.length;
+    this.metalRatios     = new Float32Array(oscRatios);
+    this.metalBaseAmps   = new Float32Array(oscAmps);
+    this.metalDecayRates = new Float32Array(oscDecays);
     this.metalPhasesL = new Float32Array(this.metalN);
     this.metalPhasesR = new Float32Array(this.metalN);
     this.metalPans    = new Float32Array(this.metalN);
-    // Per-partial random walk state (amplitude + detune)
-    this.metalAmpWalks   = new Float32Array(this.metalN).fill(1);
-    this.metalAmpTargets = new Float32Array(this.metalN).fill(1);
+    this.metalAmpWalks      = new Float32Array(this.metalN).fill(1);
+    this.metalAmpTargets    = new Float32Array(this.metalN).fill(1);
     this.metalDetuneWalks   = new Float32Array(this.metalN);
     this.metalDetuneTargets = new Float32Array(this.metalN);
-    // Walk phase accumulators — each partial steps at its own slow rate
     this.metalWalkPhases = new Float32Array(this.metalN);
     this.metalWalkRates  = new Float32Array(this.metalN);
     for (let i = 0; i < this.metalN; i++) {
       this.metalPhasesL[i] = this.rng() * Math.PI * 2;
       this.metalPhasesR[i] = this.rng() * Math.PI * 2;
-      this.metalPans[i] = (this.rng() - 0.5) * 0.34; // keep bowl mostly centered
-      this.metalWalkRates[i] = 0.01 + this.rng() * 0.05; // very slow movement
+      // Pan width is per-mode (low modes near centre, upper modes
+      // diffuse) — but each oscillator gets its own random offset
+      // within that band so doublet pairs don't sit on the same point.
+      this.metalPans[i] = (this.rng() - 0.5) * oscPanW[i];
+      this.metalWalkRates[i] = oscWalks[i] * (0.7 + this.rng() * 0.6);
     }
     this.metalTickCounter = 0;
-    // Per-partial decay — high modes settle over ~5-15s while the
-    // fundamental sustains. A slow re-excitation LFO periodically
-    // "re-strikes" the upper partials so the bowl breathes.
     this.metalDecay = new Float32Array(this.metalN).fill(1);
-    this.metalDecayRates = new Float32Array(this.metalN);
-    for (let i = 0; i < this.metalN; i++) {
-      // Fundamental barely decays; highest mode decays in ~5s
-      this.metalDecayRates[i] = i < 2 ? 0.00001 : 0.00004 + i * 0.000015;
-    }
     this.metalRestrikePhase = 0;
-    // 2× halfband oversamplers around the output tanh — partial 12 at
-    // 27.1× fundamental can reach 8–10 kHz on a low tonic; without
-    // oversampling its tanh image folds below Nyquist as dissonant hiss.
+    // 2× halfband oversamplers around the output tanh — top mode at
+    // 27.1× fundamental reaches ~3 kHz on a 110 Hz tonic; tanh harmonics
+    // would otherwise fold below Nyquist as dissonant hiss.
     this.metalHbL = new Halfband2x();
     this.metalHbR = new Halfband2x();
 };
@@ -863,7 +1014,11 @@ DroneVoiceProcessor.prototype.metalProcess = function(L, R, n, freq, drift, amp)
       this.metalTickCounter++;
       if ((this.metalTickCounter & 255) === 0) {
         for (let p = 0; p < this.metalN; p++) {
-          const breadth = p < 2 ? 0.08 : 0.26 + p * 0.03;
+          // Fundamental doublet (entries 0,1) walks tightly so the
+          // pitch never wavers; everything else gets a wider breadth
+          // for liveness, capped to 0.5 so upper-mode amp flutter stays
+          // musical rather than seasick.
+          const breadth = p < 2 ? 0.08 : Math.min(0.5, 0.26 + p * 0.03);
           const center  = p < 2 ? 0.99 : 0.78;
           this.metalAmpTargets[p] = center - breadth * 0.5 + this.rng() * breadth;
           this.metalDetuneTargets[p] = (this.rng() * 2 - 1) * driftDepth;
@@ -1314,26 +1469,30 @@ DroneVoiceProcessor.prototype.initAmp = function() {
     this.ampLfoPhase = this.rng() * Math.PI * 2;
     this.ampLfoRate = 0.06 + this.rng() * 0.08;
     // Cabinet shaper — a proper guitar-cab-style response needs a
-    // low body resonance (~90 Hz), a presence peak (~3.5 kHz), and
-    // a steep rolloff above ~5 kHz. The old one-pole lowpass gave
-    // only the rolloff, so the voice read as "distorted additive"
-    // rather than "amplifier". SVF bandpasses for body + presence,
-    // then a final one-pole at 5 kHz for the cab rolloff.
-    this.ampBodyF    = 2 * Math.sin(Math.PI * 90   / sampleRate);
-    this.ampBodyDamp = 1 / 2;      // Q = 2
+    // tighter body resonance (~95 Hz Q≈3), a focused presence peak
+    // (~2.8 kHz Q≈5) — the previous broad Q≈1.8 peak smeared into
+    // 4-6 kHz fizz — and a steeper rolloff above ~6.5 kHz. The cab
+    // LP is now a *cascaded* one-pole pair (≈ 12 dB/oct at the
+    // corner) to kill the harshness from the asymmetric tanh's
+    // upper harmonics without needing a true biquad.
+    this.ampBodyF    = 2 * Math.sin(Math.PI * 95   / sampleRate);
+    this.ampBodyDamp = 1 / 3;      // Q = 3
     this.ampBodyLowL  = 0;
     this.ampBodyBandL = 0;
     this.ampBodyLowR  = 0;
     this.ampBodyBandR = 0;
-    this.ampPresF    = 2 * Math.sin(Math.PI * 3500 / sampleRate);
-    this.ampPresDamp = 1 / 1.8;    // Q = 1.8
+    this.ampPresF    = 2 * Math.sin(Math.PI * 2800 / sampleRate);
+    this.ampPresDamp = 1 / 5;      // Q = 5
     this.ampPresLowL  = 0;
     this.ampPresBandL = 0;
     this.ampPresLowR  = 0;
     this.ampPresBandR = 0;
-    // Final cabinet lowpass one-pole state.
-    this.ampCabL = 0;
-    this.ampCabR = 0;
+    // Two-stage cabinet lowpass state — cascaded one-poles at 6.5 kHz
+    // give ≈ 12 dB/oct rolloff (–3 dB at 6.5 kHz, –12 dB at 13 kHz).
+    this.ampCabL  = 0;
+    this.ampCabR  = 0;
+    this.ampCab2L = 0;
+    this.ampCab2R = 0;
     // DC blocker state — removes offset from asymmetric saturation.
     this.ampDcPrevInL  = 0;
     this.ampDcPrevOutL = 0;
@@ -1342,7 +1501,10 @@ DroneVoiceProcessor.prototype.initAmp = function() {
     // Speaker feedback — a tiny fraction of cabinet output feeds back
     // into the saturation input, simulating how real speakers excite
     // the preamp via physical coupling. Makes the amp self-exciting
-    // at a controlled level instead of a static chain.
+    // at a controlled level instead of a static chain. Reduced from
+    // 0.06 to 0.045 because the steeper 2-stage cab now has a slower
+    // settling time and the higher-Q body BPF amplifies any residual
+    // sub-fundamental energy in the feedback path.
     this.ampSpkFbL = 0;
     this.ampSpkFbR = 0;
     // 2× halfband oversamplers around the asymmetric tanh — the
@@ -1355,9 +1517,13 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
     const invSr = 1 / sampleRate;
     const twoPi = Math.PI * 2;
     const detuneDepth = drift * 0.005;
-    // Final cabinet rolloff lowpass — raised to 5 kHz (was 2.8 kHz)
-    // so the presence BPF peak at 3.5 kHz actually passes through.
-    const cabCoef = Math.exp(-twoPi * 5000 * invSr);
+    // Final cabinet rolloff — cascaded one-pole pair at 6.5 kHz gives
+    // a 2-pole (≈ 12 dB/oct) response. The presence peak at 2.8 kHz
+    // sits a bit over an octave below the corner so it passes through
+    // largely intact, while the asymmetric-tanh's 4-8 kHz "fizz"
+    // harmonics get steeper attenuation than a single-pole could give.
+    const cabCoef = Math.exp(-twoPi * 6500 * invSr);
+    const cabOneMinus = 1 - cabCoef;
     // Hoisted shaper — allocating the arrow inside the sample loop
     // created a closure per sample, which Safari's JSC doesn't escape-
     // analyse away. The GC pressure inside the realtime audio callback
@@ -1385,8 +1551,8 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
       l *= swell;
       r *= swell;
       // Speaker feedback — cabinet resonance feeds back into preamp
-      l += this.ampSpkFbL * 0.06;
-      r += this.ampSpkFbR * 0.06;
+      l += this.ampSpkFbL * 0.045;
+      r += this.ampSpkFbR * 0.045;
       // Asymmetric soft-clip — a small positive DC bias before tanh
       // causes positive peaks to clip earlier than negative, generating
       // even harmonics (2nd, 4th…) like a real tube amplifier. Without
@@ -1404,33 +1570,40 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
       this.ampDcPrevInR = r; this.ampDcPrevOutR = dcOutR;
       r = dcOutR;
 
-      // Cabinet shaper: body BPF (90 Hz), presence BPF (3.5 kHz),
-      // then a final one-pole lowpass at 5 kHz. The two BPFs are
-      // mixed *in parallel* with the dry saturated signal, giving
-      // the 3-band "cab" response that a single LP can't produce.
+      // Cabinet shaper: tighter body BPF (95 Hz Q≈3), focused
+      // presence BPF (2.8 kHz Q≈5), then a 2-stage cab LP at 6.5 kHz.
+      // Bandpass mix gains lowered (0.30/0.25 vs. 0.35/0.28) to keep
+      // RMS roughly equal-loudness with the previous broader voicing.
+      // +1e-25 on the band-state writes is a denormal escape under
+      // long silences (the higher-Q SVFs ring far below audible).
       const bHL = l - this.ampBodyLowL - this.ampBodyDamp * this.ampBodyBandL;
-      this.ampBodyBandL += this.ampBodyF * bHL;
+      this.ampBodyBandL += this.ampBodyF * bHL + 1e-25;
       this.ampBodyLowL  += this.ampBodyF * this.ampBodyBandL;
       const pHL = l - this.ampPresLowL - this.ampPresDamp * this.ampPresBandL;
-      this.ampPresBandL += this.ampPresF * pHL;
+      this.ampPresBandL += this.ampPresF * pHL + 1e-25;
       this.ampPresLowL  += this.ampPresF * this.ampPresBandL;
-      const shapedL = l + this.ampBodyBandL * 0.35 + this.ampPresBandL * 0.28;
+      const shapedL = l + this.ampBodyBandL * 0.30 + this.ampPresBandL * 0.25;
 
       const bHR = r - this.ampBodyLowR - this.ampBodyDamp * this.ampBodyBandR;
-      this.ampBodyBandR += this.ampBodyF * bHR;
+      this.ampBodyBandR += this.ampBodyF * bHR + 1e-25;
       this.ampBodyLowR  += this.ampBodyF * this.ampBodyBandR;
       const pHR = r - this.ampPresLowR - this.ampPresDamp * this.ampPresBandR;
-      this.ampPresBandR += this.ampPresF * pHR;
+      this.ampPresBandR += this.ampPresF * pHR + 1e-25;
       this.ampPresLowR  += this.ampPresF * this.ampPresBandR;
-      const shapedR = r + this.ampBodyBandR * 0.35 + this.ampPresBandR * 0.28;
+      const shapedR = r + this.ampBodyBandR * 0.30 + this.ampPresBandR * 0.25;
 
-      this.ampCabL = this.ampCabL * cabCoef + shapedL * (1 - cabCoef);
-      this.ampCabR = this.ampCabR * cabCoef + shapedR * (1 - cabCoef);
-      // Store for speaker feedback (next sample)
-      this.ampSpkFbL = this.ampCabL;
-      this.ampSpkFbR = this.ampCabR;
-      L[i] = this.ampCabL * amp;
-      R[i] = this.ampCabR * amp;
+      // 2-stage cabinet LP — first pole, then second pole on the result.
+      this.ampCabL  = this.ampCabL  * cabCoef + shapedL       * cabOneMinus;
+      this.ampCab2L = this.ampCab2L * cabCoef + this.ampCabL  * cabOneMinus;
+      this.ampCabR  = this.ampCabR  * cabCoef + shapedR       * cabOneMinus;
+      this.ampCab2R = this.ampCab2R * cabCoef + this.ampCabR  * cabOneMinus;
+      // Speaker feedback taken from the second-stage output so the
+      // self-exciting loop sees the full cab response, not the mid
+      // of the two-stage cascade.
+      this.ampSpkFbL = this.ampCab2L;
+      this.ampSpkFbR = this.ampCab2R;
+      L[i] = this.ampCab2L * amp;
+      R[i] = this.ampCab2R * amp;
     }
 };
 
