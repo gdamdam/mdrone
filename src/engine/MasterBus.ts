@@ -7,6 +7,13 @@ export class MasterBus {
   private readonly eqLow: BiquadFilterNode;
   private readonly eqMid: BiquadFilterNode;
   private readonly eqHigh: BiquadFilterNode;
+  /** Always-on mud trim — peaking filter at 300 Hz, -1.5 dB, Q=1.5.
+   *  Drone stacks pile up energy in the 200–400 Hz "mud band" by
+   *  the nature of summing many partials; a small static cut cleans
+   *  the lower-mid without thinning the body. Sits between eqHigh
+   *  and glueComp so the user-facing EQ MID knob (centred at 1 kHz)
+   *  is independent. */
+  private readonly mudTrim: BiquadFilterNode;
   private readonly glueComp: DynamicsCompressorNode;
   private readonly glueMakeup: GainNode;
   private readonly drivePre: GainNode;
@@ -45,7 +52,7 @@ export class MasterBus {
    *  `{ lufsShort, peakDb }` messages at ~30 Hz. UI subscribes via
    *  getLoudnessMeter() / onLoudnessUpdate(). P3. */
   private loudnessMeter: AudioWorkletNode | null = null;
-  private loudnessListener: ((m: { lufsShort: number; peakDb: number }) => void) | null = null;
+  private loudnessListeners: Set<(m: { lufsShort: number; peakDb: number }) => void> = new Set();
 
   /** Stereo width stage — mid/side matrix between outputTrim and the
    *  analyser. width = 1.0 is identity (LL=RR=1, LR=RL=0); width = 0
@@ -61,6 +68,15 @@ export class MasterBus {
   private readonly widthRL: GainNode;
   private readonly widthRR: GainNode;
   private widthValue = 1;
+
+  /** Session-level loudness trim — applied post-width matrix, pre-
+   *  analyser. Used by the loudness-aware RND leveler to nudge the
+   *  perceived level of each new preset toward a target LUFS so a
+   *  string of RND clicks reads as roughly equal-loudness instead
+   *  of jumping ±6 dB between presets. Default 1.0 (no effect);
+   *  the leveler resets it to 1 on each RND and lands a corrected
+   *  value once the new preset has settled. */
+  private readonly loudnessTrim: GainNode;
 
   /** Bass-mono fold-down — sits between outputTrim and the width
    *  matrix. Below ~120 Hz, L and R are summed and re-distributed so
@@ -160,6 +176,12 @@ export class MasterBus {
     this.eqHigh.frequency.value = 4000;
     this.eqHigh.gain.value = 0;
 
+    this.mudTrim = this.ctx.createBiquadFilter();
+    this.mudTrim.type = "peaking";
+    this.mudTrim.frequency.value = 300;
+    this.mudTrim.Q.value = 1.5;
+    this.mudTrim.gain.value = -1.5;
+
     // Default glue = 0.5 (threshold -9 dB, makeup 1.25×)
     this.glueComp = this.ctx.createDynamicsCompressor();
     this.glueComp.threshold.value = -9;
@@ -209,6 +231,9 @@ export class MasterBus {
 
     this.outputTrim = this.ctx.createGain();
     this.outputTrim.gain.value = 1;
+
+    this.loudnessTrim = this.ctx.createGain();
+    this.loudnessTrim.gain.value = 1;
 
     // Width stage — M/S matrix at unity by default. Gains are swapped
     // in on setWidth() via setTargetAtTime for a click-free change.
@@ -323,7 +348,8 @@ export class MasterBus {
     this.hpf.connect(this.eqLow);
     this.eqLow.connect(this.eqMid);
     this.eqMid.connect(this.eqHigh);
-    this.eqHigh.connect(this.glueComp);
+    this.eqHigh.connect(this.mudTrim);
+    this.mudTrim.connect(this.glueComp);
     this.glueComp.connect(this.glueMakeup);
     this.glueMakeup.connect(this.drivePre);
     this.drivePre.connect(this.drive);
@@ -383,7 +409,8 @@ export class MasterBus {
     this.widthLR.connect(this.widthMerger, 0, 0);
     this.widthRL.connect(this.widthMerger, 0, 1);
     this.widthRR.connect(this.widthMerger, 0, 1);
-    this.widthMerger.connect(this.analyser);
+    this.widthMerger.connect(this.loudnessTrim);
+    this.loudnessTrim.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
 
     this.applyDebugBypasses();
@@ -412,7 +439,8 @@ export class MasterBus {
     try { this.hpf.disconnect(this.eqLow); } catch { /* ok */ }
     try { this.eqLow.disconnect(this.eqMid); } catch { /* ok */ }
     try { this.eqMid.disconnect(this.eqHigh); } catch { /* ok */ }
-    try { this.eqHigh.disconnect(this.glueComp); } catch { /* ok */ }
+    try { this.eqHigh.disconnect(this.mudTrim); } catch { /* ok */ }
+    try { this.mudTrim.disconnect(this.glueComp); } catch { /* ok */ }
     try { this.glueComp.disconnect(this.glueMakeup); } catch { /* ok */ }
     try { this.glueMakeup.disconnect(this.drivePre); } catch { /* ok */ }
     try { this.drivePre.disconnect(this.drive); } catch { /* ok */ }
@@ -429,7 +457,8 @@ export class MasterBus {
       cursor.connect(this.eqLow);
       this.eqLow.connect(this.eqMid);
       this.eqMid.connect(this.eqHigh);
-      cursor = this.eqHigh;
+      this.eqHigh.connect(this.mudTrim);
+      cursor = this.mudTrim;
     }
 
     if (!skipGlue) {
@@ -478,8 +507,9 @@ export class MasterBus {
         this.outputTrim.connect(this.loudnessMeter);
         this.loudnessMeter.port.onmessage = (e) => {
           const msg = e.data;
-          if (msg && msg.type === "meter" && this.loudnessListener) {
-            this.loudnessListener({ lufsShort: msg.lufsShort, peakDb: msg.peakDb });
+          if (msg && msg.type === "meter" && this.loudnessListeners.size > 0) {
+            const payload = { lufsShort: msg.lufsShort, peakDb: msg.peakDb };
+            for (const cb of this.loudnessListeners) cb(payload);
           }
         };
       } catch { /* registration may race; leave null */ }
@@ -640,8 +670,8 @@ export class MasterBus {
   }
 
   onLoudnessUpdate(cb: (m: { lufsShort: number; peakDb: number }) => void): () => void {
-    this.loudnessListener = cb;
-    return () => { if (this.loudnessListener === cb) this.loudnessListener = null; };
+    this.loudnessListeners.add(cb);
+    return () => { this.loudnessListeners.delete(cb); };
   }
 
   private applyLimiterParams(): void {
@@ -690,6 +720,17 @@ export class MasterBus {
   }
 
   getRoomAmount(): number { return this.roomAmount; }
+
+  /** Loudness-trim gain (post-width, pre-analyser). Linear scalar
+   *  clamped to [0.3, 3.0] so a runaway leveler can't crush or
+   *  inflate the master by more than ±10 dB. Ramps over `rampSec`
+   *  via setTargetAtTime; the time-constant is `rampSec/3` so a
+   *  1.5 s ramp hits ~95 % at 1.5 s. */
+  setLoudnessTrim(linear: number, rampSec: number = 1.5): void {
+    const v = Math.max(0.3, Math.min(3.0, linear));
+    this.loudnessTrim.gain.setTargetAtTime(v, this.ctx.currentTime, Math.max(0.05, rampSec / 3));
+  }
+  getLoudnessTrim(): number { return this.loudnessTrim.gain.value; }
 
   /** Parallel-saturation send amount (0..1). At a=1 the saturated
    *  branch lands at -12 dBFS relative to dry — far enough below

@@ -696,8 +696,16 @@ export class VoiceEngine {
     b.detune.value = spread;
     a.connect(this.subVoiceGain);
     b.connect(this.subVoiceGain);
-    a.start(startAt);
-    b.start(startAt);
+    // Stagger note-on by a random fraction of one period so the
+    // pair doesn't comb-filter into a peak at every drone start.
+    // OscillatorNode.start(t) always aligns to phase 0 at t, so we
+    // simulate phase randomization by offsetting `b` by 0..1/freq
+    // seconds (one full cycle of jitter). At sub frequencies this
+    // is a few milliseconds — perceptually instant, sonically
+    // a fresh phase relationship every time.
+    const period = 1 / Math.max(freq, 1);
+    a.start(startAt + Math.random() * period);
+    b.start(startAt + Math.random() * period);
     return { a, b };
   }
 
