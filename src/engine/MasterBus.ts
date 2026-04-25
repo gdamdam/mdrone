@@ -7,16 +7,19 @@ export class MasterBus {
   private readonly eqLow: BiquadFilterNode;
   private readonly eqMid: BiquadFilterNode;
   private readonly eqHigh: BiquadFilterNode;
-  /** Mud trim — peaking filter at 300 Hz, -1.5 dB, Q=1.5. Drone
+  /** Mud trim — peaking filter at 300 Hz, -3.5 dB, Q=1.0. Drone
    *  stacks pile up energy in the 200–400 Hz "mud band" by the
-   *  nature of summing many partials; a small static cut cleans the
-   *  lower-mid without thinning the body. On by default. The user
-   *  can toggle it off from the mixer (setMudTrimEnabled); when
-   *  off, the gain is ramped to 0 dB so the filter is sonically a
-   *  bypass without rewiring the graph. */
+   *  nature of summing many partials. The earlier -1.5 dB Q=1.5
+   *  cut was technically correct but inaudible as a UX toggle;
+   *  -3.5 dB with a wider Q is clearly heard as "less thick"
+   *  while still being a master-bus polish move rather than a
+   *  surgical cut. On by default. When toggled off, gain ramps to
+   *  0 dB so the filter is sonically a bypass without rewiring the
+   *  graph. */
   private readonly mudTrim: BiquadFilterNode;
   private mudTrimEnabled = true;
-  private static readonly MUD_TRIM_GAIN_DB = -1.5;
+  private static readonly MUD_TRIM_GAIN_DB = -3.5;
+  private static readonly MUD_TRIM_Q = 1.0;
   private readonly glueComp: DynamicsCompressorNode;
   private readonly glueMakeup: GainNode;
   private readonly drivePre: GainNode;
@@ -182,7 +185,7 @@ export class MasterBus {
     this.mudTrim = this.ctx.createBiquadFilter();
     this.mudTrim.type = "peaking";
     this.mudTrim.frequency.value = 300;
-    this.mudTrim.Q.value = 1.5;
+    this.mudTrim.Q.value = MasterBus.MUD_TRIM_Q;
     this.mudTrim.gain.value = MasterBus.MUD_TRIM_GAIN_DB;
 
     // Default glue = 0.5 (threshold -9 dB, makeup 1.25×)

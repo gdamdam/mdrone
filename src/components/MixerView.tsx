@@ -280,7 +280,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
           >
             {mudTrim ? "ON" : "OFF"}
           </button>
-          <div className="mixer-strip-value">{mudTrim ? "−1.5" : "—"}</div>
+          <div className="mixer-strip-value">{mudTrim ? "−3.5" : "—"}</div>
         </div>
 
         <Strip label="CEIL" value={ceiling} min={-6} max={0} step={0.1} unit="dB" onChange={onCeiling}
