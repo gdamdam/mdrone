@@ -218,22 +218,33 @@ const SCALE_INTERVALS: Record<ScaleId, number[]> = {
  *   - RND button    → first 3 calls per session, then falls through
  *                     to SAFE_RANDOM_PRESET_IDS for full variety
  *
- * Differences from the prior STARTUP pool: frahm-solo (too sparse
- * in 3s) and deep-listening (cistern tail needs seconds to fill)
- * were dropped in favour of marconi-weightless (instant float)
- * and young-well-tuned (Young WTP lattice settles immediately).
+ * Pool curated against the 2026-04-25 sound-quality scorecard.
+ * Picker is uniform-random over this array, so every entry must be
+ * arrival-grade — entries are listed in score order, strongest
+ * first, to keep the auditArrival devtool's iteration meaningful.
+ *
+ * Recent edits (2026-04-25): replaced fm-glass-bell (39/50, FM is
+ * synthetic in first 3s) with hollow-drone (45/50, immediate
+ * power-fifth body); replaced oliveros-accordion (38/50, hot+dry
+ * formant) with fennesz-endless (46/50, chord-holder identity that
+ * fills 3s cleanly).
+ *
+ * Earlier edits: frahm-solo (too sparse in 3s) and deep-listening
+ * (cistern tail needs seconds to fill) were dropped in favour of
+ * marconi-weightless (instant float) and young-well-tuned (Young
+ * WTP lattice settles immediately).
  */
 export const ARRIVAL_PRESET_IDS = [
-  "tanpura-drone",
-  "shruti-box",
-  "eno-airport",
-  "malone-organ",
-  "stars-of-the-lid",
-  "ritual-tanpura-shruti",
-  "fm-glass-bell",
-  "oliveros-accordion",
-  "marconi-weightless",
-  "young-well-tuned",
+  "stars-of-the-lid",       // 47 — looped-string, sub 0.34, instant
+  "fennesz-endless",        // 46 — chord-holder, fills 3s cleanly
+  "shruti-box",             // 45 — reed bed, harmonium identity
+  "marconi-weightless",     // 45 — engineered for first-listen
+  "hollow-drone",           // 45 — power-fifth body, immediate
+  "tanpura-drone",          // 44 — solo jawari showcase
+  "ritual-tanpura-shruti",  // 44 — sympathetic halo on reed bed
+  "eno-airport",            // 43 — iconic ambient piano
+  "malone-organ",           // 41 — chamber organ contrast
+  "young-well-tuned",       // 40 — Young WTP lattice, settles fast
 ] as const;
 
 export const SAFE_RANDOM_PRESET_IDS = [
@@ -2834,7 +2845,11 @@ export const PRESETS: Preset[] = [
     drift: 0.18,
     air: 0.28,
     time: 0.04,
-    sub: 0.6,
+    // sub macro dropped 0.6 → 0.45 — the body-Q × sub × cistern stack
+    // was a structural mud risk after the PR-2 amp upgrade. The new
+    // body BPF (Q=3 at 95 Hz) provides the floor pressure; the sub
+    // macro no longer needs to push as hard.
+    sub: 0.45,
     bloom: 0.48,
     glide: 0.1,
     lfoShape: "sine",
@@ -2842,7 +2857,12 @@ export const PRESETS: Preset[] = [
     lfoAmount: 0.05,
     climateX: 0.3,
     climateY: 0.18,
-    effects: ["sub", "cistern"],
+    // cistern moved from serial to parallel send — serial routing
+    // pre-saturated the cistern input through the sub waveshaper,
+    // muddying both the body and the reverb tail. Parallel keeps
+    // the body articulate and the cistern's deep space clean.
+    effects: ["sub"],
+    parallelSends: { cistern: 0.45 },
     scale: "drone",
     tuningId: "custom:otonal-16-32", relationId: "tonic-fifth",
     // Gain dropped 0.62→0.58 after the amp cab upgrade — the new
@@ -2855,7 +2875,9 @@ export const PRESETS: Preset[] = [
       bloomRange: [0.38, 0.58],
       timeRange: [0.02, 0.08],
       driftRange: [0.12, 0.24],
-      subRange: [0.5, 0.7],
+      // subRange centered on new sub macro 0.45 (was 0.6); evolve
+      // walks the macro 0.35–0.55 instead of 0.5–0.7.
+      subRange: [0.35, 0.55],
       macroStep: 0.42,
       tonicWalk: "none",
       tonicIntervals: [],
@@ -2875,7 +2897,13 @@ export const PRESETS: Preset[] = [
     // voice sustains it instead of decaying. 0.88 made the shimmer
     // block work too hard on a louder source.
     voiceLevels: { metal: 0.78, air: 0.5 },
-    octaveRange: [4, 5],
+    // octaveRange dropped [4,5] → [3,4] — combined with the PR-3
+    // sustaining metal fundamental and the shimmer-block feedback,
+    // [4,5] put the bowl + air + shimmer-octaves in the listener's
+    // 4-8 kHz fatigue band. [3,4] preserves the "high above the
+    // tonic" identity (still an octave above the default 2-3 range)
+    // while keeping the metal fundamental at 220-440 Hz.
+    octaveRange: [3, 4],
     drift: 0.1,
     air: 0.58,
     time: 0.06,
