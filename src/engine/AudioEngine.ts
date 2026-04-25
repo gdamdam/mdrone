@@ -518,6 +518,26 @@ export class AudioEngine {
   setWidth(w: number): void { this.masterBus.setWidth(w); }
   getWidth(): number { return this.masterBus.getWidth(); }
 
+  /** Master room — parallel cathedral-IR send. 0..1, default 0. */
+  setRoomAmount(a: number): void { this.masterBus.setRoomAmount(a); }
+  getRoomAmount(): number { return this.masterBus.getRoomAmount(); }
+
+  /** COLOR — single user-facing knob that drives parallel saturation
+   *  and the air-band exciter together. They live on the same
+   *  perceptual axis (analog density / openness) so most users will
+   *  ride them in tandem; exposing two separate knobs creates
+   *  decision fatigue without a meaningful mix difference. Internal
+   *  ratio: exciter = sat × 0.8 (the air band needs slightly less
+   *  send to read than the broadband saturation does). */
+  private colorAmount = 0;
+  setColorAmount(a: number): void {
+    const clamped = Math.max(0, Math.min(1, a));
+    this.colorAmount = clamped;
+    this.masterBus.setSaturationAmount(clamped);
+    this.masterBus.setExciterAmount(clamped * 0.8);
+  }
+  getColorAmount(): number { return this.colorAmount; }
+
   /** Start a slow master-gain fade to the given linear target over
    *  `seconds` (clamped 1..3600). Transient performance gesture —
    *  not persisted in saved scenes. */

@@ -248,12 +248,18 @@ export class MasterBus {
     this.bassMonoSum = this.ctx.createGain();
     this.bassMonoSum.gain.value = 0.5;
 
-    // Master room — synthesized cathedral IR. Generated lazily on
-    // first construction; ~768 KB AudioBuffer (2 s × 48 kHz × 2 ch).
+    // Master room — convolution reverb. We ship a real recorded IR
+    // at public/irs/cathedral.wav (Saint-Lawrence Church, Molenbeek-
+    // Wersbeek, Belgium — OpenAirLib, CC0; see attribution file),
+    // but the network fetch + decode is async, so we seed the
+    // convolver with a synthesized fallback IR up front and swap to
+    // the recorded buffer when it's ready. Either way the user
+    // never hears the convolver until they raise ROOM in the mixer.
     this.roomConvolver = this.ctx.createConvolver();
     this.roomConvolver.buffer = MasterBus.makeCathedralIR(this.ctx, 2.0);
     this.roomSendGain = this.ctx.createGain();
     this.roomSendGain.gain.value = 0; // off by default
+    this.loadCathedralIR();
 
     // Pre-limiter mixer — dry drivePost lands here at unity, parallel
     // sends land at their own send gains. Output drives the limiter
@@ -529,6 +535,21 @@ export class MasterBus {
     } catch {
       return false;
     }
+  }
+
+  /** Async-load the recorded cathedral IR shipped at
+   *  /irs/cathedral.wav (Saint-Lawrence Church, Molenbeek-Wersbeek
+   *  — OpenAirLib, Public Domain CC; see public/irs/
+   *  cathedral.attribution.txt). Falls through silently on any
+   *  failure so the synthesized IR set in the constructor stays in
+   *  place; the convolver is never engaged below ROOM > 0 anyway. */
+  private loadCathedralIR(): void {
+    if (typeof fetch === "undefined") return;
+    fetch("/irs/cathedral.wav")
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error("ir 404"))))
+      .then((bytes) => this.ctx.decodeAudioData(bytes))
+      .then((buf) => { this.roomConvolver.buffer = buf; })
+      .catch(() => { /* keep the synthesized fallback */ });
   }
 
   /** Procedurally-generated cathedral IR. 2 s decaying noise with
