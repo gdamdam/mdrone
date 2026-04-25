@@ -198,7 +198,7 @@ function ReferenceTab() {
       <div className="fx-modal-section-label">DISCOVERY</div>
       <ul className="help-list">
         <li><strong>🎲 RND</strong> — safe random. First three per session are from a curated <em>arrival</em> pool; afterwards the full library. After each click the engine measures the new preset's LUFS and nudges a session-level trim so a string of RND clicks reads as roughly equal-loudness.</li>
-        <li><strong>GOOD DRONE</strong> — guided randomize of the tuning layer only. Preserves preset voicing. Instantly beautiful microtonal state.</li>
+        <li><strong>ATTUNE</strong> — guided randomize of the tuning layer only. Preserves preset voicing. Instantly beautiful microtonal state.</li>
         <li><strong>MUTATE</strong> — nudges current macros / voice mix / FX levels by the intensity slider. Small = nudge, large = shake.</li>
         <li><strong>Undo / Redo + A/B</strong> — 50-entry history (debounced 400 ms). Two comparison slots (SAVE A / A, SAVE B / B) snap & recall.</li>
       </ul>

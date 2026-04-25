@@ -637,6 +637,36 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   /* Drop the subtitle on mobile — it wraps onto a second line and
      the preset name alone reads fine at this width. Desktop keeps it. */
   .preset-strip-attr { display: none; }
+  /* Identity row wraps on mobile — first line is meta-btn + the two
+     icon chips (ATTUNE / MUTATE @ 25% each), second line carries
+     the wider scene-transition controls (PARTNER / JOURNEY / XFADE).
+     Without flex-wrap the row would clip the new controls or push
+     them out of the strip entirely. */
+  .preset-strip-identity { flex-wrap: wrap; row-gap: 6px; }
+  /* Cluster wrappers (triggers / state) collapse to display: contents
+     on mobile so their children flatten into the identity flex row,
+     letting the 25% / 33% width rules below resolve against the row
+     itself instead of the cluster div. The visual separator border
+     is desktop-only — on mobile the row break does the grouping. */
+  .preset-strip-actions-triggers,
+  .preset-strip-actions-state { display: contents; }
+  /* Action chips collapse to a single glyph at 25% width each on
+     mobile so the meta-btn keeps roughly half the first row for
+     icon + name. */
+  .preset-strip-identity .preset-strip-action {
+    width: 25%;
+    padding: 6px 0;
+    text-align: center;
+    flex: 0 0 25%;
+  }
+  .preset-strip-identity .preset-mut-btn-label { display: none; }
+  .preset-strip-identity .preset-mut-btn-icon { display: inline-block; }
+  /* PARTNER / JOURNEY dropdowns sit on the second row at ~33% each
+     so they fit alongside XFADE without further wrapping. */
+  .preset-strip-identity .preset-strip-action-select {
+    flex: 1 1 33%;
+    min-width: 0;
+  }
   /* Piano keyboard and Hz readout vanish on mobile — screen real
      estate goes to the persistent tonic dropdown in the footer bar. */
   .preset-strip-keys.tonic-keys,
@@ -745,6 +775,50 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 .preset-mut-btn:active {
   background: color-mix(in srgb, var(--preview) 25%, var(--bg-cell));
+}
+/* Label / icon swap — text on desktop, single glyph on mobile.
+   Used by ATTUNE / MUTATE chips that live in the always-visible
+   preset-strip identity row. */
+.preset-mut-btn-icon { display: none; font-size: 14px; line-height: 1; }
+/* Identity-row action chips don't shrink; meta-btn shrinks instead. */
+.preset-strip-action { flex: 0 0 auto; white-space: nowrap; }
+
+/* Two clusters next to the playing-preset meta-btn:
+   TRIGGERS = momentary chips (ATTUNE / MUTATE);
+   STATE    = persistent dropdowns + XFADE button (lit-when-on).
+   The state cluster is preceded by a thin vertical separator so
+   the eye reads the two roles distinctly. */
+.preset-strip-actions-triggers,
+.preset-strip-actions-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.preset-strip-actions-state {
+  padding-left: 10px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+/* State chips read DIM when off, LIT when on — no "off" text needed.
+   Off: muted text + border, lower opacity. On: --preview accent, full
+   opacity. Click to cycle / open popup either way. */
+.preset-strip-action-state {
+  opacity: 0.55;
+  color: color-mix(in srgb, var(--text) 70%, transparent);
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  transition: opacity 120ms, color 120ms, border-color 120ms, background-color 120ms;
+}
+.preset-strip-action-state:hover { opacity: 0.85; }
+.preset-strip-action-state.preset-strip-action-on,
+.preset-mut-btn-armed {
+  opacity: 1;
+  color: var(--preview);
+  border-color: color-mix(in srgb, var(--preview) 60%, var(--border));
+  background: color-mix(in srgb, var(--preview) 10%, var(--bg-cell));
+}
+.preset-strip-action-state.preset-strip-action-on:hover {
+  background: color-mix(in srgb, var(--preview) 18%, var(--bg-cell));
 }
 .preset-mut-btn-rec {
   background: color-mix(in srgb, #c83838 30%, var(--bg-cell));

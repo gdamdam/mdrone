@@ -98,7 +98,7 @@ const ADVANCED: Flow = {
     {
       id: "good-drone",
       selector: '[data-tutor="good-drone"]',
-      title: "6 — GOOD DRONE",
+      title: "6 — ATTUNE",
       body: "One-click guided randomize. Samples a beautiful tuning + subtle detune from a curated pool — a safer way to explore than raw RND.",
     },
   ],
@@ -180,7 +180,7 @@ export const FLOWS: Record<FlowId, Flow> = {
 
 export const FLOW_LABELS: Record<FlowId, string> = {
   intro: "First-run tour",
-  advanced: "Advanced: tuning, LFO, GOOD DRONE",
+  advanced: "Advanced: tuning, LFO, ATTUNE",
   share: "Share, save, and record",
   effects: "Effects chain",
   shape: "SHAPE panel",

@@ -883,6 +883,95 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               );
             })()}
           </button>
+          {/* Two visually grouped clusters next to the playing-preset
+              identity:
+                · TRIGGERS — momentary actions (ATTUNE / MUTATE),
+                  always reachable without expanding the preset list.
+                · STATE — persistent scene controls (PARTNER /
+                  JOURNEY / XFADE) that read dim-when-off and
+                  light up with their value when active. The "off"
+                  word never appears: state is conveyed by glow,
+                  not by reading text.
+              On mobile each cluster wraps to its own row inside the
+              identity flex container (`flex-wrap: wrap`). */}
+          <div className="preset-strip-actions-triggers">
+            <button
+              type="button"
+              data-tutor="good-drone"
+              className="preset-mut-btn preset-strip-action"
+              onClick={() => {
+                const g = sampleGoodDrone();
+                setTuning(g.tuningId);
+                setRelation(g.relationId);
+                setFineTuneOffsets(g.fineTuneOffsets);
+              }}
+              title="ATTUNE — sample a curated microtonal tuning + subtle (±2–5¢) detune for the current preset. Touches only the tuning layer: voicing, FX, and motion are preserved. Click again for a different tuning."
+              aria-label="Attune — sample a curated microtonal tuning"
+            >
+              <span className="preset-mut-btn-label">ATTUNE</span>
+              <span className="preset-mut-btn-icon" aria-hidden="true">✦</span>
+            </button>
+            <button
+              type="button"
+              className="preset-mut-btn preset-strip-action"
+              onClick={() => onMutateScene?.(mutateIntensity)}
+              title={`MUTATE — one-shot random perturbation of the current scene by ${Math.round(mutateIntensity * 100)}% (voice mix, macros, effect levels). Fires once per click.`}
+              aria-label="Mutate the current scene"
+            >
+              <span className="preset-mut-btn-label">MUTATE</span>
+              <span className="preset-mut-btn-icon" aria-hidden="true">↯</span>
+            </button>
+          </div>
+          <div className="preset-strip-actions-state">
+            <DropdownSelect
+              value={state.partner.enabled ? state.partner.relation : ""}
+              options={[
+                { value: "", label: "PARTNER" },
+                ...PARTNER_RELATIONS.map((r) => ({ value: r, label: `PARTNER · ${r}` })),
+              ]}
+              onChange={(v) => {
+                if (v === "") {
+                  setPartner({ ...state.partner, enabled: false });
+                } else {
+                  setPartner({ enabled: true, relation: v as PartnerRelation });
+                }
+              }}
+              className={`preset-journey-select preset-strip-action-select preset-strip-action-state${
+                state.partner.enabled ? " preset-strip-action-on" : ""
+              }`}
+              title="PARTNER — sympathetic second drone layer at a fixed musical relation."
+              ariaLabel="Sympathetic partner"
+            />
+            <DropdownSelect
+              value={state.journey ?? ""}
+              options={[
+                { value: "", label: "JOURNEY" },
+                ...JOURNEY_IDS.map((id) => ({ value: id, label: `JOURNEY · ${JOURNEYS[id].label}` })),
+              ]}
+              onChange={(v) => setJourney(v === "" ? null : (v as JourneyId))}
+              className={`preset-journey-select preset-strip-action-select preset-strip-action-state${
+                state.journey ? " preset-strip-action-on" : ""
+              }`}
+              title="JOURNEY (~20 min) — authored 4-phase ritual: arrival → bloom → suspension → dissolve. While active, replaces EVOLVE's automatic drift with the scripted arc."
+              ariaLabel="Journey"
+            />
+            <button
+              type="button"
+              className={`preset-mut-btn preset-strip-action preset-strip-action-state${
+                morphSeconds > 0 ? " preset-strip-action-on preset-mut-btn-armed" : ""
+              }`}
+              onClick={cycleMorph}
+              title={
+                morphSeconds === 0
+                  ? "Preset crossfade OFF — preset clicks swap instantly. Click to cycle through 10s / 30s / 2min crossfade."
+                  : `Preset crossfade ON — clicks crossfade over ${morphLabel} (fade-out, snap, fade-in).`
+              }
+              aria-label="Preset crossfade"
+            >
+              <span className="preset-mut-btn-label">↔ XFADE{morphSeconds === 0 ? "" : ` · ${morphLabel}`}</span>
+              <span className="preset-mut-btn-icon" aria-hidden="true">↔{morphSeconds === 0 ? "" : morphLabel}</span>
+            </button>
+          </div>
           </div>
           {/* Row 2 — PERFORMANCE: what note is playing. Piano + octave
               + kbd toggle + Hz readout. On mobile this row is lifted
@@ -1321,89 +1410,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </div>
 
             <div className="scene-actions-row">
-              {/* PARTNER stays inline — it's a live voicing control,
-                  not a motion gesture. */}
-              <DropdownSelect
-                value={state.partner.enabled ? state.partner.relation : ""}
-                options={[
-                  { value: "", label: "PARTNER: off" },
-                  ...PARTNER_RELATIONS.map((r) => ({ value: r, label: `PARTNER: ${r}` })),
-                ]}
-                onChange={(v) => {
-                  if (v === "") {
-                    setPartner({ ...state.partner, enabled: false });
-                  } else {
-                    setPartner({ enabled: true, relation: v as PartnerRelation });
-                  }
-                }}
-                className="preset-journey-select"
-                title="PARTNER — sympathetic second drone layer at a fixed musical relation."
-                ariaLabel="Sympathetic partner"
-              />
-              {/* Scene-motion controls inline — JOURNEY (authored arc),
-                  MUTATE (one-shot stochastic), REC MOTION (recorded
-                  gesture). Previously collapsed behind a GESTURES
-                  disclosure; surfacing them directly removes a click
-                  and drops the mis-labelled group name. */}
-              <DropdownSelect
-                value={state.journey ?? ""}
-                options={[
-                  { value: "", label: "JOURNEY: off" },
-                  ...JOURNEY_IDS.map((id) => ({ value: id, label: `JOURNEY: ${JOURNEYS[id].label}` })),
-                ]}
-                onChange={(v) => setJourney(v === "" ? null : (v as JourneyId))}
-                className="preset-journey-select"
-                title="JOURNEY (~20 min) — authored 4-phase ritual: arrival → bloom → suspension → dissolve. While active, replaces EVOLVE's automatic drift with the scripted arc."
-                ariaLabel="Journey"
-              />
-              {/* Preset crossfade (↔) — how preset clicks blend. Sits
-                  with the other scene-transition controls (JOURNEY,
-                  MUTATE) rather than in the preset-strip identity row
-                  where it was before. Still bound to cycleMorph. */}
-              <button
-                type="button"
-                className={morphSeconds > 0 ? "preset-mut-btn preset-mut-btn-armed" : "preset-mut-btn"}
-                onClick={cycleMorph}
-                title={
-                  morphSeconds === 0
-                    ? "Preset crossfade OFF — preset clicks swap instantly. Click to cycle through 10s / 30s / 2min crossfade."
-                    : `Preset crossfade ON — clicks crossfade over ${morphLabel} (fade-out, snap, fade-in).`
-                }
-              >
-                ↔ PRESET XFADE: {morphSeconds === 0 ? "OFF" : morphLabel}
-              </button>
-              {/* Force a wrap so MUTATE starts a new row — visually
-                  separates the "scene transitions" half (PARTNER ·
-                  JOURNEY · XFADE) from the "actions / capture" half
-                  (GOOD DRONE · MUTATE · intensity · MOTION · REC). */}
-              <span className="scene-actions-break" aria-hidden="true" />
-              <button
-                type="button"
-                data-tutor="good-drone"
-                className="preset-mut-btn"
-                onClick={() => {
-                  // Guided randomize — pulls a tuning + relation from the
-                  // curated drone-friendly pool and adds a ±2-5¢ detune on
-                  // every non-root resolved interval. Touches only the
-                  // tuning layer; preset voicing/FX/motion are preserved.
-                  const g = sampleGoodDrone();
-                  setTuning(g.tuningId);
-                  setRelation(g.relationId);
-                  setFineTuneOffsets(g.fineTuneOffsets);
-                }}
-                title="Good drone — guided randomize: sample a beautiful tuning + subtle detune. Tuning layer only, keeps the current preset's voicing."
-                aria-label="Good drone — generate a beautiful tuning"
-              >
-                GOOD DRONE
-              </button>
-              <button
-                type="button"
-                className="preset-mut-btn"
-                onClick={() => onMutateScene?.(mutateIntensity)}
-                title={`MUTATE — one-shot random perturbation of the current scene by ${Math.round(mutateIntensity * 100)}% (voice mix, macros, effect levels). Fires once per click.`}
-              >
-                MUTATE
-              </button>
+              {/* PARTNER, JOURNEY, PRESET XFADE, GOOD DRONE, MUTATE
+                  all moved to the always-visible preset-strip-identity
+                  row. Only the MUTATE intensity slider and the capture
+                  group (MOTION / REC / LOOP) remain here. */}
               <input
                 type="range"
                 min={0}

@@ -1,6 +1,6 @@
 {
   "name": "mdrone",
-  "version": "1.17.7",
+  "version": "1.17.8",
   "description": "A browser drone machine for long-form listening and live performance.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
