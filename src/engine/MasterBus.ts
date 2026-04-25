@@ -653,6 +653,42 @@ export class MasterBus {
 
   getRoomAmount(): number { return this.roomAmount; }
 
+  /** Console diagnostic — dumps the live state of the room +
+   *  saturation + exciter sends so we can tell from a single line
+   *  whether a knob change is reaching the audio graph. */
+  diagnoseRoom(): Record<string, unknown> {
+    const buf = this.roomConvolver.buffer;
+    let bufPeak = 0;
+    if (buf) {
+      const ch = buf.getChannelData(0);
+      const stride = Math.max(1, Math.floor(ch.length / 1024));
+      for (let i = 0; i < ch.length; i += stride) {
+        const v = Math.abs(ch[i]);
+        if (v > bufPeak) bufPeak = v;
+      }
+    }
+    return {
+      brickwallActive: this.brickwallActive,
+      roomAmount: this.roomAmount,
+      roomSendGainValue: this.roomSendGain.gain.value,
+      roomSendGainAutomation: this.roomSendGain.gain.value,
+      irBuffer: buf
+        ? {
+          duration: buf.duration,
+          channels: buf.numberOfChannels,
+          sampleRate: buf.sampleRate,
+          length: buf.length,
+          peakSample: bufPeak,
+        }
+        : null,
+      saturationAmount: this.saturationAmount,
+      satReturnGain: this.satReturn.gain.value,
+      exciterAmount: this.exciterAmount,
+      exciterReturnGain: this.exciterReturn.gain.value,
+      ctx: { sampleRate: this.ctx.sampleRate, state: this.ctx.state },
+    };
+  }
+
   /** Parallel-saturation send amount (0..1). At a=1 the saturated
    *  branch lands at -12 dBFS relative to dry — far enough below
    *  the dry that the dry path keeps its phase coherence while the

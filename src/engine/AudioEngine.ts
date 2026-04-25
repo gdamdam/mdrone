@@ -521,6 +521,8 @@ export class AudioEngine {
   /** Master room — parallel cathedral-IR send. 0..1, default 0. */
   setRoomAmount(a: number): void { this.masterBus.setRoomAmount(a); }
   getRoomAmount(): number { return this.masterBus.getRoomAmount(); }
+  /** @internal diagnostic — printable room/color path state. */
+  diagnoseRoom(): unknown { return this.masterBus.diagnoseRoom(); }
 
   /** COLOR — single user-facing knob that drives parallel saturation
    *  and the air-band exciter together. They live on the same
