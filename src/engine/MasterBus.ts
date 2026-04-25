@@ -82,7 +82,7 @@ export class MasterBus {
    *  is 0 (off) so existing presets sound identical until a caller
    *  opts in via setRoomAmount(). The IR is generated procedurally
    *  (see makeCathedralIR) so this ships zero audio assets. */
-  private readonly roomConvolver: ConvolverNode;
+  private roomConvolver: ConvolverNode;
   private readonly roomSendGain: GainNode;
   private roomAmount = 0;
 
@@ -550,18 +550,29 @@ export class MasterBus {
    *  — OpenAirLib, Public Domain CC; see public/irs/
    *  cathedral.attribution.txt). Falls through silently on any
    *  failure so the synthesized IR set in the constructor stays in
-   *  place; the convolver is never engaged below ROOM > 0 anyway. */
+   *  place; the convolver is never engaged below ROOM > 0 anyway.
+   *
+   *  When the buffer is ready we REPLACE the live ConvolverNode
+   *  instead of mutating its `buffer` property in place. Chrome
+   *  has a long-standing quirk where re-assigning `buffer` on an
+   *  already-running convolver can leave the node silent (the
+   *  re-initialization of the internal FFT kernel is not always
+   *  triggered). Building a fresh node and rewiring the two
+   *  connections (sendGain → newConv → outputTrim) sidesteps it. */
   private loadCathedralIR(): void {
     if (typeof fetch === "undefined") return;
     fetch("/irs/cathedral.wav")
       .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`ir HTTP ${r.status}`))))
       .then((bytes) => this.ctx.decodeAudioData(bytes))
       .then((buf) => {
-        this.roomConvolver.buffer = buf;
-        // One-off load notice — confirms in DevTools that the real
-        // IR replaced the synthesized fallback. Stays in production
-        // because it's a single line at engine start and helps users
-        // diagnose offline / 404 / decode failures.
+        const fresh = this.ctx.createConvolver();
+        fresh.normalize = true;
+        fresh.buffer = buf;
+        try { this.roomSendGain.disconnect(this.roomConvolver); } catch { /* ok */ }
+        try { this.roomConvolver.disconnect(this.outputTrim); } catch { /* ok */ }
+        this.roomConvolver = fresh;
+        this.roomSendGain.connect(fresh);
+        fresh.connect(this.outputTrim);
         try { console.info(`[mdrone] cathedral IR loaded — ${buf.duration.toFixed(2)}s × ${buf.numberOfChannels}ch`); } catch { /* ok */ }
       })
       .catch((err) => {
