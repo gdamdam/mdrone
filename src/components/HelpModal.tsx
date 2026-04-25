@@ -161,7 +161,7 @@ function ReferenceTab() {
       <ul className="help-list">
         <li><strong>DRONE</strong> — the instrument. Presets, tonic/mode, SHAPE macros, FX chain, ADVANCED (tuning + LFO).</li>
         <li><strong>MEDITATE</strong> — 30 fullscreen visualizers in 4 groups by function: HARMONIC · LANDSCAPE · RITUAL · VOID/HYPNOTIC (B&amp;W first, then colour within each). ⛶ fullscreen · ↗ pop out · 🎲 random. Double-click to cycle.</li>
-        <li><strong>MIXER</strong> — master bus: HPF, 3-band EQ, glue compressor, drive, brickwall limiter + ceiling. <strong>SAFE</strong> clamps to −6 dBFS for headphones.</li>
+        <li><strong>MIXER</strong> — master bus: HPF, 3-band EQ, <strong>MUD</strong> trim toggle (-3.5 dB @ 300 Hz, on by default), glue, drive, look-ahead brickwall limiter + ceiling, <strong>WIDTH</strong> (always-on bass-mono fold under 120 Hz), <strong>ROOM</strong> (parallel cathedral-IR send), <strong>COLOR</strong> (parallel saturation + air-band exciter). <strong>SAFE</strong> clamps to −6 dBFS for headphones.</li>
       </ul>
 
       <div className="fx-modal-divider" />
@@ -170,7 +170,7 @@ function ReferenceTab() {
         <li><strong>Tonic</strong> — the root pitch everything colours.</li>
         <li><strong>MODE</strong> — SCALE stacks a diatonic mode; MICROTONAL swaps the whole tuning system (Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, Signature, …).</li>
         <li><strong>SHAPE macros</strong> — MOTION (MORPH · EVOLVE · TIME), BODY (DRIFT · AIR · SUB · BLOOM · GLIDE). The ? in the SHAPE header toggles inline hints.</li>
-        <li><strong>Voices</strong> — TANPURA · REED · METAL · AIR · PIANO · FM · AMP · NOISE. Level sliders plus per-voice colour where it matters (e.g. NOISE COLOR).</li>
+        <li><strong>Voices</strong> — TANPURA · REED · METAL · AIR · PIANO · FM · AMP · NOISE. Level sliders plus per-voice colour where it matters (e.g. NOISE COLOR). Each voice carries a sub-Hz pitch-drift LFO (~±2 cents) so stacks breathe; multiple intervals per layer are spread across the stereo field for true ensemble width.</li>
         <li><strong>Tanpura tuning</strong> — when TANPURA is active: Unison · Sa Pa · Sa Ma · Sa Ni. Rebuilds smoothly over a short crossfade.</li>
       </ul>
 
@@ -191,12 +191,13 @@ function ReferenceTab() {
         <li>Active-chain preview above the grid shows enabled effects in processing order.</li>
         <li>Two granulars: <strong>GRAIN</strong> (drone-smooth cloud) vs <strong>CLOUD</strong> (stutter, pitches snapped to the scale).</li>
         <li><strong>FREEZE</strong> snapshots the live ring buffer when toggled on. Presets that ship FREEZE enabled defer the snapshot ~3 s after apply so voices fill the ring with steady-state audio first.</li>
+        <li><strong>PLATE</strong> is a convolution reverb loaded with a real EMT 140 plate IR (Greg Hopkins, CC-BY) on both serial insert and parallel send.</li>
       </ul>
 
       <div className="fx-modal-divider" />
       <div className="fx-modal-section-label">DISCOVERY</div>
       <ul className="help-list">
-        <li><strong>🎲 RND</strong> — safe random. First three per session are from a curated <em>arrival</em> pool; afterwards the full library.</li>
+        <li><strong>🎲 RND</strong> — safe random. First three per session are from a curated <em>arrival</em> pool; afterwards the full library. After each click the engine measures the new preset's LUFS and nudges a session-level trim so a string of RND clicks reads as roughly equal-loudness.</li>
         <li><strong>GOOD DRONE</strong> — guided randomize of the tuning layer only. Preserves preset voicing. Instantly beautiful microtonal state.</li>
         <li><strong>MUTATE</strong> — nudges current macros / voice mix / FX levels by the intensity slider. Small = nudge, large = shake.</li>
         <li><strong>Undo / Redo + A/B</strong> — 50-entry history (debounced 400 ms). Two comparison slots (SAVE A / A, SAVE B / B) snap & recall.</li>

@@ -55,7 +55,7 @@
 |---|---|
 | **DRONE** | The instrument: header tonic / octave / HOLD transport, preset library, voice stack, macros, breathing LFO, climate XY pad, effect chain, undo/redo + A/B snapshot slots, SCALE editor, GESTURES panel |
 | **MEDITATE** | 30 full-screen visualizers grouped by function: HARMONIC / LANDSCAPE / RITUAL / VOID · HYPNOTIC (B&W first, then colour within each), picked from a dropdown (double-click canvas to cycle). Many accrete complexity over minutes rather than react per-frame: HALO & RAYS, SEDIMENT STRATA, TAPE DECAY, TUNING MANUSCRIPT, RESONANT BODY, PETROGLYPHS, and more. Also: a STEREO VECTORSCOPE, a HARMONIC EMBER polar log plot, and SHORTWAVE STATIC. |
-| **MIXER** | Master bus: HPF, 3-band EQ, glue compression, drive, brickwall limiter with ceiling, SAFE (headphone-safe) toggle, CLIP LED (pre-limiter peak), LUFS-S + PEAK metering, final output trim |
+| **MIXER** | Master bus: HPF, 3-band EQ, MUD trim toggle, glue compression, drive, look-ahead brickwall limiter (Chrome/FF) or native comp (Safari) with ceiling, ROOM (parallel cathedral-IR send), COLOR (parallel saturation + air-band exciter), WIDTH (M/S matrix with bass-mono fold), SAFE (headphone-safe) toggle, CLIP LED (pre-limiter peak), LUFS-S + PEAK metering, FADE controller, final output trim |
 
 ---
 
@@ -63,12 +63,12 @@
 
 All sound is synthesised in real time with the Web Audio API. No sample library is required.
 
-- **Voice engine** — AudioWorklet-backed drone voices. Each active layer spawns one worklet voice per interval in the selected mode, mixed through per-layer gains. Tonic changes glide; interval changes rebuild with a short crossfade; BLOOM controls stack fade-in.
+- **Voice engine** — AudioWorklet-backed drone voices. Each active layer spawns one worklet voice per interval in the selected mode, mixed through per-layer gains. Tonic changes glide; interval changes rebuild with a short crossfade; BLOOM controls stack fade-in. Each voice carries a sub-Hz pitch-drift LFO (~±2 cents) so the stack breathes instead of sitting frozen, and is positioned in the stereo field by a per-voice `StereoPanner` (intervals spread across ±0.6) for true stereo separation rather than reverb-only width.
 - **Climate** — the WEATHER XY pad drives brightness (filter cutoff) on X and motion (LFO depth + drift) on Y. TIME controls the weather LFO rate. A separate user LFO adds breathing/tremolo on voice gain. An optional second modulator — the **LFO 2 · FLICKER** panel — reaches 0.5–45 Hz with AM and per-voice dichotic L/R detune, phase-locked to the breathing LFO (see below).
 - **Atmosphere chain** — the dry signal and shimmer octave source feed a **14-effect chain before the master bus**. Effects can run serial (wet-insert) or parallel (send) per preset. The chain order is user-reorderable via drag.
-- **Master bus** — HPF, 3-band EQ, glue compression, drive, **worklet brickwall limiter** (post-P1, replaces the native DynamicsCompressor), trim, and analyser taps (pre-limiter for CLIP, post-limiter for LUFS/PEAK).
+- **Master bus** — HPF, 3-band EQ, **mud trim** (peaking -3.5 dB @ 300 Hz, on by default, toggleable), glue compression, drive, parallel **COLOR** sends (asymmetric tanh saturation + 4–10 kHz exciter, default 0), parallel **ROOM** send (cathedral-IR convolver, default 0), **look-ahead brickwall limiter worklet** on Chrome/FF (Safari keeps the native DynamicsCompressor for the prior worklet-hash regression), trim, **bass-mono fold** below 120 Hz, **M/S width** matrix, **session loudness trim** (auto-leveled by RND so a string of random presets reads as roughly equal-loudness), and analyser taps (pre-limiter for CLIP, post-limiter for LUFS/PEAK).
 - **Oversampling** — `tanh` nonlinearities in AMP, TANPURA jawari, METAL, and master drive are 2× oversampled to keep aliasing below the noise floor.
-- **Reverbs** — PLATE is a worklet Dattorro plate with paper-accurate taps. HALL and CISTERN are **FDN worklets** (post-P1, replacing the earlier noise-IR convolvers); size + damping tuned per-preset.
+- **Reverbs** — PLATE is now a **ConvolverNode loaded with a real EMT 140 plate IR** (Greg Hopkins via oramics/sampled, CC-BY); the algorithmic Dattorro it replaced is still registered but unused. HALL and CISTERN are **FDN worklets** (replacing the earlier noise-IR convolvers); size + damping tuned per-preset. The master ROOM send uses a separate **ConvolverNode loaded with a real cathedral IR** (Saint-Lawrence Church, Molenbeek-Wersbeek, Public Domain CC).
 - **Recording** — the final post-limiter, post-trim master can be captured and rendered to WAV through `MediaRecorder` + WebM audio when the browser supports both.
 - **Determinism** — reverb IRs and evolve drift are seeded from a per-scene PRNG (FNV-1a hash of the preset ID or share-URL seed). Same URL ⇒ same tail, same drift.
 
@@ -102,7 +102,7 @@ The chain holds 14 effects. Each is a toggle (click) with a long-press settings 
 | **SUB** | True octave-down subharmonic — triangle at root/2, amplitude-tracked, summed in parallel |
 | **COMB** | Root-tracking resonant comb filter with soft-clipped feedback |
 | **DELAY** | Warm feedback delay with lowpass and saturation in the loop |
-| **PLATE** | Worklet Dattorro plate reverb |
+| **PLATE** | Convolution plate reverb — Greg Hopkins EMT 140 IR (CC-BY) on both serial insert and parallel send |
 | **HALL** | Worklet FDN hall (size ≈ 0.45, bright damping) |
 | **SHIMMER** | Worklet shimmer reverb plus octave-up source voice |
 | **FREEZE** | Phase-vocoder magnitude-hold capture. Ring buffer always fills with live audio so toggling FREEZE on snapshots whatever is playing right now; presets that ship FREEZE enabled defer the snapshot ~3 s after apply so voices ramp into the ring first |
@@ -171,13 +171,19 @@ Master-bus controls matched to the mpump / mloop family vocabulary:
 
 - **HPF** with quick OFF / 20 / 30 / 40 Hz stepping
 - **3-band EQ** (low, mid, high)
+- **MUD** — toggleable peaking cut (-3.5 dB @ 300 Hz, Q=1.0). On by default; clears the lower-mid pile-up that drone stacks accumulate. Off when a thinner, more open body is wanted.
 - **GLUE** — soft compressor amount
 - **DRIVE** — soft-clip waveshaper (`tanh`, 2× oversample via LUT)
-- **LIMITER** — worklet brickwall with ceiling control and release
+- **LIMITER** — look-ahead brickwall worklet (Chrome/FF, true-peak, 96-sample look-ahead) or native DynamicsCompressor (Safari) with ceiling control and release
+- **WIDTH** — M/S width matrix; 0 = mono fold, 1 = identity, 2 = exaggerated sides. Bass under 120 Hz is always folded to mono regardless of width (pro-mix bass-mono rule)
+- **ROOM** — parallel cathedral-IR send (real recording from Saint-Lawrence Church, Molenbeek-Wersbeek, Public Domain CC). Default 0; at 1 the wet sums at unity with the dry
+- **COLOR** — single knob driving parallel saturation (asymmetric tanh + 5 Hz DC trap) and 4–10 kHz air-band exciter together; analog density and openness on one perceptual axis
 - **SAFE** — headphone-safe mode, clamps outputTrim to −6 dBFS
+- **FADE** — slow-envelope master fade in / out over 30 s / 2 min / 5 min / 20 min
 - **CLIP LED** — taps the **pre-limiter** signal so it reports input overshoot, not the brickwall holding its ceiling
 - **LUFS-S + PEAK** — EBU R128 K-weighted short-term (3 s window) loudness + sample-peak readout, updated ~30 Hz
 - **VOL** — final output trim
+- **Loudness-aware RND** — after each random-scene click the engine measures the new preset's LUFS and nudges a session-level trim so a string of RND clicks reads as roughly equal-loudness
 
 ---
 
