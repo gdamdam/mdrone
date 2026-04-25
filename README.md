@@ -67,7 +67,7 @@ All sound is synthesised in real time with the Web Audio API. No sample library 
 - **Climate** — the WEATHER XY pad drives brightness (filter cutoff) on X and motion (LFO depth + drift) on Y. TIME controls the weather LFO rate. A separate user LFO adds breathing/tremolo on voice gain. An optional second modulator — the **LFO 2 · FLICKER** panel — reaches 0.5–45 Hz with AM and per-voice dichotic L/R detune, phase-locked to the breathing LFO (see below).
 - **Atmosphere chain** — the dry signal and shimmer octave source feed a **14-effect chain before the master bus**. Effects can run serial (wet-insert) or parallel (send) per preset. The chain order is user-reorderable via drag.
 - **Master bus** — HPF, 3-band EQ, **mud trim** (peaking -3.5 dB @ 300 Hz, on by default, toggleable), glue compression, drive, parallel **COLOR** sends (asymmetric tanh saturation + 4–10 kHz exciter, default 0), parallel **ROOM** send (cathedral-IR convolver, default 0), **look-ahead brickwall limiter worklet** on Chrome/FF (Safari keeps the native DynamicsCompressor for the prior worklet-hash regression), trim, **bass-mono fold** below 120 Hz, **M/S width** matrix, **session loudness trim** (auto-leveled by RND so a string of random presets reads as roughly equal-loudness), and analyser taps (pre-limiter for CLIP, post-limiter for LUFS/PEAK).
-- **Oversampling** — `tanh` nonlinearities in AMP, TANPURA jawari, METAL, and master drive are 2× oversampled to keep aliasing below the noise floor.
+- **Oversampling** — `tanh` nonlinearities in AMP, TANPURA jawari, METAL, and REED are 2× oversampled to keep aliasing below the noise floor. (Master DRIVE runs at native rate — gentle tanh stays clean enough at unity, and 2× oversampling there triggered a Safari-specific signal-correlated hash.)
 - **Reverbs** — PLATE is now a **ConvolverNode loaded with a real EMT 140 plate IR** (Greg Hopkins via oramics/sampled, CC-BY); the algorithmic Dattorro it replaced is still registered but unused. HALL and CISTERN are **FDN worklets** (replacing the earlier noise-IR convolvers); size + damping tuned per-preset. The master ROOM send uses a separate **ConvolverNode loaded with a real cathedral IR** (Saint-Lawrence Church, Molenbeek-Wersbeek, Public Domain CC).
 - **Recording** — the final post-limiter, post-trim master can be captured and rendered to WAV through `MediaRecorder` + WebM audio when the browser supports both.
 - **Determinism** — reverb IRs and evolve drift are seeded from a per-scene PRNG (FNV-1a hash of the preset ID or share-URL seed). Same URL ⇒ same tail, same drift.
@@ -173,7 +173,7 @@ Master-bus controls matched to the mpump / mloop family vocabulary:
 - **3-band EQ** (low, mid, high)
 - **MUD** — toggleable peaking cut (-3.5 dB @ 300 Hz, Q=1.0). On by default; clears the lower-mid pile-up that drone stacks accumulate. Off when a thinner, more open body is wanted.
 - **GLUE** — soft compressor amount
-- **DRIVE** — soft-clip waveshaper (`tanh`, 2× oversample via LUT)
+- **DRIVE** — soft-clip waveshaper (gentle `tanh` curve, native rate)
 - **LIMITER** — look-ahead brickwall worklet (Chrome/FF, true-peak, 96-sample look-ahead) or native DynamicsCompressor (Safari) with ceiling control and release
 - **WIDTH** — M/S width matrix; 0 = mono fold, 1 = identity, 2 = exaggerated sides. Bass under 120 Hz is always folded to mono regardless of width (pro-mix bass-mono rule)
 - **ROOM** — parallel cathedral-IR send (real recording from Saint-Lawrence Church, Molenbeek-Wersbeek, Public Domain CC). Default 0; at 1 the wet sums at unity with the dry
