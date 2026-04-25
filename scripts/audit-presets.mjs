@@ -14,13 +14,21 @@
 //   stdout — markdown table for quick scoring
 //
 // Limitations:
-//  - Renders the *voice bus* only: voiceLayers mixed at voiceLevels and
-//    multiplied by preset.gain. The FX chain (plate, hall, sub, shimmer,
-//    cistern, brickwall, etc.) is NOT applied. Per-preset LUFS will be
-//    higher than what the listener hears for FX-heavy presets. Adding
-//    FX requires routing through fxChainProcessor with the preset's
-//    serial+parallel topology — out of scope for this thin slice; track
-//    in a follow-up PR.
+//  - FX chain rendering is partial. Worklet-based effects (plate,
+//    shimmer, hall, cistern, granular, graincloud, fx-brickwall master
+//    limiter) ARE applied. Effects implemented inline in FxChain.ts
+//    using Web Audio native nodes (tape, wow, sub waveshaper, comb,
+//    ringmod, formant, delay, freeze) are skipped — those rely on
+//    BiquadFilter/WaveShaper/DelayNode which don't exist in Node.
+//    Skipped effects are listed per preset in the JSON output.
+//  - Effect parameters use baseline-tuned defaults, NOT the preset's
+//    macro-driven values. Real engine maps drift / climateX / sub /
+//    air macros onto FX params via FxChain.ts; reproducing that
+//    mapping in Node is a separate PR. This means a preset relying
+//    on macro automation for a specific tone (e.g. shimmer feedback
+//    pumped by climateY) will measure with default-tuned shimmer.
+//  - Use --no-fx to disable FX rendering (voice-bus only) for an
+//    apples-to-apples comparison with the pre-FX-rendering baseline.
 //  - Each voice rendered at a fixed root frequency derived from
 //    octaveRange (55 Hz × 2^octave), not the preset's resolved tuning.
 //    Tonal accuracy is irrelevant for level/peak/DC/band measurements.
@@ -269,6 +277,95 @@ function presetVoiceFreq(preset) {
 const SR = 48000;
 const BLK = 128;
 
+// ─── FX chain rendering ─────────────────────────────────────────────
+// Worklet-based effects only. Effects implemented inline via Web Audio
+// native nodes in FxChain.ts (tape/wow/sub/comb/ringmod/formant/delay/
+// freeze) are skipped — see file-header limitations.
+const EFFECT_PROC = {
+  plate:    "fx-plate",
+  shimmer:  "fx-shimmer",
+  hall:     "fx-fdn-reverb",
+  cistern:  "fx-fdn-reverb",
+  granular: "fx-granular",
+  graincloud: "fx-granular",
+};
+// Baseline FX params — tuned to be dry-dominant since most preset
+// chains keep the voice forward and use reverb for tail/ambience
+// rather than 50/50 wet. Hall / cistern share fx-fdn-reverb but
+// differ in size and damping.
+const EFFECT_PARAMS_SERIAL = {
+  plate:      { decay: 0.6,  damping: 0.4,  diffusion: 0.75, mix: 0.25 },
+  shimmer:    { feedback: 0.55, mix: 0.30, decay: 0.7 },
+  hall:       { size: 0.95, damping: 0.45, decay: 0.92, mix: 0.30 },
+  cistern:    { size: 1.4,  damping: 0.7,  decay: 0.95, mix: 0.40 },
+  granular:   { size: 0.2,  density: 6,  pitchSpread: 0.2, panSpread: 0.6,
+                position: 0.4, mix: 0.25, pitchMode: 0, envelope: 0, spawnMode: 0 },
+  graincloud: { size: 0.4,  density: 12, pitchSpread: 0.3, panSpread: 0.7,
+                position: 0.5, mix: 0.30, pitchMode: 0, envelope: 0, spawnMode: 0 },
+};
+// Parallel sends use mix=1 (full wet) — the dry path is the main
+// serial chain; the send level scales the dry input fed into the
+// reverb. Only plate / hall / cistern are valid parallel send targets.
+function parallelParams(effectId) {
+  const base = EFFECT_PARAMS_SERIAL[effectId] ?? {};
+  return { ...base, mix: 1.0 };
+}
+const SKIPPED_EFFECTS = new Set([
+  "tape", "wow", "sub", "comb", "ringmod", "formant", "delay", "freeze",
+]);
+
+function applyFxBlocks(input, procName, paramObj, fxReg) {
+  const Cls = fxReg.get(procName);
+  if (!Cls) return input;
+  const proc = new Cls();
+  const params = Object.fromEntries(
+    Object.entries(paramObj).map(([k, v]) => [k, makeParamArr(v)]),
+  );
+  const N = input[0].length;
+  const out = makeBuffers(2, N);
+  for (let off = 0; off < N; off += BLK) {
+    const inBlock = [[input[0].subarray(off, off + BLK), input[1].subarray(off, off + BLK)]];
+    const outBlock = [makeBuffers(2, BLK)];
+    proc.process(inBlock, outBlock, params);
+    out[0].set(outBlock[0][0], off);
+    out[1].set(outBlock[0][1], off);
+  }
+  return out;
+}
+
+function applyEffectChain(voiceSum, preset, fxReg) {
+  const skipped = [];
+  let serial = voiceSum;
+  for (const effectId of preset.effects ?? []) {
+    if (SKIPPED_EFFECTS.has(effectId)) { skipped.push(effectId); continue; }
+    const procName = EFFECT_PROC[effectId];
+    if (!procName) { skipped.push(`${effectId}(unknown)`); continue; }
+    serial = applyFxBlocks(serial, procName, EFFECT_PARAMS_SERIAL[effectId] ?? {}, fxReg);
+  }
+  // Parallel sends: dry voiceSum × sendLevel → wet effect → sum into serial.
+  for (const [effectId, sendLevel] of Object.entries(preset.parallelSends ?? {})) {
+    if (sendLevel == null || sendLevel <= 0) continue;
+    const procName = EFFECT_PROC[effectId];
+    if (!procName) { skipped.push(`${effectId}(parallel)`); continue; }
+    const N = voiceSum[0].length;
+    const scaled = [new Float32Array(N), new Float32Array(N)];
+    for (let i = 0; i < N; i++) {
+      scaled[0][i] = voiceSum[0][i] * sendLevel;
+      scaled[1][i] = voiceSum[1][i] * sendLevel;
+    }
+    const sendOut = applyFxBlocks(scaled, procName, parallelParams(effectId), fxReg);
+    for (let i = 0; i < N; i++) {
+      serial[0][i] += sendOut[0][i];
+      serial[1][i] += sendOut[1][i];
+    }
+  }
+  // Master brickwall limiter — the engine always routes through this
+  // before the output, so the audit applies it last to match.
+  const limited = applyFxBlocks(serial, "fx-brickwall",
+    { ceiling: 0.891, releaseSec: 0.12, enabled: 1 }, fxReg);
+  return { out: limited, skipped };
+}
+
 function renderPreset(preset, VoiceProc, seconds, seedBase) {
   const blocks = Math.ceil(seconds * SR / BLK);
   const N = blocks * BLK;
@@ -330,12 +427,13 @@ const CANONICAL_IDS = [
 
 // ─── CLI ────────────────────────────────────────────────────────────
 function parseArgs(argv) {
-  const out = { all: false, seconds: 10, presets: null };
+  const out = { all: false, seconds: 10, presets: null, fx: true };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--all") out.all = true;
     else if (a === "--seconds") out.seconds = Number(argv[++i]);
     else if (a === "--presets") out.presets = argv[++i].split(",").map(s => s.trim());
+    else if (a === "--no-fx") out.fx = false;
   }
   return out;
 }
@@ -359,6 +457,7 @@ async function main() {
   const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
   const VoiceProc = voicesReg.get("drone-voice");
   if (!VoiceProc) { console.error("drone-voice processor missing"); process.exit(1); }
+  const fxReg = args.fx ? loadWorklet("src/engine/fxChainProcessor.js", SR) : null;
 
   const commit = (() => {
     try { return execSync("git rev-parse --short HEAD").toString().trim(); }
@@ -367,7 +466,7 @@ async function main() {
   const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 
   console.error(`mdrone preset audit  v${pkg.version}  commit ${commit}`);
-  console.error(`render: ${args.seconds}s @ ${SR} Hz, voice bus only (no FX)`);
+  console.error(`render: ${args.seconds}s @ ${SR} Hz, ${args.fx ? "voice + FX (worklet effects + master limiter)" : "voice bus only"}`);
   console.error(`presets: ${ids.length}\n`);
 
   const results = {};
@@ -377,13 +476,18 @@ async function main() {
     const preset = byId.get(id);
     process.stderr.write(`[${i}/${ids.length}] ${id}…  `);
     const t0 = Date.now();
-    const [L, R] = renderPreset(preset, VoiceProc, args.seconds, 0xA0DA ^ i * 0x9E3779B1);
+    const [vL, vR] = renderPreset(preset, VoiceProc, args.seconds, 0xA0DA ^ i * 0x9E3779B1);
+    let L = vL, R = vR, skipped = [];
+    if (fxReg) {
+      const fxResult = applyEffectChain([vL, vR], preset, fxReg);
+      L = fxResult.out[0]; R = fxResult.out[1]; skipped = fxResult.skipped;
+    }
     const stats = basicStats(L, R);
     const lufs = stats.finite ? integratedLufs(L, R, SR) : null;
     const corr = stats.finite ? lrCorrelation(L, R) : null;
     const bands = stats.finite ? bandEnergyDb(L, SR) : null;
     const ms = Date.now() - t0;
-    process.stderr.write(`${ms}ms\n`);
+    process.stderr.write(`${ms}ms${skipped.length ? `  (skipped FX: ${skipped.join(",")})` : ""}\n`);
     results[id] = {
       finite: stats.finite,
       lufs: lufs !== null ? Number(lufs.toFixed(2)) : null,
@@ -395,6 +499,7 @@ async function main() {
       lrCorr: corr !== null ? Number(corr.toFixed(3)) : null,
       bands: bands ? Object.fromEntries(
         Object.entries(bands).map(([k, v]) => [k, Number(v.toFixed(2))])) : null,
+      skippedFx: skipped,
     };
   }
 
@@ -403,7 +508,7 @@ async function main() {
     commit,
     renderSeconds: args.seconds,
     sampleRate: SR,
-    voiceBusOnly: true,
+    voiceBusOnly: !args.fx,
     presets: results,
   };
   const tmpDir = join(ROOT, "tmp");
@@ -414,7 +519,7 @@ async function main() {
 
   // Markdown table for stdout.
   console.log(`# mdrone preset audit — v${pkg.version} @ ${commit}`);
-  console.log(`Render: ${args.seconds}s voice-bus (no FX). Sample rate ${SR} Hz.\n`);
+  console.log(`Render: ${args.seconds}s ${args.fx ? "voice + FX (worklet effects + master limiter)" : "voice bus only"}. Sample rate ${SR} Hz.\n`);
   console.log("| Preset | LUFS | Peak dB | RMS dB | Crest | DC(L) | L/R corr | low | mud | harsh | air |");
   console.log("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
   // Sort by LUFS descending for quick eyeballing.

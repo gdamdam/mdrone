@@ -453,6 +453,16 @@ DroneVoiceProcessor.prototype.initTanpura = function() {
     // KS damping budget so the coupled system stays stable on holds.
     this.jawBridgeBusL = 0;
     this.jawBridgeBusR = 0;
+    // DC-blocker state — the asymmetric jawari bridge content (soft-
+    // collision + halfband-shaped tanh) accumulates a small static
+    // even-harmonic DC bias that the offline audit measured at 0.07–
+    // 0.18 across tanpura-led presets, well above the engine-wide
+    // ±0.005 target. One-pole HPF at ~38 Hz mirrors the pattern used
+    // in amp / air / noise.
+    this.tanDcPrevInL  = 0;
+    this.tanDcPrevOutL = 0;
+    this.tanDcPrevInR  = 0;
+    this.tanDcPrevOutR = 0;
 };
 
 DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, amp, pluckRate) {
@@ -626,8 +636,16 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
       postL += (postL - this.hsKsL) * 0.3;
       postR += (postR - this.hsKsR) * 0.3;
 
-      L[i] = postL * amp;
-      R[i] = postR * amp;
+      // DC-blocker — strips the static even-harmonic bias accumulated
+      // by the jawari shaper (audit measured 0.07–0.18 DC pre-blocker).
+      const dcCoef = 0.995;
+      const dcOutL = postL - this.tanDcPrevInL + dcCoef * this.tanDcPrevOutL;
+      this.tanDcPrevInL = postL; this.tanDcPrevOutL = dcOutL;
+      const dcOutR = postR - this.tanDcPrevInR + dcCoef * this.tanDcPrevOutR;
+      this.tanDcPrevInR = postR; this.tanDcPrevOutR = dcOutR;
+
+      L[i] = dcOutL * amp;
+      R[i] = dcOutR * amp;
     }
 };
 

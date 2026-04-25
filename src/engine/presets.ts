@@ -614,7 +614,15 @@ export const PRESETS: Preset[] = [
     effects: ["plate"],
     parallelSends: { plate: 0.3 },
     scale: "drone",
-    gain: 0.88,
+    // Gain reduced 0.88→0.75 after the offline audit (npm run
+    // audit:presets) measured this preset at -11.5 LUFS with peak
+    // -1.0 dB — essentially at the brickwall ceiling pre-limiter,
+    // and ~8 dB louder than tanpura-drone (-19.8 LUFS) which holds
+    // an identical scorecard rating. Voice stacking (tanpura:1 +
+    // reed:0.7 + parallel plate) accounts for some of the
+    // difference but the preset was sitting hotter than peers
+    // without justification.
+    gain: 0.75,
     motionProfile: motionProfile({
       climateXRange: [0.35, 0.52],
       climateYRange: [0.12, 0.28],
@@ -836,8 +844,13 @@ export const PRESETS: Preset[] = [
     // After the metal modal upgrade the bowl fundamental sustains
     // ~30 s instead of decaying in ~2 s, so the metal voice no longer
     // needs the gain boost (or the sine-reed bed) to stay continuous.
-    // Sine-reed kept for low-end body but gain trimmed 1.3 → 1.05.
-    gain: 1.05,
+    // PR-4 trimmed 1.3→1.05; the offline audit (npm run audit:presets)
+    // measured the result at -47.5 LUFS, ~18 dB below the canonical
+    // median, indicating PR-4 over-trimmed against the new sustaining
+    // modal. Bumped to 1.20 — between the original 1.3 and PR-4's
+    // 1.05 — to recover ~3 dB toward the median while still
+    // crediting the modal upgrade's louder source.
+    gain: 1.20,
     motionProfile: motionProfile({
       climateXRange: [0.28, 0.42],
       climateYRange: [0.06, 0.14],
