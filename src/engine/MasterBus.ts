@@ -345,12 +345,20 @@ export class MasterBus {
     this.exciterLpf.connect(this.exciterShaper);
     this.exciterShaper.connect(this.exciterReturn);
     this.exciterReturn.connect(this.preLimMixer);
-    // Master room — parallel send tap from masterGain. Lands in
-    // limiterIn so the limiter still catches the combined energy
-    // when room is enabled. Send level set by setRoomAmount.
+    // Master room — parallel send tap from masterGain. Lands at
+    // outputTrim, summing with the limited dry path. Earlier
+    // wiring routed through limiterIn so the native compressor
+    // would catch the combined energy, but the comp's transparent
+    // mode (threshold 0 / ratio 1) on Chrome appears to swallow
+    // the convolver's low-level output entirely. The dry path
+    // already passes through the brickwall worklet (or the native
+    // comp on Safari) so peak overshoot from room+dry is still
+    // controlled at the very last stage. Send level set by
+    // setRoomAmount; default is 0 so the room is silent until
+    // the user opts in.
     this.masterGain.connect(this.roomSendGain);
     this.roomSendGain.connect(this.roomConvolver);
-    this.roomConvolver.connect(this.limiterIn);
+    this.roomConvolver.connect(this.outputTrim);
     // limiterIn → limiterComp → limiterOut wiring done at construction.
     this.limiterOut.connect(this.outputTrim);
     // outputTrim → bass-mono fold → [ M/S width matrix ] → analyser → destination.
