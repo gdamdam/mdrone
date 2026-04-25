@@ -74,6 +74,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
   const [width, setWidth] = useState(() => engine?.getWidth() ?? 1);
   const [room, setRoom] = useState(() => engine?.getRoomAmount() ?? 0);
   const [color, setColor] = useState(() => engine?.getColorAmount() ?? 0);
+  const [mudTrim, setMudTrim] = useState(() => engine?.isMudTrimEnabled() ?? true);
   // Slow-envelope / fade controller. Duration cycles through
   // drone-friendly values (30 s / 2 min / 5 min / 20 min). The
   // actual fade is a linearRampToValueAtTime on the master output
@@ -169,6 +170,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
     setWidth(1);          if (engine) engine.setWidth(1);
     setRoom(0);           if (engine) engine.setRoomAmount(0);
     setColor(0);          if (engine) engine.setColorAmount(0);
+    setMudTrim(true);     if (engine) engine.setMudTrimEnabled(true);
     if (onVolumeChange) onVolumeChange(1);
     else {
       setVolumeInternal(1);
@@ -198,6 +200,11 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
   const onWidth = (v: number) => { setWidth(v); if (engine) engine.setWidth(v); };
   const onRoom = (v: number) => { setRoom(v); if (engine) engine.setRoomAmount(v); };
   const onColor = (v: number) => { setColor(v); if (engine) engine.setColorAmount(v); };
+  const toggleMudTrim = () => {
+    const next = !mudTrim;
+    setMudTrim(next);
+    if (engine) engine.setMudTrimEnabled(next);
+  };
 
   const hpfOn = hpfHz > 10;
 
@@ -257,6 +264,23 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
             <div ref={clipLedRef} className="mixer-clip-led" />
             <span className="mixer-clip-label">CLIP</span>
           </div>
+        </div>
+
+        {/* Mud-trim toggle — peaking -1.5 dB at 300 Hz, on by default */}
+        <div className="mixer-strip" title="Mud trim — gentle -1.5 dB cut at 300 Hz to clean up stacked drone lower-mid. On by default; toggle off if a preset reads thin.">
+          <div className="mixer-strip-label">MUD</div>
+          <button
+            onClick={toggleMudTrim}
+            className="mixer-limiter-btn"
+            style={{
+              background: mudTrim ? "var(--preview)" : "var(--bg)",
+              color: mudTrim ? "#000" : "var(--text-dim)",
+              borderColor: mudTrim ? "var(--preview)" : "var(--border)",
+            }}
+          >
+            {mudTrim ? "ON" : "OFF"}
+          </button>
+          <div className="mixer-strip-value">{mudTrim ? "−1.5" : "—"}</div>
         </div>
 
         <Strip label="CEIL" value={ceiling} min={-6} max={0} step={0.1} unit="dB" onChange={onCeiling}

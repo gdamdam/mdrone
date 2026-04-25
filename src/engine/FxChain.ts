@@ -218,7 +218,15 @@ export class FxChain {
    *  produces the same hall / cistern impulse. */
   private reverbSeed = 0xC15ACE;
 
-  private plateWorklet: AudioWorkletNode | null = null;
+  /** Plate reverb — was a Dattorro algorithmic worklet (`fx-plate`),
+   *  now a ConvolverNode loaded with the Greg Hopkins EMT 140 IR
+   *  (public/irs/plate.wav, CC-BY). The serial-chain insert wiring
+   *  is unchanged because ConvolverNode connects identically to the
+   *  worklet it replaced; the four plate-param setters
+   *  (decay/damping/diffusion/mix) are kept as no-op stubs so old
+   *  UI/preset code paths don't break — they just no longer affect
+   *  the (now static) IR. */
+  private plateWorklet: ConvolverNode | null = null;
   private shimmerWorklet: AudioWorkletNode | null = null;
   private freezeWorklet: AudioWorkletNode | null = null;
   private granularWorklet: AudioWorkletNode | null = null;
@@ -261,7 +269,7 @@ export class FxChain {
   private parallelHallWet!: GainNode;
   private parallelCisternVerb!: ConvolverNode;
   private parallelCisternWet!: GainNode;
-  private parallelPlateWorklet: AudioWorkletNode | null = null;
+  private parallelPlateWorklet: ConvolverNode | null = null;
   private parallelPlateWet!: GainNode;
   /** Input-side gate for the parallel-plate worklet — mirrors the
    *  `wetInGate` pattern on serial worklet inserts; follows
@@ -847,6 +855,30 @@ export class FxChain {
     }
   }
 
+  /** Async-load the EMT 140 plate IR into both plate ConvolverNodes
+   *  (serial insert + parallel reverb bus). Both convolvers share
+   *  the same AudioBuffer; ConvolverNode treats the buffer as
+   *  read-only DSP state, so a single decoded buffer can be assigned
+   *  to multiple convolver instances safely. Source: Greg Hopkins
+   *  EMT 140 IR set, CC-BY (see public/irs/plate.attribution.txt).
+   *  Falls through silently on failure — the convolver stays
+   *  buffer-less and silent until the user enables plate, which
+   *  is the same UX as a dropped fetch on any other reverb. */
+  private loadPlateIR(): void {
+    if (typeof fetch === "undefined") return;
+    fetch("/irs/plate.wav")
+      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`plate ir HTTP ${r.status}`))))
+      .then((bytes) => this.ctx.decodeAudioData(bytes))
+      .then((buf) => {
+        if (this.plateWorklet) this.setConvolverBuffer(this.plateWorklet, buf);
+        if (this.parallelPlateWorklet) this.setConvolverBuffer(this.parallelPlateWorklet, buf);
+        try { console.info(`[mdrone] plate IR loaded — ${buf.duration.toFixed(2)}s × ${buf.numberOfChannels}ch`); } catch { /* ok */ }
+      })
+      .catch((err) => {
+        try { console.warn("[mdrone] plate IR fetch/decode failed:", err); } catch { /* ok */ }
+      });
+  }
+
   private setConvolverBuffer(node: ConvolverNode, buffer: AudioBuffer | null): void {
     if (node.buffer === buffer) return;
     try {
@@ -934,12 +966,14 @@ export class FxChain {
     this.cisternSerialTrim.connect(cisternIns.wetGain);
     this.cisternWorklet.connect(this.cisternSerialTrim);
 
-    // PLATE
-    this.plateWorklet = new AudioWorkletNode(ctx, "fx-plate", {
-      numberOfInputs: 1,
-      numberOfOutputs: 1,
-      outputChannelCount: [2],
-    });
+    // PLATE — ConvolverNode loaded with the EMT 140 IR
+    // (public/irs/plate.wav). Swap-in for the previous Dattorro
+    // worklet; same node interface (in/out AudioNode) so the rest
+    // of the wiring is unchanged. Buffer is filled by loadPlateIR()
+    // below; while pending the convolver is silent — acceptable
+    // since plate is off by default until the user enables it.
+    this.plateWorklet = ctx.createConvolver();
+    this.plateWorklet.normalize = true;
     const plateIns = this.inserts.plate;
     plateIns.wetInGate = ctx.createGain();
     plateIns.wetInGate.gain.value = 0;
@@ -1063,14 +1097,11 @@ export class FxChain {
       .connect(grainCloudIns.wetGain)
       .connect(grainCloudIns.insertOut);
 
-    // PARALLEL PLATE — second plate worklet instance for the parallel
-    // reverb bus. Shares the same DSP as the serial plate but fed by
-    // raw input and mixed into the dry bus via parallelPlateWet.
-    this.parallelPlateWorklet = new AudioWorkletNode(ctx, "fx-plate", {
-      numberOfInputs: 1,
-      numberOfOutputs: 1,
-      outputChannelCount: [2],
-    });
+    // PARALLEL PLATE — second ConvolverNode instance for the parallel
+    // reverb bus, loaded with the same EMT 140 IR. Fed by raw input
+    // and mixed into the dry bus via parallelPlateWet.
+    this.parallelPlateWorklet = ctx.createConvolver();
+    this.parallelPlateWorklet.normalize = true;
     // Input-side gate for the same Safari-worklet-hash reason as the
     // serial worklet inserts. parallelSendLevels.plate drives both
     // this (input) and parallelPlateWet (output) together.
@@ -1080,6 +1111,9 @@ export class FxChain {
     this.parallelPlateInGate
       .connect(this.parallelPlateWorklet)
       .connect(this.parallelPlateWet);
+
+    // Kick the IR fetch now that both plate convolvers exist.
+    this.loadPlateIR();
 
     // Grain → plate excitation — granular/graincloud outputs feed
     // into the parallel plate tank so grains excite the reverb body
@@ -1156,9 +1190,11 @@ export class FxChain {
     // their internal buffers too (plate, shimmer, freeze, granular,
     // graincloud, parallel plate, FDN hall, FDN cistern).
     const clearMsg = { type: "clear" };
+    // plateWorklet / parallelPlateWorklet are ConvolverNodes now and
+    // have no internal state to clear (and no `.port`); skip them.
     for (const w of [
-      this.plateWorklet, this.shimmerWorklet, this.freezeWorklet,
-      this.granularWorklet, this.grainCloudWorklet, this.parallelPlateWorklet,
+      this.shimmerWorklet, this.freezeWorklet,
+      this.granularWorklet, this.grainCloudWorklet,
       this.hallWorklet, this.cisternWorklet,
     ]) {
       if (w) {
@@ -1324,27 +1360,25 @@ export class FxChain {
     return this.shimmerWorklet?.parameters.get("mix")?.value ?? 0.5;
   }
 
-  // PLATE — worklet AudioParams
-  setPlateDecay(v: number): void {
-    this.plateWorklet?.parameters.get("decay")
-      ?.setTargetAtTime(Math.max(0, Math.min(0.99, v)), this.ctx.currentTime, 0.1);
-  }
-  getPlateDecay(): number { return this.plateWorklet?.parameters.get("decay")?.value ?? 0.5; }
-  setPlateDamping(v: number): void {
-    this.plateWorklet?.parameters.get("damping")
-      ?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
-  }
-  getPlateDamping(): number { return this.plateWorklet?.parameters.get("damping")?.value ?? 0.35; }
-  setPlateDiffusion(v: number): void {
-    this.plateWorklet?.parameters.get("diffusion")
-      ?.setTargetAtTime(Math.max(0, Math.min(0.9, v)), this.ctx.currentTime, 0.1);
-  }
-  getPlateDiffusion(): number { return this.plateWorklet?.parameters.get("diffusion")?.value ?? 0.75; }
-  setPlateMix(v: number): void {
-    this.plateWorklet?.parameters.get("mix")
-      ?.setTargetAtTime(Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.1);
-  }
-  getPlateMix(): number { return this.plateWorklet?.parameters.get("mix")?.value ?? 1; }
+  // PLATE — was algorithmic Dattorro, now a ConvolverNode loaded
+  // with a real EMT 140 IR. The four setters below have no audible
+  // effect on a static IR; kept as no-op stubs (with stored display
+  // values) so existing FxModal sliders and preset round-trips don't
+  // break, and so a future option to swap models can wire them back
+  // in. Returned values are the persisted slider positions, not a
+  // live convolver param.
+  private plateDecayDisplay = 0.5;
+  private plateDampingDisplay = 0.35;
+  private plateDiffusionDisplay = 0.75;
+  private plateMixDisplay = 1;
+  setPlateDecay(v: number): void { this.plateDecayDisplay = Math.max(0, Math.min(0.99, v)); }
+  getPlateDecay(): number { return this.plateDecayDisplay; }
+  setPlateDamping(v: number): void { this.plateDampingDisplay = Math.max(0, Math.min(1, v)); }
+  getPlateDamping(): number { return this.plateDampingDisplay; }
+  setPlateDiffusion(v: number): void { this.plateDiffusionDisplay = Math.max(0, Math.min(0.9, v)); }
+  getPlateDiffusion(): number { return this.plateDiffusionDisplay; }
+  setPlateMix(v: number): void { this.plateMixDisplay = Math.max(0, Math.min(1, v)); }
+  getPlateMix(): number { return this.plateMixDisplay; }
 
   // HALL — fx-fdn-reverb worklet params
   setHallSize(v: number): void {

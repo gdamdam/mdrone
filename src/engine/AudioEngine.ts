@@ -518,6 +518,9 @@ export class AudioEngine {
   setWidth(w: number): void { this.masterBus.setWidth(w); }
   getWidth(): number { return this.masterBus.getWidth(); }
 
+  setMudTrimEnabled(on: boolean): void { this.masterBus.setMudTrimEnabled(on); }
+  isMudTrimEnabled(): boolean { return this.masterBus.isMudTrimEnabled(); }
+
   /** Master room — parallel cathedral-IR send. 0..1, default 0. */
   setRoomAmount(a: number): void { this.masterBus.setRoomAmount(a); }
   getRoomAmount(): number { return this.masterBus.getRoomAmount(); }

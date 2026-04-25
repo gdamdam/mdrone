@@ -7,13 +7,16 @@ export class MasterBus {
   private readonly eqLow: BiquadFilterNode;
   private readonly eqMid: BiquadFilterNode;
   private readonly eqHigh: BiquadFilterNode;
-  /** Always-on mud trim — peaking filter at 300 Hz, -1.5 dB, Q=1.5.
-   *  Drone stacks pile up energy in the 200–400 Hz "mud band" by
-   *  the nature of summing many partials; a small static cut cleans
-   *  the lower-mid without thinning the body. Sits between eqHigh
-   *  and glueComp so the user-facing EQ MID knob (centred at 1 kHz)
-   *  is independent. */
+  /** Mud trim — peaking filter at 300 Hz, -1.5 dB, Q=1.5. Drone
+   *  stacks pile up energy in the 200–400 Hz "mud band" by the
+   *  nature of summing many partials; a small static cut cleans the
+   *  lower-mid without thinning the body. On by default. The user
+   *  can toggle it off from the mixer (setMudTrimEnabled); when
+   *  off, the gain is ramped to 0 dB so the filter is sonically a
+   *  bypass without rewiring the graph. */
   private readonly mudTrim: BiquadFilterNode;
+  private mudTrimEnabled = true;
+  private static readonly MUD_TRIM_GAIN_DB = -1.5;
   private readonly glueComp: DynamicsCompressorNode;
   private readonly glueMakeup: GainNode;
   private readonly drivePre: GainNode;
@@ -180,7 +183,7 @@ export class MasterBus {
     this.mudTrim.type = "peaking";
     this.mudTrim.frequency.value = 300;
     this.mudTrim.Q.value = 1.5;
-    this.mudTrim.gain.value = -1.5;
+    this.mudTrim.gain.value = MasterBus.MUD_TRIM_GAIN_DB;
 
     // Default glue = 0.5 (threshold -9 dB, makeup 1.25×)
     this.glueComp = this.ctx.createDynamicsCompressor();
@@ -726,6 +729,16 @@ export class MasterBus {
    *  inflate the master by more than ±10 dB. Ramps over `rampSec`
    *  via setTargetAtTime; the time-constant is `rampSec/3` so a
    *  1.5 s ramp hits ~95 % at 1.5 s. */
+  /** Mud-trim toggle. On by default; off ramps the peaking gain to
+   *  0 dB so the filter becomes sonically a bypass while staying
+   *  inline (no graph rewire needed). */
+  setMudTrimEnabled(on: boolean): void {
+    this.mudTrimEnabled = on;
+    const target = on ? MasterBus.MUD_TRIM_GAIN_DB : 0;
+    this.mudTrim.gain.setTargetAtTime(target, this.ctx.currentTime, 0.05);
+  }
+  isMudTrimEnabled(): boolean { return this.mudTrimEnabled; }
+
   setLoudnessTrim(linear: number, rampSec: number = 1.5): void {
     const v = Math.max(0.3, Math.min(3.0, linear));
     this.loudnessTrim.gain.setTargetAtTime(v, this.ctx.currentTime, Math.max(0.05, rampSec / 3));
