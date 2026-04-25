@@ -217,11 +217,6 @@ export interface PhaseClock {
   voices?: VoiceWeights;
 }
 
-// ── Shared colour helpers (ember-leaning but drifting) ─────────────
-function embToHsl(h: number, s: number, l: number, a = 1): string {
-  return `hsla(${h.toFixed(1)},${s}%,${l}%,${a})`;
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // 2. CYMATICS PLATE — 2D interference of a handful of cosines
 // ─────────────────────────────────────────────────────────────────────
