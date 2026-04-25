@@ -684,6 +684,9 @@ export class MasterBus {
     // the steady-state spectral coloring of the IR reads, while
     // headroom into the limiter is still ample.
     this.roomSendGain.gain.setTargetAtTime(a * 0.7, this.ctx.currentTime, 0.05);
+    // Temporary trace — remove once user confirms the slider is
+    // wired. Logs every call so we can see slider-vs-console parity.
+    try { console.info(`[mdrone] setRoomAmount(${a}) sendGain target=${(a * 0.7).toFixed(3)}`); } catch { /* ok */ }
   }
 
   getRoomAmount(): number { return this.roomAmount; }
