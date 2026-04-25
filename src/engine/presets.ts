@@ -625,7 +625,10 @@ export const PRESETS: Preset[] = [
     hint: "Bright tanpura strings with a metallic sympathetic halo. Jawari buzz and upper-harmonic sparkle.",
     tuningId: "just5", relationId: "tonic-fifth",
     voiceLayers: ["tanpura", "metal"],
-    voiceLevels: { tanpura: 1, metal: 0.35 },
+    // Metal trimmed (0.35→0.32) after the modal upgrade — the bowl
+    // fundamental now sustains 30 s instead of 2 s, so the metallic
+    // halo above the tanpura sits ~+2 dB louder by default.
+    voiceLevels: { tanpura: 1, metal: 0.32 },
     octaveRange: [2, 3],
     drift: 0.22,
     air: 0.48,
@@ -819,9 +822,11 @@ export const PRESETS: Preset[] = [
     climateY: 0.1,
     effects: ["plate", "hall", "sub"],
     scale: "drone",
-    // Lower gain than before because the sine-reed bed provides the
-    // continuous fundamental that was previously faked with gain 1.5.
-    gain: 1.3,
+    // After the metal modal upgrade the bowl fundamental sustains
+    // ~30 s instead of decaying in ~2 s, so the metal voice no longer
+    // needs the gain boost (or the sine-reed bed) to stay continuous.
+    // Sine-reed kept for low-end body but gain trimmed 1.3 → 1.05.
+    gain: 1.05,
     motionProfile: motionProfile({
       climateXRange: [0.28, 0.42],
       climateYRange: [0.06, 0.14],
@@ -934,7 +939,11 @@ export const PRESETS: Preset[] = [
     hint: "Deep gong tones from low-ratio FM with metal-bowl partials. Bronze ensemble in a temple hall.",
     tuningId: "just5", relationId: "unison",
     voiceLayers: ["fm", "metal"],
-    voiceLevels: { fm: 1, metal: 0.4 },
+    // Metal trimmed 0.4→0.32 — the FM gong already provides bronze
+    // body; the upgraded metal voice has its own sustaining
+    // fundamental which now fights the FM root instead of just
+    // adding inharmonic colour above it.
+    voiceLevels: { fm: 1, metal: 0.32 },
     fmRatio: 1.4,
     octaveRange: [1, 2],
     drift: 0.18,
@@ -1165,7 +1174,10 @@ export const PRESETS: Preset[] = [
     hint: "Tanpura + metal-bowl cloud in a long hall. Extreme stillness, almost no motion.",
     tuningId: "harmonics", relationId: "harmonic-stack",
     voiceLayers: ["tanpura", "metal", "air"],
-    voiceLevels: { tanpura: 1, metal: 0.62, air: 0.16 },
+    // Metal level dropped 0.62→0.5 — the upgraded modal voice has a
+    // sustaining fundamental, so a tanpura+metal cloud at 0.62 made
+    // the bowl bed sit louder than the tanpura strings.
+    voiceLevels: { tanpura: 1, metal: 0.5, air: 0.16 },
     drift: 0.08,
     air: 0.5,
     time: 0.04,
@@ -1654,7 +1666,10 @@ export const PRESETS: Preset[] = [
     attribution: "Javanese gamelan · bronze ensemble",
     hint: "Bronze gong sustain with a saron-like reed in slendro pentatonic. Pitched saron under an inharmonic halo.",
     voiceLayers: ["reed", "metal"],
-    voiceLevels: { reed: 1, metal: 0.35 },
+    // Metal trimmed 0.35→0.30 — gamelan bronze sits as a halo over
+    // the saron reed; the upgraded metal fundamental sustains, so
+    // 0.35 pushed the bronze cloud forward of the saron.
+    voiceLevels: { reed: 1, metal: 0.30 },
     reedShape: "odd",
     octaveRange: [2, 3],
     drift: 0.22,
@@ -2830,7 +2845,10 @@ export const PRESETS: Preset[] = [
     effects: ["sub", "cistern"],
     scale: "drone",
     tuningId: "custom:otonal-16-32", relationId: "tonic-fifth",
-    gain: 0.62,
+    // Gain dropped 0.62→0.58 after the amp cab upgrade — the new
+    // body BPF (Q≈3 at 95 Hz, was Q≈2 at 90 Hz) lands right in this
+    // preset's low register and adds ~+2 dB of physical pressure.
+    gain: 0.58,
     motionProfile: motionProfile({
       climateXRange: [0.24, 0.38],
       climateYRange: [0.12, 0.26],
@@ -2852,7 +2870,11 @@ export const PRESETS: Preset[] = [
     attribution: "Bright metal + air in the shimmer block",
     hint: "Bell-metal and breath an octave up, fed into shimmer. Glacial, celestial, suspended high above the tonic.",
     voiceLayers: ["metal", "air"],
-    voiceLevels: { metal: 0.88, air: 0.5 },
+    // Metal trimmed 0.88→0.78 — at octave 4-5 the bowl fundamental
+    // is already in the brightness band, and the upgraded modal
+    // voice sustains it instead of decaying. 0.88 made the shimmer
+    // block work too hard on a louder source.
+    voiceLevels: { metal: 0.78, air: 0.5 },
     octaveRange: [4, 5],
     drift: 0.1,
     air: 0.58,
