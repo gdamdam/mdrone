@@ -634,7 +634,6 @@ export class MasterBus {
         try { this.masterGain.disconnect(oldSend); } catch { /* ok */ }
         try { oldSend.disconnect(oldConv); } catch { /* ok */ }
         try { oldConv.disconnect(this.preLimMixer); } catch { /* ok */ }
-        try { console.info(`[mdrone] cathedral IR loaded — ${buf.duration.toFixed(2)}s × ${buf.numberOfChannels}ch`); } catch { /* ok */ }
       })
       .catch((err) => {
         try { console.warn("[mdrone] cathedral IR fetch/decode failed; using synth fallback:", err); } catch { /* ok */ }

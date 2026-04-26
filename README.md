@@ -231,9 +231,19 @@ QWERTY tonic requires the ⌨ button enabled in the SHAPE column.
 
 ### MIDI
 
-Web MIDI note-in retunes tonic + octave from external hardware. CC mapping with learn mode: click a target, move a knob to assign.
+Web MIDI note-in retunes tonic + octave from external hardware. CC mapping uses an inline learn flow — enter learn mode, then click any control on screen and wiggle a knob to bind it.
 
-**~46 assignable targets** organised into groups that mirror the instrument:
+**MIDI ▾ dropdown** in the header (admin cluster, between ⚙ and ?):
+
+- **MIDI INPUT** — toggle Web MIDI on / off.
+- **LEARN MODE** — when on, every mappable control glows with a dashed outline. Click one (it pulses), then move a CC on hardware → mapping is added. Mapped controls show a small `CC74` badge while learn mode is on. Esc exits.
+- **MAPPING…** — opens a dedicated modal: connected devices, last-note read-out, full CC mapping table, named templates (save / load / delete), JSON import / export, RESET TO DEFAULTS.
+
+The mapping table is a flat list of every target with its assigned CC chips. **Multiple CCs per target are supported** — the same parameter can be driven from two controllers at once. The × on each chip removes just that CC.
+
+**Templates** persist to localStorage (`mdrone-midi-cc-templates`). Save the current map under a name, swap between controllers in seconds, share by exporting JSON. Import accepts either the wrapped format mdrone exports or a bare `{ cc: targetId }` object.
+
+**~52 assignable targets** organised into groups that mirror the instrument:
 
 | Group | Targets |
 |---|---|
@@ -241,9 +251,11 @@ Web MIDI note-in retunes tonic + octave from external hardware. CC mapping with 
 | Weather | WEATHER X, WEATHER Y, LFO RATE, LFO DEPTH |
 | Mixer | VOL, HPF, EQ LOW / MID / HIGH, GLUE, DRIVE, CEILING |
 | Voices | TANPURA, REED, METAL, AIR VX, PIANO, FM, AMP |
-| Effects | TAPE, WOW, SUB (fx), COMB, DELAY, PLATE, HALL, SHIMMER, FREEZE, CISTERN, GRANULAR, GRAINCLOUD, RINGMOD, FORMANT |
+| Effects | TAPE, WOW, SUB (fx), COMB, DELAY, PLATE, HALL, SHIMMER, FREEZE, CISTERN, GRANULAR, GRAINCLOUD, RINGMOD, FORMANT, FORMANT VOWEL, HALO |
 | Triggers | HOLD, PANIC, RND, MUTATE (fire on rising edge ≥ 64; HOLD follows sustain-pedal state) |
 | Presets | PRESET ◀ / ▶ (prev/next across the whole library), GROUP ◀ / ▶ (prev/next within the current group) — map four pads and walk the preset library live |
+
+**Enum-kind targets** (e.g. FORMANT VOWEL with options AH / EE / OH / OO / EH) split a single CC's 0–127 range into N equal bands, so one knob walks through the option list.
 
 Defaults:
 
@@ -256,6 +268,8 @@ Defaults:
 | CC71–76 | DRIFT, AIR, TIME, BLOOM, GLIDE, SUB |
 
 Every other target is unassigned by default — learn to bind.
+
+> Mobile note: the MIDI button is hidden in the header on small screens (Web MIDI is desktop-oriented). Mappings still load and replay any CCs that arrive once Web MIDI is enabled in a desktop session.
 
 ### Tempo sync (Ableton Link)
 

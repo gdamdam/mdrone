@@ -937,7 +937,6 @@ export class FxChain {
       .then((buf) => {
         if (this.plateWorklet) this.setConvolverBuffer(this.plateWorklet, buf);
         if (this.parallelPlateWorklet) this.setConvolverBuffer(this.parallelPlateWorklet, buf);
-        try { console.info(`[mdrone] plate IR loaded — ${buf.duration.toFixed(2)}s × ${buf.numberOfChannels}ch`); } catch { /* ok */ }
       })
       .catch((err) => {
         try { console.warn("[mdrone] plate IR fetch/decode failed:", err); } catch { /* ok */ }

@@ -217,7 +217,7 @@ function ReferenceTab() {
       <div className="fx-modal-divider" />
       <div className="fx-modal-section-label">CONTROL</div>
       <ul className="help-list">
-        <li><strong>MIDI</strong> — enable in Settings. Note-on → tonic/octave. ~46 CC targets (Macros / Weather / Mixer / Voices / Effects / Triggers / Presets) with learn-on-click. Defaults: CC1 WEATHER Y, CC2 WEATHER X, CC64 HOLD, CC71-76 macros.</li>
+        <li><strong>MIDI</strong> — header <kbd>MIDI ▾</kbd> dropdown: toggle <em>MIDI INPUT</em>, toggle <em>LEARN MODE</em>, or open <em>MAPPING</em>. In learn mode every mappable control glows — click one then move a CC. Multiple CCs can drive the same target; the × on each chip removes one. The mapping modal owns the table, named templates, and JSON import / export. ~52 targets across Macros / Weather / Mixer / Voices / Effects / Triggers / Presets. Defaults: CC1 WEATHER Y, CC2 WEATHER X, CC64 HOLD, CC71-76 macros. Note-on → tonic / octave.</li>
         <li><strong>Ableton Link</strong> — sync the LFO RATE to Link tempo. Needs the{" "}
           <a href="https://github.com/gdamdam/mpump/releases" target="_blank" rel="noopener noreferrer">
             mpump bridge
