@@ -176,29 +176,27 @@ export function Header({
       const dy = cy * amp;
       el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
       // Vibration magnitude in [0..1] from the same fast micro-sines
-      // that drive the translate. We feed this into the glow so the
-      // halo trembles in sync with the position jitter — without RMS
-      // there is no visible kick, so the kick stays proportional to
-      // how loud the drone is.
+      // that drive the translate. Feeds into the glow so the halo
+      // trembles with the position jitter; gated by RMS so silence
+      // produces no kick.
       const vibMag = Math.min(1, Math.hypot(sx, cy) / Math.SQRT2);
-      const vibKick = 1 + 0.6 * vibMag * smoothedRms;
-      // Wordmark colour α: 0.55 at silence → 1.0 at peak. The hue
+      const vibKick = 1 + 0.25 * vibMag * smoothedRms;
+      // Wordmark colour α: 0.4 at silence → 1.0 at peak. The hue
       // stays the palette colour; only intensity scales. Avoids the
       // CSS `opacity` property so HOLD's separate dim (.header-holding
       // .title-art { opacity: 0.55 }) still composes correctly.
-      const colorA = 0.55 + smoothedRms * 0.45;
+      const colorA = 0.4 + smoothedRms * 0.6;
       el.style.color = `rgba(${r}, ${g}, ${b}, ${colorA.toFixed(2)})`;
-      // Halo: faint at silence (close to the static CSS resting look),
-      // blooms when playing AND trembles on every frame in sync with
-      // the position jitter via vibKick. Base outer α 0.05..0.42,
-      // base inner α 0.10..0.62, base radius 2..14 px — all scaled
-      // by vibKick (1.0..1.6 at peak).
-      const glowR = (2 + smoothedRms * 12) * vibKick;
-      const aOuter = Math.min(0.95, (0.05 + smoothedRms * 0.37) * vibKick);
-      const aInner = Math.min(0.95, (0.10 + smoothedRms * 0.52) * vibKick);
+      // Halo stays small so the wordmark reads as sharp glyphs even
+      // at peak RMS — the previous range bloomed enough to blur the
+      // letters. Outer α 0.03..0.16, inner α 0.06..0.26, radius
+      // 1..5 px — all scaled by vibKick (1.0..1.25 at peak).
+      const glowR = (1 + smoothedRms * 4) * vibKick;
+      const aOuter = (0.03 + smoothedRms * 0.13) * vibKick;
+      const aInner = (0.06 + smoothedRms * 0.20) * vibKick;
       el.style.textShadow =
         `0 0 ${glowR.toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aOuter.toFixed(2)}),` +
-        ` 0 0 ${(glowR * 0.35).toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aInner.toFixed(2)})`;
+        ` 0 0 ${(glowR * 0.4).toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aInner.toFixed(2)})`;
     };
     raf = requestAnimationFrame(tick);
     return () => {
