@@ -946,21 +946,71 @@ export class FxChain {
     }
   }
 
+  /** Click-safe variant for the parallel hall / cistern convolvers.
+   *  Reassigning ConvolverNode.buffer mid-render truncates the in-
+   *  flight tail to zero — that was an audible click on every preset
+   *  change where the parallel send was active in both old and new
+   *  presets. Fade the wet to 0, swap the buffer during silence, then
+   *  ramp back to the caller's target. The target argument is what
+   *  the wet should land on after the swap (typically
+   *  parallelSendLevels[kind] for that kind). Idempotent: returns
+   *  early when the buffer reference is unchanged. */
+  private swapParallelConvBuffer(
+    conv: ConvolverNode,
+    wetParam: AudioParam,
+    target: number,
+    newBuffer: AudioBuffer | null,
+  ): void {
+    if (conv.buffer === newBuffer) return;
+    const wetCur = wetParam.value;
+    const FADE_SEC = 0.03;
+    const audible = wetCur > 0.001;
+    const now = this.ctx.currentTime;
+    if (audible) {
+      wetParam.cancelScheduledValues(now);
+      wetParam.setValueAtTime(wetCur, now);
+      wetParam.linearRampToValueAtTime(0, now + FADE_SEC);
+    }
+    const performSwap = () => {
+      try {
+        conv.buffer = newBuffer;
+      } catch {
+        // Ignore transient buffer swap failures during panic/reconnect.
+      }
+      // Restore wet toward the post-swap target. The caller
+      // (applyParallelSends) will also schedule a setTargetAtTime to
+      // the same target — duplicate is harmless, last-writer wins.
+      const t = this.ctx.currentTime;
+      wetParam.setTargetAtTime(target, t, 0.05);
+    };
+    if (audible) {
+      setTimeout(performSwap, Math.round(FADE_SEC * 1000) + 5);
+    } else {
+      performSwap();
+    }
+  }
+
   /** Keep the seeded IRs loaded into the PARALLEL convolvers only. The
    *  SERIAL hall/cistern inserts run on the `fx-fdn-reverb` worklet
-   *  now, so their buffers are not convolver-shaped. */
+   *  now, so their buffers are not convolver-shaped. Buffer changes
+   *  go through swapParallelConvBuffer so they don't click on preset
+   *  change when the parallel send is active. */
   private syncNativeReverbBuffers(): void {
     const anyHall = this.parallelSendLevels.hall > 0;
     const anyCistern = this.parallelSendLevels.cistern > 0;
     const hallBuffer = anyHall ? this.ensureHallImpulse() : null;
     const cisternBuffer = anyCistern ? this.ensureCisternImpulse() : null;
 
-    this.setConvolverBuffer(
+    this.swapParallelConvBuffer(
       this.parallelHallVerb,
+      this.parallelHallWet.gain,
+      this.parallelSendLevels.hall,
       this.parallelSendLevels.hall > 0 ? hallBuffer : null,
     );
-    this.setConvolverBuffer(
+    this.swapParallelConvBuffer(
       this.parallelCisternVerb,
+      this.parallelCisternWet.gain,
+      this.parallelSendLevels.cistern,
       this.parallelSendLevels.cistern > 0 ? cisternBuffer : null,
     );
   }
