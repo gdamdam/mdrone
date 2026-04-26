@@ -827,48 +827,89 @@ export class FxChain {
       type: "setSeed",
       seed: this.reverbSeed ^ 0x9C51,
     });
-    // Rebuild the serial FDN worklets to pick up the new seed.
-    if (this.hallWorklet) {
-      try { this.hallWorklet.disconnect(); } catch { /* noop */ }
-      const ins = this.inserts.hall;
-      try { ins.insertIn.disconnect(this.hallWorklet); } catch { /* noop */ }
-      this.hallWorklet = new AudioWorkletNode(this.ctx, "fx-fdn-reverb", {
-        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
-        processorOptions: { seed: this.reverbSeed ^ 0xA11 },
-      });
-      const hT = this.ctx.currentTime;
-      this.hallWorklet.parameters.get("size")?.setValueAtTime(0.45, hT);
-      this.hallWorklet.parameters.get("damping")?.setValueAtTime(0.55, hT);
-      this.hallWorklet.parameters.get("decay")?.setValueAtTime(0.84, hT);
-      this.hallWorklet.parameters.get("mix")?.setValueAtTime(1, hT);
-      ins.insertIn.connect(this.hallWorklet);
-      if (!this.hallSerialTrim) {
-        this.hallSerialTrim = this.ctx.createGain();
-        this.hallSerialTrim.gain.value = SERIAL_REVERB_TRIM.hall;
-        this.hallSerialTrim.connect(ins.wetGain);
-      }
-      this.hallWorklet.connect(this.hallSerialTrim);
+    // Rebuild the serial FDN worklets to pick up the new seed. The
+    // disconnect+reconnect severs the wet output mid-sample; if the
+    // wet path was carrying audible reverb tail this would click
+    // audibly on every preset change. Route through swapFdnReverb()
+    // which fades the insert's wetGain to 0 first (when audible),
+    // performs the swap during silence, then lets the caller's
+    // subsequent setEffect/applyParallelSends ramp the wet back up.
+    this.swapFdnReverb("hall");
+    this.swapFdnReverb("cistern");
+  }
+
+  /** Replace the FDN reverb worklet for `hall` or `cistern` with a
+   *  fresh one carrying the current reverbSeed. The disconnect /
+   *  reconnect step is performed inside a brief wet-mute window so
+   *  preset changes don't click on the in-flight tail. Caller is
+   *  responsible for restoring wetGain afterwards via setEffect or
+   *  setEffectLevel — this matches the applyPreset flow where the
+   *  effects loop runs immediately after setReverbSeed and ramps
+   *  wetGain to its new target. */
+  private swapFdnReverb(kind: "hall" | "cistern"): void {
+    const current = kind === "hall" ? this.hallWorklet : this.cisternWorklet;
+    if (!current) return;
+    const ins = this.inserts[kind];
+    const wetParam = ins.wetGain.gain;
+    const wetCur = wetParam.value;
+    const FADE_SEC = 0.03;
+    const audible = wetCur > 0.001;
+    const now = this.ctx.currentTime;
+    if (audible) {
+      // Ramp wet to 0 over 30 ms before tearing down the worklet.
+      // We do not restore here — applyPreset's effects loop will
+      // call setEffect(kind, ...) which sets the new target.
+      wetParam.cancelScheduledValues(now);
+      wetParam.setValueAtTime(wetCur, now);
+      wetParam.linearRampToValueAtTime(0, now + FADE_SEC);
     }
-    if (this.cisternWorklet) {
-      try { this.cisternWorklet.disconnect(); } catch { /* noop */ }
-      const ins = this.inserts.cistern;
-      try { ins.insertIn.disconnect(this.cisternWorklet); } catch { /* noop */ }
-      this.cisternWorklet = new AudioWorkletNode(this.ctx, "fx-fdn-reverb", {
-        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
-        processorOptions: { seed: this.reverbSeed ^ 0xC157 },
-      });
-      const cT = this.ctx.currentTime;
-      this.cisternWorklet.parameters.get("size")?.setValueAtTime(1.2, cT);
-      this.cisternWorklet.parameters.get("damping")?.setValueAtTime(0.7, cT);
-      this.cisternWorklet.parameters.get("decay")?.setValueAtTime(0.94, cT);
-      this.cisternWorklet.parameters.get("mix")?.setValueAtTime(1, cT);
-      ins.insertIn.connect(this.cisternWorklet);
-      if (!this.cisternSerialTrim) {
-        this.cisternSerialTrim = this.ctx.createGain();
-        this.cisternSerialTrim.gain.value = SERIAL_REVERB_TRIM.cistern;
-        this.cisternSerialTrim.connect(ins.wetGain);
+    const seedXor = kind === "hall" ? 0xA11 : 0xC157;
+    const params = kind === "hall"
+      ? { size: 0.45, damping: 0.55, decay: 0.84 }
+      : { size: 1.2, damping: 0.7, decay: 0.94 };
+    const performSwap = () => {
+      const stale = kind === "hall" ? this.hallWorklet : this.cisternWorklet;
+      if (stale) {
+        try { stale.disconnect(); } catch { /* noop */ }
+        try { ins.insertIn.disconnect(stale); } catch { /* noop */ }
       }
-      this.cisternWorklet.connect(this.cisternSerialTrim);
+      const fresh = new AudioWorkletNode(this.ctx, "fx-fdn-reverb", {
+        numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+        processorOptions: { seed: this.reverbSeed ^ seedXor },
+      });
+      const t = this.ctx.currentTime;
+      fresh.parameters.get("size")?.setValueAtTime(params.size, t);
+      fresh.parameters.get("damping")?.setValueAtTime(params.damping, t);
+      fresh.parameters.get("decay")?.setValueAtTime(params.decay, t);
+      fresh.parameters.get("mix")?.setValueAtTime(1, t);
+      ins.insertIn.connect(fresh);
+      if (kind === "hall") {
+        if (!this.hallSerialTrim) {
+          this.hallSerialTrim = this.ctx.createGain();
+          this.hallSerialTrim.gain.value = SERIAL_REVERB_TRIM.hall;
+          this.hallSerialTrim.connect(ins.wetGain);
+        }
+        fresh.connect(this.hallSerialTrim);
+        this.hallWorklet = fresh;
+      } else {
+        if (!this.cisternSerialTrim) {
+          this.cisternSerialTrim = this.ctx.createGain();
+          this.cisternSerialTrim.gain.value = SERIAL_REVERB_TRIM.cistern;
+          this.cisternSerialTrim.connect(ins.wetGain);
+        }
+        fresh.connect(this.cisternSerialTrim);
+        this.cisternWorklet = fresh;
+      }
+    };
+    if (audible) {
+      // Schedule the swap a few ms after the fade completes so the
+      // disconnect lands on a silent wet path. setTimeout precision
+      // is fine for a 30+ ms gate; the AudioParam ramp guarantees
+      // the silence is sample-accurate.
+      setTimeout(performSwap, Math.round(FADE_SEC * 1000) + 5);
+    } else {
+      // Wet was already silent — swap immediately, no audible click.
+      performSwap();
     }
   }
 
