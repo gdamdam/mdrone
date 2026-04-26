@@ -1281,6 +1281,11 @@ export class FxChain {
     if (id === "delay") {
       this.delayFbGain.gain.setTargetAtTime(on ? this.delayFeedback : 0, now, this.xfadeTC);
     } else if (id === "comb") {
+      // A retune flush can have a future "restore feedback" event queued.
+      // Toggling COMB must own the feedback gate, so cancel that queue first
+      // or an off-toggle during the flush could re-energize the internal loop.
+      this.combFbGain.gain.cancelScheduledValues(now);
+      if (!on) this.combFlushUntilCtxTime = 0;
       this.combFbGain.gain.setTargetAtTime(on ? this.combFeedback : 0, now, this.xfadeTC);
     } else if (id === "freeze" && this.freezeWorklet) {
       this.freezeWorklet.parameters

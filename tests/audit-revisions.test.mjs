@@ -79,6 +79,24 @@ test("FxChain setRootFreq: comb flush sequence present and guarded", () => {
   assert.match(fn[0], /now\s*\+\s*0\.20/, "feedback restore should be offset by ~200 ms");
 });
 
+test("FxChain setEffect: comb toggle cancels pending retune-flush automation", () => {
+  const src = read("src/engine/FxChain.ts");
+  const fn = src.match(/setEffect\s*\([^)]*\)\s*:\s*void\s*\{[\s\S]*?\n\s\s\}/);
+  assert.ok(fn, "setEffect not found");
+  const combBranch = fn[0].match(/else if\s*\(\s*id === "comb"\s*\)\s*\{[\s\S]*?\n\s*}/);
+  assert.ok(combBranch, "setEffect comb branch not found");
+  assert.match(
+    combBranch[0],
+    /combFbGain\.gain\.cancelScheduledValues\(\s*now\s*\)/,
+    "comb toggle should cancel any future flush restore events",
+  );
+  assert.match(
+    combBranch[0],
+    /combFlushUntilCtxTime\s*=\s*0/,
+    "comb off-toggle should clear the rapid-retune guard window",
+  );
+});
+
 // ── Loudness trim clamp ──────────────────────────────────────────────
 
 test("MasterBus setLoudnessTrim: clamps to [0.5, 2.0]", () => {
