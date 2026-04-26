@@ -380,20 +380,23 @@ export class MasterBus {
     this.exciterLpf.connect(this.exciterShaper);
     this.exciterShaper.connect(this.exciterReturn);
     this.exciterReturn.connect(this.preLimMixer);
-    // Master room — parallel send tap from masterGain. Lands at
-    // outputTrim, summing with the limited dry path. Earlier
-    // wiring routed through limiterIn so the native compressor
-    // would catch the combined energy, but the comp's transparent
-    // mode (threshold 0 / ratio 1) on Chrome appears to swallow
-    // the convolver's low-level output entirely. The dry path
-    // already passes through the brickwall worklet (or the native
-    // comp on Safari) so peak overshoot from room+dry is still
-    // controlled at the very last stage. Send level set by
-    // setRoomAmount; default is 0 so the room is silent until
-    // the user opts in.
+    // Master room — parallel send tap from masterGain into the
+    // pre-limiter mixer, so dry + room + parallel sat/exciter all
+    // pass through the active limiter (worklet brickwall on
+    // Chrome/FF, native DynamicsCompressor on Safari) before the
+    // user-volume / width / loudnessTrim stages. An earlier wiring
+    // landed at outputTrim — that put the convolver tail past the
+    // limiter and meant peak control was not guaranteed for the
+    // dry+room sum. A still-earlier attempt fed limiterIn directly
+    // and was eaten by Chrome's *flattened* native comp (when the
+    // brickwall worklet was active, the native comp was set to
+    // threshold 0 / ratio 1 as an idle stub). Landing at preLimMixer
+    // avoids both: preLimMixer feeds the *active* limiter, never
+    // the flattened pass-through. Send level set by setRoomAmount;
+    // default 0 (silent until the user opts in).
     this.masterGain.connect(this.roomSendGain);
     this.roomSendGain.connect(this.roomConvolver);
-    this.roomConvolver.connect(this.outputTrim);
+    this.roomConvolver.connect(this.preLimMixer);
     // limiterIn → limiterComp → limiterOut wiring done at construction.
     this.limiterOut.connect(this.outputTrim);
     // outputTrim → bass-mono fold → [ M/S width matrix ] → analyser → destination.
@@ -548,13 +551,14 @@ export class MasterBus {
         // Re-route: preLimMixer → brickwall → outputTrim, bypassing
         // the native comp branch. Disconnect the dry path that fed
         // the native limiterIn first; flatten the native comp to
-        // passthrough so the parallel room-send tap (which still
-        // lands at limiterIn) remains transparent.
+        // passthrough so the legacy sub-graph stays sonically silent
+        // even though nothing currently routes through it (room now
+        // lands at preLimMixer, which is on the active path).
         try { this.preLimMixer.disconnect(this.limiterIn); } catch { /* ok */ }
         this.preLimMixer.connect(this.brickwallNode);
         this.brickwallNode.connect(this.outputTrim);
-        // Native limiter still receives the room-send tap (which goes
-        // to limiterIn directly); flatten it so it doesn't double-limit.
+        // Native limiter sub-graph is now unreachable on the active
+        // path; flatten it so any future fallback doesn't double-limit.
         const now = this.ctx.currentTime;
         this.limiterComp.threshold.setTargetAtTime(0, now, 0.01);
         this.limiterComp.ratio.setTargetAtTime(1, now, 0.01);
@@ -597,7 +601,7 @@ export class MasterBus {
    *  already-running convolver can leave the node silent (the
    *  re-initialization of the internal FFT kernel is not always
    *  triggered). Building a fresh node and rewiring the two
-   *  connections (sendGain → newConv → outputTrim) sidesteps it. */
+   *  connections (sendGain → newConv → preLimMixer) sidesteps it. */
   private loadCathedralIR(): void {
     if (typeof fetch === "undefined") return;
     fetch("/irs/cathedral.wav")
@@ -619,7 +623,9 @@ export class MasterBus {
         freshConv.buffer = buf;
         this.masterGain.connect(freshSend);
         freshSend.connect(freshConv);
-        freshConv.connect(this.outputTrim);
+        // Land at preLimMixer so the room sum passes through the
+        // active limiter (matches initial wiring).
+        freshConv.connect(this.preLimMixer);
         // Now disconnect the old chain.
         const oldSend = this.roomSendGain;
         const oldConv = this.roomConvolver;
@@ -627,7 +633,7 @@ export class MasterBus {
         this.roomConvolver = freshConv;
         try { this.masterGain.disconnect(oldSend); } catch { /* ok */ }
         try { oldSend.disconnect(oldConv); } catch { /* ok */ }
-        try { oldConv.disconnect(this.outputTrim); } catch { /* ok */ }
+        try { oldConv.disconnect(this.preLimMixer); } catch { /* ok */ }
         try { console.info(`[mdrone] cathedral IR loaded — ${buf.duration.toFixed(2)}s × ${buf.numberOfChannels}ch`); } catch { /* ok */ }
       })
       .catch((err) => {
@@ -686,9 +692,10 @@ export class MasterBus {
   private applyLimiterParams(): void {
     const now = this.ctx.currentTime;
     if (this.brickwallActive && this.brickwallNode) {
-      // Drive the look-ahead worklet directly. Native comp stays
-      // flattened (threshold 0 / ratio 1) to remain transparent on
-      // the parallel room-send path that lands at limiterIn.
+      // Drive the look-ahead worklet directly. Native comp is left
+      // flattened (threshold 0 / ratio 1) as an idle fallback; nothing
+      // routes through it on the active path (room now lands at
+      // preLimMixer, ahead of the brickwall).
       const cParam = this.brickwallNode.parameters.get("ceiling");
       const rParam = this.brickwallNode.parameters.get("releaseSec");
       const eParam = this.brickwallNode.parameters.get("enabled");
@@ -716,25 +723,24 @@ export class MasterBus {
   setRoomAmount(amount: number): void {
     const a = Math.max(0, Math.min(1, amount));
     this.roomAmount = a;
-    // Send level: a=1 maps to 1.0 linear (0 dB / unity blend) so
-    // slider=1 means "as much room as possible." The dry path
-    // still passes through the brickwall limiter (or native comp
-    // on Safari), so even at full wet+dry the master peak stays
-    // controlled. Earlier conservative ceilings (0.25, then 0.7)
-    // were inaudible / barely audible on steady drone material —
-    // convolution tails are transient-dominated, and drones have
-    // few transients, so the wet has to be at full level to read
-    // as a "room around the source" on sustained content.
-    this.roomSendGain.gain.setTargetAtTime(a, this.ctx.currentTime, 0.05);
+    // Send level: a=1 maps to 0.7 linear (≈ -3 dB). With ROOM now
+    // landing at preLimMixer, dry+room is bounded by the active
+    // limiter; capping room at 0.7 keeps the limiter from chasing
+    // the convolver tail on transient-heavy presets while still
+    // reading audibly on sustained drone material. If listening
+    // tests show ROOM lost weight, raise to 0.85 as the next step.
+    this.roomSendGain.gain.setTargetAtTime(a * 0.7, this.ctx.currentTime, 0.05);
   }
 
   getRoomAmount(): number { return this.roomAmount; }
 
   /** Loudness-trim gain (post-width, pre-analyser). Linear scalar
-   *  clamped to [0.3, 3.0] so a runaway leveler can't crush or
-   *  inflate the master by more than ±10 dB. Ramps over `rampSec`
+   *  clamped to [0.5, 2.0] so a runaway leveler can't crush or
+   *  inflate the master by more than ±6 dB. Ramps over `rampSec`
    *  via setTargetAtTime; the time-constant is `rampSec/3` so a
-   *  1.5 s ramp hits ~95 % at 1.5 s. */
+   *  2.5 s ramp hits ~95 % at 2.5 s. The minimum TC floor is
+   *  raised to 0.2 s so a step request still fades audibly rather
+   *  than producing a sub-block jump on glitchy LUFS readings. */
   /** Mud-trim toggle. On by default; off ramps the peaking gain to
    *  0 dB so the filter becomes sonically a bypass while staying
    *  inline (no graph rewire needed). */
@@ -745,9 +751,9 @@ export class MasterBus {
   }
   isMudTrimEnabled(): boolean { return this.mudTrimEnabled; }
 
-  setLoudnessTrim(linear: number, rampSec: number = 1.5): void {
-    const v = Math.max(0.3, Math.min(3.0, linear));
-    this.loudnessTrim.gain.setTargetAtTime(v, this.ctx.currentTime, Math.max(0.05, rampSec / 3));
+  setLoudnessTrim(linear: number, rampSec: number = 2.5): void {
+    const v = Math.max(0.5, Math.min(2.0, linear));
+    this.loudnessTrim.gain.setTargetAtTime(v, this.ctx.currentTime, Math.max(0.2, rampSec / 3));
   }
   getLoudnessTrim(): number { return this.loudnessTrim.gain.value; }
 
@@ -844,13 +850,15 @@ export class MasterBus {
   }
   isHeadphoneSafe(): boolean { return this.headphoneSafe; }
 
-  /** Stereo width. 1.0 = unchanged, 0 = mono (L+R summed), 2.0 =
-   *  exaggerated side (phase-inverted cross-feed). Out of range
-   *  inputs are clamped. Coefficient derivation:
+  /** Stereo width. 1.0 = unchanged, 0 = mono (L+R summed), 1.6 =
+   *  very wide (phase-inverted cross-feed). Out-of-range inputs are
+   *  clamped to [0, 1.6]: above 1.6 the side phase-inversion can
+   *  push L+R sample peak past 2× and the limiter can't catch it
+   *  (width is post-limiter). Coefficient derivation:
    *    L' = 0.5*((1+w)*L + (1-w)*R)
    *    R' = 0.5*((1-w)*L + (1+w)*R)  */
   setWidth(w: number): void {
-    const clamped = Math.max(0, Math.min(2, w));
+    const clamped = Math.max(0, Math.min(1.6, w));
     this.widthValue = clamped;
     const t = this.ctx.currentTime;
     const pair = 0.5 * (1 + clamped);

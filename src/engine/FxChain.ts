@@ -115,10 +115,20 @@ const XFADE_TC_BASE = 0.45;
 /** Per-effect wet-amplitude multiplier. User-facing AMOUNT is [0..1];
  *  the internal wet target is `levels[id] × WET_GAIN[id]` so reverb
  *  worklets (quiet output by nature) can still compete with the
- *  full-level dry signal when additive. Non-reverbs stay at 1×. */
+ *  full-level dry signal when additive. Non-reverbs stay at 1×.
+ *
+ *  Reverb-family trims (plate / hall / shimmer / cistern) were
+ *  previously 2.5–3.0 to compensate for a wet-only insert path
+ *  where the dry signal was lost when the effect engaged. The
+ *  current path keeps dry intact and adds the wet on top, so those
+ *  high trims pushed the parallel reverb above unity dry and washed
+ *  presets out. Halving them brings the wet-audible point to
+ *  AMOUNT ≈ 0.4–0.5 with dry articulation preserved. Other trims
+ *  (formant 1.5, granular/graincloud 1, freeze 1) are unchanged
+ *  pending listening + measurement evidence. */
 const WET_GAIN: Record<EffectId, number> = {
   tape: 1, wow: 1, sub: 1, comb: 1, delay: 1, ringmod: 1, formant: 1.5,
-  plate: 3.0, hall: 2.5, shimmer: 2.5, cistern: 2.5,
+  plate: 1.5, hall: 1.5, shimmer: 1.5, cistern: 1.6,
   granular: 1, graincloud: 1, freeze: 1,
 };
 
@@ -282,6 +292,13 @@ export class FxChain {
   private levels: Record<EffectId, number> = { ...ON_LEVELS };
   private delayFeedback = 0.58;
   private combFeedback = 0.68;
+  /** Audio-context time at which the most recent comb retune-flush
+   *  is scheduled to finish ramping its feedback back up. Used by
+   *  `setRootFreq` as a rapid-retune guard: while we're still inside
+   *  this window, additional retunes update the delay time directly
+   *  but do not restart the flush sequence — otherwise a slider
+   *  sweep would hold combFbGain at zero and the comb would vanish. */
+  private combFlushUntilCtxTime = 0;
   private freezeMix = ON_LEVELS.freeze;
   private airAmount = 0.6;
   private morphAmount = 0.25;
@@ -1331,7 +1348,11 @@ export class FxChain {
 
   // COMB
   setCombFeedback(fb: number): void {
-    this.combFeedback = Math.max(0, Math.min(0.98, fb));
+    // Cap at 0.92 (was 0.98). Root-tracked combs are particularly
+    // prone to ringing on retunes because the buffer keeps energy
+    // at the old root; 0.92 keeps the comb resonant without sitting
+    // right on the runaway edge.
+    this.combFeedback = Math.max(0, Math.min(0.92, fb));
     this.combFbGain.gain.setTargetAtTime(this.enabled.comb ? this.combFeedback : 0, this.ctx.currentTime, 0.1);
   }
   getCombFeedback(): number { return this.combFeedback; }
@@ -1545,15 +1566,50 @@ export class FxChain {
   }
 
   /** Retune COMB to the root and re-center SUB band when the drone
-   *  root changes. Called from AudioEngine.setDroneFreq(). */
+   *  root changes. Called from AudioEngine.setDroneFreq().
+   *
+   *  When the comb is enabled, retuning the delay line alone is not
+   *  safe: the buffer holds energy at the old root, the new root
+   *  retunes that energy alongside the new content, and on
+   *  feedback ≥ 0.6 root-tracked combs chirp during retune. To
+   *  avoid that, briefly duck `combFbGain` around the delay-time
+   *  ramp, then restore it. The flush window is guarded against
+   *  rapid repeat retunes (a slider sweep) so we don't keep the
+   *  comb silent for the duration of the sweep. */
   setRootFreq(freq: number): void {
     const now = this.ctx.currentTime;
     const combTime = Math.min(1 / Math.max(20, freq), 0.059);
-    this.combDelay.delayTime.setTargetAtTime(combTime, now, 0.1);
     // Sub oscillator tracks half the drone root — a true octave-down.
     const subFreq = Math.max(20, Math.min(220, freq * 0.5));
     if (this.subOsc) {
       this.subOsc.frequency.setTargetAtTime(subFreq, now, 0.1);
+    }
+    // Rapid-retune guard: if we're already inside an active flush
+    // window, just retune the delay time and leave the feedback
+    // ramp alone. The comb is already de-energised by the
+    // in-progress flush; the new delay time will take effect on the
+    // same 0.1 s TC and the existing restore ramp will bring
+    // combFbGain back up. This prevents back-to-back setRootFreq
+    // calls from holding the comb at zero through a slider sweep.
+    if (this.enabled.comb && now >= this.combFlushUntilCtxTime) {
+      // Schedule sequence:
+      //   t=0      : feedback → 0  (TC 30 ms)
+      //   t=+60ms  : delay-time retune (TC 100 ms)
+      //   t=+200ms : feedback → combFeedback (TC 80 ms)
+      // The 60 ms gap is short enough to be inaudible on sustained
+      // drone material but long enough for the feedback ramp to be
+      // ~86 % of the way to zero, which breaks the resonance.
+      this.combFbGain.gain.cancelScheduledValues(now);
+      this.combFbGain.gain.setTargetAtTime(0, now, 0.03);
+      this.combDelay.delayTime.setTargetAtTime(combTime, now + 0.06, 0.1);
+      this.combFbGain.gain.setTargetAtTime(this.combFeedback, now + 0.20, 0.08);
+      // Window expires once the restore ramp has had ~5 TCs to settle.
+      this.combFlushUntilCtxTime = now + 0.20 + 0.08 * 5;
+    } else {
+      // Comb off, or rapid-retune inside an active flush window:
+      // just retune the delay line. When comb is off, combFbGain
+      // is 0 and there's nothing to flush.
+      this.combDelay.delayTime.setTargetAtTime(combTime, now, 0.1);
     }
   }
 
