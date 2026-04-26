@@ -114,6 +114,14 @@ export interface FxSessionSnapshot {
   combFeedback: number;
   subCenter: number;
   freezeMix: number;
+  /** FREEZE behaviour: "hold" = single rising-edge snapshot,
+   *  "infinite" = fold input into the sustained cloud while active.
+   *  Optional for backward compatibility — legacy URLs default to
+   *  "hold". */
+  freezeMode?: "hold" | "infinite";
+  /** HALO partial-tilt (0..1). Optional for backward compatibility —
+   *  legacy URLs default to 0.5. */
+  haloTilt?: number;
   /** User-customised serial chain order. Optional to stay
    *  backward-compatible with share URLs / sessions authored before
    *  this field existed — those fall back to whatever order the
@@ -216,6 +224,7 @@ const DEFAULT_EFFECT_LEVELS: Record<EffectId, number> = {
   graincloud: 0.8,
   ringmod: 0.7,
   formant: 0.85,
+  halo: 0.55,
 };
 
 export const DEFAULT_FX_SNAPSHOT: FxSessionSnapshot = {
@@ -258,6 +267,7 @@ const DEFAULT_DRONE_SNAPSHOT: DroneSessionSnapshot = {
     graincloud: false,
     ringmod: false,
     formant: false,
+    halo: false,
   },
   drift: 0.3,
   air: 0.4,
@@ -364,6 +374,7 @@ function normalizeEffectStates(value: unknown): Record<EffectId, boolean> {
     graincloud: readBoolean(record.graincloud, false),
     ringmod: readBoolean(record.ringmod, false),
     formant: readBoolean(record.formant, false),
+    halo: readBoolean(record.halo, false),
   };
 }
 
@@ -384,6 +395,7 @@ function normalizeEffectLevels(value: unknown): Record<EffectId, number> {
     graincloud: readNumber(record.graincloud, DEFAULT_EFFECT_LEVELS.graincloud, 0, 1),
     ringmod: readNumber(record.ringmod, DEFAULT_EFFECT_LEVELS.ringmod, 0, 1),
     formant: readNumber(record.formant, DEFAULT_EFFECT_LEVELS.formant, 0, 1),
+    halo: readNumber(record.halo, DEFAULT_EFFECT_LEVELS.halo, 0, 1),
   };
 }
 
@@ -482,6 +494,12 @@ export function normalizeFxSnapshot(value: unknown): FxSessionSnapshot {
     subCenter: readNumber(record.subCenter, DEFAULT_FX_SNAPSHOT.subCenter, 40, 300),
     freezeMix: readNumber(record.freezeMix, DEFAULT_FX_SNAPSHOT.freezeMix, 0, 1),
   };
+  if (record.freezeMode === "infinite" || record.freezeMode === "hold") {
+    snapshot.freezeMode = record.freezeMode;
+  }
+  if (typeof record.haloTilt === "number" && Number.isFinite(record.haloTilt)) {
+    snapshot.haloTilt = Math.max(0, Math.min(1, record.haloTilt));
+  }
   const order = normalizeEffectOrder(record.order);
   if (order) snapshot.order = order;
   return snapshot;

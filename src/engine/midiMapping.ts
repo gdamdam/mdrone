@@ -93,6 +93,7 @@ export const MIDI_TARGETS: readonly MidiTarget[] = [
   { id: "fx.graincloud",  label: "GRAINCLOUD", group: "Effects", kind: "continuous" },
   { id: "fx.ringmod",     label: "RINGMOD",    group: "Effects", kind: "continuous" },
   { id: "fx.formant",     label: "FORMANT",    group: "Effects", kind: "continuous" },
+  { id: "fx.halo",        label: "HALO",       group: "Effects", kind: "continuous" },
 
   // ── Triggers ─────────────────────────────────────────────────────
   { id: "hold",   label: "HOLD",   group: "Triggers", kind: "trigger" },

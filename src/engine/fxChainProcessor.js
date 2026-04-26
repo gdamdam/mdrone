@@ -552,6 +552,12 @@ class FreezeProcessor extends AudioWorkletProcessor {
     return [
       { name: "active", defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "k-rate" },
       { name: "mix",    defaultValue: 0.7, minValue: 0, maxValue: 1, automationRate: "k-rate" },
+      // mode 0 = HOLD (single rising-edge snapshot, default).
+      // mode 1 = INFINITE — every hop folds fresh input bands into
+      // the held magnitudes via max-combine with a slow leak, so new
+      // notes accumulate into the sustained cloud instead of being
+      // ignored.
+      { name: "mode",   defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "k-rate" },
     ];
   }
 
@@ -686,6 +692,31 @@ class FreezeProcessor extends AudioWorkletProcessor {
     }
   }
 
+  // INFINITE mode helper: max-combine fresh input magnitudes into the
+  // held mags with a slow per-hop leak. New notes grow the cloud
+  // immediately; the leak keeps the cloud from drifting upward forever
+  // when input stops moving.
+  analyzeChannelAccumulate(ring, mags) {
+    const N = this.N;
+    const buf = this.fftBuf;
+    const tmp = this.tmpFrame;
+    this.unrollRing(ring, tmp);
+    for (let i = 0; i < N; i++) {
+      buf[i << 1] = tmp[i] * this.hann[i];
+      buf[(i << 1) + 1] = 0;
+    }
+    this.fft(buf, false);
+    const half = N >> 1;
+    const leak = 0.9998; // ~21 s 1/e decay at hop 512 / 48 kHz
+    for (let b = 0; b <= half; b++) {
+      const re = buf[b << 1];
+      const im = buf[(b << 1) + 1];
+      const m = Math.sqrt(re * re + im * im);
+      const decayed = mags[b] * leak;
+      mags[b] = m > decayed ? m : decayed;
+    }
+  }
+
   // Build a random-phase spectrum from held magnitudes, IFFT, window,
   // OLA into outBuf starting at outStart (modulo N).
   synthChannel(mags, outBuf, outStart) {
@@ -730,6 +761,7 @@ class FreezeProcessor extends AudioWorkletProcessor {
 
     const active = parameters.active[0];
     const mix = parameters.mix[0];
+    const mode = parameters.mode[0];
 
     // Rising edge: snapshot magnitudes from the most recent N-sample
     // window of the ring buffer. Output OLA state is reset so the
@@ -767,6 +799,12 @@ class FreezeProcessor extends AudioWorkletProcessor {
         this.sinceHop++;
         if (this.sinceHop >= hop) {
           this.sinceHop = 0;
+          // INFINITE: fold latest input bands into held mags before
+          // resynthesis so subsequent frames include the new content.
+          if (mode > 0.5 && active > 0.5) {
+            if (inL) this.analyzeChannelAccumulate(this.ringL, this.magL);
+            if (inR) this.analyzeChannelAccumulate(this.ringR, this.magR);
+          }
           this.synthChannel(this.magL, this.outL, this.outWritePos);
           this.synthChannel(this.magR, this.outR, this.outWritePos);
           this.outWritePos = (this.outWritePos + hop) % N;
@@ -1656,3 +1694,242 @@ class RecorderTapProcessor extends AudioWorkletProcessor {
   }
 }
 registerProcessor("fx-recorder-tap", RecorderTapProcessor);
+
+// ═══════════════════════════════════════════════════════════════════════
+// HALO — multi-band harmonic-partial bloom
+// ═══════════════════════════════════════════════════════════════════════
+//
+// FFT-based: every hop we capture a window of input, follow each band's
+// magnitude with a slow envelope, then resynthesize an output spectrum
+// where each input bin b deposits energy into its own upper partials
+// (b·2, b·3, …) with a tilt-controlled rolloff. Random phases per
+// frame keep the tail shimmering rather than locked. The result is a
+// bloom of upper harmonics that tracks the live spectral content of
+// whatever's playing — sustained drone material is what it's tuned for.
+//
+// Notes:
+//   - Output is partial-only; the chain insert keeps dry intact and
+//     adds this on top, so we never need to pass dry through here.
+//   - Smoothing alpha = 0.06 → ~100 ms full update at hop 256/48 kHz.
+//   - DC and Nyquist bins are skipped so we never deposit into them.
+//   - Partial bins above Nyquist are dropped silently.
+class HaloProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      // 0 = only the strong 2× partial; 1 = full 2..6× stack with
+      // gentle rolloff. Default 0.5 sits between "octave-up halo"
+      // and "full string-section bloom".
+      { name: "tilt", defaultValue: 0.5, minValue: 0, maxValue: 1, automationRate: "k-rate" },
+    ];
+  }
+
+  constructor() {
+    super();
+    this.N = 1024;
+    this.hop = 256;
+    this.olaScale = 1 / 1.5;
+
+    this.hann = new Float32Array(this.N);
+    for (let i = 0; i < this.N; i++) {
+      this.hann[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.N - 1)));
+    }
+    this.bitrev = new Uint32Array(this.N);
+    const bits = Math.round(Math.log2(this.N));
+    for (let i = 0; i < this.N; i++) {
+      let r = 0, x = i;
+      for (let b = 0; b < bits; b++) { r = (r << 1) | (x & 1); x >>>= 1; }
+      this.bitrev[i] = r;
+    }
+
+    this.ringL = new Float32Array(this.N);
+    this.ringR = new Float32Array(this.N);
+    this.ringIdx = 0;
+
+    const half = this.N / 2 + 1;
+    this.smoothL = new Float32Array(half);
+    this.smoothR = new Float32Array(half);
+    this.outSpec = new Float32Array(half);
+    this.alpha = 0.06;
+
+    this.outL = new Float32Array(this.N);
+    this.outR = new Float32Array(this.N);
+    this.outReadPos = 0;
+    this.outWritePos = 0;
+    this.sinceHop = this.hop;
+
+    this.fftBuf = new Float32Array(this.N * 2);
+    this.tmpFrame = new Float32Array(this.N);
+
+    this.rngState = 0xa1c0b00d;
+  }
+
+  rand() {
+    let t = (this.rngState = (this.rngState + 0x6d2b79f5) >>> 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  fft(buf, inverse) {
+    const N = this.N;
+    for (let i = 0; i < N; i++) {
+      const j = this.bitrev[i];
+      if (j > i) {
+        const i2 = i << 1, j2 = j << 1;
+        const re = buf[i2], im = buf[i2 + 1];
+        buf[i2] = buf[j2]; buf[i2 + 1] = buf[j2 + 1];
+        buf[j2] = re; buf[j2 + 1] = im;
+      }
+    }
+    for (let size = 2; size <= N; size <<= 1) {
+      const halfSz = size >> 1;
+      const theta = (inverse ? 2 : -2) * Math.PI / size;
+      const wpRe = Math.cos(theta), wpIm = Math.sin(theta);
+      for (let i = 0; i < N; i += size) {
+        let wRe = 1, wIm = 0;
+        for (let k = 0; k < halfSz; k++) {
+          const aIdx = (i + k) << 1;
+          const bIdx = (i + k + halfSz) << 1;
+          const bRe = buf[bIdx], bIm = buf[bIdx + 1];
+          const tRe = wRe * bRe - wIm * bIm;
+          const tIm = wRe * bIm + wIm * bRe;
+          const aRe = buf[aIdx], aIm = buf[aIdx + 1];
+          buf[aIdx] = aRe + tRe; buf[aIdx + 1] = aIm + tIm;
+          buf[bIdx] = aRe - tRe; buf[bIdx + 1] = aIm - tIm;
+          const nwRe = wRe * wpRe - wIm * wpIm;
+          wIm = wRe * wpIm + wIm * wpRe;
+          wRe = nwRe;
+        }
+      }
+    }
+    if (inverse) {
+      const invN = 1 / N;
+      for (let i = 0; i < N * 2; i++) buf[i] *= invN;
+    }
+  }
+
+  unrollRing(ring, tmp) {
+    const N = this.N;
+    const start = this.ringIdx;
+    for (let i = 0; i < N; i++) {
+      tmp[i] = ring[(start + i) % N];
+    }
+  }
+
+  // Update `smooth` in place: low-pass follower over per-bin magnitude.
+  followBands(ring, smooth) {
+    const N = this.N;
+    const buf = this.fftBuf;
+    const tmp = this.tmpFrame;
+    this.unrollRing(ring, tmp);
+    for (let i = 0; i < N; i++) {
+      buf[i << 1] = tmp[i] * this.hann[i];
+      buf[(i << 1) + 1] = 0;
+    }
+    this.fft(buf, false);
+    const half = N >> 1;
+    const a = this.alpha;
+    const oneMinusA = 1 - a;
+    for (let b = 0; b <= half; b++) {
+      const re = buf[b << 1];
+      const im = buf[(b << 1) + 1];
+      const m = Math.sqrt(re * re + im * im);
+      smooth[b] = oneMinusA * smooth[b] + a * m;
+    }
+  }
+
+  // Synthesise upper-partial spectrum from `smooth`, IFFT, window,
+  // OLA into outBuf starting at outStart. Caller picks tilt.
+  synthChannel(smooth, outBuf, outStart, partialGains) {
+    const N = this.N;
+    const buf = this.fftBuf;
+    const half = N >> 1;
+    const outSpec = this.outSpec;
+    outSpec.fill(0);
+    // Skip DC (b=0) and Nyquist (b=half). Each input bin sprays into
+    // its 2..6× partials with the supplied gain table.
+    const Kmax = partialGains.length;
+    for (let b = 1; b < half; b++) {
+      const m = smooth[b];
+      if (m < 1e-6) continue;
+      for (let k = 2; k < Kmax; k++) {
+        const tb = b * k;
+        if (tb >= half) break;
+        outSpec[tb] += m * partialGains[k];
+      }
+    }
+    for (let b = 0; b <= half; b++) {
+      const m = outSpec[b];
+      const phase = this.rand() * 2 * Math.PI;
+      const re = m * Math.cos(phase);
+      const im = m * Math.sin(phase);
+      buf[b << 1] = re;
+      buf[(b << 1) + 1] = im;
+      if (b > 0 && b < half) {
+        buf[(N - b) << 1] = re;
+        buf[((N - b) << 1) + 1] = -im;
+      }
+    }
+    buf[1] = 0;
+    buf[(half << 1) + 1] = 0;
+    this.fft(buf, true);
+    const scale = this.olaScale;
+    for (let i = 0; i < N; i++) {
+      const pos = (outStart + i) % N;
+      outBuf[pos] += buf[i << 1] * this.hann[i] * scale;
+    }
+  }
+
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!output) return true;
+    const inL = input && input[0] ? input[0] : null;
+    const inR = input && input.length > 1 ? input[1] : inL;
+    const outL = output[0];
+    const outR = output.length > 1 ? output[1] : output[0];
+    const n = outL.length;
+    const N = this.N;
+    const hop = this.hop;
+
+    const tilt = parameters.tilt[0];
+    // tilt=0 → only 2× partial loud; tilt=1 → 2..6× stack with gentle
+    // rolloff. Indexed by k (k=2..6 used).
+    const baseGain = 0.35; // overall partial level so bloom sits under dry
+    const partialGains = [
+      0, 0,
+      baseGain * 1.0,
+      baseGain * (0.55 + 0.45 * tilt),
+      baseGain * (0.30 + 0.55 * tilt),
+      baseGain * (0.15 + 0.55 * tilt),
+      baseGain * (0.06 + 0.50 * tilt),
+    ];
+
+    for (let i = 0; i < n; i++) {
+      if (inL) this.ringL[this.ringIdx] = inL[i];
+      if (inR) this.ringR[this.ringIdx] = inR[i];
+      this.ringIdx = (this.ringIdx + 1) % N;
+
+      this.sinceHop++;
+      if (this.sinceHop >= hop) {
+        this.sinceHop = 0;
+        if (inL) this.followBands(this.ringL, this.smoothL);
+        if (inR) this.followBands(this.ringR, this.smoothR);
+        this.synthChannel(this.smoothL, this.outL, this.outWritePos, partialGains);
+        this.synthChannel(this.smoothR, this.outR, this.outWritePos, partialGains);
+        this.outWritePos = (this.outWritePos + hop) % N;
+      }
+
+      let sL = this.outL[this.outReadPos];
+      let sR = this.outR[this.outReadPos];
+      this.outL[this.outReadPos] = 0;
+      this.outR[this.outReadPos] = 0;
+      this.outReadPos = (this.outReadPos + 1) % N;
+
+      outL[i] = sL;
+      outR[i] = sR;
+    }
+    return true;
+  }
+}
+registerProcessor("fx-halo", HaloProcessor);

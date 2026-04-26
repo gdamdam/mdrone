@@ -3973,7 +3973,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .fx-bar {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -4428,6 +4428,41 @@ input.share-modal-url:focus {
   margin-top: 8px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+
+.fx-modal-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.fx-modal-mode-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  width: 56px;
+}
+.fx-modal-mode-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.fx-modal-mode-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.fx-modal-mode-btn.is-active {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 /* ── MixerView (ported from mloop) ────────────────────────────────── */

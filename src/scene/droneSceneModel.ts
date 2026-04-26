@@ -114,6 +114,7 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
       graincloud: false,
       ringmod: false,
       formant: false,
+      halo: false,
     },
     drift: engine?.getDrift() ?? 0.3,
     air: engine?.getAir() ?? 0.4,

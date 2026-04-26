@@ -61,12 +61,15 @@ export function captureFxSnapshot(engine: AudioEngine): FxSessionSnapshot {
       graincloud: fx.getEffectLevel("graincloud"),
       ringmod: fx.getEffectLevel("ringmod"),
       formant: fx.getEffectLevel("formant"),
+      halo: fx.getEffectLevel("halo"),
     },
     delayTime: fx.getDelayTime(),
     delayFeedback: fx.getDelayFeedback(),
     combFeedback: fx.getCombFeedback(),
     subCenter: fx.getSubCenter(),
     freezeMix: fx.getFreezeFeedback(),
+    freezeMode: fx.getFreezeMode() === 1 ? "infinite" : "hold",
+    haloTilt: fx.getHaloTilt(),
     order: engine.getEffectOrder(),
   };
 }
@@ -78,6 +81,8 @@ export function applyFxSnapshot(engine: AudioEngine, snapshot: FxSessionSnapshot
   fx.setCombFeedback(snapshot.combFeedback);
   fx.setSubCenter(snapshot.subCenter);
   fx.setFreezeFeedback(snapshot.freezeMix);
+  fx.setFreezeMode(snapshot.freezeMode === "infinite" ? 1 : 0);
+  if (typeof snapshot.haloTilt === "number") fx.setHaloTilt(snapshot.haloTilt);
   for (const id of Object.keys(snapshot.levels) as (keyof FxSessionSnapshot["levels"])[]) {
     fx.setEffectLevel(id, snapshot.levels[id]);
   }

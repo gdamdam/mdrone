@@ -122,6 +122,11 @@ const FX_DEFS: Record<EffectId, FxDef> = {
     hint: "Classic granular — short grains, dense cloud, wider pitch scatter. Audible stutter, Fennesz/Oval/noisier Hecker",
     icon: <IconGrainCloud />,
   },
+  halo: {
+    label: "HALO",
+    hint: "Spectral partial bloom — generates upper harmonics from each input band into a slow string-section halo over the dry drone",
+    icon: <IconHalo />,
+  },
 };
 
 export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps) {
@@ -469,6 +474,18 @@ function IconGrainCloud() {
       <circle cx="5" cy="14" r="0.6" />
       <circle cx="9" cy="15" r="0.6" />
       <circle cx="15" cy="14" r="0.6" />
+    </svg>
+  );
+}
+
+/** HALO — central core with concentric arcs (partial bloom). */
+function IconHalo() {
+  return (
+    <svg {...iconProps}>
+      <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+      <path d="M3 9 A 6 6 0 0 1 15 9" opacity="0.85" />
+      <path d="M2 9 A 7 7 0 0 0 16 9" opacity="0.55" />
+      <path d="M5 9 A 4 4 0 0 1 13 9" opacity="0.5" />
     </svg>
   );
 }

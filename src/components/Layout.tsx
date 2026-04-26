@@ -368,6 +368,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       case "fx.graincloud": eng?.getFxChain?.().setEffectLevel("graincloud", norm); break;
       case "fx.ringmod":    eng?.getFxChain?.().setEffectLevel("ringmod",    norm); break;
       case "fx.formant":    eng?.getFxChain?.().setEffectLevel("formant",    norm); break;
+      case "fx.halo":       eng?.getFxChain?.().setEffectLevel("halo",       norm); break;
     }
   }, [engine]);
 

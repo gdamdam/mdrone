@@ -45,7 +45,8 @@ export type EffectId =
   | "granular"
   | "graincloud"
   | "ringmod"
-  | "formant";
+  | "formant"
+  | "halo";
 
 /**
  * Canonical serial-chain order. **This is the single source of truth
@@ -57,7 +58,7 @@ export type EffectId =
  */
 export const EFFECT_ORDER: readonly EffectId[] = [
   "tape", "wow", "sub", "comb", "ringmod", "formant", "delay",
-  "plate", "hall", "shimmer", "freeze", "cistern", "granular", "graincloud",
+  "plate", "hall", "shimmer", "freeze", "cistern", "granular", "graincloud", "halo",
 ] as const;
 
 /**
@@ -129,7 +130,7 @@ const XFADE_TC_BASE = 0.45;
 const WET_GAIN: Record<EffectId, number> = {
   tape: 1, wow: 1, sub: 1, comb: 1, delay: 1, ringmod: 1, formant: 1.5,
   plate: 1.5, hall: 1.5, shimmer: 1.5, cistern: 1.6,
-  granular: 1, graincloud: 1, freeze: 1,
+  granular: 1, graincloud: 1, freeze: 1, halo: 1.4,
 };
 
 const ON_LEVELS: Record<EffectId, number> = {
@@ -156,6 +157,7 @@ const ON_LEVELS: Record<EffectId, number> = {
   // below unity — natural vowel colour); at max ≈ 1.5 (noticeably
   // louder, limiter catches any overshoot).
   formant: 0.6,
+  halo: 0.55,
 };
 
 /** Serial FDN hall/cistern trim. Previously 1.75 / 1.3 to compensate
@@ -239,6 +241,7 @@ export class FxChain {
   private plateWorklet: ConvolverNode | null = null;
   private shimmerWorklet: AudioWorkletNode | null = null;
   private freezeWorklet: AudioWorkletNode | null = null;
+  private haloWorklet: AudioWorkletNode | null = null;
   private granularWorklet: AudioWorkletNode | null = null;
   private ringmodOsc: OscillatorNode | null = null;
   private formantFilters: BiquadFilterNode[] = [];
@@ -252,6 +255,7 @@ export class FxChain {
     tape: false, wow: false, sub: false, comb: false, delay: false,
     plate: false, hall: false, shimmer: false, freeze: false,
     cistern: false, granular: false, graincloud: false, ringmod: false, formant: false,
+    halo: false,
   };
   /** User-customisable serial chain order. Defaults to EFFECT_ORDER.
    *  Mutated by `setEffectOrder` — the UI exposes drag-reorder via
@@ -300,6 +304,11 @@ export class FxChain {
    *  sweep would hold combFbGain at zero and the comb would vanish. */
   private combFlushUntilCtxTime = 0;
   private freezeMix = ON_LEVELS.freeze;
+  /** FREEZE mode toggle. 0 = HOLD (rising-edge snapshot), 1 = INFINITE
+   *  (continuously fold input into the held cloud). Persisted via
+   *  scene snapshot; mirrored to the worklet's `mode` AudioParam. */
+  private freezeMode: 0 | 1 = 0;
+  private haloTilt = 0.5;
   private airAmount = 0.6;
   private morphAmount = 0.25;
   private get xfadeTC(): number {
@@ -343,6 +352,7 @@ export class FxChain {
       graincloud: makeInsert(),
       ringmod: makeInsert(),
       formant: makeInsert(),
+      halo: makeInsert(),
     };
 
     // Chain inserts in currentOrder (defaults to EFFECT_ORDER on
@@ -1129,6 +1139,27 @@ export class FxChain {
       .connect(this.freezeWorklet)
       .connect(freezeIns.wetGain)
       .connect(freezeIns.insertOut);
+    // Sync persisted mode (HOLD / INFINITE) to the worklet param.
+    this.freezeWorklet.parameters.get("mode")!.setValueAtTime(this.freezeMode, ctx.currentTime);
+
+    // HALO — multi-band partial bloom worklet. Continuously analyses
+    // input bands and resynthesises an upper-partial cloud on top of
+    // the dry signal. Insert pattern matches the other tail worklets:
+    // input gated when off, output bounded by wetGain.
+    this.haloWorklet = new AudioWorkletNode(ctx, "fx-halo", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+    });
+    this.haloWorklet.parameters.get("tilt")!.setValueAtTime(this.haloTilt, ctx.currentTime);
+    const haloIns = this.inserts.halo;
+    haloIns.wetInGate = ctx.createGain();
+    haloIns.wetInGate.gain.value = 0;
+    haloIns.insertIn.connect(haloIns.wetInGate);
+    haloIns.wetInGate
+      .connect(this.haloWorklet)
+      .connect(haloIns.wetGain)
+      .connect(haloIns.insertOut);
 
     // GRANULAR — tail processor that captures incoming audio into a ring
     // buffer and plays overlapping grains back with independent
@@ -1240,7 +1271,7 @@ export class FxChain {
     grainToPlate.connect(this.parallelPlateWorklet);
 
     // Reapply pending enables for worklet-backed effects
-    for (const id of ["plate", "shimmer", "freeze", "granular", "graincloud"] as const) {
+    for (const id of ["plate", "shimmer", "freeze", "granular", "graincloud", "halo"] as const) {
       if (this.enabled[id]) this.setEffect(id, true);
     }
     // Reapply parallel send levels (in case a preset was applied before
@@ -1304,6 +1335,7 @@ export class FxChain {
       this.shimmerWorklet, this.freezeWorklet,
       this.granularWorklet, this.grainCloudWorklet,
       this.hallWorklet, this.cisternWorklet,
+      this.haloWorklet,
     ]) {
       if (w) {
         try { w.port.postMessage(clearMsg); } catch { /* noop */ }
@@ -1354,7 +1386,8 @@ export class FxChain {
     const wetTarget = on ? this.wetTargetFor(id) : 0;
     const isAdditive =
       id === "granular" || id === "graincloud" ||
-      id === "plate" || id === "hall" || id === "shimmer" || id === "cistern";
+      id === "plate" || id === "hall" || id === "shimmer" || id === "cistern" ||
+      id === "halo";
     const bypassTarget = isAdditive ? 1 : (on ? 0 : 1);
     ins.bypassGain.gain.setTargetAtTime(bypassTarget, now, this.xfadeTC);
     ins.wetGain.gain.setTargetAtTime(wetTarget, now, this.xfadeTC);
@@ -1625,6 +1658,30 @@ export class FxChain {
     );
   }
   getFreezeFeedback(): number { return this.freezeMix; }
+
+  /** FREEZE mode: 0 = HOLD (rising-edge snapshot), 1 = INFINITE
+   *  (continuously fold input into the held cloud). */
+  setFreezeMode(mode: 0 | 1): void {
+    this.freezeMode = mode === 1 ? 1 : 0;
+    if (this.freezeWorklet) {
+      this.freezeWorklet.parameters
+        .get("mode")!
+        .setValueAtTime(this.freezeMode, this.ctx.currentTime);
+    }
+  }
+  getFreezeMode(): 0 | 1 { return this.freezeMode; }
+
+  /** HALO tilt — rolloff balance of synthesised upper partials.
+   *  0 = mostly the 2× partial; 1 = full 2..6× stack. */
+  setHaloTilt(v: number): void {
+    this.haloTilt = Math.max(0, Math.min(1, v));
+    if (this.haloWorklet) {
+      this.haloWorklet.parameters
+        .get("tilt")!
+        .setTargetAtTime(this.haloTilt, this.ctx.currentTime, 0.05);
+    }
+  }
+  getHaloTilt(): number { return this.haloTilt; }
 
   /** Set per-effect wet level (the modal's AMOUNT knob). */
   setEffectLevel(id: EffectId, level: number): void {

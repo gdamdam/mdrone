@@ -36,6 +36,7 @@ const EFFECT_TITLES: Record<EffectId, string> = {
   graincloud: "GRAIN STUTTER",
   ringmod: "RING MODULATOR",
   formant: "VOCAL FORMANT",
+  halo: "HALO",
 };
 
 const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
@@ -66,6 +67,8 @@ const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
     "Ring modulator — input multiplied by a fixed ~80 Hz sine carrier. Produces inharmonic sum + difference frequencies, the hallmark metallic scrape of Coil, NWW, and tape-era industrial drones.",
   formant:
     "Vocal formant bank — three resonant bandpasses at neutral 'ah' vowel frequencies (700 / 1220 / 2600 Hz). Adds a human vocal character to whatever flows through it.",
+  halo:
+    "Spectral partial bloom. Continuously tracks the energy in each frequency band of the dry signal and synthesises a slow, randomised cloud of upper harmonics (×2, ×3, ×4 …) on top. Tilt biases the bloom from a single octave-up shimmer toward a full string-section stack.",
 };
 
 export function FxModal({ engine, effectId, onClose }: FxModalProps) {
@@ -134,6 +137,8 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
       return <RingmodParams engine={engine} fx={fx} />;
     case "formant":
       return <FormantParams engine={engine} fx={fx} />;
+    case "halo":
+      return <HaloParams engine={engine} fx={fx} />;
     case "tape":
     case "wow":
       return <AmountOnly engine={engine} effectId={effectId} fx={fx} defaultValue={0.7} />;
@@ -429,6 +434,7 @@ function SubParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike
 
 function FreezeParams({ fx }: { fx: FxChainLike }) {
   const [mix, setMix] = useState(() => fx?.getFreezeFeedback() ?? 0.7);
+  const [mode, setMode] = useState<0 | 1>(() => fx?.getFreezeMode() ?? 0);
   return (
     <>
       <ParamSlider
@@ -440,8 +446,48 @@ function FreezeParams({ fx }: { fx: FxChainLike }) {
         unit=""
         onChange={(v) => { setMix(v); fx?.setFreezeFeedback(v); }}
       />
+      <div className="fx-modal-mode-row">
+        <span className="fx-modal-mode-label">MODE</span>
+        <button
+          type="button"
+          className={`fx-modal-mode-btn${mode === 0 ? " is-active" : ""}`}
+          onClick={() => { setMode(0); fx?.setFreezeMode(0); }}
+        >
+          HOLD
+        </button>
+        <button
+          type="button"
+          className={`fx-modal-mode-btn${mode === 1 ? " is-active" : ""}`}
+          onClick={() => { setMode(1); fx?.setFreezeMode(1); }}
+        >
+          INFINITE
+        </button>
+      </div>
       <div className="fx-modal-hint">
-        Higher MIX brings the frozen layer forward; lower MIX tucks it behind the dry drone.
+        HOLD captures the buffer once on activation. INFINITE folds new
+        input into the sustained cloud so chords build over time.
+      </div>
+    </>
+  );
+}
+
+function HaloParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike }) {
+  const [tilt, setTilt] = useState(() => fx?.getHaloTilt() ?? 0.5);
+  return (
+    <>
+      <AmountOnly engine={engine} effectId="halo" fx={fx} defaultValue={0.55} />
+      <ParamSlider
+        label="TILT"
+        value={tilt}
+        min={0}
+        max={1}
+        step={0.01}
+        unit=""
+        onChange={(v) => { setTilt(v); fx?.setHaloTilt(v); }}
+      />
+      <div className="fx-modal-hint">
+        Low TILT keeps the bloom near the 2× partial (octave halo). High
+        TILT spreads energy through the 2..6× stack (string-section).
       </div>
     </>
   );
@@ -521,7 +567,25 @@ function FxViz({ effectId, engine }: { effectId: EffectId; engine: AudioEngine |
       return <VizRingmod phase={phase} />;
     case "formant":
       return <VizFormant engine={engine} />;
+    case "halo":
+      return <VizHalo phase={phase} />;
   }
+}
+
+/** HALO — central source with radiating concentric arcs (partial bloom). */
+function VizHalo({ phase }: { phase: number }) {
+  const t = phase * 0.0006;
+  const breath = 0.5 + 0.5 * Math.sin(t * 2);
+  return (
+    <svg {...vizProps} className="fx-viz">
+      <circle cx="200" cy="70" r="6" fill="currentColor" />
+      <circle cx="200" cy="70" r="22" opacity={0.55 + 0.25 * breath} />
+      <circle cx="200" cy="70" r="40" opacity={0.35 + 0.2 * (1 - breath)} />
+      <circle cx="200" cy="70" r="60" opacity="0.2" />
+      <path d="M120 70 L 280 70" opacity="0.18" strokeDasharray="2 4" />
+      <path d="M200 20 L 200 120" opacity="0.18" strokeDasharray="2 4" />
+    </svg>
+  );
 }
 
 /** PLATE — a hanging metal plate with radiating lines. */
