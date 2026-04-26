@@ -254,7 +254,7 @@ export function Header({
     : "—";
 
   return (
-    <header className="header">
+    <header className={holding ? "header header-holding" : "header"}>
       <div className="header-row header-row-main">
         <div className="title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
@@ -378,18 +378,9 @@ export function Header({
         </button>
         </div>
 
-        {/* Secondary — quieter controls. REC moved to the scene-
-            actions row inside DroneView (alongside MOTION capture)
-            to group all recording controls together. */}
-        <div className="header-secondary">
-        <button
-          className="header-btn header-btn-volume"
-          onClick={() => setVolumeOpen(true)}
-          title={`Master volume: ${volPct}% — click to adjust`}
-        >
-          <span className="header-btn-label-full">VOL {volPct}</span>
-          <span className="header-btn-label-glyph" aria-hidden="true">VOL</span>
-        </button>
+        {/* MIXER — primary action (lives outside .header-secondary
+            so it doesn't get dimmed with the admin cluster). Sits
+            next to MEDITATE in the performance row. */}
         <button
           className={
             viewMode === "mixer"
@@ -403,6 +394,18 @@ export function Header({
         >
           <span className="header-btn-label-full">MIXER</span>
           <span className="header-btn-label-glyph" aria-hidden="true">▤</span>
+        </button>
+
+        {/* Admin cluster — VOL readout, help, settings. Quietest
+            tier; dimmed via .header-secondary opacity until hover. */}
+        <div className="header-secondary">
+        <button
+          className="header-btn header-btn-volume"
+          onClick={() => setVolumeOpen(true)}
+          title={`Master volume: ${volPct}% — click to adjust`}
+        >
+          <span className="header-btn-label-full">VOL {volPct}</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">VOL</span>
         </button>
         <button
           className="header-btn header-btn-help"

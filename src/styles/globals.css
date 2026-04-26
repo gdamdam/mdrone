@@ -4,11 +4,15 @@
 :root {
   /* Default to Ember palette — overwritten at runtime by applyPalette() */
   --bg: #160c06;
-  --bg-panel: #21140b;
-  --bg-cell: #2d1c12;
-  --border: #4a2f1e;
+  /* Passive surfaces — warm but desaturated so they recede. The
+     bright --preview accent stays the only true orange in the UI;
+     everything else (panels, cells, borders, dim text) is a warm
+     neutral. Active states keep their amber via color-mix(--preview, …). */
+  --bg-panel: #1f1814;
+  --bg-cell: #2a221b;
+  --border: #3d3329;
   --text: #f3e0c8;
-  --text-dim: #a68068;
+  --text-dim: #9c9080;
   --preview: #ff9d3a;
   --record: #ff4d4d;
 }
@@ -564,12 +568,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   flex-wrap: wrap;
 }
 
-/* Secondary header controls — visually quieter */
+/* Admin header cluster — visually quietest tier (VOL readout,
+   help, settings). Pushed back so primary actions (HOLD, SHARE,
+   MEDITATE, MIXER) clearly own the eye. Restores on hover. */
 .header-secondary {
   display: flex;
   align-items: center;
   gap: 8px;
-  opacity: 0.55;
+  opacity: 0.45;
   transition: opacity 0.2s;
 }
 .header-secondary:hover { opacity: 1; }
@@ -1396,6 +1402,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   white-space: pre;
   will-change: transform;
   transform: translateZ(0);
+  transition: opacity 0.45s cubic-bezier(0.3, 0.7, 0.25, 1);
+}
+/* While HOLD is active the wordmark steps back so playing surfaces
+   (preset name, transport, MEDITATE) own the eye. Brand returns on
+   release. The BETA badge follows so the cluster reads as a unit. */
+.header-holding .title-art,
+.header-holding .title-badge {
+  opacity: 0.55;
 }
 
 .title-version {
@@ -1572,7 +1586,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .header-btn-help {
   /* Anchors the right-edge cluster. The following settings cog
      cancels its own auto-margin via the adjacent-sibling rule
-     below so the two buttons stay tight together. */
+     below so the two buttons stay tight together. Quieter
+     treatment than primary buttons — bone text, soft border. */
   margin-left: auto;
   padding: 4px 8px;
   font-size: 14px;
@@ -1580,6 +1595,9 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   line-height: 1;
   min-width: 30px;
   flex-shrink: 0;
+  background: transparent;
+  color: var(--text-dim);
+  border-color: color-mix(in srgb, var(--border) 60%, transparent);
 }
 
 .header-btn-help + .header-btn-menu {
@@ -1588,6 +1606,9 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .header-btn-session,
 .header-btn-menu {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: color-mix(in srgb, var(--border) 60%, transparent);
   /* Settings cog — pushed to the far right of its flex container so
      it anchors the header edge, visually separated from the primary
      play controls by margin-left: auto. */
@@ -3298,9 +3319,21 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .preset-btn-active {
-  background: var(--preview);
+  /* Vertical gradient instead of flat amber — desaturates the centre
+     of the card and gives it a hair of inner depth so it stops
+     reading as a solid swatch. The outer glow + amber border still
+     mark it as the unambiguous selected state. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--preview) 92%, #1a0d05) 0%,
+    var(--preview) 55%,
+    color-mix(in srgb, var(--preview) 88%, #1a0d05) 100%
+  );
   border-color: var(--preview);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--preview) 38%, transparent);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--preview) 38%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent),
+    inset 0 -2px 6px color-mix(in srgb, #1a0d05 35%, transparent);
 }
 
 .preset-btn-active .preset-btn-name,
@@ -3320,6 +3353,12 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.5px;
+  /* Amber-bone — pulls the title toward the warm-text axis on
+     inactive cards so the bright --preview accent is reserved for
+     the icon + the selected state. Still warm, not gray. */
+  color: color-mix(in srgb, var(--preview) 55%, var(--text));
+}
+.preset-btn:hover .preset-btn-name {
   color: var(--preview);
 }
 

@@ -25,29 +25,34 @@ export interface PaletteDef {
 
 export const PALETTES: PaletteDef[] = [
   // Ember — deep brown-black with a warm amber accent. Default.
+  // Passive surfaces (panel / cell / border / dim) sit on a low-
+  // saturation warm-neutral axis so the only true orange in the UI
+  // is the --preview accent reserved for active / selected states.
   {
     id: "ember",
     name: "Ember",
     dark: true,
     bg: "#160c06",
-    panel: "#21140b",
-    cell: "#2d1c12",
-    border: "#4a2f1e",
+    panel: "#1f1814",
+    cell: "#2a221b",
+    border: "#3d3329",
     text: "#f3e0c8",
-    dim: "#a68068",
+    dim: "#9c9080",
     preview: "#ff9d3a",
   },
-  // Copper — richer red-orange, slightly more saturated bg.
+  // Copper — richer red-orange accent, same warm-neutral surfaces
+  // as ember (shared neutral axis keeps mdrone identity coherent
+  // across palettes; only the accent + bg shift between them).
   {
     id: "copper",
     name: "Copper",
     dark: true,
     bg: "#1a0a06",
-    panel: "#241209",
-    cell: "#301710",
-    border: "#4e291a",
+    panel: "#221a15",
+    cell: "#2c241d",
+    border: "#3f342a",
     text: "#f5d8c0",
-    dim: "#a8785a",
+    dim: "#9c9080",
     preview: "#ff6e40",
   },
   // Dusk — purpled-warm, "before dawn" mood, magenta-amber accent.
@@ -56,11 +61,11 @@ export const PALETTES: PaletteDef[] = [
     name: "Dusk",
     dark: true,
     bg: "#140a10",
-    panel: "#1e1118",
-    cell: "#2a1722",
-    border: "#432338",
+    panel: "#1d1620",
+    cell: "#27212a",
+    border: "#3a3140",
     text: "#f0d4de",
-    dim: "#9a7082",
+    dim: "#94878f",
     preview: "#ffa057",
   },
   // Parchment — the one light palette. Matte cream backgrounds, bone
