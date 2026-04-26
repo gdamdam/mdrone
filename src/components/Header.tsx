@@ -129,26 +129,20 @@ export function Header({
   // and writes a tiny translate transform on the title-art element.
   // Purely imperative: no React state, so no re-renders.
   //
-  // Brightness inverts with sound: at silence the wordmark sits at a
-  // dim α (≈ 0.55) of the palette colour with almost no halo; as RMS
-  // rises, the colour α climbs toward 1.0 and the halo blooms — so
-  // the logo "lights up" when the drone is playing and recedes when
-  // it isn't. The halo colour is sampled from the resolved title
-  // text colour (--preview from the active palette) so it never
-  // forces a warm tint on cool palettes.
+  // Brightness: when sound plays the wordmark sits at its full static
+  // CSS look (palette-aware --preview colour + the multi-layer halo
+  // defined in globals.css `.title-art`, matching the splash page
+  // wordmark). When silent, a single CSS `filter: brightness()` dims
+  // the whole composite slightly so the off-state reads as "not
+  // playing" without shifting hue or blooming the halo. text-shadow
+  // is intentionally NOT overridden inline — that was the previous
+  // bug (warm rgb override that tinted the wordmark and bloomed it
+  // on peaks). Only `transform` and `filter` are written here.
   const titleArtRef = useRef<HTMLPreElement>(null);
   useEffect(() => {
     if (!analyser) return;
     const el = titleArtRef.current;
     if (!el) return;
-    // Resolve palette colour once at mount; getComputedStyle returns
-    // "rgb(r, g, b)" or "rgba(r, g, b, a)" — parse out the channels.
-    const parseRgb = (s: string): [number, number, number] => {
-      const m = s.match(/(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/);
-      if (!m) return [255, 200, 140]; // safe ember fallback
-      return [Math.round(+m[1]), Math.round(+m[2]), Math.round(+m[3])];
-    };
-    const [r, g, b] = parseRgb(getComputedStyle(el).color);
     const buf = new Uint8Array(analyser.fftSize);
     let raf = 0;
     let lastPaint = -Infinity;
@@ -168,43 +162,26 @@ export function Header({
       const rms = Math.min(1, Math.sqrt(sum / buf.length) * 3);
       smoothedRms += (rms - smoothedRms) * 0.25;
       const t = now / 1000;
-      // Two-axis jitter — fast micro-sine on top of the rms amplitude.
-      const sx = Math.sin(t * 23.1);
-      const cy = Math.cos(t * 29.7);
+      // Two-axis jitter — fast micro-sine on top of the rms amplitude
       const amp = smoothedRms * 1.8;
-      const dx = sx * amp;
-      const dy = cy * amp;
+      const dx = Math.sin(t * 23.1) * amp;
+      const dy = Math.cos(t * 29.7) * amp;
       el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
-      // Vibration magnitude in [0..1] from the same fast micro-sines
-      // that drive the translate. Feeds into the glow so the halo
-      // trembles with the position jitter; gated by RMS so silence
-      // produces no kick.
-      const vibMag = Math.min(1, Math.hypot(sx, cy) / Math.SQRT2);
-      const vibKick = 1 + 0.25 * vibMag * smoothedRms;
-      // Wordmark colour α: 0.4 at silence → 1.0 at peak. The hue
-      // stays the palette colour; only intensity scales. Avoids the
-      // CSS `opacity` property so HOLD's separate dim (.header-holding
-      // .title-art { opacity: 0.55 }) still composes correctly.
-      const colorA = 0.4 + smoothedRms * 0.6;
-      el.style.color = `rgba(${r}, ${g}, ${b}, ${colorA.toFixed(2)})`;
-      // Halo stays small so the wordmark reads as sharp glyphs even
-      // at peak RMS — the previous range bloomed enough to blur the
-      // letters. Outer α 0.03..0.16, inner α 0.06..0.26, radius
-      // 1..5 px — all scaled by vibKick (1.0..1.25 at peak).
-      const glowR = (1 + smoothedRms * 4) * vibKick;
-      const aOuter = (0.03 + smoothedRms * 0.13) * vibKick;
-      const aInner = (0.06 + smoothedRms * 0.20) * vibKick;
-      el.style.textShadow =
-        `0 0 ${glowR.toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aOuter.toFixed(2)}),` +
-        ` 0 0 ${(glowR * 0.4).toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aInner.toFixed(2)})`;
+      // Dim only when silent. brightness(0.78) at RMS=0, ramping to
+      // 1.0 with very little RMS — the static look (= splash page
+      // brightness) returns as soon as any drone material is present.
+      // Power 0.35 makes the curve rise quickly so even quiet voices
+      // light the wordmark fully.
+      const lit = Math.pow(smoothedRms, 0.35);
+      const brightness = 0.78 + 0.22 * lit;
+      el.style.filter = `brightness(${brightness.toFixed(3)})`;
     };
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
       if (el) {
         el.style.transform = "";
-        el.style.textShadow = "";
-        el.style.color = "";
+        el.style.filter = "";
       }
     };
   }, [analyser]);
