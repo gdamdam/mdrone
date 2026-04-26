@@ -180,8 +180,8 @@ function renderPreset(preset, VoiceProc, seconds, seedBase) {
 const CANONICAL_IDS = [
   // Arrival
   "tanpura-drone", "shruti-box", "eno-airport", "malone-organ",
-  "stars-of-the-lid", "ritual-tanpura-shruti", "fm-glass-bell",
-  "oliveros-accordion", "marconi-weightless", "young-well-tuned",
+  "stars-of-the-lid", "fm-glass-bell",
+  "oliveros-accordion", "young-well-tuned",
   // Flagship changed-voice
   "sitar-sympathy", "alice-coltrane-devotional", "doom-bloom",
   "sunn-amp-drone", "coil-time-machines", "hollow-drone", "sub-chamber",

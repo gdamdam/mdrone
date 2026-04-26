@@ -231,17 +231,17 @@ const SCALE_INTERVALS: Record<ScaleId, number[]> = {
  *
  * Earlier edits: frahm-solo (too sparse in 3s) and deep-listening
  * (cistern tail needs seconds to fill) were dropped in favour of
- * marconi-weightless (instant float) and young-well-tuned (Young
- * WTP lattice settles immediately).
+ * young-well-tuned (Young WTP lattice settles immediately).
+ *
+ * 2026-04-26: removed marconi-weightless and ritual-tanpura-shruti
+ * from the curated set.
  */
 export const ARRIVAL_PRESET_IDS = [
   "stars-of-the-lid",       // 47 — looped-string, sub 0.34, instant
   "fennesz-endless",        // 46 — chord-holder, fills 3s cleanly
   "shruti-box",             // 45 — reed bed, harmonium identity
-  "marconi-weightless",     // 45 — engineered for first-listen
   "hollow-drone",           // 45 — power-fifth body, immediate
   "tanpura-drone",          // 44 — solo jawari showcase
-  "ritual-tanpura-shruti",  // 44 — sympathetic halo on reed bed
   "eno-airport",            // 43 — iconic ambient piano
   "malone-organ",           // 41 — chamber organ contrast
   "young-well-tuned",       // 40 — Young WTP lattice, settles fast
@@ -268,11 +268,9 @@ export const SAFE_RANDOM_PRESET_IDS = [
   "arkbro-chords",
   "young-well-tuned",
   "sotl-tired-eyes",
-  "ritual-tanpura-shruti",
   "sitar-sympathy",
   "fm-glass-bell",
   "fm-gong",
-  "marconi-weightless",
   "liles-closed-doors",
   "liles-submariner",
   "palestine-strumming",
@@ -590,53 +588,6 @@ export const PRESETS: Preset[] = [
       tonicFloor: 1,
       textureFloor: 0.82,
       texturePeriod: 8,
-    }),
-  },
-  {
-    id: "ritual-tanpura-shruti", group: "Sacred / Ritual",
-    name: "Ritual Room",
-    attribution: "Tanpura + shruti · sacred drone bed",
-    hint: "Tanpura plucks under a shruti-box reed organ, tonic + fifth. Warm practice-room feel.",
-    tuningId: "just5", relationId: "tonic-fifth",
-    voiceLayers: ["tanpura", "reed"],
-    voiceLevels: { tanpura: 0.3, reed: 0.7 },
-    reedShape: "odd",
-    octaveRange: [2, 3],
-    drift: 0.15,
-    air: 0.4,
-    time: 0.06,
-    sub: 0.18,
-    bloom: 0.6,
-    glide: 0.3,
-    lfoShape: "sine",
-    lfoRate: 0.04,
-    lfoAmount: 0.05,
-    climateX: 0.42,
-    climateY: 0.2,
-    effects: ["plate"],
-    parallelSends: { plate: 0.3 },
-    scale: "drone",
-    // Gain reduced 0.88→0.75 after the offline audit (npm run
-    // audit:presets) measured this preset at -11.5 LUFS with peak
-    // -1.0 dB — essentially at the brickwall ceiling pre-limiter,
-    // and ~8 dB louder than tanpura-drone (-19.8 LUFS) which holds
-    // an identical scorecard rating. Voice stacking (tanpura:1 +
-    // reed:0.7 + parallel plate) accounts for some of the
-    // difference but the preset was sitting hotter than peers
-    // without justification.
-    gain: 0.75,
-    motionProfile: motionProfile({
-      climateXRange: [0.35, 0.52],
-      climateYRange: [0.12, 0.28],
-      bloomRange: [0.5, 0.72],
-      timeRange: [0.04, 0.1],
-      driftRange: [0.1, 0.22],
-      subRange: [0.12, 0.24],
-      macroStep: 0.45,
-      tonicWalk: "none",
-      tonicFloor: 0.8,
-      textureFloor: 0.7,
-      texturePeriod: 7,
     }),
   },
   {
@@ -1508,52 +1459,6 @@ export const PRESETS: Preset[] = [
       tonicFloor: 0.58,
       textureFloor: 0.66,
       texturePeriod: 5,
-    }),
-  },
-
-  // ─── Marconi Union — clean modern ambient with slow descent ─────────
-  {
-    id: "marconi-weightless", group: "Ambient / Cinematic",
-    name: "Weightless",
-    attribution: "Clean pad + falling bass · piano pings · wide reverb",
-    hint: "Clean high pads, sparse piano pings, gentle falling bass. Wide, slow, modern.",
-    tuningId: "just5", relationId: "drone-triad",
-    voiceLayers: ["piano", "reed", "air"],
-    voiceLevels: { piano: 0.62, reed: 1, air: 0.36 },
-    reedShape: "balanced",
-    octaveRange: [3, 4],
-    drift: 0.06,
-    air: 0.58,
-    time: 0.03,
-    sub: 0.24,
-    bloom: 0.9,
-    glide: 0.84,
-    lfoShape: "sine",
-    lfoRate: 0.018,
-    lfoAmount: 0.08,
-    climateX: 0.56,
-    climateY: 0.24,
-    effects: ["plate", "hall"],
-    // Heavier parallel hall so the piano attacks stay defined against
-    // a wide wet tail instead of being smeared through serial plate.
-    parallelSends: { hall: 0.5 },
-    scale: "minor",
-    gain: 1.25,
-    motionProfile: motionProfile({
-      climateXRange: [0.5, 0.62],
-      climateYRange: [0.18, 0.3],
-      bloomRange: [0.84, 0.96],
-      timeRange: [0.02, 0.05],
-      driftRange: [0.04, 0.1],
-      subRange: [0.18, 0.3],
-      macroStep: 0.4,
-      // Descending-favored fifths and fourths so the evolve loop
-      // recreates the track's gentle falling-bass motion.
-      tonicWalk: "gentle",
-      tonicIntervals: [-7, -5, -2],
-      tonicFloor: 0.5,
-      textureFloor: 0.66,
-      texturePeriod: 6,
     }),
   },
 
