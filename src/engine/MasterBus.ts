@@ -723,13 +723,14 @@ export class MasterBus {
   setRoomAmount(amount: number): void {
     const a = Math.max(0, Math.min(1, amount));
     this.roomAmount = a;
-    // Send level: a=1 maps to 0.7 linear (≈ -3 dB). With ROOM now
+    // Send level: a=1 maps to 0.85 linear (≈ -1.4 dB). With ROOM
     // landing at preLimMixer, dry+room is bounded by the active
-    // limiter; capping room at 0.7 keeps the limiter from chasing
-    // the convolver tail on transient-heavy presets while still
-    // reading audibly on sustained drone material. If listening
-    // tests show ROOM lost weight, raise to 0.85 as the next step.
-    this.roomSendGain.gain.setTargetAtTime(a * 0.7, this.ctx.currentTime, 0.05);
+    // limiter; an earlier 0.7 cap (audit-revisions step 1) was
+    // audibly thin on sustained drone material. 0.85 restores the
+    // perceived "room around the source" while keeping ~1.4 dB of
+    // headroom into the limiter — enough that the convolver tail
+    // doesn't push the brickwall on typical program.
+    this.roomSendGain.gain.setTargetAtTime(a * 0.85, this.ctx.currentTime, 0.05);
   }
 
   getRoomAmount(): number { return this.roomAmount; }

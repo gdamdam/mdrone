@@ -131,9 +131,11 @@ test("MasterBus: IR-reload swap path also lands at preLimMixer", () => {
 
 // ── ROOM amount cap ──────────────────────────────────────────────────
 
-test("MasterBus setRoomAmount: send level capped at ×0.7", () => {
+test("MasterBus setRoomAmount: send level capped at ×0.85", () => {
   const src = read("src/engine/MasterBus.ts");
   const fn = src.match(/setRoomAmount\s*\([^)]*\)\s*:\s*void\s*\{[\s\S]*?\n\s\s\}/);
   assert.ok(fn, "setRoomAmount not found");
-  assert.match(fn[0], /a\s*\*\s*0\.7/, "room send should scale UI amount by 0.7");
+  assert.match(fn[0], /a\s*\*\s*0\.85/, "room send should scale UI amount by 0.85");
+  // Don't allow regression to the previous over-tight cap.
+  assert.doesNotMatch(fn[0], /a\s*\*\s*0\.7[^5]/, "0.7 cap was audibly thin — must not regress");
 });
