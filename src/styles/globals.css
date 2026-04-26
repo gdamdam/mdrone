@@ -2219,11 +2219,44 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* Active state for the MIXER toggle button in the header (sits next
    to VOL in the right-side performance cluster). Mirrors view-btn-
    active so it reads as a pressed surface when the drawer is open. */
-.header-btn-mixer-active,
-.header-btn-meditate-active {
+.header-btn-mixer-active {
   background: var(--preview);
   border-color: var(--preview);
   color: #160c06;
+}
+
+/* MEDITATE toggle — quiet/off state. Plain dark cell (matches the
+   stock .header-btn rest state) with dimmed text + softened border
+   so the button reads as visibly *off* before the active state
+   lights it. Two-class selector to win specificity over .header-btn. */
+.header-btn.header-btn-meditate {
+  background: var(--bg-cell);
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  color: color-mix(in srgb, var(--text) 55%, var(--bg));
+  box-shadow: none;
+}
+.header-btn.header-btn-meditate:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* Active state for the MEDITATE toggle — same SHARE-button shape,
+   just a brighter amber gradient + soft outer glow so the toggle's
+   on/off state is clear without breaking the visual pairing with
+   SHARE next to it. */
+.header-btn.header-btn-meditate-active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--preview) 38%, var(--bg-cell)),
+    color-mix(in srgb, var(--preview) 18%, var(--bg-cell))
+  );
+  border-color: color-mix(in srgb, var(--preview) 70%, var(--border));
+  color: var(--preview);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--preview) 45%, transparent);
+}
+.header-btn.header-btn-meditate-active:hover {
+  border-color: var(--preview);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--preview) 60%, transparent);
 }
 
 /* Header REC + generic button */
