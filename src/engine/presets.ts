@@ -3021,7 +3021,7 @@ export function getPresetMaterialProfile(presetOrId: Preset | string | null): Pr
  *  chain before applying a new preset. */
 const ALL_EFFECT_IDS: EffectId[] = [
   "tape", "wow", "plate", "hall", "shimmer", "delay", "sub", "comb", "freeze",
-  "cistern", "granular", "graincloud", "ringmod", "formant",
+  "cistern", "granular", "graincloud", "ringmod", "formant", "halo",
 ];
 
 function clamp(value: number, min: number, max: number): number {
