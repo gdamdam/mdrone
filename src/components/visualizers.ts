@@ -33,12 +33,10 @@ export type Visualizer =
   | "illuminatedGlyphs"
   | "scryingMirror"
   | "crystalLattice"
-  | "phaseMirror"
   | "resonantBody"
   | "tapeDecay"
   | "voidMonolith"
   | "beatingField"
-  | "tuningManuscript"
   | "petroglyphs"
   | "feedbackTunnelBW"
   | "stereoVectorscope"
@@ -62,9 +60,7 @@ export const VISUALIZER_GROUPS: readonly {
       // B&W / monochromatic
       "pitchBeats",
       "phasePortrait",
-      "phaseMirror",
       "stereoVectorscope",
-      "tuningManuscript",
       "beatingField",
       "resonantBody",
       // Color
@@ -131,7 +127,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   sediment: "SEDIMENT STRATA · spectral deposit",
   prayerRug: "SPECTRAL PRAYER RUG",
   phasePortrait: "PHASE PORTRAIT · Lissajous attractor",
-  phaseMirror: "PHASE MIRROR · 8-fold phase-space",
   moireField: "MOIRÉ FIELD · interference grid",
   illuminatedGlyphs: "ILLUMINATED GLYPHS · gilt runes",
   scryingMirror: "SCRYING MIRROR · Rorschach bloom",
@@ -141,7 +136,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   tapeDecay: "TAPE DECAY · oxide archive",
   voidMonolith: "VOID MONOLITH · pressure line",
   beatingField: "BEATING FIELD · binaural interference",
-  tuningManuscript: "TUNING MANUSCRIPT · interval score",
   petroglyphs: "PETROGLYPHS",
   feedbackTunnelBW: "FEEDBACK TUNNEL",
   stereoVectorscope: "STEREO VECTORSCOPE · L×R correlation",
@@ -256,10 +250,13 @@ export function drawCymatics(
   // drones clearly flash the nodes bright.
   const amp = 0.15 + a.rms * 4.8 + a.peak * 2.0;
 
-  // Grayscale palette — contrast is the whole story.
+  // Warm parchment palette — same ember/amber ratio as the rest of
+  // the mdrone family (245:215:160, scaled to peak ~230). Contrast
+  // still drives the nodal pattern; tint just makes the standing
+  // waves read as warm chladni dust on a brass plate.
   const paletteR = 230;
-  const paletteG = 230;
-  const paletteB = 230;
+  const paletteG = 200;
+  const paletteB = 148;
   void centroid;
 
   const t = p.t;
@@ -525,7 +522,7 @@ export function drawStarGate(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(2, 3, 10, 0.22)";
+  ctx.fillStyle = "rgba(11, 8, 5, 0.22)";
   ctx.fillRect(0, 0, w, h);
 
   const cx = w / 2;
@@ -535,8 +532,8 @@ export function drawStarGate(
   // minutes to "full warp". Squared ease makes the early seconds
   // feel almost static and the climb convincing.
   const accel = Math.min(1, Math.pow(p.t / 180, 1.8));
-  // Radial light rays emanating from the slit — rotate very slowly
-  // at first, speed up with the acceleration.
+  // Radial light rays emanating from the slit — amber/ember palette
+  // shared with petroglyphs / harmonic ember / resonant body.
   const rayCount = 40;
   const rot = p.t * (0.002 + accel * 0.08);
   for (let i = 0; i < rayCount; i++) {
@@ -546,8 +543,8 @@ export function drawStarGate(
     const x1 = cx + Math.cos(ang + warp) * len;
     const y1 = cy + Math.sin(ang + warp) * len;
     const grad = ctx.createLinearGradient(cx, cy, x1, y1);
-    grad.addColorStop(0, `hsla(${205 + i * 2}, 90%, 85%, ${0.18 + a.rms * 0.25})`);
-    grad.addColorStop(0.4, `hsla(${220 + i * 3}, 85%, 65%, ${0.1 + a.rms * 0.2})`);
+    grad.addColorStop(0, `hsla(${30 + (i % 8)}, 80%, 78%, ${0.18 + a.rms * 0.25})`);
+    grad.addColorStop(0.4, `hsla(${24 + (i % 6)}, 70%, 50%, ${0.1 + a.rms * 0.2})`);
     grad.addColorStop(1, "rgba(0,0,0,0)");
     ctx.strokeStyle = grad;
     ctx.lineWidth = 1;
@@ -566,7 +563,7 @@ export function drawStarGate(
         y: Math.random() * h,
         vx: 0,
         r: 0.5 + Math.random() * 1.6,
-        h: 200 + Math.random() * 60,
+        h: 24 + Math.random() * 14,
       });
     }
   }
@@ -585,25 +582,25 @@ export function drawStarGate(
       pt.x = Math.random() * w;
       pt.y = Math.random() * h;
     }
-    ctx.fillStyle = `hsla(${pt.h}, 80%, 85%, 0.7)`;
+    ctx.fillStyle = `hsla(${pt.h}, 75%, 70%, 0.7)`;
     ctx.beginPath();
     ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Central slit — bright vertical bar of light
+  // Central slit — warm parchment vertical bar of light
   const slitW = 6 + a.rms * 20;
   const slitH = h * (0.6 + a.rms * 0.3);
   const slitGrad = ctx.createLinearGradient(cx - slitW, cy, cx + slitW, cy);
   slitGrad.addColorStop(0, "rgba(0,0,0,0)");
-  slitGrad.addColorStop(0.5, `rgba(255,255,255,${0.9 + a.rms * 0.1})`);
+  slitGrad.addColorStop(0.5, `rgba(245, 215, 160, ${0.9 + a.rms * 0.1})`);
   slitGrad.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = slitGrad;
   ctx.fillRect(cx - slitW, cy - slitH / 2, slitW * 2, slitH);
 
-  // Outer halo
+  // Outer halo — amber bloom
   const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(w, h) * 0.25);
-  halo.addColorStop(0, `rgba(180,210,255,${0.4 + a.rms * 0.3})`);
+  halo.addColorStop(0, `rgba(220, 180, 130, ${0.4 + a.rms * 0.3})`);
   halo.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, w, h);
@@ -627,7 +624,6 @@ export const VISUALIZER_FNS: Record<
   sediment: drawSediment,
   prayerRug: drawPrayerRug,
   phasePortrait: drawPhasePortrait,
-  phaseMirror: drawPhaseMirror,
   moireField: drawMoireField,
   illuminatedGlyphs: drawIlluminatedGlyphs,
   scryingMirror: drawScryingMirror,
@@ -636,7 +632,6 @@ export const VISUALIZER_FNS: Record<
   tapeDecay: drawTapeDecay,
   voidMonolith: drawVoidMonolith,
   beatingField: drawBeatingField,
-  tuningManuscript: drawTuningManuscript,
   petroglyphs: drawPetroglyphs,
   feedbackTunnelBW: drawFeedbackTunnelBW,
   stereoVectorscope: drawStereoVectorscope,
@@ -777,7 +772,7 @@ export function drawPitchTonnetz(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.17)";
+  ctx.fillStyle = "rgba(11, 8, 5, 0.17)";
   ctx.fillRect(0, 0, w, h);
 
   const cx = w / 2;
@@ -799,13 +794,13 @@ export function drawPitchTonnetz(
       const pc = (((u * 7 + v * 4) % 12) + 12) % 12;
       const e = energies[pc];
 
-      // Edge east (fifth)
+      // Edge east (fifth) — warm parchment line
       const ex = (u + 1) * UX + v * VX;
       const ey = (u + 1) * UY + v * VY;
       const ePc = (((u * 7 + v * 4 + 7) % 12) + 12) % 12;
       const eEn = energies[ePc];
       if (e > 0.12 && eEn > 0.12) {
-        ctx.strokeStyle = `hsla(0, 0%, 90%, ${Math.min(0.6, (e + eEn) * 0.25)})`;
+        ctx.strokeStyle = `hsla(30, 55%, 75%, ${Math.min(0.6, (e + eEn) * 0.25)})`;
         ctx.lineWidth = 0.8 + Math.min(2, (e + eEn) * 1.4);
         ctx.beginPath();
         ctx.moveTo(x, y);
@@ -818,7 +813,7 @@ export function drawPitchTonnetz(
       const uPc = (((u * 7 + (v + 1) * 4) % 12) + 12) % 12;
       const uEn = energies[uPc];
       if (e > 0.12 && uEn > 0.12) {
-        ctx.strokeStyle = `hsla(0, 0%, 90%, ${Math.min(0.6, (e + uEn) * 0.25)})`;
+        ctx.strokeStyle = `hsla(30, 55%, 75%, ${Math.min(0.6, (e + uEn) * 0.25)})`;
         ctx.lineWidth = 0.8 + Math.min(2, (e + uEn) * 1.4);
         ctx.beginPath();
         ctx.moveTo(x, y);
@@ -836,21 +831,22 @@ export function drawPitchTonnetz(
       const pc = (((u * 7 + v * 4) % 12) + 12) % 12;
       const e = energies[pc];
 
-      ctx.fillStyle = `hsla(0, 0%, 35%, ${0.25 + e * 0.1})`;
+      // Dim node — tawny
+      ctx.fillStyle = `hsla(28, 40%, 35%, ${0.25 + e * 0.1})`;
       ctx.beginPath();
       ctx.arc(x, y, 2, 0, Math.PI * 2);
       ctx.fill();
       if (e > 0.06) {
         const gR = 6 + e * 22;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, gR);
-        grad.addColorStop(0, `hsla(0, 0%, 100%, ${Math.min(1, e * 0.9 + 0.25)})`);
+        grad.addColorStop(0, `hsla(32, 75%, 75%, ${Math.min(1, e * 0.9 + 0.25)})`);
         grad.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = grad;
         ctx.beginPath();
         ctx.arc(x, y, gR, 0, Math.PI * 2);
         ctx.fill();
         if (e > 0.25) {
-          ctx.fillStyle = `hsla(0, 0%, 100%, ${e * 0.5})`;
+          ctx.fillStyle = `hsla(32, 75%, 80%, ${e * 0.55})`;
           ctx.font = "10px system-ui, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
@@ -881,7 +877,7 @@ export function drawPitchBeats(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
+  ctx.fillStyle = "rgba(11, 8, 5, 0.14)";
   ctx.fillRect(0, 0, w, h);
 
   const energies = p.activePitches;
@@ -908,7 +904,7 @@ export function drawPitchBeats(
 
   // Silent-state baseline ring so the canvas is never empty.
   if (actives.length === 0) {
-    ctx.strokeStyle = `rgba(180, 180, 180, ${0.12 + a.rms * 0.1})`;
+    ctx.strokeStyle = `rgba(170, 140, 100, ${0.12 + a.rms * 0.1})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(0, 0, rMax * 0.3, 0, Math.PI * 2);
@@ -945,7 +941,7 @@ export function drawPitchBeats(
     for (let f = 0; f < fringeCount; f++) {
       const fr = r + Math.sin(fringePhase + f * 0.55 + pc * 0.3) * (8 + minDist * 2);
       const alpha = (1 - f / fringeCount) * (0.15 + e * 0.45);
-      ctx.strokeStyle = `rgba(235, 235, 235, ${alpha})`;
+      ctx.strokeStyle = `rgba(220, 185, 130, ${alpha})`;
       ctx.lineWidth = 0.8 + e * 0.7;
       ctx.beginPath();
       ctx.arc(0, 0, fr, 0, Math.PI * 2);
@@ -955,7 +951,7 @@ export function drawPitchBeats(
     // Angular lobed overlay — breaks the pure-circle geometry so the
     // ring visibly breathes non-isotropically.
     const lobes = 2 + (pc % 4);
-    ctx.strokeStyle = `rgba(245, 245, 245, ${Math.min(0.8, e * 0.7 + 0.25)})`;
+    ctx.strokeStyle = `rgba(245, 215, 160, ${Math.min(0.8, e * 0.7 + 0.25)})`;
     ctx.lineWidth = 1.4 + e * 1.2;
     ctx.beginPath();
     const steps = 72;
@@ -996,7 +992,7 @@ export function drawPitchBeats(
   // with the ring stripes. A proper interferometer has both radial
   // and angular axes.
   const sweeps = Math.min(8, actives.length * 2);
-  ctx.strokeStyle = `rgba(220, 220, 220, ${0.12 + a.rms * 0.25})`;
+  ctx.strokeStyle = `rgba(190, 160, 115, ${0.12 + a.rms * 0.25})`;
   ctx.lineWidth = 0.6;
   for (let k = 0; k < sweeps; k++) {
     const ang = (k / sweeps) * Math.PI * 2 + p.t * (0.5 + a.rms);
@@ -1010,7 +1006,7 @@ export function drawPitchBeats(
   // each time the drone spikes.
   if (pitchBeatsShock > 0.02) {
     const shockR = (1 - pitchBeatsShock) * rMax * 1.1 + 10;
-    ctx.strokeStyle = `rgba(255, 255, 255, ${pitchBeatsShock * 0.7})`;
+    ctx.strokeStyle = `rgba(245, 215, 160, ${pitchBeatsShock * 0.7})`;
     ctx.lineWidth = 1 + pitchBeatsShock * 2;
     ctx.beginPath();
     ctx.arc(0, 0, shockR, 0, Math.PI * 2);
@@ -1021,7 +1017,7 @@ export function drawPitchBeats(
   for (const { e } of actives) totalE += e;
   const coreR = 4 + Math.min(18, totalE * 3 + a.rms * 10 + pitchBeatsShock * 12);
   const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreR);
-  core.addColorStop(0, `rgba(255, 255, 255, ${0.7 + a.peak * 0.3})`);
+  core.addColorStop(0, `rgba(250, 220, 170, ${0.7 + a.peak * 0.3})`);
   core.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = core;
   ctx.beginPath();
@@ -1241,8 +1237,9 @@ export function drawFlowField(
     }
     const t = fp.life / fp.maxLife;
     const alpha = (t < 0.1 ? t / 0.1 : t > 0.7 ? (1 - t) / 0.3 : 1);
-    // Band → palette. Copper/ember for lows, bone for mids, ash-grey
-    // for highs. Emitter particles are always warmer + brighter.
+    // Band → palette. Copper/ember for lows, parchment for mids,
+    // pale amber for highs — all in the mdrone ember family. Emitter
+    // particles are always the warmest + brightest.
     let r255: number, g255: number, b255: number;
     if (fp.emitter) {
       r255 = 245; g255 = 210; b255 = 160;
@@ -1251,8 +1248,8 @@ export function drawFlowField(
     } else if (fp.band === 1) {
       r255 = 210 + Math.round(mid * 35); g255 = 196 + Math.round(mid * 30); b255 = 170 + Math.round(mid * 20);
     } else {
-      const gy = 180 + Math.round(high * 60);
-      r255 = gy; g255 = gy; b255 = gy - 12;
+      const lvl = 180 + Math.round(high * 60);
+      r255 = lvl; g255 = Math.round(lvl * 0.86); b255 = Math.round(lvl * 0.66);
     }
     ctx.strokeStyle = `rgba(${r255},${g255},${b255},${alpha * (0.32 + rms * 0.65 + (fp.emitter ? 0.2 : 0))})`;
     ctx.lineWidth = fp.size + rms * 1.4 + flowPeakFlash * 1.2 + (fp.emitter ? 0.4 : 0);
@@ -1327,21 +1324,21 @@ export function drawWaveformRing(
     if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   }
   ctx.closePath();
-  ctx.strokeStyle = `rgba(255,255,255,${(0.5 + rms * 0.4).toFixed(3)})`;
+  ctx.strokeStyle = `rgba(240, 205, 140, ${(0.6 + rms * 0.35).toFixed(3)})`;
   ctx.lineWidth = 1.5 + rms;
   ctx.stroke();
 
-  // Inner ghost ring — steady reference
+  // Inner ghost ring — steady reference (parchment amber)
   ctx.beginPath();
   ctx.arc(cx, cy, baseR * 0.4, 0, Math.PI * 2);
-  ctx.strokeStyle = `rgba(255,255,255,${(0.1 + rms * 0.15).toFixed(3)})`;
+  ctx.strokeStyle = `rgba(190, 160, 115, ${(0.12 + rms * 0.18).toFixed(3)})`;
   ctx.lineWidth = 0.6;
   ctx.stroke();
 
   // Centre dot
   ctx.beginPath();
   ctx.arc(cx, cy, 1.5 + rms * 2, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(255,255,255,${(0.3 + rms * 0.4).toFixed(3)})`;
+  ctx.fillStyle = `rgba(245, 215, 160, ${(0.35 + rms * 0.4).toFixed(3)})`;
   ctx.fill();
 }
 
@@ -1442,7 +1439,10 @@ export function drawIronFilings(
     filingsH = h;
   }
 
-  ctx.fillStyle = "#1a1a1a";
+  // Warm slate plate — same dark-ember base as the rest of the
+  // mdrone family, so the iron filings read as warm chisel marks
+  // rather than chalk.
+  ctx.fillStyle = "#15110c";
   ctx.fillRect(0, 0, w, h);
 
   const cx = w * 0.5;
@@ -1511,8 +1511,13 @@ export function drawIronFilings(
     const e = spec[bin] ?? 0;
     const fieldStrength = Math.min(1, (w1 + w2) * 60);
     const len = 5 + fieldStrength * 3 + e * 6 + a.rms * 3;
-    const gray = Math.round(130 + e * 100 + a.peak * 40);
-    ctx.strokeStyle = `rgb(${gray}, ${Math.min(255, gray - 5)}, ${Math.max(0, gray - 20)})`;
+    // Warm parchment-amber filings — brightness still tracks
+    // spectrum bin energy + peak transient. Ratio R:G:B ≈ 245:215:160.
+    const lvl = Math.min(255, 130 + e * 100 + a.peak * 40);
+    const r = lvl;
+    const g = Math.round(lvl * 0.86);
+    const b = Math.round(lvl * 0.66);
+    ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
     ctx.lineWidth = 0.7 + e * 1.2;
 
     const hx = Math.cos(theta) * len * 0.5;
@@ -1633,8 +1638,10 @@ export function drawPrayerRug(
         const e = a.spectrum[bin] ?? 0;
         const knot = Math.sin(u * Math.PI * (6 + Math.floor(p.growth * 8)) + p.t * 0.08);
         const lig = 13 + e * 38 + (knot > 0 ? 6 : 0);
-        const hue = p.mood.hue + (u - 0.5) * 36;
-        off.fillStyle = `hsla(${hue}, ${18 + e * 42}%, ${lig}%, ${0.45 + e * 0.45})`;
+        // Anchor the hue strictly to the mdrone amber band (16°–40°)
+        // so the rug stays warm regardless of mood drift.
+        const hue = 28 + (u - 0.5) * 24;
+        off.fillStyle = `hsla(${hue}, ${28 + e * 42}%, ${lig}%, ${0.45 + e * 0.45})`;
         off.fillRect(x, y, 2, 1);
         off.fillRect(w - x - 2, y, 2, 1);
       }
@@ -1663,7 +1670,7 @@ let phaseHead = 0, phaseLen = 0;
 export function drawPhasePortrait(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.12)"; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(11, 8, 5, 0.12)"; ctx.fillRect(0, 0, w, h);
   const wf = a.waveform;
   if (!wf || wf.length < 64) return;
   const cx = w / 2, cy = h / 2;
@@ -1690,7 +1697,7 @@ export function drawPhasePortrait(
   const cyR = Math.cos(ay), syR = Math.sin(ay);
   const czR = Math.cos(az), szR = Math.sin(az);
   ctx.lineWidth = 1;
-  ctx.strokeStyle = `rgba(225, 225, 225, ${0.35 + a.rms * 0.4})`;
+  ctx.strokeStyle = `rgba(220, 185, 130, ${0.4 + a.rms * 0.4})`;
   ctx.beginPath();
   for (let i = 0; i < phaseLen; i++) {
     const base = ((phaseHead - phaseLen + i + PHASE_TRAIL) % PHASE_TRAIL) * 3;
@@ -1714,80 +1721,11 @@ export function drawPhasePortrait(
   }
   ctx.stroke();
   const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 24);
-  core.addColorStop(0, `rgba(240, 240, 240, ${0.5 + a.peak * 0.4})`);
+  core.addColorStop(0, `rgba(245, 215, 165, ${0.55 + a.peak * 0.4})`);
   core.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = core;
   ctx.beginPath(); ctx.arc(cx, cy, 24, 0, Math.PI * 2); ctx.fill();
 }
-
-// PHASE MIRROR — 8-fold central mirror of the phase portrait. The 3D
-// curve is rendered once per orthant with signs flipped on x, y, z,
-// yielding triple-axis symmetry around the origin. Kaleidoscopic sibling
-// of PHASE PORTRAIT — same data, eight views.
-export function drawPhaseMirror(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.12)"; ctx.fillRect(0, 0, w, h);
-  const wf = a.waveform;
-  if (!wf || wf.length < 64) return;
-  const cx = w / 2, cy = h / 2;
-  const scale = Math.min(w, h) * 0.38;
-  const tau1 = 12, tau2 = 27;
-  for (let i = tau2; i < wf.length; i++) {
-    const x = (wf[i] - 128) / 128;
-    const y = (wf[i - tau1] - 128) / 128;
-    const z = (wf[i - tau2] - 128) / 128;
-    phaseTrail[phaseHead * 3] = x;
-    phaseTrail[phaseHead * 3 + 1] = y;
-    phaseTrail[phaseHead * 3 + 2] = z;
-    phaseHead = (phaseHead + 1) % PHASE_TRAIL;
-    if (phaseLen < PHASE_TRAIL) phaseLen++;
-  }
-  const speed = 1 + a.rms * 2;
-  const ax = p.t * 0.04 * speed;
-  const ay = p.t * 0.029 * speed;
-  const az = p.t * 0.017 * speed;
-  const cxR = Math.cos(ax), sxR = Math.sin(ax);
-  const cyR = Math.cos(ay), syR = Math.sin(ay);
-  const czR = Math.cos(az), szR = Math.sin(az);
-  const mirrors: Array<[number, number, number]> = [
-    [1, 1, 1], [-1, 1, 1], [1, -1, 1], [-1, -1, 1],
-    [1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1],
-  ];
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = `rgba(220, 220, 220, ${0.18 + a.rms * 0.25})`;
-  for (let m = 0; m < 8; m++) {
-    const [mx, my, mz] = mirrors[m];
-    ctx.beginPath();
-    for (let i = 0; i < phaseLen; i++) {
-      const base = ((phaseHead - phaseLen + i + PHASE_TRAIL) % PHASE_TRAIL) * 3;
-      let x = phaseTrail[base] * mx;
-      let y = phaseTrail[base + 1] * my;
-      let z = phaseTrail[base + 2] * mz;
-      let ny = y * cxR - z * sxR;
-      let nz = y * sxR + z * cxR;
-      y = ny; z = nz;
-      let nx = x * cyR + z * syR;
-      nz = -x * syR + z * cyR;
-      x = nx; z = nz;
-      nx = x * czR - y * szR;
-      ny = x * szR + y * czR;
-      x = nx; y = ny;
-      const persp = 1 + z * 0.3;
-      const px = cx + x * scale * persp;
-      const py = cy + y * scale * persp;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.stroke();
-  }
-  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
-  core.addColorStop(0, `rgba(240, 240, 240, ${0.55 + a.peak * 0.35})`);
-  core.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = core;
-  ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
-}
-
-
 
 // MOIRÉ FIELD — two overlaid rotating grids. Differential rotation
 // + spacing (driven by low/high spectrum bands) produce slow sweeping
@@ -1801,11 +1739,14 @@ export function drawMoireField(
   for (let i = 0; i < 8; i++) low += spec[i];
   for (let i = 16; i < 32; i++) high += spec[i];
   low /= 8; high /= 16;
-  const drawGrid = (rot: number, spacing: number, alpha: number, gray: number) => {
+  // Two warm-amber strokes — slightly different shades within the
+  // mdrone parchment family so the moiré beats read as warm, not
+  // electric blue/grey.
+  const drawGrid = (rot: number, spacing: number, color: string) => {
     ctx.save();
     ctx.translate(w / 2, h / 2);
     ctx.rotate(rot);
-    ctx.strokeStyle = `rgba(${gray},${gray},${gray},${alpha})`;
+    ctx.strokeStyle = color;
     ctx.lineWidth = 0.8;
     const reach = Math.hypot(w, h);
     for (let d = -reach; d <= reach; d += spacing) {
@@ -1817,12 +1758,12 @@ export function drawMoireField(
     ctx.restore();
   };
   const base = 14 + Math.sin(p.t * 0.04) * 2;
-  drawGrid(p.t * 0.008, base, 0.25 + a.rms * 0.2, 230);
+  const aBase = 0.25 + a.rms * 0.2;
+  drawGrid(p.t * 0.008, base, `rgba(235, 200, 145, ${aBase})`);
   drawGrid(
     p.t * 0.008 + 0.03 + low * 0.04,
     base * (1 + 0.04 + high * 0.12),
-    0.25 + a.rms * 0.2,
-    190,
+    `rgba(180, 140, 95, ${aBase})`,
   );
 }
 
@@ -2227,12 +2168,22 @@ function drawFacetInto(c: CanvasRenderingContext2D, facet: Facet) {
   // Asymmetric gradient — catches "light" from upper-left so each
   // facet reads as a 3D gem rather than a flat polygon.
   const grad = c.createLinearGradient(-s * 0.7, -s, s * 0.7, s);
+  // Warm parchment-amber faceting — same R:G:B family used by
+  // resonant body / petroglyph stamps. Brightness still driven by
+  // facet.light; tint clamped to the mdrone ember band.
+  const tint = (l: number): string => {
+    const v = Math.max(0, Math.min(255, l));
+    const r = v;
+    const g = Math.round(v * 0.86);
+    const b = Math.round(v * 0.66);
+    return `rgba(${r}, ${g}, ${b}`;
+  };
   const l1 = Math.min(255, Math.round(facet.light * 2.55 + 55));
   const l2 = Math.round(facet.light * 2.55);
   const l3 = Math.max(0, Math.round(facet.light * 2.55 - 45));
-  grad.addColorStop(0, `rgba(${l1}, ${l1}, ${l1}, 0.92)`);
-  grad.addColorStop(0.5, `rgba(${l2}, ${l2}, ${l2}, 0.85)`);
-  grad.addColorStop(1, `rgba(${l3}, ${l3}, ${l3}, 0.92)`);
+  grad.addColorStop(0, `${tint(l1)}, 0.92)`);
+  grad.addColorStop(0.5, `${tint(l2)}, 0.85)`);
+  grad.addColorStop(1, `${tint(l3)}, 0.92)`);
   c.fillStyle = grad;
   c.beginPath();
   for (let k = 0; k < facet.sides; k++) {
@@ -2245,7 +2196,7 @@ function drawFacetInto(c: CanvasRenderingContext2D, facet: Facet) {
   c.fill();
   // Cleavage lines — centre to each vertex. Turns the flat polygon
   // into a visibly faceted gem.
-  c.strokeStyle = "rgba(255, 255, 255, 0.18)";
+  c.strokeStyle = "rgba(245, 215, 165, 0.22)";
   c.lineWidth = 0.6;
   for (let k = 0; k < facet.sides; k++) {
     const ang = (k / facet.sides) * Math.PI * 2 - Math.PI / 2;
@@ -2254,8 +2205,8 @@ function drawFacetInto(c: CanvasRenderingContext2D, facet: Facet) {
     c.lineTo(Math.cos(ang) * s, Math.sin(ang) * s);
     c.stroke();
   }
-  // Edge
-  c.strokeStyle = "rgba(230, 230, 230, 0.4)";
+  // Edge — warm tawny outline
+  c.strokeStyle = "rgba(220, 185, 130, 0.45)";
   c.lineWidth = 0.9;
   c.beginPath();
   for (let k = 0; k < facet.sides; k++) {
@@ -2268,7 +2219,7 @@ function drawFacetInto(c: CanvasRenderingContext2D, facet: Facet) {
   c.stroke();
   // Light-catching diagonal — a short bright streak across the upper
   // left of the facet. Reads as specular glint.
-  c.strokeStyle = "rgba(255, 255, 255, 0.45)";
+  c.strokeStyle = "rgba(250, 220, 170, 0.5)";
   c.lineWidth = 1;
   c.beginPath();
   c.moveTo(-s * 0.4, -s * 0.5);
@@ -2331,7 +2282,7 @@ export function drawCrystalLattice(
     // crystal's dendritic history.
     if (parentIdx >= 0) {
       const par = facets[parentIdx];
-      c.strokeStyle = "rgba(180, 180, 180, 0.28)";
+      c.strokeStyle = "rgba(170, 140, 95, 0.32)";
       c.lineWidth = 0.7;
       c.beginPath();
       c.moveTo(par.x, par.y);
@@ -2345,7 +2296,7 @@ export function drawCrystalLattice(
   const last = facets[facets.length - 1];
   if (last) {
     const glow = ctx.createRadialGradient(last.x, last.y, 0, last.x, last.y, last.size * 3);
-    glow.addColorStop(0, `rgba(240, 240, 240, ${0.25 + a.rms * 0.4})`);
+    glow.addColorStop(0, `rgba(245, 215, 165, ${0.28 + a.rms * 0.4})`);
     glow.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = glow;
     ctx.beginPath();
@@ -2364,14 +2315,14 @@ export function drawCrystalLattice(
       const f = facets[Math.floor(Math.random() * facets.length)];
       const spR = f.size * 2.2;
       const spg = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, spR);
-      spg.addColorStop(0, `rgba(255, 255, 255, ${a.peak * 0.8})`);
-      spg.addColorStop(0.5, `rgba(255, 255, 255, ${a.peak * 0.3})`);
+      spg.addColorStop(0, `rgba(250, 220, 170, ${a.peak * 0.8})`);
+      spg.addColorStop(0.5, `rgba(245, 215, 160, ${a.peak * 0.3})`);
       spg.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = spg;
       ctx.beginPath();
       ctx.arc(f.x, f.y, spR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = `rgba(255,255,255,${a.peak * 0.6})`;
+      ctx.strokeStyle = `rgba(245, 215, 160, ${a.peak * 0.6})`;
       ctx.lineWidth = 0.8;
       for (let d = 0; d < 2; d++) {
         const ang = d * Math.PI / 2 + p.t;
@@ -2833,11 +2784,21 @@ export function drawResonantBody(
 // TAPE DECAY — archival oxide degradation. Offscreen loop buffer that
 // accumulates scars, splice seams, dropout specks, and slow scan
 // bands. Not glitchy EDM — feels archival, like a long loop losing
-// magnetization over hours.
+// magnetization over hours. Reacts to spectral character (centroid
+// → scratch angle + hue), chord changes (splice events), transients
+// (wow-flutter warp), and per-pitch tracks (12 horizontal lanes).
 // ─────────────────────────────────────────────────────────────────────
 let tapeCanvas: HTMLCanvasElement | null = null;
 let tapeCtx: CanvasRenderingContext2D | null = null;
 let tapeSeamPhase = 0;
+let tapePrevPeak = 0;
+let tapeWowFlutter = 0;       // active wow-flutter (decays each frame)
+let tapeCentroidSm = 0.4;     // smoothed spectral centroid 0..1
+let tapeChordSig = 0;         // smoothed chord-energy fingerprint
+const tapePrevPitches = new Float32Array(12);
+const tapeTrackHits = new Float32Array(12); // per-pc track recency 0..1
+let tapeBurnAccum = 0;        // long-term low-band burn intensity
+let tapeSpliceFlash = 0;      // brief splice-event flash
 export function drawTapeDecay(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
@@ -2849,13 +2810,72 @@ export function drawTapeDecay(
   }
   const off = tapeCtx!;
   const dt = p.dtScale ?? 1;
-  // Very slow fade — damage persists minutes, not seconds.
-  off.fillStyle = `rgba(14, 10, 7, ${0.018 * dt})`;
+
+  // ── Spectral character ────────────────────────────────────────────
+  // Centroid (0=bass, 1=treble) and band split drive *what kind* of
+  // damage accrues, not just how much. Bass-heavy drones get burn
+  // marks; treble drones get drop-out flecks; balanced drones build
+  // wide oxide stripes.
+  let num = 0, den = 0, low = 0, high = 0;
+  for (let i = 0; i < 32; i++) {
+    const e = a.spectrum[i] ?? 0;
+    num += i * e; den += e;
+    if (i < 8) low += e;
+    else if (i >= 20) high += e;
+  }
+  const centroid = den > 0.001 ? (num / den) / 32 : 0.4;
+  low /= 8; high /= 12;
+  // Smooth the centroid so its effect on hue/angle drifts rather than jitters.
+  tapeCentroidSm += (centroid - tapeCentroidSm) * (1 - Math.pow(0.92, dt));
+
+  // ── Chord-change detection ────────────────────────────────────────
+  // L1 distance between current and previous pitch-class profiles.
+  // Any sustained change produces a "splice" event — a brief bright
+  // vertical line and a flash hit on each newly-active track.
+  let chordDelta = 0;
+  for (let i = 0; i < 12; i++) {
+    const cur = p.activePitches[i];
+    chordDelta += Math.abs(cur - tapePrevPitches[i]);
+    tapePrevPitches[i] = cur;
+  }
+  tapeChordSig += (chordDelta - tapeChordSig) * 0.18;
+  if (tapeChordSig > 0.18 && tapeSpliceFlash < 0.2) {
+    tapeSpliceFlash = 1;
+    tapeChordSig = 0;
+  }
+  tapeSpliceFlash *= Math.pow(0.91, dt);
+
+  // ── Transient → wow-flutter ───────────────────────────────────────
+  const peakDelta = a.peak - tapePrevPeak;
+  if (peakDelta > 0.10) tapeWowFlutter = Math.min(1, tapeWowFlutter + a.peak * 0.7);
+  tapePrevPeak = a.peak * 0.85 + tapePrevPeak * 0.15;
+  tapeWowFlutter *= Math.pow(0.88, dt);
+
+  // ── Long-term low-band burn ───────────────────────────────────────
+  tapeBurnAccum = Math.min(1, tapeBurnAccum + low * 0.0008 * dt);
+  tapeBurnAccum *= Math.pow(0.9995, dt);
+
+  // ── Per-pitch track recency ───────────────────────────────────────
+  for (let i = 0; i < 12; i++) {
+    tapeTrackHits[i] = Math.max(
+      tapeTrackHits[i] * Math.pow(0.96, dt),
+      p.activePitches[i],
+    );
+  }
+
+  // Slow fade — damage persists minutes. Slightly faster fade in
+  // burn-heavy state so the canvas doesn't saturate to brown.
+  const fadeAlpha = (0.018 + tapeBurnAccum * 0.012) * dt;
+  off.fillStyle = `rgba(14, 10, 7, ${fadeAlpha})`;
   off.fillRect(0, 0, w, h);
 
-  // Base oxide bands — horizontal streaks, spectral energy scars them
+  // ── Base oxide bands ──────────────────────────────────────────────
+  // Hue tilts with smoothed centroid: bass = warm copper, treble =
+  // pale ash-amber. Scratch angle also tilts so darker drones smear
+  // one way and brighter ones the other.
   const bands = 40;
   const bandH = h / bands;
+  const tilt = (tapeCentroidSm - 0.5) * 0.3;
   for (let i = 0; i < bands; i++) {
     const u = i / bands;
     const bin = Math.min(31, Math.floor(u * 32));
@@ -2863,49 +2883,126 @@ export function drawTapeDecay(
     if (e < 0.06) continue;
     const y = i * bandH + Math.random() * bandH;
     const alpha = 0.04 + e * 0.12;
-    const hue = 25 + p.mood.warmth * 12;
-    const lig = 30 + e * 30;
-    off.fillStyle = `hsla(${hue}, ${40 + e * 25}%, ${lig}%, ${alpha})`;
+    const hue = 18 + tapeCentroidSm * 24 + p.mood.warmth * 8;
+    const sat = 30 + (1 - tapeCentroidSm) * 30 + e * 25;
+    const lig = 28 + e * 32 + tapeCentroidSm * 6;
+    off.fillStyle = `hsla(${hue}, ${sat}%, ${lig}%, ${alpha})`;
     const segs = 1 + Math.floor(e * 4);
     for (let s = 0; s < segs; s++) {
       const x = Math.random() * w;
       const len = 20 + Math.random() * 180 * e;
-      off.fillRect(x, y, len, 1);
+      // Apply tilt as a vertical drift across the streak length.
+      const yDrift = tilt * len;
+      off.save();
+      off.translate(x, y);
+      off.rotate(tilt * 0.05);
+      off.fillRect(0, -yDrift * 0.5, len, 1);
+      off.restore();
     }
   }
 
-  // Loop seam — a vertical line slowly travelling across the tape
-  // (one "pass" every ~45 s). Each pass stamps a brighter scar where
-  // the splice is, so older passes show as dimmer ghost seams.
+  // ── Per-pitch tape tracks ─────────────────────────────────────────
+  // 12 horizontal "tracks" map to the 12 pitch classes. Each active
+  // pc paints its track row brighter; freshly-lit tracks (chord
+  // change) get a bonus splice hit. Inactive tracks slowly fade.
+  const trackTop = h * 0.08, trackBot = h * 0.92;
+  const trackSpan = trackBot - trackTop;
+  for (let pc = 0; pc < 12; pc++) {
+    const e = tapeTrackHits[pc];
+    if (e < 0.05) continue;
+    const y = trackTop + (pc / 11) * trackSpan + Math.random() * 1.2;
+    const alpha = 0.04 + e * 0.18;
+    off.strokeStyle = `hsla(${22 + tapeCentroidSm * 14}, 60%, ${55 + e * 20}%, ${alpha})`;
+    off.lineWidth = 0.7 + e * 0.6;
+    off.beginPath();
+    const x0 = Math.random() * w * 0.4;
+    const x1 = x0 + 80 + Math.random() * w * 0.5 * e;
+    off.moveTo(x0, y);
+    off.lineTo(Math.min(w, x1), y);
+    off.stroke();
+  }
+
+  // ── Splice event — chord-change flash ─────────────────────────────
+  if (tapeSpliceFlash > 0.05) {
+    const sx = Math.random() * w;
+    off.fillStyle = `rgba(245, 215, 165, ${tapeSpliceFlash * 0.55})`;
+    off.fillRect(sx, 0, 1.5, h);
+    // Bright track ticks across the seam for newly-energetic pitches
+    for (let pc = 0; pc < 12; pc++) {
+      const e = p.activePitches[pc];
+      if (e < 0.12) continue;
+      const y = trackTop + (pc / 11) * trackSpan;
+      off.fillStyle = `rgba(250, 220, 170, ${tapeSpliceFlash * 0.7 * e})`;
+      off.fillRect(sx - 4, y - 0.8, 9, 1.6);
+    }
+  }
+
+  // ── Travelling loop seam ──────────────────────────────────────────
+  // Speed scales with rms; each pass stamps a brighter scar.
   tapeSeamPhase += (0.006 + a.rms * 0.012) * dt;
   if (tapeSeamPhase > 1) tapeSeamPhase -= 1;
   const seamX = tapeSeamPhase * w;
-  off.fillStyle = `rgba(220, 180, 130, ${0.12 + a.peak * 0.2})`;
+  off.fillStyle = `rgba(220, 180, 130, ${0.12 + a.peak * 0.22 + tapeBurnAccum * 0.1})`;
   off.fillRect(seamX, 0, 1, h);
 
-  // Dropout constellations — tiny bright specks that remain in place
-  const drops = 2 + Math.floor(a.peak * 8);
+  // ── Dropout constellations ────────────────────────────────────────
+  // High-band content adds more flecks; low-band adds none (low rumble
+  // bruises the tape but doesn't strip oxide).
+  const drops = 2 + Math.floor(a.peak * 8 + high * 12);
   for (let i = 0; i < drops; i++) {
     off.fillStyle = `rgba(235, 210, 170, ${0.35 + Math.random() * 0.25})`;
     off.fillRect(Math.random() * w, Math.random() * h, 1, 1);
   }
 
-  // Occasional degraded scan band — a slow wide horizontal sweep
+  // ── Bass burn marks — sparse darker scorches when low-band is hot ─
+  if (low > 0.18 && Math.random() < 0.06 + low * 0.18) {
+    const bx = Math.random() * w;
+    const by = Math.random() * h;
+    const br = 18 + Math.random() * 60 * low;
+    const bg = off.createRadialGradient(bx, by, 0, bx, by, br);
+    bg.addColorStop(0, `rgba(40, 24, 14, ${0.18 + low * 0.25})`);
+    bg.addColorStop(0.5, `rgba(80, 50, 28, ${0.08 + low * 0.1})`);
+    bg.addColorStop(1, "rgba(0,0,0,0)");
+    off.fillStyle = bg;
+    off.fillRect(bx - br, by - br, br * 2, br * 2);
+  }
+
+  // ── Slow degraded scan band ───────────────────────────────────────
   if (p.growth > 0.2) {
     const bandY = (Math.sin(p.t * 0.03) * 0.5 + 0.5) * h;
-    const bandHigh = h * 0.04;
+    const bandHigh = h * (0.04 + tapeBurnAccum * 0.04);
     const bg = off.createLinearGradient(0, bandY - bandHigh, 0, bandY + bandHigh);
     bg.addColorStop(0, "rgba(0,0,0,0)");
-    bg.addColorStop(0.5, `rgba(180, 140, 90, ${0.08 * p.growth})`);
+    bg.addColorStop(0.5, `rgba(180, 140, 90, ${0.08 * p.growth + tapeBurnAccum * 0.05})`);
     bg.addColorStop(1, "rgba(0,0,0,0)");
     off.fillStyle = bg;
     off.fillRect(0, bandY - bandHigh, w, bandHigh * 2);
   }
 
-  ctx.drawImage(tapeCanvas, 0, 0);
-  // Live grain on top — very fine live noise
-  ctx.fillStyle = "rgba(200, 170, 130, 0.02)";
-  for (let i = 0; i < 60; i++) ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+  // ── Wow-flutter warp ──────────────────────────────────────────────
+  // On strong transients, redraw the offscreen onto the main canvas
+  // with a horizontal sinusoidal displacement per row. Decays in a
+  // few seconds. Reads as the head wobbling against the tape.
+  if (tapeWowFlutter > 0.05) {
+    const slices = 14;
+    const sliceH = h / slices;
+    for (let s = 0; s < slices; s++) {
+      const sy = s * sliceH;
+      const phase = p.t * 4 + s * 0.7;
+      const dx = Math.sin(phase) * tapeWowFlutter * 18;
+      ctx.drawImage(tapeCanvas, 0, sy, w, sliceH, dx, sy, w, sliceH);
+    }
+  } else {
+    ctx.drawImage(tapeCanvas, 0, 0);
+  }
+
+  // ── Live grain — density tracks high-band so trebly drones hiss
+  //    visibly while bass passages stay still.
+  const grainCount = 60 + Math.floor(high * 220);
+  ctx.fillStyle = `rgba(200, 170, 130, ${0.02 + high * 0.04})`;
+  for (let i = 0; i < grainCount; i++) {
+    ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -3276,115 +3373,6 @@ export function drawBeatingField(
   ctx.fillRect(0, 0, w, h);
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// TUNING MANUSCRIPT — ritual score of the current tuning. Unequal
-// horizontal rules (cents grid) on a dark parchment, ink marks where
-// active pitch classes sit, a few quiet numerals, drift lines tracing
-// interval motion. Accretes marks on the offscreen buffer so the
-// manuscript reads as written, not animated.
-// ─────────────────────────────────────────────────────────────────────
-let manuscriptCanvas: HTMLCanvasElement | null = null;
-let manuscriptCtx: CanvasRenderingContext2D | null = null;
-let manuscriptColX = 0;
-export function drawTuningManuscript(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  if (!manuscriptCanvas || manuscriptCanvas.width !== w || manuscriptCanvas.height !== h) {
-    manuscriptCanvas = document.createElement("canvas");
-    manuscriptCanvas.width = w; manuscriptCanvas.height = h;
-    manuscriptCtx = manuscriptCanvas.getContext("2d");
-    if (manuscriptCtx) {
-      manuscriptCtx.fillStyle = "#14100a"; // warm parchment-dark
-      manuscriptCtx.fillRect(0, 0, w, h);
-    }
-    manuscriptColX = 20;
-  }
-  const off = manuscriptCtx!;
-  // Very slow wash — older ink fades over minutes, not seconds.
-  off.fillStyle = "rgba(20, 16, 10, 0.008)";
-  off.fillRect(0, 0, w, h);
-
-  // Cents grid — 12 horizontal rules at pitch-class heights, spaced
-  // by cents (so minor seconds sit closer than tritone↔fifth). Rules
-  // are drawn every frame but very thin so they read as the paper
-  // ruling, not as active motion.
-  const topY = h * 0.12;
-  const botY = h * 0.88;
-  const span = botY - topY;
-  // Map pc 0..11 to cents 0..1100 position
-  for (let pc = 0; pc < 12; pc++) {
-    const y = topY + (pc / 11) * span;
-    off.strokeStyle = `rgba(190, 170, 140, ${0.06 + (pc % 5 === 0 ? 0.04 : 0)})`;
-    off.lineWidth = 0.6;
-    off.beginPath();
-    off.moveTo(30, y);
-    off.lineTo(w - 30, y);
-    off.stroke();
-  }
-
-  // Advance the ink column slowly — every ~3 seconds a new stroke
-  // column is written at the current X, and it wraps around when it
-  // hits the right margin.
-  const writeRate = 0.04 + a.rms * 0.12;
-  manuscriptColX += writeRate;
-  if (manuscriptColX > w - 20) manuscriptColX = 20;
-
-  // Ink marks — for each pitch class with energy > threshold, place
-  // a short horizontal tick at its rule, with jitter proportional to
-  // detune (we don't know exact cents here so we use peak as a stand-
-  // in for articulation strength).
-  const energies = p.activePitches;
-  for (let pc = 0; pc < 12; pc++) {
-    const e = energies[pc];
-    if (e < 0.08) continue;
-    const y = topY + (pc / 11) * span;
-    const len = 2 + e * 8;
-    const al = 0.25 + e * 0.4;
-    off.strokeStyle = `rgba(215, 180, 130, ${al})`;
-    off.lineWidth = 0.8 + e * 0.6;
-    // Jitter with peak so articulation feels hand-written
-    const jy = (a.peak - 0.5) * 1.2;
-    off.beginPath();
-    off.moveTo(manuscriptColX, y + jy);
-    off.lineTo(manuscriptColX + len, y + jy);
-    off.stroke();
-    // Occasional tiny dot above the tick — cents marking
-    if (e > 0.3 && Math.random() < 0.08) {
-      off.fillStyle = `rgba(215, 180, 130, ${al * 0.8})`;
-      off.fillRect(manuscriptColX + len - 1, y - 2, 1, 1);
-    }
-  }
-
-  // Interval traces — thin lines between consecutive active pitches,
-  // drawn occasionally so the manuscript gets interval curves on top
-  // of the ticks. Only when two or more classes are lit.
-  if (Math.random() < 0.06) {
-    const lit: number[] = [];
-    for (let pc = 0; pc < 12; pc++) if (energies[pc] > 0.15) lit.push(pc);
-    if (lit.length >= 2) {
-      off.strokeStyle = "rgba(200, 160, 120, 0.18)";
-      off.lineWidth = 0.7;
-      off.beginPath();
-      for (let i = 0; i < lit.length; i++) {
-        const y = topY + (lit[i] / 11) * span;
-        const x = manuscriptColX - 1 - i * 0.4;
-        if (i === 0) off.moveTo(x, y); else off.lineTo(x, y);
-      }
-      off.stroke();
-    }
-  }
-
-  ctx.drawImage(manuscriptCanvas, 0, 0);
-
-  // Vignette — parchment corners dim
-  const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35,
-                                      w / 2, h / 2, Math.max(w, h) * 0.8);
-  vg.addColorStop(0, "rgba(0,0,0,0)");
-  vg.addColorStop(1, "rgba(0,0,0,0.5)");
-  ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, w, h);
-}
-
 
 // ─────────────────────────────────────────────────────────────────────
 // FEEDBACK TUNNEL · B&W — same accumulating-zoom mechanic as the
@@ -3401,12 +3389,12 @@ export function drawFeedbackTunnelBW(
     feedbackBWCanvas = document.createElement("canvas");
     feedbackBWCanvas.width = w; feedbackBWCanvas.height = h;
     feedbackBWCtx = feedbackBWCanvas.getContext("2d");
-    if (feedbackBWCtx) { feedbackBWCtx.fillStyle = "#0a0a0a"; feedbackBWCtx.fillRect(0, 0, w, h); }
+    if (feedbackBWCtx) { feedbackBWCtx.fillStyle = "#0b0805"; feedbackBWCtx.fillRect(0, 0, w, h); }
   }
   const off = feedbackBWCtx;
   if (!off || !feedbackBWCanvas) return;
 
-  off.fillStyle = `rgba(6, 6, 6, ${0.05 + a.rms * 0.04})`;
+  off.fillStyle = `rgba(11, 8, 5, ${0.05 + a.rms * 0.04})`;
   off.fillRect(0, 0, w, h);
 
   off.save();
@@ -3420,18 +3408,21 @@ export function drawFeedbackTunnelBW(
   off.globalAlpha = 1;
   off.restore();
 
+  // Warm parchment / ember palette — same family as petroglyphs and
+  // resonant body. Core highlight stays bright on peak transients but
+  // tints amber instead of neutral grey.
   const pulseR = Math.min(w, h) * (0.04 + a.peak * 0.1 + a.rms * 0.05);
-  const coreBright = Math.min(255, 230 + Math.round(a.peak * 25));
-  const midBright = 140 + Math.round(a.rms * 50);
+  const coreLvl = 0.9 + Math.min(0.1, a.peak * 0.1);
+  const midLvl = 0.55 + a.rms * 0.18;
   const grad = off.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, pulseR * 3);
-  grad.addColorStop(0, `rgba(${coreBright}, ${coreBright}, ${Math.max(0, coreBright - 14)}, ${0.55 + a.peak * 0.4})`);
-  grad.addColorStop(0.5, `rgba(${midBright}, ${midBright}, ${Math.max(0, midBright - 8)}, ${0.22 + a.peak * 0.2})`);
+  grad.addColorStop(0, `rgba(${Math.round(245 * coreLvl)}, ${Math.round(215 * coreLvl)}, ${Math.round(160 * coreLvl)}, ${0.55 + a.peak * 0.4})`);
+  grad.addColorStop(0.5, `rgba(${Math.round(180 * midLvl)}, ${Math.round(140 * midLvl)}, ${Math.round(95 * midLvl)}, ${0.22 + a.peak * 0.2})`);
   grad.addColorStop(1, "rgba(0,0,0,0)");
   off.fillStyle = grad;
   off.fillRect(0, 0, w, h);
 
   if (a.peak > 0.3) {
-    off.strokeStyle = `rgba(255, 250, 240, ${a.peak * 0.6})`;
+    off.strokeStyle = `rgba(245, 215, 165, ${a.peak * 0.6})`;
     off.lineWidth = 1 + a.peak * 2;
     off.beginPath();
     off.arc(w / 2, h / 2, pulseR * 1.3, 0, Math.PI * 2);
@@ -3798,47 +3789,6 @@ PETRO_GLYPHS[22] = [
   [0, 0.25, 0.3, 0.85],
 ];
 
-// 24 Rosa Camuna (modern Lombardy variant) — 5-petal rounded swirl
-// approximated as a 30-point closed outline using r(φ) =
-// 0.6 + 0.32·cos(5φ). Distinct from the classic saltire-meander
-// version at index 4 (kept; not replaced). Reads as a stylised
-// pentagonal flower at petroglyph scale.
-PETRO_GLYPHS[24] = [
-  [
-    0, -0.92,
-    0.16, -0.74,
-    0.18, -0.40,
-    0.16, -0.23,
-    0.33, -0.29,
-    0.66, -0.38,
-    0.87, -0.28,
-    0.76, -0.08,
-    0.44, 0.05,
-    0.27, 0.09,
-    0.38, 0.22,
-    0.56, 0.51,
-    0.54, 0.74,
-    0.31, 0.69,
-    0.09, 0.43,
-    0, 0.28,
-    -0.09, 0.43,
-    -0.31, 0.69,
-    -0.54, 0.74,
-    -0.56, 0.51,
-    -0.38, 0.22,
-    -0.27, 0.09,
-    -0.44, 0.05,
-    -0.76, -0.08,
-    -0.87, -0.28,
-    -0.66, -0.38,
-    -0.33, -0.29,
-    -0.16, -0.23,
-    -0.18, -0.40,
-    -0.16, -0.74,
-    0, -0.92,
-  ],
-];
-
 // 23 Mounted rider — horse with a small stick-figure rider. Both
 // reduced to schematic forms to read at petroglyph scale.
 PETRO_GLYPHS[23] = [
@@ -3949,16 +3899,14 @@ function ensurePetro(w: number, h: number) {
 }
 
 function pickPetroIdx(pc: number): number {
-  // 25 glyphs for 12 pitch classes — pc maps to canonical slot, with
+  // 24 glyphs for 12 pitch classes — pc maps to canonical slot, with
   // small chances of swapping in either the "advanced" alternates
-  // (12–15: hand, rosette, meander, map), the figural alternates
+  // (12–15: hand, rosette, meander, map) or the figural alternates
   // (16–23: ibex, dancer, hunter, running quadruped, paddle, sun
-  // face, horned dancer, mounted rider), or the modern stylised
-  // Rosa Camuna (24).
+  // face, horned dancer, mounted rider).
   const r = Math.random();
-  if (r < 0.08) return 24;
-  if (r < 0.30) return 16 + (pc % 8);
-  if (r < 0.50) return 12 + (pc % 4);
+  if (r < 0.25) return 16 + (pc % 8);
+  if (r < 0.45) return 12 + (pc % 4);
   return pc % 12;
 }
 
@@ -4219,7 +4167,7 @@ export function drawPetroglyphs(
     for (let i = 0; i < 12; i++) {
       if (p.activePitches[i] > bestE) { bestE = p.activePitches[i]; bestPc = i; }
     }
-    const gi = bestPc >= 0 ? pickPetroIdx(bestPc) : Math.floor(Math.random() * 25);
+    const gi = bestPc >= 0 ? pickPetroIdx(bestPc) : Math.floor(Math.random() * 24);
     stampPetro(g, px, py, 28 + a.rms * 24, gi, Math.max(0.3, bestE), p.growth, now);
     recentPetro.push({ x: px, y: py, sz: 28 + a.rms * 24, gi, pc: bestPc >= 0 ? bestPc : gi % 12, age: 0 });
     if (recentPetro.length > 20) recentPetro.shift();
@@ -4509,12 +4457,12 @@ export function drawStereoVectorscope(
     vsCanvas = document.createElement("canvas");
     vsCanvas.width = w; vsCanvas.height = h;
     vsCtx = vsCanvas.getContext("2d");
-    if (vsCtx) { vsCtx.fillStyle = "#06070a"; vsCtx.fillRect(0, 0, w, h); }
+    if (vsCtx) { vsCtx.fillStyle = "#0b0805"; vsCtx.fillRect(0, 0, w, h); }
   }
   const off = vsCtx!;
   const dt = p.dtScale ?? 1;
   // Phosphor persistence — very slow decay so trails accumulate
-  off.fillStyle = `rgba(6, 7, 10, ${0.04 * dt})`;
+  off.fillStyle = `rgba(11, 8, 5, ${0.04 * dt})`;
   off.fillRect(0, 0, w, h);
 
   const cx = w / 2, cy = h / 2;
@@ -4524,8 +4472,14 @@ export function drawStereoVectorscope(
   if (wf && wf.length > 128) {
     const LAG = 30; // samples of right-channel delay vs left
     const step = Math.max(1, Math.floor(wf.length / 600));
-    const bright = 195 + Math.round(a.rms * 40 + a.peak * 20);
-    off.strokeStyle = `rgba(${bright}, ${bright}, ${bright}, ${0.55 + a.rms * 0.4})`;
+    // Amber phosphor — same parchment ratio (R:G:B ≈ 245:215:160)
+    // used by the rest of the mdrone family. Brightness still
+    // tracks loudness.
+    const lvl = (195 + Math.round(a.rms * 40 + a.peak * 20)) / 245;
+    const r = Math.round(245 * lvl);
+    const g = Math.round(215 * lvl);
+    const b = Math.round(160 * lvl);
+    off.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.55 + a.rms * 0.4})`;
     off.lineWidth = 0.8 + a.rms * 0.8;
     off.beginPath();
     let first = true;
@@ -4876,7 +4830,6 @@ export function resetVisualizerCaches(): void {
   crystalCanvas = null; crystalCtx = null;
   bodyCanvas = null; bodyCtx = null;
   tapeCanvas = null; tapeCtx = null;
-  manuscriptCanvas = null; manuscriptCtx = null;
   feedbackBWCanvas = null; feedbackBWCtx = null;
   petroCanvas = null; petroCtx = null;
   vsCanvas = null; vsCtx = null;
@@ -4913,4 +4866,13 @@ export function resetVisualizerCaches(): void {
   petroAnchorX = 0.5;
   petroAnchorY = 0.5;
   swPrevPeak = 0;
+  tapeSeamPhase = 0;
+  tapePrevPeak = 0;
+  tapeWowFlutter = 0;
+  tapeCentroidSm = 0.4;
+  tapeChordSig = 0;
+  tapePrevPitches.fill(0);
+  tapeTrackHits.fill(0);
+  tapeBurnAccum = 0;
+  tapeSpliceFlash = 0;
 }
