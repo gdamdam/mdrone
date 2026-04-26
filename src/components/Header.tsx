@@ -74,6 +74,10 @@ interface HeaderProps {
   onToggleMotionRec: (on: boolean) => void;
   analyser: AnalyserNode | null;
   loadMonitor: AudioLoadMonitor;
+  /** Inline MEDITATE preview tile toggle. Lives next to HOLD so the
+   *  performance row owns transport + visualizer in one place. */
+  meditatePreviewOn: boolean;
+  onToggleMeditatePreview: () => void;
 }
 
 /**
@@ -118,6 +122,8 @@ export function Header({
   onToggleMotionRec,
   analyser,
   loadMonitor,
+  meditatePreviewOn,
+  onToggleMeditatePreview,
 }: HeaderProps) {
   // Drone logo vibration — rAF loop reads the master analyser's RMS
   // and writes a tiny translate transform on the title-art element.
@@ -249,7 +255,7 @@ export function Header({
 
   return (
     <header className="header">
-      <div className="header-row header-row-brand">
+      <div className="header-row header-row-main">
         <div className="title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
           <span
@@ -271,72 +277,6 @@ export function Header({
           </span>
           <CpuWarning monitor={loadMonitor} />
         </div>
-        <a
-          className="title-sigil"
-          href="./about.html"
-          aria-label="About mdrone"
-          title="About mdrone"
-        >
-          <svg viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <radialGradient id="title-sigil-glow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="currentColor" stopOpacity="0.32" />
-                <stop offset="60%" stopColor="currentColor" stopOpacity="0.06" />
-                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-            <circle cx="200" cy="200" r="190" fill="url(#title-sigil-glow)" />
-            <g stroke="currentColor" strokeWidth="1.2" fill="none" opacity="0.45">
-              <circle cx="200" cy="200" r="190" />
-              <circle cx="200" cy="200" r="172" strokeDasharray="3 9" />
-            </g>
-            <g stroke="currentColor" strokeWidth="1.2" opacity="0.55">
-              <line x1="200" y1="10" x2="200" y2="26" />
-              <line x1="200" y1="390" x2="200" y2="374" />
-              <line x1="10" y1="200" x2="26" y2="200" />
-              <line x1="390" y1="200" x2="374" y2="200" />
-            </g>
-            <g stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" fill="none">
-              <path d="M200 70 Q 195 180 200 220 Q 205 260 200 330" />
-              <path d="M200 110 Q 120 140 130 220 Q 140 280 200 300" />
-              <path d="M200 110 Q 290 160 280 230 Q 268 296 200 320" />
-              <path d="M140 200 Q 200 160 260 200" />
-              <path d="M200 220 L 175 280" />
-              <path d="M200 220 L 228 276" />
-              <path d="M178 92 Q 200 78 222 92" />
-            </g>
-            <circle cx="200" cy="70" r="8" fill="currentColor" />
-            <circle cx="200" cy="330" r="6" fill="currentColor" opacity="0.8" />
-          </svg>
-        </a>
-      </div>
-
-      <div className="header-row header-row-main">
-        {/* Left — surface tabs */}
-        <div className="view-toggle" data-tutor="views">
-          {(["drone", "meditate", "mixer"] as const).map((m) => (
-            <button
-              key={m}
-              data-tutor={`view-${m}`}
-              // MEDITATE is now a fullscreen overlay and MIXER a bottom
-              // drawer — both close by tapping the same button again.
-              // DRONE is the base layer, always available.
-              onClick={() => setViewMode(viewMode === m ? "drone" : m)}
-              className={viewMode === m ? "view-btn view-btn-active" : "view-btn"}
-              title={
-                m === "drone"
-                  ? "DRONE — the instrument: tonic, mode, atmosphere"
-                  : m === "meditate"
-                    ? "MEDITATE — fullscreen visualizer. Click again or press Esc to close."
-                    : "MIXER — bottom drawer with master bus (HPF · 3-band EQ · glue · drive · limiter). Click again or tap outside to close."
-              }
-            >
-              {m.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-
         {/* Center — scene marquee. Clickable so tapping the current
             preset name pops open the preset list (tab auto-switches
             to DRONE if the user is on MIDI / MIXER). */}
@@ -421,6 +361,21 @@ export function Header({
             {holding ? "■" : "▶"}
           </span>
         </button>
+        <button
+          type="button"
+          className={
+            meditatePreviewOn
+              ? "header-btn header-btn-meditate header-btn-meditate-active"
+              : "header-btn header-btn-meditate"
+          }
+          onClick={onToggleMeditatePreview}
+          title={meditatePreviewOn ? "Hide MEDITATE preview" : "Show MEDITATE preview"}
+          aria-label="Toggle MEDITATE preview"
+          aria-pressed={meditatePreviewOn}
+        >
+          <span className="header-btn-label-full">◉ MEDITATE</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">◉</span>
+        </button>
         </div>
 
         {/* Secondary — quieter controls. REC moved to the scene-
@@ -434,6 +389,20 @@ export function Header({
         >
           <span className="header-btn-label-full">VOL {volPct}</span>
           <span className="header-btn-label-glyph" aria-hidden="true">VOL</span>
+        </button>
+        <button
+          className={
+            viewMode === "mixer"
+              ? "header-btn header-btn-mixer header-btn-mixer-active"
+              : "header-btn header-btn-mixer"
+          }
+          onClick={() => setViewMode(viewMode === "mixer" ? "drone" : "mixer")}
+          title="MIXER — master bus drawer (HPF · 3-band EQ · glue · drive · limiter). Click again or tap outside to close."
+          aria-label="Open mixer"
+          aria-pressed={viewMode === "mixer"}
+        >
+          <span className="header-btn-label-full">MIXER</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">▤</span>
         </button>
         <button
           className="header-btn header-btn-help"
@@ -453,6 +422,44 @@ export function Header({
           ⚙
         </button>
         </div>
+        <a
+          className="title-sigil"
+          href="./about.html"
+          aria-label="About mdrone"
+          title="About mdrone"
+        >
+          <svg viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <radialGradient id="title-sigil-glow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="currentColor" stopOpacity="0.32" />
+                <stop offset="60%" stopColor="currentColor" stopOpacity="0.06" />
+                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+            <circle cx="200" cy="200" r="190" fill="url(#title-sigil-glow)" />
+            <g stroke="currentColor" strokeWidth="1.2" fill="none" opacity="0.45">
+              <circle cx="200" cy="200" r="190" />
+              <circle cx="200" cy="200" r="172" strokeDasharray="3 9" />
+            </g>
+            <g stroke="currentColor" strokeWidth="1.2" opacity="0.55">
+              <line x1="200" y1="10" x2="200" y2="26" />
+              <line x1="200" y1="390" x2="200" y2="374" />
+              <line x1="10" y1="200" x2="26" y2="200" />
+              <line x1="390" y1="200" x2="374" y2="200" />
+            </g>
+            <g stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" fill="none">
+              <path d="M200 70 Q 195 180 200 220 Q 205 260 200 330" />
+              <path d="M200 110 Q 120 140 130 220 Q 140 280 200 300" />
+              <path d="M200 110 Q 290 160 280 230 Q 268 296 200 320" />
+              <path d="M140 200 Q 200 160 260 200" />
+              <path d="M200 220 L 175 280" />
+              <path d="M200 220 L 228 276" />
+              <path d="M178 92 Q 200 78 222 92" />
+            </g>
+            <circle cx="200" cy="70" r="8" fill="currentColor" />
+            <circle cx="200" cy="330" r="6" fill="currentColor" opacity="0.8" />
+          </svg>
+        </a>
       </div>
 
       {volumeOpen && (

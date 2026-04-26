@@ -17,8 +17,6 @@
 
 
 export type Visualizer =
-  | "haloGlow"
-  | "mirrorGlyphs"
   | "rothko"
   | "starGate"
   | "cymatics"
@@ -82,7 +80,6 @@ export const VISUALIZER_GROUPS: readonly {
       // B&W / monochromatic (rock + gilt)
       "petroglyphs",
       "illuminatedGlyphs",
-      "mirrorGlyphs",
       // Color
       "sediment",
       "prayerRug",
@@ -98,7 +95,6 @@ export const VISUALIZER_GROUPS: readonly {
       "cymatics",
       "crystalLattice",
       // Color
-      "haloGlow",
       "scryingMirror",
       "rothko",
     ],
@@ -128,8 +124,6 @@ export const VISUALIZER_LABELS: Record<Visualizer, string> = {
   pitchBeats: "PITCH BEATS · interferometer",
   flowField: "FLOW FIELD · particle streams",
   waveformRing: "WAVEFORM RING · circular oscilloscope",
-  haloGlow: "HALO & RAYS",
-  mirrorGlyphs: "MIRROR GLYPHS · scrying + gilt runes",
   rothko: "ROTHKO FIELD",
   starGate: "STAR GATE",
   cymatics: "CYMATICS PLATE",
@@ -616,14 +610,11 @@ export function drawStarGate(
 }
 
 // Halo-and-rays visualizer (formerly the Buddha image gallery)
-import { drawHaloGlow } from "./deities";
 
 export const VISUALIZER_FNS: Record<
   Visualizer,
   (ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock) => void
 > = {
-  haloGlow: drawHaloGlow,
-  mirrorGlyphs: drawMirrorGlyphs,
   cymatics: drawCymatics,
   dreamMachine: drawDreamMachine,
   rothko: drawRothko,
@@ -1898,8 +1889,43 @@ const GLYPH_STROKES: number[][][] = [
    [-0.7, 0, -0.45, 0], [0.45, 0, 0.7, 0],
    [-0.55, -0.55, -0.35, -0.35], [0.55, -0.55, 0.35, -0.35],
    [-0.55, 0.55, -0.35, 0.35], [0.55, 0.55, 0.35, 0.35]],
+  // ── Alchemical 8 (24–31) — planetary + element symbols ───────
+  // 24 Sun ☉ — circle with central dot
+  [[0.6, 0, 0.42, 0.42, 0, 0.6, -0.42, 0.42, -0.6, 0, -0.42, -0.42, 0, -0.6, 0.42, -0.42, 0.6, 0],
+   [-0.08, -0.08, 0.08, -0.08, 0.08, 0.08, -0.08, 0.08, -0.08, -0.08]],
+  // 25 Crescent moon ☾ — opposed arcs forming a waxing crescent
+  [[0.4, -0.8, -0.05, -0.6, -0.45, -0.15, -0.55, 0.25, -0.45, 0.55, -0.05, 0.75, 0.4, 0.8],
+   [0.4, -0.8, 0.1, -0.5, -0.05, -0.05, -0.05, 0.3, 0.1, 0.55, 0.4, 0.8]],
+  // 26 Mercury ☿ — crescent horns + circle + cross
+  [[0.3, -0.05, 0.21, 0.16, 0, 0.25, -0.21, 0.16, -0.3, -0.05, -0.21, -0.26, 0, -0.35, 0.21, -0.26, 0.3, -0.05],
+   [-0.3, -0.65, -0.18, -0.55, 0, -0.5, 0.18, -0.55, 0.3, -0.65],
+   [0, -0.5, 0, -0.35],
+   [0, 0.25, 0, 0.85],
+   [-0.18, 0.55, 0.18, 0.55]],
+  // 27 Venus ♀ — circle on top of cross
+  [[0.3, -0.3, 0.21, -0.09, 0, 0, -0.21, -0.09, -0.3, -0.3, -0.21, -0.51, 0, -0.6, 0.21, -0.51, 0.3, -0.3],
+   [0, 0, 0, 0.85],
+   [-0.2, 0.45, 0.2, 0.45]],
+  // 28 Mars ♂ — circle with NE arrow
+  [[0.0, 0.55, -0.21, 0.46, -0.3, 0.25, -0.21, 0.04, 0, -0.05, 0.21, 0.04, 0.3, 0.25, 0.21, 0.46, 0, 0.55],
+   [0.21, 0.04, 0.72, -0.5],
+   [0.42, -0.5, 0.72, -0.5, 0.72, -0.2]],
+  // 29 Saturn ♄ — cross + curling hook
+  [[0, -0.85, 0, 0.4],
+   [-0.32, -0.55, 0.32, -0.55],
+   [0, 0.4, 0.2, 0.5, 0.34, 0.4, 0.4, 0.2, 0.34, 0, 0.18, -0.08, -0.05, -0.02]],
+  // 30 Jupiter ♃ — stylised "4" with top hook + crossbar
+  [[-0.55, -0.25, -0.45, -0.6, -0.12, -0.7, 0.05, -0.62],
+   [-0.35, -0.6, -0.35, 0.7],
+   [-0.55, 0.2, 0.5, 0.2]],
+  // 31 Fire △ — equilateral triangle pointing up
+  [[0, -0.75, 0.7, 0.5, -0.7, 0.5, 0, -0.75]],
 ];
 function pickGlyphIdx(pc: number): number {
+  // 32 glyphs in three banks: 12 canonical (0–11), 12 alternates
+  // (12–23), 8 alchemical (24–31). 25% chance of an alchemical pick;
+  // otherwise fall back to the original two-bank rotation.
+  if (Math.random() < 0.25) return 24 + (pc % 8);
   return (pc + (Math.random() < 0.5 ? 0 : 12)) % 24;
 }
 // Recent glyph placements — live overlay breathes halos around them.
@@ -2085,9 +2111,10 @@ let mirrorSpawnTimer = 0;
 export function drawScryingMirror(
   ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
 ): void {
-  // Cream card-stock background — classic Rorschach plate. Very slow
-  // fade so ink blooms persist for many seconds; the card never clears.
-  ctx.fillStyle = "rgba(239, 232, 220, 0.025)";
+  // Warm parchment paper — inverted Rorschach: ink blooms (dark
+  // ember) accumulate on a slowly-built parchment ground. Same
+  // ember/parchment palette as petroglyphs / resonant body.
+  ctx.fillStyle = "rgba(240, 205, 140, 0.04)";
   ctx.fillRect(0, 0, w, h);
 
   let num = 0, den = 0;
@@ -2095,15 +2122,17 @@ export function drawScryingMirror(
   const centroid = den > 0 ? (num / den) / a.spectrum.length : 0.3;
 
   // Spawning is strictly audio-gated — no RMS, no new stains. Silence
-  // means the card is held. Existing blooms continue their life cycle.
+  // means the plate is held. Existing blooms continue their life cycle.
   if (a.rms > 0.03) {
     mirrorSpawnTimer += a.rms * 0.22;
     if (mirrorSpawnTimer > 1 && mirrorBlooms.length < 32) {
       mirrorSpawnTimer = 0;
+      // Coloured accents stay inside the ember/parchment family —
+      // warm amber (~26°) or deep tawny (~14°) instead of red/blue.
       const coloured = Math.random() < 0.15;
       const hue = coloured
-        ? (Math.random() < 0.5 ? 0 : 220) + (Math.random() - 0.5) * 20
-        : 25;
+        ? (Math.random() < 0.5 ? 14 : 32) + (Math.random() - 0.5) * 8
+        : 24;
       mirrorBlooms.push({
         x: w * 0.5 + Math.random() * w * 0.45,
         y: Math.random() * h,
@@ -2128,8 +2157,6 @@ export function drawScryingMirror(
     });
   }
   mirrorLastPeak = a.peak;
-  // Suppress unused-var lint while keeping centroid read alive
-  // (may drive future per-plate palette shifts).
   void centroid;
 
   const cx = w / 2;
@@ -2137,23 +2164,30 @@ export function drawScryingMirror(
 
   for (let i = mirrorBlooms.length - 1; i >= 0; i--) {
     const b = mirrorBlooms[i];
-    // Age rate: blooms linger ~18s each — enough to accumulate
-    // texture without the card getting completely crowded.
     b.age += 0.005 * dt;
     if (b.age > 1) { mirrorBlooms.splice(i, 1); continue; }
     b.r += (b.maxR - b.r) * 0.03;
-    const alpha = Math.max(0, 0.6 * (1 - b.age));
-    const stop = b.hue < 0
-      ? `rgba(22, 18, 15, ${alpha})`              // ink-black
-      : `hsla(${b.hue}, 55%, 35%, ${alpha})`;     // red / blue accent
+    const alpha = Math.max(0, 0.7 * (1 - b.age));
+    // Inverted bloom palette — dark ink on warm parchment. Default
+    // is the deep ember used as the slate-fade colour elsewhere;
+    // coloured accents stay in the warm ember band but at low
+    // lightness so they read as ink rather than glow.
+    const inner = b.hue < 0
+      ? `rgba(11, 8, 5, ${alpha})`
+      : `hsla(${b.hue}, 60%, 18%, ${alpha})`;
+    const mid = b.hue < 0
+      ? `rgba(45, 32, 20, ${alpha * 0.55})`
+      : `hsla(${b.hue}, 50%, 26%, ${alpha * 0.55})`;
     const gr = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-    gr.addColorStop(0, stop);
+    gr.addColorStop(0, inner);
+    gr.addColorStop(0.5, mid);
     gr.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gr;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
     const mx = 2 * cx - b.x;
     const gL = ctx.createRadialGradient(mx, b.y, 0, mx, b.y, b.r);
-    gL.addColorStop(0, stop);
+    gL.addColorStop(0, inner);
+    gL.addColorStop(0.5, mid);
     gL.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gL;
     ctx.beginPath(); ctx.arc(mx, b.y, b.r, 0, Math.PI * 2); ctx.fill();
@@ -2350,92 +2384,6 @@ export function drawCrystalLattice(
   }
 }
 
-
-// MIRROR GLYPHS — a cream Rorschach card where gilt illuminated
-// glyphs AND bilateral ink blooms both accumulate. Fusion of the
-// SCRYING MIRROR and ILLUMINATED GLYPHS visualizers. Reuses the
-// GLYPH_STROKES authored for ILLUMINATED GLYPHS.
-let mgCanvas: HTMLCanvasElement | null = null;
-let mgCtx: CanvasRenderingContext2D | null = null;
-let mgGlyphLast = 0;
-let mgSpawnTimer = 0;
-function ensureMg(w: number, h: number) {
-  if (!mgCanvas || mgCanvas.width !== w || mgCanvas.height !== h) {
-    mgCanvas = document.createElement("canvas");
-    mgCanvas.width = w; mgCanvas.height = h;
-    mgCtx = mgCanvas.getContext("2d");
-    mgCtx!.fillStyle = "#efe8dc"; mgCtx!.fillRect(0, 0, w, h);
-  }
-}
-export function drawMirrorGlyphs(
-  ctx: CanvasRenderingContext2D, w: number, h: number, a: AudioFrame, p: PhaseClock,
-): void {
-  ensureMg(w, h);
-  const m = mgCtx!;
-  // Very slow fade toward cream so both glyphs and ink persist.
-  m.fillStyle = "rgba(239, 232, 220, 0.008)";
-  m.fillRect(0, 0, w, h);
-
-  const cx = w / 2;
-
-  // Bilateral ink blooms — audio-gated so silence stops adding ink.
-  if (a.rms > 0.03) {
-    mgSpawnTimer += a.rms * 0.2;
-    if (mgSpawnTimer > 1) {
-      mgSpawnTimer = 0;
-      const x = cx + 20 + Math.random() * (w * 0.45);
-      const y = Math.random() * h;
-      const r = 28 + Math.random() * 75 + a.rms * 70;
-      const mx = 2 * cx - x;
-      for (const bx of [x, mx]) {
-        const gr = m.createRadialGradient(bx, y, 0, bx, y, r);
-        gr.addColorStop(0, "rgba(22, 18, 15, 0.48)");
-        gr.addColorStop(1, "rgba(0,0,0,0)");
-        m.fillStyle = gr;
-        m.beginPath(); m.arc(bx, y, r, 0, Math.PI * 2); m.fill();
-      }
-    }
-  } else {
-    mgSpawnTimer = 0;
-  }
-
-  // Bilateral gilt glyphs — each placement doubles across the seam.
-  if (a.rms > 0.03 && p.t - mgGlyphLast > 1.8 - a.rms * 0.7) {
-    mgGlyphLast = p.t;
-    let pc = 0, best = 0;
-    for (let i = 0; i < 12; i++) {
-      if (p.activePitches[i] > best) { best = p.activePitches[i]; pc = i; }
-    }
-    if (best > 0.08) {
-      const strokes = GLYPH_STROKES[pickGlyphIdx(pc)];
-      const sz = 18 + best * 22;
-      const gx = cx + 40 + Math.random() * (w * 0.35);
-      const gy = 60 + Math.random() * (h - 120);
-      for (const xx of [gx, 2 * cx - gx]) {
-        m.save();
-        m.translate(xx, gy);
-        m.lineWidth = 1.4 + best * 1.5;
-        m.lineCap = "round";
-        m.lineJoin = "round";
-        m.strokeStyle = `hsla(42, ${55 + best * 25}%, ${52 + best * 10}%, 0.85)`;
-        m.shadowColor = "rgba(200, 140, 60, 0.5)";
-        m.shadowBlur = 5 + best * 6;
-        for (const path of strokes) {
-          m.beginPath();
-          for (let i = 0; i < path.length; i += 2) {
-            const px = path[i] * sz;
-            const py = path[i + 1] * sz;
-            if (i === 0) m.moveTo(px, py); else m.lineTo(px, py);
-          }
-          m.stroke();
-        }
-        m.restore();
-      }
-    }
-  }
-
-  ctx.drawImage(mgCanvas!, 0, 0);
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // NEW VISUALIZERS (2026-04 wave) — resonantBody, tapeDecay,
@@ -3050,59 +2998,77 @@ export function drawVoidMonolith(
   }
   voidPointerDownPrev = p.pointerDown;
 
-  // ── Monolith slab — vertical narrow rectangle. Width breathes with
-  //    low-band; right edge fills slightly brighter (amber rim).
-  const mx = w * 0.38 + Math.sin(p.t * 0.05) * 2;
-  const topY = h * 0.08;
-  const botY = h * 0.92;
+  // ── Monolith slab — wide central column. Width breathes with the
+  //    full audio signal so it occupies meaningful canvas real estate
+  //    instead of reading as a hairline. Centred so the slab is the
+  //    visual anchor of the frame.
+  const mx = w * 0.5 + Math.sin(p.t * 0.05) * 3;
+  const topY = h * 0.05;
+  const botY = h * 0.95;
   const lineH = botY - topY;
-  const slabW = 1.6 + low * 5.6 + a.rms * 2.2;
-  const slabAl = 0.08 + low * 0.3 + a.rms * 0.12;
-  // Body
-  ctx.fillStyle = `rgba(40, 34, 26, ${slabAl})`;
+  // Slab width — minimum ~12% of canvas, swells to ~50% under heavy
+  // low-band + RMS load so loud passages fill the space.
+  const slabW = w * (0.12 + low * 0.28 + a.rms * 0.12);
+  const slabAl = 0.18 + low * 0.32 + a.rms * 0.18;
+  // Body — vertical gradient gives volumetric depth; brighter centre,
+  // darker top/bottom so the slab reads as a column under pressure.
+  const slabGrad = ctx.createLinearGradient(mx - slabW / 2, 0, mx + slabW / 2, 0);
+  slabGrad.addColorStop(0, `rgba(28, 24, 20, ${slabAl * 0.7})`);
+  slabGrad.addColorStop(0.5, `rgba(58, 48, 38, ${slabAl})`);
+  slabGrad.addColorStop(1, `rgba(36, 30, 24, ${slabAl * 0.7})`);
+  ctx.fillStyle = slabGrad;
   ctx.fillRect(mx - slabW / 2, topY, slabW, lineH);
-  // Amber rim (right edge)
-  ctx.fillStyle = `rgba(180, 160, 130, ${slabAl * 1.8})`;
-  ctx.fillRect(mx + slabW / 2 - 0.7, topY, 0.7, lineH);
-  // Cool rim (left edge)
-  ctx.fillStyle = `rgba(110, 100, 95, ${slabAl * 0.9})`;
-  ctx.fillRect(mx - slabW / 2, topY, 0.6, lineH);
+  // Rim highlights — amber right, cool left
+  ctx.fillStyle = `rgba(200, 175, 140, ${slabAl * 1.9})`;
+  ctx.fillRect(mx + slabW / 2 - 1.2, topY, 1.2, lineH);
+  ctx.fillStyle = `rgba(120, 110, 100, ${slabAl * 1.1})`;
+  ctx.fillRect(mx - slabW / 2, topY, 1.0, lineH);
 
-  // Buckling spine — a centre line running through the slab, sinusoid
+  // Buckling spine — centre filament running through the slab,
   // amplitude scales with low-band so strong subs warp the column.
-  const bend = low * 14 + a.rms * 6;
-  ctx.strokeStyle = `rgba(200, 180, 150, ${0.22 + low * 0.5})`;
-  ctx.lineWidth = 0.8 + low * 0.8;
+  const bend = low * 18 + a.rms * 8;
+  ctx.strokeStyle = `rgba(220, 195, 160, ${0.28 + low * 0.55 + a.rms * 0.2})`;
+  ctx.lineWidth = 1.0 + low * 1.4 + a.rms * 0.8;
   ctx.beginPath();
-  const SEGS = 24;
+  const SEGS = 36;
   for (let s = 0; s <= SEGS; s++) {
     const t = s / SEGS;
     const y = topY + t * lineH;
     let x = mx + Math.sin(t * Math.PI * (1.5 + low * 2) + p.t * 0.3) * bend;
-    x += (Math.random() - 0.5) * a.peak * 0.8;
+    x += (Math.random() - 0.5) * a.peak * 1.2;
     if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
 
-  // ── Standing-wave nodes — for each lit pitch class, draw a small
-  //    bright dot on the slab at that pc's y-position. Dot radius +
-  //    brightness scale with pitch energy, so the chord is literally
-  //    etched onto the monolith.
+  // ── Standing-wave nodes — each active pitch class lights up as a
+  //    horizontal BAND across the slab's full width, plus a soft
+  //    radial glow that bleeds outside the slab edges. The chord is
+  //    literally etched into the column, with stronger pitches
+  //    pushing brighter, thicker bands.
   for (let pc = 0; pc < 12; pc++) {
     const e = p.activePitches[pc];
     if (e < 0.1) continue;
     const ty = topY + (pc / 11) * lineH;
-    const nx = mx + Math.sin((pc / 11) * Math.PI * (1.5 + low * 2) + p.t * 0.3) * bend;
-    const nr = 1.4 + e * 3.2 + a.peak * 1.5;
-    const ng = ctx.createRadialGradient(nx, ty, 0, nx, ty, nr * 3);
-    ng.addColorStop(0, `hsla(28, 70%, 70%, ${0.55 + e * 0.35})`);
-    ng.addColorStop(0.5, `hsla(22, 50%, 40%, ${e * 0.2})`);
-    ng.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = ng;
-    ctx.fillRect(nx - nr * 3, ty - nr * 3, nr * 6, nr * 6);
-    // Right-edge tick — all active pitches show, not just strongest
-    ctx.fillStyle = `rgba(170, 150, 120, ${0.3 + e * 0.5})`;
-    ctx.fillRect(w * 0.9, ty, 4 + e * 6, 1);
+    const bandH = 1.5 + e * 3.5 + a.peak * 1.5;
+    // Band across the slab
+    const bandGrad = ctx.createLinearGradient(mx - slabW / 2, 0, mx + slabW / 2, 0);
+    bandGrad.addColorStop(0, `hsla(28, 60%, 55%, ${e * 0.25})`);
+    bandGrad.addColorStop(0.5, `hsla(32, 80%, 75%, ${0.55 + e * 0.4})`);
+    bandGrad.addColorStop(1, `hsla(28, 60%, 55%, ${e * 0.25})`);
+    ctx.fillStyle = bandGrad;
+    ctx.fillRect(mx - slabW / 2, ty - bandH / 2, slabW, bandH);
+    // Soft halo bleeding outside the slab
+    const haloR = slabW * 0.45 + e * 60;
+    const haloG = ctx.createRadialGradient(mx, ty, 0, mx, ty, haloR);
+    haloG.addColorStop(0, `hsla(30, 70%, 65%, ${0.18 + e * 0.22})`);
+    haloG.addColorStop(0.4, `hsla(24, 50%, 35%, ${e * 0.1})`);
+    haloG.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = haloG;
+    ctx.fillRect(mx - haloR, ty - haloR, haloR * 2, haloR * 2);
+    // Spectral side ticks — match pitch energy
+    ctx.fillStyle = `rgba(170, 150, 120, ${0.4 + e * 0.5})`;
+    ctx.fillRect(mx - slabW / 2 - 12 - e * 18, ty, 8 + e * 16, 1);
+    ctx.fillRect(mx + slabW / 2 + 4, ty, 8 + e * 16, 1);
   }
 
   // ── Horizontal shockwave rings — ellipses centred on the slab,
@@ -3123,25 +3089,34 @@ export function drawVoidMonolith(
     voidShocks[i * 2 + 1] *= Math.pow(0.975, dt);
   }
 
-  // ── Travelling pressure pulses along the slab (seismograph beads)
+  // ── Travelling pressure pulses — bright horizontal bands sweeping
+  //    down the slab, leaving a vertical streak so they read as
+  //    seismic events crossing the column. Width = full slab.
   for (let i = 0; i < VOID_WAVE_N; i++) {
     const life = voidWaves[i * 2 + 1];
     if (life <= 0) continue;
     const yNorm = voidWaves[i * 2];
     const y = topY + yNorm * lineH;
-    const xAtY = mx + Math.sin(yNorm * Math.PI * (1.5 + low * 2) + p.t * 0.3) * bend;
-    const pulseH = 18 + life * 12;
-    const g = ctx.createLinearGradient(xAtY, y - pulseH, xAtY, y + pulseH);
-    g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(0.5, `rgba(230, 200, 160, ${life * 0.75})`);
-    g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.strokeStyle = g;
-    ctx.lineWidth = 1.4 + life;
+    const pulseH = 4 + life * 8;
+    // Horizontal band across the slab + soft halo extending beyond
+    const bandGrad = ctx.createLinearGradient(0, y - pulseH, 0, y + pulseH);
+    bandGrad.addColorStop(0, "rgba(0,0,0,0)");
+    bandGrad.addColorStop(0.5, `rgba(240, 210, 170, ${life * 0.85})`);
+    bandGrad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = bandGrad;
+    ctx.fillRect(mx - slabW / 2 - 18, y - pulseH, slabW + 36, pulseH * 2);
+    // Vertical streak in the centre — keeps the seismograph feel
+    const streakG = ctx.createLinearGradient(mx, y - pulseH * 2, mx, y + pulseH * 2);
+    streakG.addColorStop(0, "rgba(0,0,0,0)");
+    streakG.addColorStop(0.5, `rgba(255, 230, 190, ${life * 0.5})`);
+    streakG.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.strokeStyle = streakG;
+    ctx.lineWidth = 1.2 + life * 1.4;
     ctx.beginPath();
-    ctx.moveTo(xAtY, y - pulseH);
-    ctx.lineTo(xAtY, y + pulseH);
+    ctx.moveTo(mx, y - pulseH * 2);
+    ctx.lineTo(mx, y + pulseH * 2);
     ctx.stroke();
-    voidWaves[i * 2] += (0.02 + mid * 0.05 + a.rms * 0.03) * dt;
+    voidWaves[i * 2] += (0.022 + mid * 0.06 + a.rms * 0.04) * dt;
     voidWaves[i * 2 + 1] *= Math.pow(0.985, dt);
     if (voidWaves[i * 2] > 1.05) voidWaves[i * 2 + 1] = 0;
   }
@@ -3291,15 +3266,6 @@ export function drawBeatingField(
     ctx.fillStyle = `hsla(${hueBase + i * 0.05}, 28%, ${lig}%, 0.85)`;
     ctx.fillRect(0, y, w, bandH + 1);
   }
-
-  // Phantom centre seam — thin vertical line where in a binaural
-  // rig the "phantom image" would sit. Intensifies on peaks.
-  ctx.strokeStyle = `rgba(220, 180, 130, ${0.14 + a.peak * 0.35})`;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(w / 2, 0);
-  ctx.lineTo(w / 2, h);
-  ctx.stroke();
 
   // Slow vignette
   const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.2,
@@ -3709,6 +3675,197 @@ PETRO_GLYPHS[15] = [
   [0.35, 0.55, 0.55, 0.55],
 ];
 
+// ── Mt-Bego / Valcamonica figural alternates (16–19) ─────────────────
+// Inspired by the dynamic stick-figure scenes seen in Alpine-arc rock
+// carvings: hornened ibex, dancers, hunters with raised weapons,
+// running quadrupeds. Picked occasionally by pickPetroIdx so the
+// rock face accumulates more narrative variety alongside the
+// canonical 0–11 motifs.
+
+// 16 Ibex — body + 4 legs + neck + back-swept curved horns + tail
+PETRO_GLYPHS[16] = [
+  [-0.5, 0.0, 0.5, 0.0, 0.5, 0.25, -0.5, 0.25, -0.5, 0.0],
+  [-0.4, 0.25, -0.4, 0.78],
+  [-0.18, 0.25, -0.18, 0.78],
+  [0.18, 0.25, 0.18, 0.78],
+  [0.4, 0.25, 0.4, 0.78],
+  [0.5, 0.05, 0.7, -0.18],                       // neck
+  // arched horns sweeping back over the body
+  [0.7, -0.18, 0.55, -0.42, 0.32, -0.55, 0.05, -0.55],
+  [0.7, -0.18, 0.85, -0.42, 0.7, -0.6, 0.45, -0.65],
+  [-0.5, 0.0, -0.7, -0.08],                      // tail
+];
+
+// 17 Dancer — energetic stick figure: small head, body, one arm
+// raised + bent, one out, legs splayed mid-step
+PETRO_GLYPHS[17] = [
+  [0, -0.45, 0, 0.25],                           // body
+  // small head (octagon)
+  [0.09, -0.58, 0.05, -0.66, 0, -0.69, -0.05, -0.66, -0.09, -0.58, -0.05, -0.5, 0, -0.46, 0.05, -0.5, 0.09, -0.58],
+  [0, -0.3, -0.35, -0.55, -0.4, -0.85],          // left arm raised + bent
+  [0, -0.3, 0.45, -0.05],                        // right arm out
+  [0, 0.25, -0.42, 0.85, -0.22, 0.95],           // left leg kicked out
+  [0, 0.25, 0.32, 0.92],                         // right leg planted
+];
+
+// 18 Hunter — standing figure with one arm raised holding a long
+// staff / spear (vertical, taller than the body)
+PETRO_GLYPHS[18] = [
+  [0, -0.4, 0, 0.25],                            // body
+  // head
+  [0.09, -0.55, 0.05, -0.63, 0, -0.66, -0.05, -0.63, -0.09, -0.55, -0.05, -0.47, 0, -0.43, 0.05, -0.47, 0.09, -0.55],
+  [0, -0.25, -0.32, -0.05],                      // left arm down/out
+  [0, -0.25, 0.4, -0.55],                        // right arm up
+  [0.4, -0.92, 0.4, -0.05],                      // staff (vertical)
+  [0.32, -0.88, 0.48, -0.88],                    // staff cross-piece (head)
+  [0, 0.25, -0.3, 0.88],                         // left leg
+  [0, 0.25, 0.3, 0.88],                          // right leg
+];
+
+// 19 Running quadruped — long body, arched back, 4 splayed legs in
+// motion, raised tail. No antlers. Reads as horse / dog / wolf.
+PETRO_GLYPHS[19] = [
+  // arched body — slight curve along the top
+  [-0.6, 0.05, -0.45, -0.05, 0.0, -0.08, 0.4, -0.05, 0.55, 0.05, 0.55, 0.25, -0.6, 0.25, -0.6, 0.05],
+  // legs splayed for motion (front pair forward, back pair back)
+  [-0.5, 0.25, -0.62, 0.78],
+  [-0.32, 0.25, -0.22, 0.78],
+  [0.25, 0.25, 0.15, 0.78],
+  [0.45, 0.25, 0.55, 0.78],
+  [0.55, -0.05, 0.78, -0.32],                    // neck up
+  [0.78, -0.32, 0.92, -0.42],                    // muzzle
+  [0.78, -0.32, 0.85, -0.5],                     // ear
+  // mane zigzag along the neck
+  [0.6, -0.1, 0.66, -0.2, 0.7, -0.12, 0.74, -0.22, 0.78, -0.16],
+  // raised flowing tail
+  [-0.6, 0.05, -0.78, -0.12, -0.92, -0.05, -0.96, 0.1],
+];
+
+// 20 Paddle / scepter — rectangular blade head on a vertical staff
+// (Camunian "palette" / "paletta", widely repeated motif on the Mt
+// Bego–Valcamonica plates). Base flange anchors the staff.
+PETRO_GLYPHS[20] = [
+  // rectangular blade head
+  [-0.28, -0.85, 0.28, -0.85, 0.28, -0.42, -0.28, -0.42, -0.28, -0.85],
+  // vertical staff
+  [0, -0.42, 0, 0.78],
+  // base flange (small horizontal foot)
+  [-0.18, 0.78, 0.18, 0.78],
+];
+
+// 21 Sun face — circle with 12 evenly-spaced rays. Inspired by the
+// solar / facial deity disks on the Naquane and Bedolina plates.
+PETRO_GLYPHS[21] = [
+  // inner circle (octagon)
+  [0.4, 0, 0.28, 0.28, 0, 0.4, -0.28, 0.28, -0.4, 0, -0.28, -0.28, 0, -0.4, 0.28, -0.28, 0.4, 0],
+  // 12 rays radiating outward (every 30°)
+  [0.4, 0, 0.85, 0],
+  [0.35, 0.2, 0.74, 0.43],
+  [0.2, 0.35, 0.43, 0.74],
+  [0, 0.4, 0, 0.85],
+  [-0.2, 0.35, -0.43, 0.74],
+  [-0.35, 0.2, -0.74, 0.43],
+  [-0.4, 0, -0.85, 0],
+  [-0.35, -0.2, -0.74, -0.43],
+  [-0.2, -0.35, -0.43, -0.74],
+  [0, -0.4, 0, -0.85],
+  [0.2, -0.35, 0.43, -0.74],
+  [0.35, -0.2, 0.74, -0.43],
+];
+
+// 22 Horned / feathered dancer — frontal figure with arms raised
+// wide and a 3-prong headdress (horns + central plume), hands
+// indicated by tiny forks. Echoes the ritual figures common in
+// Cemmo and Naquane scenes.
+PETRO_GLYPHS[22] = [
+  [0, -0.32, 0, 0.25],                           // body
+  // round head
+  [0.09, -0.46, 0.05, -0.54, 0, -0.57, -0.05, -0.54, -0.09, -0.46, -0.05, -0.38, 0, -0.35, 0.05, -0.38, 0.09, -0.46],
+  // headdress: side horns + central plume
+  [-0.22, -0.88, -0.05, -0.6],
+  [0.22, -0.88, 0.05, -0.6],
+  [0, -0.85, 0, -0.6],
+  // arms raised wide (T-shape, angled up)
+  [0, -0.22, -0.48, -0.48],
+  [0, -0.22, 0.48, -0.48],
+  // tiny fork hands
+  [-0.48, -0.48, -0.58, -0.58],
+  [-0.48, -0.48, -0.55, -0.62],
+  [0.48, -0.48, 0.58, -0.58],
+  [0.48, -0.48, 0.55, -0.62],
+  // legs splayed
+  [0, 0.25, -0.3, 0.85],
+  [0, 0.25, 0.3, 0.85],
+];
+
+// 24 Rosa Camuna (modern Lombardy variant) — 5-petal rounded swirl
+// approximated as a 30-point closed outline using r(φ) =
+// 0.6 + 0.32·cos(5φ). Distinct from the classic saltire-meander
+// version at index 4 (kept; not replaced). Reads as a stylised
+// pentagonal flower at petroglyph scale.
+PETRO_GLYPHS[24] = [
+  [
+    0, -0.92,
+    0.16, -0.74,
+    0.18, -0.40,
+    0.16, -0.23,
+    0.33, -0.29,
+    0.66, -0.38,
+    0.87, -0.28,
+    0.76, -0.08,
+    0.44, 0.05,
+    0.27, 0.09,
+    0.38, 0.22,
+    0.56, 0.51,
+    0.54, 0.74,
+    0.31, 0.69,
+    0.09, 0.43,
+    0, 0.28,
+    -0.09, 0.43,
+    -0.31, 0.69,
+    -0.54, 0.74,
+    -0.56, 0.51,
+    -0.38, 0.22,
+    -0.27, 0.09,
+    -0.44, 0.05,
+    -0.76, -0.08,
+    -0.87, -0.28,
+    -0.66, -0.38,
+    -0.33, -0.29,
+    -0.16, -0.23,
+    -0.18, -0.40,
+    -0.16, -0.74,
+    0, -0.92,
+  ],
+];
+
+// 23 Mounted rider — horse with a small stick-figure rider. Both
+// reduced to schematic forms to read at petroglyph scale.
+PETRO_GLYPHS[23] = [
+  // horse body (low strip)
+  [-0.65, 0.18, 0.5, 0.18, 0.5, 0.4, -0.65, 0.4, -0.65, 0.18],
+  // 4 legs
+  [-0.5, 0.4, -0.55, 0.85],
+  [-0.25, 0.4, -0.25, 0.85],
+  [0.2, 0.4, 0.2, 0.85],
+  [0.42, 0.4, 0.45, 0.85],
+  // neck + head
+  [0.5, 0.22, 0.72, -0.02],
+  [0.72, -0.02, 0.88, -0.12],                    // muzzle
+  [0.72, -0.02, 0.78, 0.08],                     // jaw
+  // ear / mane
+  [0.62, 0.05, 0.66, -0.08, 0.7, 0.0],
+  // flowing tail
+  [-0.65, 0.2, -0.88, 0.05, -0.95, 0.18],
+  // rider body
+  [-0.08, 0.18, -0.08, -0.25],
+  // rider head
+  [0.0, -0.36, -0.05, -0.4, -0.1, -0.36, -0.1, -0.28, -0.05, -0.24, 0.0, -0.28, 0.0, -0.36],
+  // rider arms — forward to reins, one back
+  [-0.08, -0.05, 0.18, 0.1],
+  [-0.08, -0.05, -0.28, 0.0],
+];
+
 let petroCanvas: HTMLCanvasElement | null = null;
 let petroCtx: CanvasRenderingContext2D | null = null;
 let petroLast = 0;
@@ -3792,11 +3949,16 @@ function ensurePetro(w: number, h: number) {
 }
 
 function pickPetroIdx(pc: number): number {
-  // 16 glyphs for 12 pitch classes — pc maps to canonical slot, but
-  // 50/50 chance to pick one of the four "advanced" alternates
-  // (12-15: hand, rosette, meander, map). Gives pc-stability with
-  // visual variety.
-  if (Math.random() < 0.25) return 12 + (pc % 4);
+  // 25 glyphs for 12 pitch classes — pc maps to canonical slot, with
+  // small chances of swapping in either the "advanced" alternates
+  // (12–15: hand, rosette, meander, map), the figural alternates
+  // (16–23: ibex, dancer, hunter, running quadruped, paddle, sun
+  // face, horned dancer, mounted rider), or the modern stylised
+  // Rosa Camuna (24).
+  const r = Math.random();
+  if (r < 0.08) return 24;
+  if (r < 0.30) return 16 + (pc % 8);
+  if (r < 0.50) return 12 + (pc % 4);
   return pc % 12;
 }
 
@@ -4057,7 +4219,7 @@ export function drawPetroglyphs(
     for (let i = 0; i < 12; i++) {
       if (p.activePitches[i] > bestE) { bestE = p.activePitches[i]; bestPc = i; }
     }
-    const gi = bestPc >= 0 ? pickPetroIdx(bestPc) : Math.floor(Math.random() * 16);
+    const gi = bestPc >= 0 ? pickPetroIdx(bestPc) : Math.floor(Math.random() * 25);
     stampPetro(g, px, py, 28 + a.rms * 24, gi, Math.max(0.3, bestE), p.growth, now);
     recentPetro.push({ x: px, y: py, sz: 28 + a.rms * 24, gi, pc: bestPc >= 0 ? bestPc : gi % 12, age: 0 });
     if (recentPetro.length > 20) recentPetro.shift();
@@ -4444,8 +4606,11 @@ export function drawHarmonicEmber(
     }
   }
 
-  // Centre ember — pulses with rms, burns the origin as a dot
-  const coreR = 2 + a.rms * 4 + a.peak * 4;
+  // Centre ember — pulses with rms. Sized relative to the canvas so
+  // the core visibly grows with loudness on any display: silence ≈
+  // 1.5% of min(w,h); a loud transient swells to ~8% (glow halo
+  // ~5×coreR ≈ 40% of min(w,h)).
+  const coreR = Math.min(w, h) * (0.012 + a.rms * 0.05 + a.peak * 0.02);
   const cg = off.createRadialGradient(cx, cy, 0, cx, cy, coreR * 5);
   cg.addColorStop(0, `hsla(28, 85%, 62%, ${0.7 + a.peak * 0.2})`);
   cg.addColorStop(0.5, `hsla(22, 65%, 35%, 0.25)`);
@@ -4616,14 +4781,10 @@ export function drawShortwaveStatic(
 
   ctx.drawImage(swCanvas, 0, 0);
 
-  // ── Dial indicator — thin vertical, brighter when locked
+  // Lock strength — used by the diamond glyph and the demodulated
+  // scope. The full-height dial line was removed; the diamond glyph
+  // alone marks the dial's current x-position.
   const lockStrength = Math.min(1, lockedE * 2.5);
-  ctx.strokeStyle = `hsla(${28 - lockStrength * 6}, ${50 + lockStrength * 35}%, ${55 + a.rms * 15 + lockStrength * 10}%, ${0.45 + a.peak * 0.3 + lockStrength * 0.3})`;
-  ctx.lineWidth = 1 + lockStrength * 1.2;
-  ctx.beginPath();
-  ctx.moveTo(dialX, 0);
-  ctx.lineTo(dialX, h);
-  ctx.stroke();
 
   // Tuning-lock glyph: small diamond at the top of the dial when
   // locked to a station, scaled by lock strength.
@@ -4694,4 +4855,62 @@ export function drawShortwaveStatic(
   vg.addColorStop(1, "rgba(0,0,0,0.5)");
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, w, h);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Module-level cache reset — wipes every persistent surface and live-
+// overlay collection so the next draw call rebuilds from the
+// visualizer's first-paint state. Used by the ↻ reset buttons in
+// MeditateView and VisualizerPreview. Affects all visualizers (not
+// just the current one) since these caches are shared across draws
+// of the same fn.
+// ─────────────────────────────────────────────────────────────────────
+export function resetVisualizerCaches(): void {
+  // Offscreen accumulator canvases — null so the next ensure*(w,h)
+  // call recreates them and re-runs each visualizer's base-texture
+  // init path (rock, vellum, parchment, plate, …).
+  cymatCanvas = null; cymatCtx = null;
+  sedimentCanvas = null; sedimentCtx = null;
+  rugCanvas = null; rugCtx = null;
+  glyphCanvas = null; glyphCtx = null;
+  crystalCanvas = null; crystalCtx = null;
+  bodyCanvas = null; bodyCtx = null;
+  tapeCanvas = null; tapeCtx = null;
+  manuscriptCanvas = null; manuscriptCtx = null;
+  feedbackBWCanvas = null; feedbackBWCtx = null;
+  petroCanvas = null; petroCtx = null;
+  vsCanvas = null; vsCtx = null;
+  embCanvas = null; embCtx = null;
+  swCanvas = null; swCtx = null;
+
+  // Live-overlay collections — clear so halos/sparks/blooms/wisps
+  // don't carry over from the pre-reset state.
+  recentGlyphs.length = 0;
+  glyphSparks.length = 0;
+  mirrorBlooms.length = 0;
+  recentPetro.length = 0;
+  petroWisps.length = 0;
+  swMorse.length = 0;
+  swStationE.fill(0);
+
+  // Persistent scalar state — back to first-paint defaults.
+  glyphLast = 0;
+  glyphPrevPeak = 0;
+  mirrorLastPeak = 0;
+  mirrorSpawnTimer = 0;
+  bodyPrevPeak = 0;
+  voidPointerCursor = 0;
+  voidPointerDownPrev = false;
+  voidPointerLastSpawn = 0;
+  voidPrevPeak = 0;
+  petroLast = 0;
+  petroPrevPeak = 0;
+  petroPointerCd = 0;
+  petroPointerWasDown = false;
+  petroProcessionGauge = 0;
+  petroLamp = 0.5;
+  petroHeat = 0;
+  petroAnchorX = 0.5;
+  petroAnchorY = 0.5;
+  swPrevPeak = 0;
 }

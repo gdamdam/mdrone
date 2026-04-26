@@ -100,11 +100,16 @@ export function drawHaloGlow(
     const y0 = Math.sin(ang) * len;
     const x1 = Math.cos(ang) * lenTip;
     const y1 = Math.sin(ang) * lenTip;
+    // Deep-contrast B&W rays — pure white at the inner end fades to
+    // transparent at the tip. Reads sharp against the dark halo
+    // background regardless of the colour palette around it.
     const rayGrad = ctx.createLinearGradient(x0, y0, x1, y1);
-    rayGrad.addColorStop(0, `hsla(${ringHue}, 90%, 72%, ${0.55 + a.rms * 0.3})`);
-    rayGrad.addColorStop(1, "rgba(0,0,0,0)");
+    const wAlpha = Math.min(1, 0.85 + a.rms * 0.15 + binE * 0.4);
+    rayGrad.addColorStop(0, `rgba(255, 255, 255, ${wAlpha})`);
+    rayGrad.addColorStop(0.6, `rgba(255, 255, 255, ${wAlpha * 0.45})`);
+    rayGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
     ctx.strokeStyle = rayGrad;
-    ctx.lineWidth = 1.4;
+    ctx.lineWidth = 1.6 + binE * 1.4 + a.peak * 0.6;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);

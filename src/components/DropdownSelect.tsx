@@ -134,10 +134,21 @@ export function DropdownSelect<T extends string>({
       if (!rect) return;
       const vpHeight = window.visualViewport?.height ?? window.innerHeight;
       const vpOffsetTop = window.visualViewport?.offsetTop ?? 0;
-      const available = vpHeight + vpOffsetTop - rect.bottom - TRIGGER_GAP - VIEWPORT_MARGIN;
-      const maxHeight = Math.max(POPUP_FLOOR, Math.min(POPUP_CEILING, available));
+      const availableBelow = vpHeight + vpOffsetTop - rect.bottom - TRIGGER_GAP - VIEWPORT_MARGIN;
+      const availableAbove = rect.top - vpOffsetTop - TRIGGER_GAP - VIEWPORT_MARGIN;
+      // Flip the popup above the trigger when there's not enough room
+      // below for a comfortable list AND there's more space above.
+      // Keeps the default (open downward) for triggers high in the
+      // viewport; auto-flips for triggers near the bottom edge.
+      const placeAbove = availableBelow < POPUP_FLOOR && availableAbove > availableBelow;
+      const maxHeight = Math.max(
+        POPUP_FLOOR,
+        Math.min(POPUP_CEILING, placeAbove ? availableAbove : availableBelow),
+      );
       setGeometry({
-        top: rect.bottom + TRIGGER_GAP,
+        top: placeAbove
+          ? rect.top - TRIGGER_GAP - maxHeight
+          : rect.bottom + TRIGGER_GAP,
         left: rect.left,
         width: rect.width,
         maxHeight,

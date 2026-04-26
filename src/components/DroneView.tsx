@@ -22,6 +22,8 @@ import { VuMeter } from "./VuMeter";
 import { DropdownSelect } from "./DropdownSelect";
 import { WeatherPad } from "./WeatherPad";
 import { EntrainPanel } from "./EntrainPanel";
+import { VisualizerPreview } from "./VisualizerPreview";
+import type { Visualizer } from "./visualizers";
 
 const PRESET_GROUPS: PresetGroup[] = [
   "Sacred / Ritual", "Minimal / Just", "Organ / Chamber",
@@ -265,6 +267,23 @@ interface DroneViewProps {
   onCancelBounceLoop?: () => void;
   loopBusy?: boolean;
   loopProgress?: { elapsedSec: number; totalSec: number } | null;
+  /** Currently selected MEDITATE visualizer — used by the inline
+   *  preview so DRONE shows what MEDITATE would expand into. */
+  meditateVisualizer?: Visualizer;
+  /** Tap on the inline preview opens the MEDITATE overlay. */
+  onOpenMeditate?: () => void;
+  /** Change the active MEDITATE visualizer from the inline tile's
+   *  selector — wired to the same handler the overlay's HUD uses. */
+  onChangeMeditateVisualizer?: (visualizer: Visualizer) => void;
+  /** Pause the inline preview's rAF loop while MEDITATE is open.
+   *  Visualizers with module-level offscreen canvases (illuminated
+   *  glyphs, petroglyphs, etc.) thrash if two consumers render the
+   *  same fn at different sizes simultaneously. */
+  meditatePreviewPaused?: boolean;
+  /** Whether the inline MEDITATE preview tile is shown. Toggle lives
+   *  in the header (right of HOLD); state is hoisted to Layout so
+   *  Header and DroneView see the same source of truth. */
+  visualPreviewOn?: boolean;
 }
 
 export interface DroneViewHandle {
@@ -297,7 +316,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, isRec, onToggleRec, recTimeMs, recordingSupported, recordingBusy, recordingTitle, loopLengthSec, onLoopLengthChange, onBounceLoop, onCancelBounceLoop, loopBusy, loopProgress }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, isRec, onToggleRec, recTimeMs, recordingSupported, recordingBusy, recordingTitle, loopLengthSec, onLoopLengthChange, onBounceLoop, onCancelBounceLoop, loopBusy, loopProgress, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
   ref,
 ) {
   const {
@@ -1148,6 +1167,20 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           >
             Headphones recommended — drag WEATHER to open the room.
           </div>
+        )}
+        {/* Inline MEDITATE preview — small live tile sitting above the
+            WEATHER pad. Runs the currently-selected MEDITATE visualizer
+            at 15 fps so DRONE has a quiet instrument-display reading of
+            what MEDITATE will expand into. Selector inline; tap canvas
+            to expand to MEDITATE. */}
+        {visualPreviewOn && meditateVisualizer && onOpenMeditate && (
+          <VisualizerPreview
+            engine={engine}
+            visualizer={meditateVisualizer}
+            onChangeVisualizer={onChangeMeditateVisualizer}
+            onOpen={onOpenMeditate}
+            paused={meditatePreviewPaused}
+          />
         )}
         <div className="weather-macro-row">
           <WeatherPad

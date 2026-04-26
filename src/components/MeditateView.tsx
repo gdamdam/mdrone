@@ -1,46 +1,46 @@
 /**
- * MeditateView — the third view. One big canvas running a chosen
- * visualizer in a rAF loop. Samples the master AnalyserNode each
- * frame for RMS, peak, and a tiny 32-bin spectrum. A slow phase
- * clock runs independently so the image breathes even in silence.
+ * MeditateView — expanded performance layer over DRONE. One big canvas
+ * running a chosen visualizer in a rAF loop with a floating HUD that
+ * auto-fades when idle.
  *
- * Selecting a visualizer:
- *   - dropdown in the header strip
- *   - double-click anywhere on the canvas to cycle to the next one
+ * Interaction model:
+ *   - the canvas IS an expanded WEATHER pad. Single-click + drag both
+ *     write climateX/climateY.
+ *   - double-click cycles to the next visualizer (also reachable from
+ *     the HUD ▸ button so the affordance is discoverable).
+ *
+ * The HUD lives inside the fullscreen target so it follows the canvas
+ * into and out of fullscreen. It dims to a quiet idle state after 2.5s
+ * of no pointer movement, restoring on hover/focus.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import {
   VISUALIZER_FNS,
-  VISUALIZER_GROUPS,
   VISUALIZER_LABELS,
   VISUALIZER_ORDER,
+  resetVisualizerCaches,
   type AudioFrame,
   type PhaseClock,
   type Visualizer,
 } from "./visualizers";
 import { clearDeityPreview } from "./deities";
-import { DropdownSelect } from "./DropdownSelect";
 
 interface MeditateViewProps {
   engine: AudioEngine | null;
   active: boolean; // true when meditate tab is visible
   visualizer: Visualizer;
   onChangeVisualizer: (visualizer: Visualizer) => void;
-  /** Called on single click or drag in fullscreen — the whole screen
-   *  acts as a WEATHER XY pad. (x01, y01) is normalized 0..1.
-   *  Layout maps it to climateX/climateY. */
-  onFullscreenClick?: (x01: number, y01: number) => void;
-  /** Called on double click in fullscreen — cycle to next visualizer. */
-  onFullscreenDoubleClick?: () => void;
-  /** Called on every pointermove while pointerdown in fullscreen
-   *  (drag). Same XY mapping as click. */
-  onFullscreenDrag?: (x01: number, y01: number) => void;
-  /** Optional random-scene trigger. When provided the toolbar grows
-   *  an RND button (right of POP OUT) that loads a gentle variation
-   *  of a random preset — same behaviour as the header 🎲 button, but
-   *  reachable without leaving the fullscreen visualizer. */
+  /** Single click or drag on the canvas — the whole surface acts as
+   *  an expanded WEATHER XY pad. (x01, y01) is normalized 0..1. */
+  onWeather?: (x01: number, y01: number) => void;
+  /** Close the overlay and return to DRONE. Rendered in the HUD as
+   *  an explicit affordance (idiomatic Esc / header-toggle remain). */
+  onClose?: () => void;
+  /** Optional random-scene trigger. When provided the HUD grows a
+   *  🎲 button that loads a gentle variation of a random preset —
+   *  same behaviour as the header dice. */
   onRandomScene?: () => void;
   /** Bubble pop-out state up so Layout can keep the MEDITATE overlay
    *  composited while DRONE is active — otherwise the captured canvas
@@ -48,50 +48,57 @@ interface MeditateViewProps {
   onPopOutChange?: (isPopOut: boolean) => void;
 }
 
+const HUD_IDLE_MS = 2500;
+
 export function MeditateView({
   engine,
   active,
   visualizer,
   onChangeVisualizer,
-  onFullscreenClick,
-  onFullscreenDoubleClick,
-  onFullscreenDrag,
+  onWeather,
+  onClose,
   onRandomScene,
   onPopOutChange,
 }: MeditateViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Refs that carry the latest click / drag callbacks + fullscreen
-  // state into the tick-loop closure without re-creating the loop.
-  // The useEffect that mounts the rAF tick only runs once; if we
-  // captured the props directly we'd stop seeing prop updates.
-  const onFullscreenClickRef = useRef(onFullscreenClick);
-  const onFullscreenDblClickRef = useRef(onFullscreenDoubleClick);
-  const onFullscreenDragRef = useRef(onFullscreenDrag);
-  const isFullscreenRef = useRef(false);
-  useEffect(() => { onFullscreenClickRef.current = onFullscreenClick; }, [onFullscreenClick]);
-  useEffect(() => { onFullscreenDblClickRef.current = onFullscreenDoubleClick; }, [onFullscreenDoubleClick]);
-  useEffect(() => { onFullscreenDragRef.current = onFullscreenDrag; }, [onFullscreenDrag]);
+  // Refs that carry the latest weather callback into the tick-loop
+  // closure without re-creating the loop.
+  const onWeatherRef = useRef(onWeather);
+  useEffect(() => { onWeatherRef.current = onWeather; }, [onWeather]);
 
-  const cycleVisualizer = useCallback(() => {
+  const cycleVisualizerNext = useCallback(() => {
     const i = VISUALIZER_ORDER.indexOf(visualizer);
     onChangeVisualizer(VISUALIZER_ORDER[(i + 1) % VISUALIZER_ORDER.length]);
   }, [onChangeVisualizer, visualizer]);
+  const cycleVisualizerPrev = useCallback(() => {
+    const i = VISUALIZER_ORDER.indexOf(visualizer);
+    const prev = (i - 1 + VISUALIZER_ORDER.length) % VISUALIZER_ORDER.length;
+    onChangeVisualizer(VISUALIZER_ORDER[prev]);
+  }, [onChangeVisualizer, visualizer]);
+
+  // Reset — bumping this counter re-mounts the rAF effect so the
+  // phase clock, smoothing buffers, and canvas all start fresh from
+  // the visualizer's simple state. Useful when an accumulating
+  // visualizer drifts into a busy/saturated state.
+  const [resetGen, setResetGen] = useState(0);
+  const resetVisualizer = useCallback(() => {
+    // Wipe shared module-level state (offscreen canvases, live
+    // overlay arrays, persistent scalars) so the visualizer rebuilds
+    // from its first-paint state. Then bump resetGen to remount the
+    // rAF effect — clears phase clock, smoothing buffers, transform.
+    resetVisualizerCaches();
+    setResetGen((n) => n + 1);
+  }, []);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  useEffect(() => { isFullscreenRef.current = isFullscreen; }, [isFullscreen]);
 
   // Pop-out window — opens a same-origin browser popup (drag it to
   // monitor 2, then click ⛶ FULLSCREEN inside it for true second-
   // monitor immersion). The source canvas stays in this React tree
   // (no re-parenting → ctx + rAF loop survive); the popup just
-  // renders a <video> mirroring `canvas.captureStream(30)`. Audio
-  // engine stays in this tab.
-  //
-  // We use `window.open` rather than the Document Picture-in-Picture
-  // API because PiP windows are sandboxed: `requestFullscreen()` is
-  // blocked inside them. A plain popup has no such restriction.
+  // renders a <video> mirroring `canvas.captureStream(30)`.
   const popWinRef = useRef<Window | null>(null);
   const popStreamRef = useRef<MediaStream | null>(null);
   const popPollRef = useRef<number | null>(null);
@@ -109,7 +116,6 @@ export function MeditateView({
     popStreamRef.current = null;
     if (popWinRef.current && !popWinRef.current.closed) popWinRef.current.close();
     popWinRef.current = null;
-    // Release the screen wake lock if we hold one.
     popWakeLockRef.current?.release().catch(() => { /* ok */ });
     popWakeLockRef.current = null;
     setIsPopOut(false);
@@ -128,7 +134,6 @@ export function MeditateView({
 
     const pop = window.open("", "mdrone-meditate", "popup,width=1024,height=1024");
     if (!pop) {
-      // Popup blocked.
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
@@ -169,18 +174,10 @@ export function MeditateView({
     fsBtn.addEventListener("click", goFs);
     doc.body.appendChild(fsBtn);
 
-    // window.open popups don't reliably fire pagehide cross-browser.
-    // Poll `closed` so we can clean up our refs and update the button
-    // label when the user closes the popup with the OS chrome.
     popPollRef.current = window.setInterval(() => {
       if (popWinRef.current?.closed) closePopOut();
     }, 500);
 
-    // Ask the OS for a screen wake lock while the pop-out is alive
-    // so the browser doesn't throttle rAF on the main tab (which
-    // would freeze the captured stream feeding the popup). Best-
-    // effort — silently ignored on browsers without Wake Lock API
-    // or when denied.
     type WakeLockNav = Navigator & {
       wakeLock?: { request: (t: "screen") => Promise<WakeLockSentinel> };
     };
@@ -195,12 +192,7 @@ export function MeditateView({
     setIsPopOut(true);
   }, [closePopOut]);
   useEffect(() => {
-    return () => {
-      // Close any open popup when the meditate view unmounts so
-      // tab-switching away doesn't leave an orphan window streaming
-      // a stale canvas.
-      closePopOut();
-    };
+    return () => { closePopOut(); };
   }, [closePopOut]);
   useEffect(() => {
     const onFsChange = () => {
@@ -226,7 +218,6 @@ export function MeditateView({
   const toggleFullscreen = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
-    // Prefixed variants for older Edge / WebKit Windows builds.
     const elAny = el as HTMLDivElement & {
       webkitRequestFullscreen?: () => Promise<void> | void;
       msRequestFullscreen?: () => Promise<void> | void;
@@ -259,44 +250,71 @@ export function MeditateView({
     }
   }, []);
 
+  // Idle-fade for the HUD. Pointer movement anywhere inside the wrap
+  // (or pointer entering the HUD itself) wakes the chrome; after
+  // HUD_IDLE_MS of no movement it dims back. The HUD is also held
+  // awake while a dropdown is open or any HUD button has focus.
+  const [hudIdle, setHudIdle] = useState(false);
+  const hudHeldRef = useRef(false);
+  useEffect(() => {
+    // HUD lives inside the overlay — when MEDITATE is hidden the
+    // HUD's visibility is irrelevant, so we just skip the timer.
+    if (!active) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    let timer: number | null = null;
+    const wake = () => {
+      setHudIdle(false);
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (!hudHeldRef.current) setHudIdle(true);
+      }, HUD_IDLE_MS);
+    };
+    wake();
+    wrap.addEventListener("pointermove", wake);
+    wrap.addEventListener("pointerdown", wake);
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      wrap.removeEventListener("pointermove", wake);
+      wrap.removeEventListener("pointerdown", wake);
+    };
+  }, [active]);
+
   // Clear the legacy deity preview stub whenever the visualizer
   // changes. Harmless no-op now that the deity cycle is gone.
   useEffect(() => {
     clearDeityPreview();
   }, [visualizer]);
 
-  // rAF loop — only runs while visible
+  // rAF loop — runs while visible OR a pop-out window is mirroring
+  // the canvas to a detached window.
   const visualizerRef = useRef(visualizer);
   const phaseResetRef = useRef(0);
   useEffect(() => {
     visualizerRef.current = visualizer;
-    // Reset the growth clock when switching visualizer so each one
-    // starts from its simple state and unfolds from there.
     phaseResetRef.current = performance.now();
   }, [visualizer]);
 
   useEffect(() => {
-    // Keep the render loop running whenever MEDITATE is visible OR a
-    // pop-out window is open streaming the canvas. Without the
-    // pop-out gate, switching back to DRONE would freeze the
-    // detached window — defeating the point of ↗ POP OUT.
     if (!active && !isPopOut) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Wipe shared module-level state so every MEDITATE mount starts
+    // clean. Without this, an offscreen accumulator left at the
+    // preview's small size (or another visualizer's accumulated
+    // strokes) can interleave with the new draws and read as
+    // out-of-order layers — e.g. illuminatedGlyphs showing halos
+    // beneath the rune layer because the offscreen wasn't sized to
+    // match the main canvas yet.
+    resetVisualizerCaches();
+
     let raf = 0;
     phaseResetRef.current = performance.now();
     let lastNow = phaseResetRef.current;
     const analyser = engine?.getAnalyser() ?? null;
-    // Smooth the analyser output: enabling fftSmoothing on the node
-    // itself is the cheapest one-pole LPF the browser can give us,
-    // on top of our own exponential smoothing below. Values close
-    // to 1 = smoother/slower; 0.82 is "felt but stable".
-    // Upsize to 2048 for spectrum resolution; Header/VuMeter are fine
-    // at the default 1024. Restored on cleanup so other consumers
-    // aren't paying for the larger FFT after Meditate unmounts.
     const prevFftSize = analyser?.fftSize ?? 1024;
     if (analyser) {
       try { analyser.fftSize = 2048; } catch { /* ok */ }
@@ -305,14 +323,11 @@ export function MeditateView({
     const timeBuf = analyser ? new Uint8Array(analyser.fftSize) : null;
     const freqBuf = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
     const rawSpectrum = new Float32Array(32);
-    const spectrum = new Float32Array(32); // smoothed copy handed to visualizers
+    const spectrum = new Float32Array(32);
     const waveform = timeBuf ?? new Uint8Array(128);
     const frame: AudioFrame = { rms: 0, peak: 0, spectrum, waveform };
-    // Persistent smoothing state — these accumulate across frames so
-    // motion never jitters regardless of frame-rate hiccups.
     let smoothedRms = 0;
     let smoothedPeak = 0;
-    // Peak uses fast attack, slow release so it feels organic.
     const RMS_ALPHA = 0.12;
     const PEAK_ATTACK = 0.35;
     const PEAK_RELEASE = 0.04;
@@ -331,24 +346,8 @@ export function MeditateView({
         piano: 0, fm: 0, amp: 0, noise: 0,
       },
     };
-    // Scratch buffer the tick loop fills each frame with the
-    // instantaneous pitch-class targets before smoothing them into
-    // phase.activePitches. Hoisted out of tick to avoid allocation.
     const tmpPitchTarget = new Float32Array(12);
 
-    // Log-scale FFT bucket table. The raw AnalyserNode spectrum is
-    // linear in frequency, which wastes 27/32 reduced-bins on the
-    // silent top half of the spectrum since drone content lives
-    // almost entirely in the low and low-mid bands. We precompute a
-    // table mapping each of the 32 visualizer bins to a range of
-    // underlying fft bins spaced logarithmically from ~30 Hz to
-    // ~10 kHz — 8 octaves, about 4 reduced bins per octave — so
-    // the visualizer slots are densely populated across the range
-    // where drones actually put energy.
-    //
-    // specBuckets[b] = [fftStart, fftEnd] inclusive-exclusive.
-    // Built lazily on first tick because we need the analyser to
-    // know its fftSize / sample rate.
     let specBuckets: Int32Array | null = null;
     const buildSpecBuckets = (fftBinCount: number, sampleRate: number) => {
       const lo = 30;
@@ -369,38 +368,21 @@ export function MeditateView({
       }
       return table;
     };
-    // Phase.t only advances when there is audible drone — visualizers
-    // freeze in silence and resume from where they left off.
     let activeT = 0;
-    // Growth clock is separate so it too pauses during silence.
     let activeGrowthT = 0;
     const SILENCE_RMS = 0.003;
-    // Visibility easing — 0 when silent, 1 when playing. Separate
-    // attack (fade-in ~2.5 s) and release (fade-out ~2 s) rates so
-    // the visualizer slowly appears when the drone starts and gently
-    // dissolves when it stops.
     let visibility = 0;
     const VIS_ATTACK = 0.012;
     const VIS_RELEASE = 0.018;
 
-    // Pointer interactivity — track hover + press on the canvas
-    // AND distinguish a short click (which fires the fullscreen
-    // click callback for cycle-preset) from a drag (which streams
-    // normalized coords to the drag callback for tonic/octave).
-    //
-    // dragStart holds the pointerdown position + time; once the
-    // pointer has moved more than DRAG_THRESHOLD_PX away the
-    // interaction is latched as a drag and the short-click will
-    // not fire on pointerup. During drag we call onFullscreenDrag
-    // on every move. Both callbacks are gated on isFullscreenRef
-    // so normal (non-fullscreen) interaction keeps the old
-    // hover/press semantics untouched.
+    // Pointer interactivity — the canvas is an expanded WEATHER pad.
+    // Single short click writes climateXY at the click position; a
+    // drag streams climateXY continuously. Double-click cycles the
+    // visualizer (also exposed as a HUD button so it's discoverable).
     const DRAG_THRESHOLD_PX = 10;
     let dragStart: { x: number; y: number } | null = null;
     let dragLatched = false;
-    let lastClickTime = 0;
     const toXY = (localX: number, localY: number, rect: DOMRect) => {
-      // X: left=0 (dark) right=1 (bright). Y: bottom=0 (still) top=1 (moving)
       const x01 = Math.max(0, Math.min(1, localX / rect.width));
       const y01 = Math.max(0, Math.min(1, 1 - localY / rect.height));
       return { x01, y01 };
@@ -417,9 +399,9 @@ export function MeditateView({
         if (!dragLatched && (dx * dx + dy * dy) > DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
           dragLatched = true;
         }
-        if (dragLatched && isFullscreenRef.current) {
+        if (dragLatched) {
           const { x01, y01 } = toXY(localX, localY, rect);
-          onFullscreenDragRef.current?.(x01, y01);
+          onWeatherRef.current?.(x01, y01);
         }
       }
     };
@@ -443,20 +425,14 @@ export function MeditateView({
       phase.pointerDown = false;
       dragStart = null;
       dragLatched = false;
-      if (!wasClick || !isFullscreenRef.current) return;
+      if (!wasClick) return;
 
-      const now = Date.now();
-      if (now - lastClickTime < 350) {
-        // Double click → cycle visualizer
-        lastClickTime = 0;
-        onFullscreenDblClickRef.current?.();
-      } else {
-        // Single click → set weather XY from position
-        lastClickTime = now;
-        const rect = canvas.getBoundingClientRect();
-        const { x01, y01 } = toXY(e.clientX - rect.left, e.clientY - rect.top, rect);
-        onFullscreenClickRef.current?.(x01, y01);
-      }
+      // Single click → set weather XY from position. Visualizer
+      // cycling has moved to the HUD ◂ ▸ buttons; the canvas is now
+      // a pure WEATHER pad.
+      const rect = canvas.getBoundingClientRect();
+      const { x01, y01 } = toXY(e.clientX - rect.left, e.clientY - rect.top, rect);
+      onWeatherRef.current?.(x01, y01);
     };
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerleave", onLeave);
@@ -481,28 +457,17 @@ export function MeditateView({
     if (canvas.parentElement) ro.observe(canvas.parentElement);
 
     let lastPaint = -Infinity;
-    const FRAME_MS = 1000 / 30; // cap at 30 fps — visually identical, halves CPU
+    const FRAME_MS = 1000 / 30;
 
     const tick = (now: number) => {
-      // Skip work entirely when the tab is hidden — analyser reads,
-      // spectrum bucketing, and canvas draws are pure waste offscreen.
-      // EXCEPTION: if a pop-out is streaming the canvas to a detached
-      // window, we keep rendering even when the main tab is hidden so
-      // the popup doesn't freeze (a fullscreen popup on a second
-      // monitor can hide the main tab depending on OS/WM behaviour).
       if (document.hidden && !isPopOut) return;
       if (now - lastPaint < FRAME_MS) return;
       lastPaint = now;
-      // Frame delta, clamped so huge stalls (tab switch) don't warp
-      // the motion on resume.
       const dtMs = Math.min(80, now - lastNow);
       lastNow = now;
-      const dtScale = dtMs / 16.6667; // 1.0 at 60 fps
+      const dtScale = dtMs / 16.6667;
       const dtSec = dtMs / 1000;
 
-      // Active-time clocks only tick while there is audible drone.
-      // When the drone is silent the visualizers freeze on their
-      // current frame and resume exactly where they left off.
       const playing = smoothedRms > SILENCE_RMS;
       if (playing) {
         activeT += dtSec;
@@ -511,15 +476,7 @@ export function MeditateView({
       phase.t = activeT;
       phase.dtScale = dtScale;
       phase.slow = 0.5 + 0.5 * Math.sin(phase.t * (Math.PI * 2) / 60);
-      // Hue anchor is pulled by the mood so the palette of every
-      // visualizer shifts with the playing drone (dark presets drift
-      // toward deep violet/red, bright presets toward amber).
       phase.hue = (phase.mood.hue + phase.t * 2) % 360;
-      // Growth saturates near 1 but keeps breathing ±0.05 afterwards
-      // via a long-period sine, so visualizers never fully "stop"
-      // evolving — they keep getting small noticeable variations as
-      // long as the drone plays. The sine uses three incommensurate
-      // periods so the motion never exactly repeats.
       const baseGrowth = 1 - Math.exp(-activeGrowthT / 60);
       const drift =
         0.02 * Math.sin(activeGrowthT / 40) +
@@ -527,19 +484,14 @@ export function MeditateView({
         0.02 * Math.cos(activeGrowthT / 173);
       phase.growth = Math.max(0, Math.min(1, baseGrowth + drift));
 
-      // Mood derived from engine macros. Remapped into hue/warmth/
-      // brightness/density that visualizers can use to tint their
-      // native palette.
       if (engine) {
-        const climateX = engine.getClimateX();     // dark ↔ bright
-        const sub = engine.getSub();               // 0..1
-        const air = engine.getAir();               // 0..1
+        const climateX = engine.getClimateX();
+        const sub = engine.getSub();
+        const air = engine.getAir();
         const layers = engine.getVoiceLayers();
         const activeLayers =
           (layers.tanpura ? 1 : 0) + (layers.reed ? 1 : 0) +
           (layers.metal ? 1 : 0) + (layers.air ? 1 : 0);
-        // Per-voice weights — layer ON × mixer level. resonantBody
-        // blends voice-specific anatomy silhouettes from this.
         const vs = phase.voices!;
         vs.tanpura = layers.tanpura ? engine.getVoiceLevel("tanpura") : 0;
         vs.reed    = layers.reed    ? engine.getVoiceLevel("reed")    : 0;
@@ -549,27 +501,13 @@ export function MeditateView({
         vs.fm      = layers.fm      ? engine.getVoiceLevel("fm")      : 0;
         vs.amp     = layers.amp     ? engine.getVoiceLevel("amp")     : 0;
         vs.noise   = layers.noise   ? engine.getVoiceLevel("noise")   : 0;
-        // Hue: dark/sub → deep red-violet (~340); bright/air → amber (~35)
         const targetHue = 340 - climateX * 70 - air * 30 + (1 - sub) * 20;
-        // Smoothly approach the target so the palette drifts rather than snaps
         const k = 1 - Math.pow(1 - 0.08, dtScale);
         phase.mood.hue = phase.mood.hue + ((targetHue + 360) % 360 - phase.mood.hue) * k;
         phase.mood.warmth = phase.mood.warmth + (climateX - phase.mood.warmth) * k;
         phase.mood.brightness = phase.mood.brightness + (climateX * (0.5 + air * 0.5) - phase.mood.brightness) * k;
         phase.mood.density = activeLayers / 4;
 
-        // Ground-truth pitch-class energies for the pitch mandala.
-        // For each sounding voice we accumulate 8 harmonics with a
-        // 1/n natural rolloff — real drones aren't just fundamentals,
-        // their upper partials spray energy across many pitch classes
-        // (a single D fundamental audibly produces D, A, F#, C via
-        // partials 1-8). This turns the mandala from a static "3
-        // notes lit" readout into a rich, multi-sector display that
-        // still reflects what the instrument is truly playing.
-        //
-        // Smoothing is asymmetric: slow release on a darkening class
-        // (so preset switches don't flicker) but near-instant attack
-        // on a brightening class (so new pitches light immediately).
         const root = engine.getRootFreq();
         const intervals = engine.getIntervalsCents();
         const target = tmpPitchTarget;
@@ -577,8 +515,6 @@ export function MeditateView({
         if (root > 0 && intervals.length > 0) {
           for (let i = 0; i < intervals.length; i++) {
             const fundamentalHz = root * Math.pow(2, intervals[i] / 1200);
-            // Later voices in the stack are slightly quieter so the
-            // root voice dominates the visual.
             const voiceWeight = Math.max(0.4, 1 - i * 0.08);
             for (let n = 1; n <= 8; n++) {
               const hz = fundamentalHz * n;
@@ -599,9 +535,6 @@ export function MeditateView({
         }
       }
 
-      // Compute raw audio features, then low-pass into smoothed
-      // fields the visualizers actually read. Exponential filters
-      // are adjusted by dtScale so smoothing is frame-rate independent.
       let rawRms = 0;
       let rawPeak = 0;
       if (analyser && timeBuf && freqBuf) {
@@ -627,18 +560,14 @@ export function MeditateView({
           let s = 0;
           for (let i = i0; i < i1; i++) s += freqBuf[i];
           const width = Math.max(1, i1 - i0);
-          // Divisor 180 (was 200) gives a tiny boost that matches
-          // the log bucketing's slightly lower per-bin average.
           rawSpectrum[b] = Math.min(1, (s / width) / 180);
         }
       } else {
         for (let i = 0; i < 32; i++) rawSpectrum[i] = 0;
       }
 
-      // Low-pass smoothing. dt-scaled α = 1 - (1 - base) ^ dtScale
       const rmsA = 1 - Math.pow(1 - RMS_ALPHA, dtScale);
       smoothedRms += (rawRms - smoothedRms) * rmsA;
-      // Peak: fast attack, slow release
       if (rawPeak > smoothedPeak) {
         const a = 1 - Math.pow(1 - PEAK_ATTACK, dtScale);
         smoothedPeak += (rawPeak - smoothedPeak) * a;
@@ -656,42 +585,27 @@ export function MeditateView({
       const cssW = canvas.clientWidth;
       const cssH = canvas.clientHeight;
 
-      // Ease visibility toward 1 while playing, toward 0 when silent.
       const visTarget = playing ? 1 : 0;
       const visRate = playing ? VIS_ATTACK : VIS_RELEASE;
       visibility += (visTarget - visibility) * (1 - Math.pow(1 - visRate, dtScale));
 
-      // When music is on, run the visualizer as usual.
       if (playing) {
         const draw = VISUALIZER_FNS[visualizerRef.current];
         draw(ctx, cssW, cssH, frame, phase);
       }
 
-      // Overlay black at (1 - visibility) so the scene slowly appears
-      // when music starts and dissolves when it stops. At visibility
-      // = 0 the canvas is fully black; at 1 it's untouched.
       if (visibility < 0.999) {
         ctx.fillStyle = `rgba(0, 0, 0, ${1 - visibility})`;
         ctx.fillRect(0, 0, cssW, cssH);
       }
     };
     lastNow = performance.now();
-    // rAF drives the normal path.
     const rafTick = (now: number) => {
       raf = requestAnimationFrame(rafTick);
       tick(now);
     };
     raf = requestAnimationFrame(rafTick);
 
-    // Pop-out backup — setInterval at FRAME_MS. Browsers throttle rAF
-    // hard on background tabs (down to ~1 Hz once a popup goes
-    // fullscreen on another monitor). At 1 Hz, visualizers whose
-    // motion-blur fade is per-frame can't keep up with their own
-    // strokes and the captured stream accumulates into a bright
-    // smear. setInterval is throttled much less aggressively when
-    // the tab has an active AudioContext (mdrone always does), so
-    // the stream stays near 30 fps. The FRAME_MS gate inside tick()
-    // prevents double-drawing when both schedulers fire.
     let popTickInterval: number | null = null;
     if (isPopOut) {
       popTickInterval = window.setInterval(() => tick(performance.now()), FRAME_MS);
@@ -700,7 +614,6 @@ export function MeditateView({
     return () => {
       cancelAnimationFrame(raf);
       if (popTickInterval !== null) window.clearInterval(popTickInterval);
-      // Restore the smaller fftSize so Header/VuMeter don't pay for 2048.
       if (analyser) {
         try { analyser.fftSize = prevFftSize; } catch { /* ok */ }
       }
@@ -711,68 +624,100 @@ export function MeditateView({
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
     };
-  }, [engine, active, isPopOut]);
+  }, [engine, active, isPopOut, resetGen]);
 
   const label = useMemo(() => VISUALIZER_LABELS[visualizer], [visualizer]);
+  const hudClass = `meditate-hud${hudIdle ? " meditate-hud-idle" : ""}`;
 
   return (
     <div className="meditate-view">
-      <div className="meditate-toolbar">
-        <span className="meditate-toolbar-label">VISUALIZER</span>
-        <DropdownSelect<Visualizer>
-          value={visualizer}
-          groups={VISUALIZER_GROUPS.map((g) => ({
-            label: g.label,
-            items: g.items.map((v) => ({ value: v, label: VISUALIZER_LABELS[v] })),
-          }))}
-          onChange={onChangeVisualizer}
-          className="header-select"
-          title="Choose visualizer — double-click the canvas to cycle"
-          ariaLabel="Visualizer"
-        />
-        <button
-          className="header-btn"
-          onClick={toggleFullscreen}
-          title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen"}
-        >
-          {isFullscreen ? "✕ EXIT" : "⛶ FULLSCREEN"}
-        </button>
-        <button
-          className="header-btn"
-          onClick={togglePopOut}
-          title={
-            isPopOut
-              ? "Close pop-out window"
-              : "Open visualizer in a separate window (drag to monitor 2, then ⛶ FULLSCREEN)"
-          }
-        >
-          {isPopOut ? "✕ POP IN" : "↗ POP OUT"}
-        </button>
-        {onRandomScene && (
-          <button
-            className="header-btn"
-            onClick={onRandomScene}
-            title="Load a gentle variation of a random scene (same as the header 🎲)"
-          >
-            🎲 RND
-          </button>
-        )}
-        <span className="meditate-toolbar-hint">· double-click to cycle ·</span>
-      </div>
-      {visualizer === "dreamMachine" && (
-        <div className="meditate-warning">
-          ⚠ DREAM MACHINE uses ~10 Hz flicker. Not recommended for anyone with
-          photosensitive epilepsy. Classic usage: close your eyes and let the
-          strobe light through your eyelids.
-        </div>
-      )}
       <div ref={wrapRef} className="meditate-canvas-wrap">
         <canvas
           ref={canvasRef}
           className="meditate-canvas"
-          onDoubleClick={cycleVisualizer}
-          title={`${label} · double-click to cycle`}
+          title={label}
         />
+        {visualizer === "dreamMachine" && (
+          <div className="meditate-warning" role="note">
+            ⚠ DREAM MACHINE uses ~10 Hz flicker — close your eyes if photosensitive.
+          </div>
+        )}
+        <div
+          className={hudClass}
+          onPointerEnter={() => { hudHeldRef.current = true; setHudIdle(false); }}
+          onPointerLeave={() => { hudHeldRef.current = false; }}
+          onFocusCapture={() => { hudHeldRef.current = true; setHudIdle(false); }}
+          onBlurCapture={() => { hudHeldRef.current = false; }}
+        >
+          <span className="meditate-hud-name" aria-live="polite">{label}</span>
+          <button
+            type="button"
+            className="meditate-hud-btn"
+            onClick={cycleVisualizerPrev}
+            title="Previous visualizer"
+            aria-label="Previous visualizer"
+          >
+            ◂
+          </button>
+          <button
+            type="button"
+            className="meditate-hud-btn"
+            onClick={cycleVisualizerNext}
+            title="Next visualizer"
+            aria-label="Next visualizer"
+          >
+            ▸
+          </button>
+          <button
+            type="button"
+            className="meditate-hud-btn"
+            onClick={resetVisualizer}
+            title="Reset visualizer state — clears accumulated paint and phase clock"
+            aria-label="Reset visualizer"
+          >
+            ↻
+          </button>
+          {onRandomScene && (
+            <button
+              type="button"
+              className="meditate-hud-btn"
+              onClick={onRandomScene}
+              title="Load a gentle variation of a random scene"
+              aria-label="Random scene"
+            >
+              🎲
+            </button>
+          )}
+          <button
+            type="button"
+            className="meditate-hud-btn"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit fullscreen (Esc)" : "Enter fullscreen"}
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          >
+            {isFullscreen ? "⤢" : "⛶"}
+          </button>
+          <button
+            type="button"
+            className="meditate-hud-btn"
+            onClick={togglePopOut}
+            title={isPopOut ? "Close pop-out window" : "Open visualizer in a separate window"}
+            aria-label={isPopOut ? "Close pop-out" : "Pop out"}
+          >
+            {isPopOut ? "↙" : "↗"}
+          </button>
+          {onClose && (
+            <button
+              type="button"
+              className="meditate-hud-btn meditate-hud-close"
+              onClick={onClose}
+              title="Back to DRONE (Esc)"
+              aria-label="Close meditate"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

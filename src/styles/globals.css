@@ -224,49 +224,28 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   background: color-mix(in srgb, var(--preview) 12%, var(--bg-panel));
 }
 
-/* ── Meditate view ────────────────────────────────────────────────── */
+/* ── Meditate view ──────────────────────────────────────────────────
+   Edge-to-edge canvas with a floating idle-fading HUD inside the
+   fullscreen target so chrome follows the canvas in/out of fullscreen. */
 .meditate-view {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   height: 100%;
   min-height: 520px;
 }
-.meditate-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--preview) 5%, var(--bg-cell));
-}
-.meditate-toolbar-label {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.2px;
-  color: var(--preview);
-}
-.meditate-toolbar-hint {
-  font-size: 10px;
-  color: var(--text-dim);
-  font-style: italic;
-  margin-left: auto;
-}
 .meditate-canvas-wrap {
+  position: relative;
   flex: 1;
   min-height: 420px;
-  border: 1px solid color-mix(in srgb, var(--preview) 30%, var(--border));
-  border-radius: 8px;
   background: #050303;
   overflow: hidden;
-  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6);
 }
 .meditate-canvas {
   display: block;
   width: 100%;
   height: 100%;
-  cursor: pointer;
+  cursor: crosshair;
+  touch-action: none;
 }
 
 .meditate-canvas-wrap:fullscreen {
@@ -274,6 +253,250 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   padding: 0;
   border: 0;
   border-radius: 0;
+}
+/* Fullscreen = pure visualizer. Hide the HUD navigator bar so the
+   image reads edge-to-edge with no chrome. Esc exits fullscreen. */
+.meditate-canvas-wrap:fullscreen .meditate-hud {
+  display: none;
+}
+
+/* Floating HUD pill — bottom-center, blurred, idle-fades after 2.5 s
+   of pointer inactivity. The container is pointer-events:none so the
+   canvas underneath sees clicks between controls; only the inner
+   buttons / select capture pointer events. */
+.meditate-hud {
+  position: absolute;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 24px);
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--preview) 28%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.45s cubic-bezier(0.3, 0.7, 0.25, 1);
+  z-index: 4;
+}
+.meditate-hud > * {
+  pointer-events: auto;
+}
+.meditate-hud-idle {
+  opacity: 0.18;
+}
+.meditate-hud-idle:hover,
+.meditate-hud-idle:focus-within {
+  opacity: 1;
+}
+.meditate-hud-select {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--preview) 25%, transparent);
+  border-radius: 999px;
+  padding: 4px 10px;
+  max-width: 180px;
+}
+/* Read-only visualizer name display. Fixed width so the navigator
+   buttons that follow it never shift when the label changes. */
+.meditate-hud-name {
+  flex: 0 0 auto;
+  width: clamp(110px, 32vw, 180px);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+}
+.meditate-hud-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--preview) 25%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.meditate-hud-btn:hover {
+  border-color: color-mix(in srgb, var(--preview) 55%, transparent);
+  background: color-mix(in srgb, var(--preview) 10%, transparent);
+}
+.meditate-hud-btn:active {
+  transform: scale(0.94);
+}
+.meditate-hud-close {
+  margin-left: 2px;
+}
+
+@media (max-width: 520px) {
+  .meditate-hud { gap: 4px; padding: 5px 6px; }
+  .meditate-hud-btn { width: 28px; height: 28px; font-size: 11px; }
+  .meditate-hud-name { width: clamp(80px, 24vw, 120px); font-size: 9px; }
+  .meditate-hud-select { max-width: 130px; padding: 4px 8px; }
+}
+
+/* Inline DRONE → MEDITATE preview tile. Sits above the WEATHER pad
+   inside the preset panel; tap expands to MEDITATE. Reads as an
+   instrument display, not a card. */
+.drone-visualizer-preview {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  /* Tile shape: 16:9 canvas (480 tall × 853 wide) on top + 56px
+     navigator strip on the bottom. Cap width so it doesn't sprawl. */
+  max-width: 854px;
+  height: 536px;
+  margin: 0 auto 10px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--preview) 22%, var(--border));
+  border-radius: 6px;
+  background: #050303;
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+.drone-visualizer-preview:hover {
+  border-color: color-mix(in srgb, var(--preview) 50%, var(--border));
+}
+.drone-visualizer-preview:active {
+  transform: scale(0.997);
+}
+.drone-visualizer-preview-canvas-btn {
+  appearance: none;
+  background: #000;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: block;
+  /* Top — fills the row above the navigator strip; canvas inside
+     stretches to fill so the 16:9 tile shape comes from the
+     parent's fixed height/width. */
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  cursor: pointer;
+}
+.drone-visualizer-preview-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.drone-visualizer-preview-meta {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 56px;
+  height: 56px;
+  width: 100%;
+  padding: 0 14px;
+  background: color-mix(in srgb, var(--preview) 4%, var(--bg-cell));
+  border-top: 1px solid color-mix(in srgb, var(--preview) 18%, var(--border));
+}
+.drone-visualizer-preview-tag {
+  font: 700 9px/1 ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  letter-spacing: 2px;
+  color: color-mix(in srgb, var(--preview) 80%, var(--text-dim));
+  text-transform: uppercase;
+}
+.drone-visualizer-preview-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 320px;
+  font: 600 11px/1.1 ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.6px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--preview) 6%, transparent),
+    color-mix(in srgb, var(--preview) 2%, transparent)
+  );
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--preview) 30%, var(--border));
+  border-radius: 4px;
+  padding: 6px 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.drone-visualizer-preview-select:hover,
+.drone-visualizer-preview-select:focus-within {
+  border-color: color-mix(in srgb, var(--preview) 60%, var(--border));
+  background: color-mix(in srgb, var(--preview) 8%, transparent);
+}
+.drone-visualizer-preview-name {
+  font: 600 11px/1.1 ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.6px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drone-visualizer-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.drone-visualizer-preview-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--preview) 28%, var(--border));
+  color: color-mix(in srgb, var(--preview) 70%, var(--text));
+  font: 600 11px/1 ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.drone-visualizer-preview-btn:hover {
+  border-color: color-mix(in srgb, var(--preview) 70%, var(--border));
+  background: color-mix(in srgb, var(--preview) 12%, transparent);
+  color: var(--preview);
+}
+.drone-visualizer-preview-btn:active {
+  transform: scale(0.94);
+}
+.drone-visualizer-preview-arrow {
+  margin-left: auto;
+  font-size: 14px;
+  color: color-mix(in srgb, var(--preview) 60%, var(--text-dim));
+}
+
+/* Tablet — proportionally shorter; canvas + nav stack stays. */
+@media (max-width: 900px) {
+  .drone-visualizer-preview { height: 280px; max-width: 100%; }
+}
+@media (max-width: 520px) {
+  .drone-visualizer-preview { height: 200px; max-width: 100%; }
+  .drone-visualizer-preview-meta { padding: 0 10px; gap: 8px; flex-basis: 48px; height: 48px; }
+  .drone-visualizer-preview-name { font-size: 10px; }
+  .drone-visualizer-preview-tag { font-size: 8px; letter-spacing: 1.6px; }
+  .drone-visualizer-preview-btn { width: 26px; height: 26px; font-size: 10px; }
 }
 
 .preset-morph-row {
@@ -304,6 +527,11 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .meditate-warning {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
   font-size: 10px;
   letter-spacing: 0.6px;
   color: #ffcc70;
@@ -311,6 +539,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   border: 1px solid color-mix(in srgb, #ff6020 40%, transparent);
   padding: 6px 10px;
   border-radius: 6px;
+  z-index: 4;
+  pointer-events: none;
 }
 
 /* ── Header ───────────────────────────────────────────────────────── */
@@ -1124,6 +1354,9 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .title-sigil {
+  /* Always anchor to the extreme right of the single-row header,
+     no matter how the rest of the row's margins fall. */
+  margin-left: auto;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -1980,6 +2213,16 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .view-btn-active {
   background: var(--preview);
+  color: #160c06;
+}
+
+/* Active state for the MIXER toggle button in the header (sits next
+   to VOL in the right-side performance cluster). Mirrors view-btn-
+   active so it reads as a pressed surface when the drawer is open. */
+.header-btn-mixer-active,
+.header-btn-meditate-active {
+  background: var(--preview);
+  border-color: var(--preview);
   color: #160c06;
 }
 

@@ -183,8 +183,6 @@ const VISUALIZERS: readonly Visualizer[] = [
   "illuminatedGlyphs",
   "scryingMirror",
   "crystalLattice",
-  "haloGlow",
-  "mirrorGlyphs",
   "rothko",
   "starGate",
   "cymatics",

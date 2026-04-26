@@ -13,7 +13,6 @@ import { auditArrival } from "../devtools/auditArrival";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 import { MeditateView } from "./MeditateView";
-import { VISUALIZER_ORDER } from "./visualizers";
 import { trackEvent } from "../analytics";
 import { TutorialFlow } from "./TutorialFlow";
 import { TutorialOffer } from "./TutorialOffer";
@@ -72,6 +71,18 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // — otherwise the main canvas isn't rendered by the compositor
   // and captureStream feeding the popup goes stale.
   const [meditatePopOutActive, setMeditatePopOutActive] = useState(false);
+  const [visualPreviewOn, setVisualPreviewOn] = useState<boolean>(() => {
+    try { return window.localStorage?.getItem("mdrone.visualPreviewOn") === "1"; }
+    catch { return false; }
+  });
+  const toggleVisualPreview = useCallback(() => {
+    setVisualPreviewOn((v) => {
+      const next = !v;
+      try { window.localStorage?.setItem("mdrone.visualPreviewOn", next ? "1" : "0"); }
+      catch { /* noop */ }
+      return next;
+    });
+  }, []);
   const recStartRef = useRef(0);
   const resumedRef = useRef(false);
   const droneViewRef = useRef<DroneViewHandle | null>(null);
@@ -600,6 +611,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onChangeWeatherVisual={setWeatherVisual}
         motionRecEnabled={motionRecEnabled}
         onToggleMotionRec={setMotionRecEnabled}
+        meditatePreviewOn={visualPreviewOn}
+        onToggleMeditatePreview={toggleVisualPreview}
         analyser={engine.getAnalyser()}
         loadMonitor={engine.getLoadMonitor()}
       />
@@ -670,6 +683,14 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             onCancelBounceLoop={handleCancelBounceLoop}
             loopBusy={loopBusy}
             loopProgress={loopProgress}
+            meditateVisualizer={sceneManager.meditateVisualizer}
+            onChangeMeditateVisualizer={(v) => {
+              trackEvent(`visualizer/${v}`);
+              sceneManager.setMeditateVisualizer(v);
+            }}
+            onOpenMeditate={() => setViewMode("meditate")}
+            meditatePreviewPaused={viewMode === "meditate" || meditatePopOutActive}
+            visualPreviewOn={visualPreviewOn}
           />
         </section>
         <section
@@ -696,27 +717,11 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             }}
             onRandomScene={sceneManager.handleRandomScene}
             onPopOutChange={setMeditatePopOutActive}
-            onFullscreenClick={(x01, y01) => {
-              // Single click → set WEATHER XY from click position
+            onClose={() => setViewMode("drone")}
+            onWeather={(x01, y01) => {
+              // The MEDITATE canvas IS an expanded WEATHER pad —
+              // single click and drag both write climateX/climateY.
               droneViewRef.current?.applyLivePatch?.({ climateX: x01, climateY: y01 }, { record: true });
-            }}
-            onFullscreenDoubleClick={() => {
-              // Double click → cycle to next visualizer
-              const order = VISUALIZER_ORDER;
-              const cur = order.indexOf(sceneManager.meditateVisualizer);
-              const next = order[(cur + 1) % order.length];
-              sceneManager.setMeditateVisualizer(next);
-            }}
-            onFullscreenDrag={(x01, y01) => {
-              // Drag → tonic + octave on a 12×6 grid
-              const PCS: PitchClass[] = [
-                "C", "C#", "D", "D#", "E", "F",
-                "F#", "G", "G#", "A", "A#", "B",
-              ];
-              const pcIdx = Math.max(0, Math.min(11, Math.floor(x01 * 12)));
-              const octave = Math.max(1, Math.min(6, Math.round(1 + (1 - y01) * 5)));
-              droneViewRef.current?.setRoot(PCS[pcIdx]);
-              droneViewRef.current?.setOctave(octave);
             }}
           />
         </section>
