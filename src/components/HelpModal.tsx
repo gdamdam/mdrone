@@ -137,7 +137,8 @@ function PlayTab({ onReplay }: { onReplay: (id: FlowId) => void }) {
         <li><strong>HOLD</strong> (or <kbd>Space</kbd>) starts the drone.</li>
         <li><strong>WEATHER</strong> pad — drag to change brightness (X) and motion (Y).</li>
         <li><strong>Presets</strong> — tap the scene name at the top to browse, or <strong>RND</strong> for a safe random scene.</li>
-        <li><strong>MEDITATE</strong> / <strong>MIXER</strong> — optional fullscreen visualizer / master bus.</li>
+        <li><strong>◉ MEDITATE</strong> (next to HOLD) — toggles a live visualizer tile above the WEATHER pad. Tap the canvas to expand to fullscreen.</li>
+        <li><strong>MIXER</strong> (next to VOL) — opens the master bus drawer.</li>
       </ul>
 
       <div className="fx-modal-divider" />
@@ -160,7 +161,7 @@ function ReferenceTab() {
       <div className="fx-modal-section-label">SURFACES</div>
       <ul className="help-list">
         <li><strong>DRONE</strong> — the instrument. Presets, tonic/mode, SHAPE macros, FX chain, ADVANCED (tuning + LFO).</li>
-        <li><strong>MEDITATE</strong> — 30 fullscreen visualizers in 4 groups by function: HARMONIC · LANDSCAPE · RITUAL · VOID/HYPNOTIC (B&amp;W first, then colour within each). ⛶ fullscreen · ↗ pop out · 🎲 random. Double-click to cycle.</li>
+        <li><strong>MEDITATE</strong> — 25 visualizers in 4 groups by function: HARMONIC · LANDSCAPE · RITUAL · VOID/HYPNOTIC (B&amp;W first, then colour within each). All in one warm parchment / ember palette. Toggled inline via the header <strong>◉ MEDITATE</strong> button. Tile navigator: dropdown · ◂ ▸ cycle · ↻ reset · ↗ open. Fullscreen HUD adds 🎲 random + ↗ pop out.</li>
         <li><strong>MIXER</strong> — master bus: HPF, 3-band EQ, <strong>MUD</strong> trim toggle (-3.5 dB @ 300 Hz, on by default), glue, drive, look-ahead brickwall limiter + ceiling, <strong>WIDTH</strong> (always-on bass-mono fold under 120 Hz), <strong>ROOM</strong> (parallel cathedral-IR send), <strong>COLOR</strong> (parallel saturation + air-band exciter). <strong>SAFE</strong> clamps to −6 dBFS for headphones.</li>
       </ul>
 
