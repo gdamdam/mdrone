@@ -125,24 +125,37 @@ export function Header({
   meditatePreviewOn,
   onToggleMeditatePreview,
 }: HeaderProps) {
-  // Drone logo vibration — rAF loop reads the master analyser's RMS
-  // and writes a tiny translate transform on the title-art element.
-  // Purely imperative: no React state, so no re-renders.
+  // Brand cluster animation — rAF loop reads the master analyser's
+  // RMS and writes both a tiny translate transform AND a brightness
+  // filter onto the `.title-brand` wrapper, so the wordmark and the
+  // BETA badge vibrate and light up as one unit. Purely imperative:
+  // no React state, so no re-renders.
   //
-  // Brightness: when sound plays the wordmark sits at its full static
-  // CSS look (palette-aware --preview colour + the multi-layer halo
-  // defined in globals.css `.title-art`, matching the splash page
-  // wordmark). When silent, a single CSS `filter: brightness()` dims
-  // the whole composite slightly so the off-state reads as "not
-  // playing" without shifting hue or blooming the halo. text-shadow
-  // is intentionally NOT overridden inline — that was the previous
-  // bug (warm rgb override that tinted the wordmark and bloomed it
-  // on peaks). Only `transform` and `filter` are written here.
+  // The BETA badge picks up the same vibration because the transform
+  // is on its parent. It picks up the same glow pulse because (a) the
+  // brightness filter is on the parent and (b) `.title-badge` has a
+  // palette-aware box-shadow halo defined in globals.css that scales
+  // with the same filter.
+  //
+  // When sound plays the cluster sits at its full static CSS look
+  // (palette-aware --preview colour + the multi-layer halo defined
+  // in globals.css `.title-art`, matching the splash page wordmark).
+  // When silent, the brightness filter dims the whole composite.
+  // text-shadow is intentionally NOT overridden inline — earlier
+  // attempts to JS-write a warm rgb halo tinted the wordmark and
+  // bloomed it on peaks; the static CSS halo is palette-aware and
+  // already correct.
   const titleArtRef = useRef<HTMLPreElement>(null);
   useEffect(() => {
     if (!analyser) return;
     const el = titleArtRef.current;
     if (!el) return;
+    // The wordmark's direct parent is `.title-brand` (wordmark + BETA
+    // badge cluster). Transform + filter live on this element so both
+    // children animate together; CpuWarning sits one level up under
+    // `.title` and is not affected.
+    const brand = el.parentElement;
+    if (!brand) return;
     const buf = new Uint8Array(analyser.fftSize);
     let raf = 0;
     let lastPaint = -Infinity;
@@ -162,26 +175,35 @@ export function Header({
       const rms = Math.min(1, Math.sqrt(sum / buf.length) * 3);
       smoothedRms += (rms - smoothedRms) * 0.25;
       const t = now / 1000;
-      // Two-axis jitter — fast micro-sine on top of the rms amplitude
-      const amp = smoothedRms * 1.8;
+      // Two-axis jitter — fast micro-sine on top of the rms amplitude.
+      // Max amp 1.0 px (was 1.8 px) — keeps the cluster legible while
+      // still reading as "alive" on peaks.
+      const amp = smoothedRms * 1.0;
       const dx = Math.sin(t * 23.1) * amp;
       const dy = Math.cos(t * 29.7) * amp;
-      el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
-      // Dim only when silent. brightness(0.78) at RMS=0, ramping to
-      // 1.0 with very little RMS — the static look (= splash page
-      // brightness) returns as soon as any drone material is present.
-      // Power 0.35 makes the curve rise quickly so even quiet voices
-      // light the wordmark fully.
-      const lit = Math.pow(smoothedRms, 0.35);
-      const brightness = 0.78 + 0.22 * lit;
-      el.style.filter = `brightness(${brightness.toFixed(3)})`;
+      // Brightness curve: 0.55 floor at true silence (45 % darker than
+      // playing). Noise-floor gate at 0.025 RMS keeps convolver-tail
+      // and analyser quantisation leakage from lifting the silent
+      // state above the floor; sqrt(× 12) brings the curve to 1.0 by
+      // RMS ≈ 0.108, so typical playback reads full-bright.
+      //   true silence    (rms 0)     : 0.55
+      //   noise floor     (rms 0.014) : 0.55 (gated)
+      //   quiet play      (rms 0.05)  : 0.80
+      //   moderate play   (rms 0.10)  : 0.98
+      //   any louder                  : 1.00
+      const NOISE_FLOOR = 0.025;
+      const above = Math.max(0, smoothedRms - NOISE_FLOOR);
+      const lit = Math.min(1, Math.sqrt(above * 12));
+      const brightness = 0.55 + 0.45 * lit;
+      brand.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
+      brand.style.filter = `brightness(${brightness.toFixed(3)})`;
     };
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
-      if (el) {
-        el.style.transform = "";
-        el.style.filter = "";
+      if (brand) {
+        brand.style.transform = "";
+        brand.style.filter = "";
       }
     };
   }, [analyser]);
@@ -268,24 +290,32 @@ export function Header({
     <header className={holding ? "header header-holding" : "header"}>
       <div className="header-row header-row-main">
         <div className="title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
-          <span
-            aria-label="Beta"
-            style={{
-              fontSize: 9,
-              fontWeight: 800,
-              letterSpacing: 1,
-              color: "#1a0f08",
-              background: "var(--preview)",
-              padding: "1px 5px",
-              borderRadius: 3,
-              textTransform: "uppercase",
-              alignSelf: "flex-start",
-              marginTop: 2,
-            }}
-          >
-            beta
-          </span>
+          {/* Brand cluster — wordmark + BETA badge. Treated as one unit
+              by the rAF loop in Header.tsx (vibration + brightness
+              filter on this element so both pieces move and glow
+              together). CpuWarning sits outside as a separate status
+              indicator that should not vibrate with the brand. */}
+          <div className="title-brand" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
+            <span
+              className="title-badge"
+              aria-label="Beta"
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: 1,
+                color: "#1a0f08",
+                background: "var(--preview)",
+                padding: "1px 5px",
+                borderRadius: 3,
+                textTransform: "uppercase",
+                alignSelf: "flex-start",
+                marginTop: 2,
+              }}
+            >
+              beta
+            </span>
+          </div>
           <CpuWarning monitor={loadMonitor} />
         </div>
         {/* Center — scene marquee. Clickable so tapping the current

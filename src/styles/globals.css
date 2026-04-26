@@ -1441,6 +1441,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 1px;
+  /* Palette-aware halo so the badge has a glow to pulse. The
+     analyser-driven brightness filter on `.title-brand` scales this
+     halo together with the wordmark text-shadow, so both pieces of
+     the brand cluster bloom in sync. Two stacked shadows for a soft
+     + tight ring matching the wordmark's halo aesthetic. */
+  box-shadow:
+    0 0 4px color-mix(in srgb, var(--preview) 40%, transparent),
+    0 0 10px color-mix(in srgb, var(--preview) 18%, transparent);
 }
 
 /* View toggle (DRONE | MIXER) */
