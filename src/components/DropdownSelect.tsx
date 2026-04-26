@@ -32,7 +32,11 @@ import { createPortal } from "react-dom";
 
 export interface DropdownOption<T extends string> {
   value: T;
-  label: string;
+  /** What renders inside the trigger (when this option is selected)
+   *  AND inside the popup row. Allowing a ReactNode lets a caller
+   *  embed spans (e.g. ".visualizer-subtitle") that CSS can hide on
+   *  the trigger only — the popup keeps the full text. */
+  label: React.ReactNode;
 }
 
 export interface DropdownGroup<T extends string> {

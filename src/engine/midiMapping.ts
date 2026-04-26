@@ -28,7 +28,8 @@
 
 export type MidiTargetKind =
   | "continuous" // 0..127 CC value is mapped via the Layout handler
-  | "trigger";   // >=64 = fire (once while in the "on" zone)
+  | "trigger"    // >=64 = fire (once while in the "on" zone)
+  | "enum";      // CC value 0..127 split into N equal bands → option index
 
 export interface MidiTarget {
   id: string;
@@ -36,7 +37,21 @@ export interface MidiTarget {
   /** Group heading shown in the Settings MIDI panel. */
   group: string;
   kind: MidiTargetKind;
+  /** Only set for kind === "enum" — option labels in selection order. */
+  options?: readonly string[];
 }
+
+/** Map a 0..127 CC value to an enum option index by band-splitting,
+ *  matching Ableton's value-list MIDI mapping convention. */
+export function enumIndexFromCc(value: number, optionCount: number): number {
+  if (optionCount <= 1) return 0;
+  const v = Math.max(0, Math.min(127, value));
+  const idx = Math.floor((v / 128) * optionCount);
+  return Math.min(optionCount - 1, idx);
+}
+
+/** Vowel labels shared with the Formant FX modal — keep in sync. */
+export const FORMANT_VOWEL_LABELS = ["AH", "EE", "OH", "OO", "EH"] as const;
 
 /** Full registry. Ordered — the UI renders in this order within each
  *  group. Adding a new target is a single entry here plus a case in
@@ -92,8 +107,10 @@ export const MIDI_TARGETS: readonly MidiTarget[] = [
   { id: "fx.granular",    label: "GRANULAR",   group: "Effects", kind: "continuous" },
   { id: "fx.graincloud",  label: "GRAINCLOUD", group: "Effects", kind: "continuous" },
   { id: "fx.ringmod",     label: "RINGMOD",    group: "Effects", kind: "continuous" },
-  { id: "fx.formant",     label: "FORMANT",    group: "Effects", kind: "continuous" },
-  { id: "fx.halo",        label: "HALO",       group: "Effects", kind: "continuous" },
+  { id: "fx.formant",       label: "FORMANT",       group: "Effects", kind: "continuous" },
+  { id: "fx.formant.vowel", label: "FORMANT VOWEL", group: "Effects", kind: "enum",
+    options: FORMANT_VOWEL_LABELS },
+  { id: "fx.halo",          label: "HALO",          group: "Effects", kind: "continuous" },
 
   // ── Triggers ─────────────────────────────────────────────────────
   { id: "hold",   label: "HOLD",   group: "Triggers", kind: "trigger" },
@@ -220,4 +237,82 @@ export function ccForTarget(map: CcMap, targetId: string): number | null {
 export function resetCcMap(): CcMap {
   try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
   return { ...DEFAULT_CC_MAP };
+}
+
+/* ── Templates + import/export ────────────────────────────────────────
+ *
+ * Performers often want multiple controller layouts: e.g. a Launch
+ * Control bank for live, a small fader pad for studio. Templates are
+ * named CcMap snapshots saved to localStorage. Import/export uses a
+ * tiny JSON wrapper so files round-trip across versions.
+ */
+
+const TEMPLATES_KEY = "mdrone-midi-cc-templates";
+
+export type MidiTemplates = Record<string, CcMap>;
+
+function sanitizeMap(raw: Record<string, unknown>): CcMap {
+  const map: CcMap = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const cc = parseInt(k, 10);
+    if (!isNaN(cc) && cc >= 0 && cc <= 127 && isValidTargetId(v)) {
+      map[cc] = v;
+    }
+  }
+  return map;
+}
+
+export function loadTemplates(): MidiTemplates {
+  try {
+    const raw = localStorage.getItem(TEMPLATES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: MidiTemplates = {};
+    for (const [name, val] of Object.entries(parsed)) {
+      if (val && typeof val === "object") {
+        out[name] = sanitizeMap(val as Record<string, unknown>);
+      }
+    }
+    return out;
+  } catch { return {}; }
+}
+
+export function saveTemplate(name: string, map: CcMap): MidiTemplates {
+  const all = loadTemplates();
+  all[name] = { ...map };
+  try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(all)); } catch { /* noop */ }
+  return all;
+}
+
+export function deleteTemplate(name: string): MidiTemplates {
+  const all = loadTemplates();
+  delete all[name];
+  try {
+    if (Object.keys(all).length === 0) localStorage.removeItem(TEMPLATES_KEY);
+    else localStorage.setItem(TEMPLATES_KEY, JSON.stringify(all));
+  } catch { /* noop */ }
+  return all;
+}
+
+/** JSON wrapper for export files. Includes a format tag so future
+ *  versions can migrate without guessing what they're reading. */
+export function exportCcMap(map: CcMap, name = "mdrone-midi"): string {
+  return JSON.stringify(
+    { format: "mdrone-midi-cc", version: 1, name, map },
+    null, 2,
+  );
+}
+
+/** Accept either the wrapped format or a bare `{cc: targetId}` blob.
+ *  Returns null if no valid entries are found. */
+export function parseImportedCcMap(text: string): CcMap | null {
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    const raw = parsed && typeof parsed === "object" && "map" in parsed
+                && typeof parsed.map === "object" && parsed.map !== null
+      ? parsed.map as Record<string, unknown>
+      : parsed as Record<string, unknown>;
+    const map = sanitizeMap(raw);
+    return Object.keys(map).length ? map : null;
+  } catch { return null; }
 }

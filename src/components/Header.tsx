@@ -5,7 +5,13 @@ import type { MidiDevice } from "../engine/midiInput";
 import { midiNoteToPitch } from "../engine/midiInput";
 import { DialogModal } from "./DialogModal";
 import { DropdownSelect } from "./DropdownSelect";
-import { MIDI_TARGETS, MIDI_TARGETS_BY_ID, MIDI_TARGET_GROUPS } from "../engine/midiMapping";
+import {
+  MIDI_TARGETS, MIDI_TARGETS_BY_ID, MIDI_TARGET_GROUPS,
+  removeCc,
+  loadTemplates, saveTemplate, deleteTemplate,
+  exportCcMap, parseImportedCcMap,
+  type MidiTemplates,
+} from "../engine/midiMapping";
 import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } from "../themes";
 import { enableLinkBridge, onLinkState, getLinkState, type LinkState } from "../engine/linkBridge";
 import type { AudioLoadMonitor } from "../engine/AudioLoadMonitor";
@@ -13,12 +19,7 @@ import { CpuWarning } from "./CpuWarning";
 import { STORAGE_KEYS } from "../config";
 import { showNotification } from "../notifications";
 import { trackEvent } from "../analytics";
-import {
-  isFlowDone,
-  onCloseSettingsRequested,
-  requestExpandAdvanced,
-  requestOfferFlow,
-} from "../tutorial/state";
+import { onCloseSettingsRequested } from "../tutorial/state";
 
 const HelpModal = lazy(() =>
   import("./HelpModal").then((m) => ({ default: m.HelpModal })),
@@ -67,6 +68,12 @@ interface HeaderProps {
   midiCcMap: import("../engine/midiMapping").CcMap;
   midiLearnTarget: string | null;
   onMidiLearn: (target: string | null) => void;
+  /** Replace the entire CC map (used by template load + import). */
+  onMidiSetMap: (map: import("../engine/midiMapping").CcMap) => void;
+  /** Global Ableton-style MIDI learn mode — when on, clicking any
+   *  control with [data-midi-id] arms it for assignment. */
+  midiLearnMode: boolean;
+  onToggleMidiLearnMode: () => void;
   onMidiResetMap: () => void;
   weatherVisual: import("../config").WeatherVisual;
   onChangeWeatherVisual: (v: import("../config").WeatherVisual) => void;
@@ -115,6 +122,9 @@ export function Header({
   midiCcMap,
   midiLearnTarget,
   onMidiLearn,
+  onMidiSetMap,
+  midiLearnMode,
+  onToggleMidiLearnMode,
   onMidiResetMap,
   weatherVisual,
   onChangeWeatherVisual,
@@ -217,8 +227,42 @@ export function Header({
   // Volume shares the mixer VOL strip range (0..1.5). % is of the 0..1.5 span.
   const volPct = Math.round((volume / 1.5) * 100);
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"session" | "midi" | "appearance" | "tempo" | "advanced">("session");
+  const [settingsTab, setSettingsTab] = useState<"session" | "appearance" | "tempo">("session");
+  // Header-MIDI dropdown menu + dedicated MIDI modal. The Settings →
+  // MIDI tab is gone; the modal is the single source of truth.
+  const [midiMenuOpen, setMidiMenuOpen] = useState(false);
+  const [midiModalOpen, setMidiModalOpen] = useState(false);
+  const midiBtnRef = useRef<HTMLButtonElement>(null);
+  const midiMenuRef = useRef<HTMLDivElement>(null);
+  // Close popover on outside-click / Esc.
+  useEffect(() => {
+    if (!midiMenuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (midiBtnRef.current?.contains(t)) return;
+      if (midiMenuRef.current?.contains(t)) return;
+      setMidiMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMidiMenuOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [midiMenuOpen]);
+  useEffect(() => {
+    if (!midiModalOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMidiModalOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [midiModalOpen]);
   const [helpOpen, setHelpOpen] = useState(false);
+  // MIDI mapping templates (saved CcMaps the user can swap between).
+  const [midiTemplates, setMidiTemplates] = useState<MidiTemplates>(() => loadTemplates());
+  const [midiTemplateName, setMidiTemplateName] = useState("");
+  const midiImportRef = useRef<HTMLInputElement>(null);
   const [dialogMode, setDialogMode] = useState<"save" | "rename" | "reset" | null>(null);
 
   // Marquee click arbitration: single-click opens the preset list,
@@ -355,6 +399,7 @@ export function Header({
         <button
           className="header-btn header-btn-random"
           onClick={onRandomScene}
+          data-midi-id="rnd"
           title={
             rndArrivalRemaining && rndArrivalRemaining > 0
               ? `Load a random scene — curated arrival pool for the next ${rndArrivalRemaining} roll${rndArrivalRemaining === 1 ? "" : "s"}, then full library variety`
@@ -392,6 +437,7 @@ export function Header({
         </button>
         <button
           data-tutor="hold"
+          data-midi-id="hold"
           className={holding ? "header-hold-btn header-hold-btn-active" : "header-hold-btn"}
           onClick={onToggleHold}
           title={holding ? "Release the drone" : "Hold the current tonic"}
@@ -444,10 +490,83 @@ export function Header({
           className="header-btn header-btn-volume"
           onClick={() => setVolumeOpen(true)}
           title={`Master volume: ${volPct}% — click to adjust`}
+          data-midi-id="volume"
         >
           <span className="header-btn-label-full">VOL {volPct}</span>
           <span className="header-btn-label-glyph" aria-hidden="true">VOL</span>
         </button>
+        <span className="midi-menu-anchor">
+          <button
+            ref={midiBtnRef}
+            className={
+              midiLearnMode
+                ? "header-btn header-btn-midi-learn header-btn-midi-learn-active"
+                : midiEnabled
+                  ? "header-btn header-btn-midi-learn header-btn-midi-learn-on"
+                  : "header-btn header-btn-midi-learn"
+            }
+            onClick={() => setMidiMenuOpen((o) => !o)}
+            disabled={!midiSupported}
+            title={
+              !midiSupported
+                ? "Web MIDI is not available in this browser"
+                : "MIDI — input + learn mode + mapping"
+            }
+            aria-haspopup="menu"
+            aria-expanded={midiMenuOpen}
+          >
+            {midiLearnMode ? "● LEARN ▾" : midiEnabled ? "● MIDI ▾" : "MIDI ▾"}
+          </button>
+          {midiMenuOpen && (
+            <div ref={midiMenuRef} className="midi-menu" role="menu">
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={midiEnabled}
+                className={midiEnabled ? "midi-menu-item midi-menu-item-on" : "midi-menu-item"}
+                onClick={() => {
+                  onToggleMidi(!midiEnabled);
+                  if (midiEnabled && midiLearnMode) onToggleMidiLearnMode();
+                }}
+                disabled={!midiSupported}
+                title="Connect to your MIDI controller — notes drive the tonic, CCs drive whatever you've mapped."
+              >
+                <span className="midi-menu-check">{midiEnabled ? "●" : "○"}</span>
+                <span className="midi-menu-label">MIDI INPUT</span>
+              </button>
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={midiLearnMode}
+                className={midiLearnMode ? "midi-menu-item midi-menu-item-on midi-menu-item-learn" : "midi-menu-item"}
+                onClick={() => {
+                  if (!midiEnabled) onToggleMidi(true);
+                  onToggleMidiLearnMode();
+                  setMidiMenuOpen(false);
+                }}
+                disabled={!midiSupported}
+                title="Click any glowing control then move a knob/fader on your controller to map it."
+              >
+                <span className="midi-menu-check">{midiLearnMode ? "●" : "○"}</span>
+                <span className="midi-menu-label">LEARN MODE</span>
+              </button>
+              <div className="midi-menu-divider" />
+              <button
+                type="button"
+                role="menuitem"
+                className="midi-menu-item"
+                onClick={() => {
+                  setMidiModalOpen(true);
+                  setMidiMenuOpen(false);
+                }}
+                title="See the full mapping table, save / load templates, and import or export JSON."
+              >
+                <span className="midi-menu-check" aria-hidden="true">⌘</span>
+                <span className="midi-menu-label">MAPPING</span>
+              </button>
+            </div>
+          )}
+        </span>
         <button
           className="header-btn header-btn-help"
           onClick={() => setHelpOpen(true)}
@@ -523,7 +642,7 @@ export function Header({
               Final output trim applied after the master chain. Smoothly ramped.
             </p>
             <div className="fx-modal-params">
-              <label className="fx-modal-param">
+              <label className="fx-modal-param" data-midi-id="volume">
                 <span className="fx-modal-param-label">
                   VOLUME <span className="fx-modal-param-value">{volPct}%</span>
                 </span>
@@ -573,10 +692,8 @@ export function Header({
               <div className="settings-tabs" role="tablist" aria-label="Settings sections">
                 {([
                   ["session", "SESSION"],
-                  ["midi", "MIDI"],
                   ["appearance", "APPEARANCE"],
                   ["tempo", "TEMPO"],
-                  ["advanced", "ADVANCED"],
                 ] as const).map(([id, label]) => (
                   <button
                     key={id}
@@ -584,21 +701,7 @@ export function Header({
                     role="tab"
                     aria-selected={settingsTab === id}
                     className={settingsTab === id ? "settings-tab settings-tab-active" : "settings-tab"}
-                    onClick={() => {
-                      // Tapping the Settings "ADVANCED" tab is one of
-                      // the two entry points for the advanced flow.
-                      // When firing, close this modal + expand the
-                      // DroneView ADVANCED section so the spotlight
-                      // lands on real content, not modal chrome.
-                      if (id === "advanced" && !isFlowDone("advanced")) {
-                        setSessionOpen(false);
-                        requestExpandAdvanced();
-                        // Offer the tour as a pill — user decides.
-                        window.setTimeout(() => requestOfferFlow("advanced"), 120);
-                        return;
-                      }
-                      setSettingsTab(id);
-                    }}
+                    onClick={() => setSettingsTab(id)}
                   >
                     {label}
                   </button>
@@ -641,90 +744,43 @@ export function Header({
                   RENAME
                 </button>
               </div>
-              </>)}
 
-              {settingsTab === "midi" && (<>
-              <div className="fx-modal-section-label">MIDI INPUT</div>
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">MOTION RECORDING</div>
               <p className="fx-modal-desc">
-                External keyboard → tonic + octave. Any note-on maps to the drone root.
+                Capture meaningful gesture events (60 s / 200 max) into
+                the next share URL so the recipient hears the same sweep
+                you made. Off by default — toggle on to reveal the REC
+                MOTION button in the drone view.
               </p>
               <div className="fx-modal-actions">
                 <button
-                  className={midiEnabled ? "header-btn header-btn-midi-on" : "header-btn"}
-                  onClick={() => onToggleMidi(!midiEnabled)}
-                  disabled={!midiSupported}
-                  title={!midiSupported ? "Web MIDI unavailable" : midiEnabled ? "Disable MIDI input" : "Enable MIDI input"}
+                  className={motionRecEnabled ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => onToggleMotionRec(!motionRecEnabled)}
+                  title={motionRecEnabled
+                    ? "Hide the REC MOTION button"
+                    : "Show the REC MOTION button in the drone view"}
                 >
-                  {!midiSupported ? "UNSUPPORTED" : midiEnabled ? "● ENABLED" : "ENABLE"}
+                  {motionRecEnabled ? "● MOTION RECORDING" : "MOTION RECORDING"}
                 </button>
               </div>
-              <div className="fx-modal-param">
-                <span className="fx-modal-param-label">
-                  DEVICES <span className="fx-modal-param-value">{midiDevices.length}</span>
-                </span>
-                {midiDevices.length === 0 ? (
-                  <div className="midi-device-empty">
-                    {midiEnabled ? "No MIDI inputs detected." : "Enable MIDI to scan for devices."}
-                  </div>
-                ) : (
-                  <ul className="midi-device-list">
-                    {midiDevices.map((d) => (
-                      <li key={d.id} className={`midi-device midi-device-${d.state}`}>
-                        <span className="midi-device-name">{d.name}</span>
-                        {d.manufacturer && <span className="midi-device-mfr"> · {d.manufacturer}</span>}
-                        <span className="midi-device-state"> · {d.state}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div className="fx-modal-param">
-                <span className="fx-modal-param-label">
-                  LAST NOTE <span className="fx-modal-param-value">{lastNoteLabel}</span>
-                </span>
-              </div>
-              {midiError && <div className="midi-error">{midiError}</div>}
 
-              {midiEnabled && (<>
               <div className="fx-modal-divider" />
-              <div className="fx-modal-section-label">MIDI CC MAPPING</div>
+              <div className="fx-modal-section-label">RESET</div>
               <p className="fx-modal-desc">
-                {midiLearnTarget
-                  ? `Move a knob or fader to assign it to ${(MIDI_TARGETS_BY_ID.get(midiLearnTarget)?.label ?? midiLearnTarget).toUpperCase()}...`
-                  : "Click a parameter to learn a CC. Unassigned targets show “—”."}
+                Wipe all saved sessions, autosave, palette, and every
+                mdrone setting from localStorage. Cannot be undone.
               </p>
-              {MIDI_TARGET_GROUPS.map((groupName) => {
-                const groupTargets = MIDI_TARGETS.filter((t) => t.group === groupName);
-                return (
-                  <div key={groupName} className="midi-cc-group">
-                    <div className="midi-cc-group-label">{groupName.toUpperCase()}</div>
-                    <div className="midi-cc-grid">
-                      {groupTargets.map((target) => {
-                        const cc = Object.entries(midiCcMap).find(([, v]) => v === target.id)?.[0] ?? "—";
-                        const isLearning = midiLearnTarget === target.id;
-                        return (
-                          <button
-                            key={target.id}
-                            className={`midi-cc-btn${isLearning ? " midi-cc-btn-learn" : ""}`}
-                            onClick={() => onMidiLearn(isLearning ? null : target.id)}
-                            title={isLearning ? "Cancel learn" : `CC${cc} → ${target.label}. Click to re-learn.`}
-                          >
-                            <span className="midi-cc-target">{target.label}</span>
-                            <span className="midi-cc-num">{isLearning ? "..." : cc === "—" ? "—" : `CC${cc}`}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
               <div className="fx-modal-actions">
-                <button className="header-btn" onClick={onMidiResetMap}>
-                  RESET TO DEFAULTS
+                <button
+                  className="header-btn header-btn-danger"
+                  onClick={() => { setSessionOpen(false); setDialogMode("reset"); }}
+                >
+                  RESET EVERYTHING
                 </button>
               </div>
               </>)}
-              </>)}
+
 
               {settingsTab === "appearance" && (<>
               <div className="fx-modal-section-label">PALETTE</div>
@@ -803,42 +859,262 @@ export function Header({
               </div>
 
               </>)}
+            </div>
+          </div>
+        </div>
+      )}
 
-              {settingsTab === "advanced" && (<>
-              <div className="fx-modal-section-label">MOTION RECORDING</div>
+      {midiModalOpen && (
+        <div className="fx-modal-backdrop" onClick={() => setMidiModalOpen(false)}>
+          <div className="fx-modal fx-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="fx-modal-header">
+              <div className="fx-modal-title">MIDI Mapping</div>
+              <button
+                className="fx-modal-close"
+                onClick={() => setMidiModalOpen(false)}
+                title="Close (Esc)"
+              >
+                ×
+              </button>
+            </div>
+            <div className="fx-modal-params">
+              <div className="fx-modal-section-label">DEVICES</div>
               <p className="fx-modal-desc">
-                Motion recording captures meaningful gesture events
-                (60 s / 200 max) into the next share URL so the
-                recipient hears the same sweep you made. Off by
-                default — toggle on to reveal the REC MOTION button
-                in the drone view.
+                External keyboard → tonic + octave. Use the <strong>MIDI</strong>
+                {" "}button in the header to enable input + enter learn mode.
+                {!midiSupported && " (Web MIDI is not available in this browser.)"}
               </p>
-              <div className="fx-modal-actions">
-                <button
-                  className={motionRecEnabled ? "header-btn header-btn-midi-on" : "header-btn"}
-                  onClick={() => onToggleMotionRec(!motionRecEnabled)}
-                  title={motionRecEnabled
-                    ? "Hide the REC MOTION button"
-                    : "Show the REC MOTION button in the drone view"}
-                >
-                  {motionRecEnabled ? "● MOTION RECORDING" : "MOTION RECORDING"}
-                </button>
+              <div className="fx-modal-param">
+                <span className="fx-modal-param-label">
+                  CONNECTED <span className="fx-modal-param-value">{midiDevices.length}</span>
+                </span>
+                {midiDevices.length === 0 ? (
+                  <div className="midi-device-empty">
+                    {midiEnabled ? "No MIDI inputs detected." : "Enable MIDI to scan for devices."}
+                  </div>
+                ) : (
+                  <ul className="midi-device-list">
+                    {midiDevices.map((d) => (
+                      <li key={d.id} className={`midi-device midi-device-${d.state}`}>
+                        <span className="midi-device-name">{d.name}</span>
+                        {d.manufacturer && <span className="midi-device-mfr"> · {d.manufacturer}</span>}
+                        <span className="midi-device-state"> · {d.state}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
+              <div className="fx-modal-param">
+                <span className="fx-modal-param-label">
+                  LAST NOTE <span className="fx-modal-param-value">{lastNoteLabel}</span>
+                </span>
+              </div>
+              {midiError && <div className="midi-error">{midiError}</div>}
 
               <div className="fx-modal-divider" />
-              <div className="fx-modal-section-label">RESET</div>
+              <div className="fx-modal-section-label">CC MAPPING</div>
               <p className="fx-modal-desc">
-                Wipe all saved sessions, autosave, palette, and every mdrone setting from localStorage. Cannot be undone.
+                {midiLearnTarget
+                  ? `Move a knob or fader to assign it to ${(MIDI_TARGETS_BY_ID.get(midiLearnTarget)?.label ?? midiLearnTarget).toUpperCase()}. The new CC is added — multiple CCs can drive the same parameter.`
+                  : "Click a target to add (or replace) a CC. A target can have multiple CCs — each chip is one. Click the × on a chip to remove just that CC."}
               </p>
-              <div className="fx-modal-actions">
+              {(() => {
+                const ccsByTarget = new Map<string, number[]>();
+                for (const [k, v] of Object.entries(midiCcMap)) {
+                  const cc = parseInt(k, 10);
+                  if (!isNaN(cc)) {
+                    if (!ccsByTarget.has(v)) ccsByTarget.set(v, []);
+                    ccsByTarget.get(v)!.push(cc);
+                  }
+                }
+                for (const ccs of ccsByTarget.values()) ccs.sort((a, b) => a - b);
+                return (
+                  <table className="midi-cc-table">
+                    <thead>
+                      <tr>
+                        <th className="midi-cc-th-target">Target</th>
+                        <th className="midi-cc-th-group">Group</th>
+                        <th className="midi-cc-th-ccs">CCs</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {MIDI_TARGET_GROUPS.flatMap((groupName) =>
+                        MIDI_TARGETS.filter((t) => t.group === groupName).map((target) => {
+                          const ccs = ccsByTarget.get(target.id) ?? [];
+                          const isLearning = midiLearnTarget === target.id;
+                          return (
+                            <tr
+                              key={target.id}
+                              className={
+                                "midi-cc-row" +
+                                (isLearning ? " midi-cc-row-learning" : "") +
+                                (ccs.length ? " midi-cc-row-mapped" : "")
+                              }
+                            >
+                              <td className="midi-cc-cell-target">
+                                <button
+                                  type="button"
+                                  className="midi-cc-row-learn"
+                                  onClick={() => onMidiLearn(isLearning ? null : target.id)}
+                                  title={
+                                    isLearning
+                                      ? "Cancel — waiting for a CC"
+                                      : ccs.length
+                                        ? `Click then move a knob to ADD another CC for ${target.label}.`
+                                        : `Click then move a knob to learn a CC for ${target.label}.`
+                                  }
+                                >
+                                  {target.label}
+                                </button>
+                              </td>
+                              <td className="midi-cc-cell-group">{target.group}</td>
+                              <td className="midi-cc-cell-ccs">
+                                {ccs.length === 0 && !isLearning && (
+                                  <span className="midi-cc-empty">—</span>
+                                )}
+                                {ccs.map((cc) => (
+                                  <span key={cc} className="midi-cc-chip">
+                                    <span className="midi-cc-chip-num">CC{cc}</span>
+                                    <button
+                                      type="button"
+                                      className="midi-cc-chip-x"
+                                      onClick={() => onMidiSetMap(removeCc(midiCcMap, cc))}
+                                      title={`Remove CC${cc}`}
+                                      aria-label={`Remove CC${cc} from ${target.label}`}
+                                    >×</button>
+                                  </span>
+                                ))}
+                                {isLearning && (
+                                  <span className="midi-cc-chip midi-cc-chip-armed">
+                                    <span className="midi-cc-chip-num">…waiting</span>
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                );
+              })()}
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">TEMPLATES</div>
+              <p className="fx-modal-desc">
+                Save the current mapping as a named template, swap between
+                controllers, or share by exporting JSON.
+              </p>
+              <div className="fx-modal-actions midi-template-row">
+                <input
+                  type="text"
+                  className="midi-template-name"
+                  placeholder="template name"
+                  value={midiTemplateName}
+                  maxLength={48}
+                  onChange={(e) => setMidiTemplateName(e.target.value)}
+                />
                 <button
-                  className="header-btn header-btn-danger"
-                  onClick={() => { setSessionOpen(false); setDialogMode("reset"); }}
+                  className="header-btn"
+                  disabled={!midiTemplateName.trim()}
+                  onClick={() => {
+                    const name = midiTemplateName.trim();
+                    if (!name) return;
+                    setMidiTemplates(saveTemplate(name, midiCcMap));
+                    setMidiTemplateName("");
+                  }}
+                  title="Save the current mapping under this name"
                 >
-                  RESET EVERYTHING
+                  SAVE
+                </button>
+                <button
+                  className="header-btn"
+                  onClick={() => {
+                    const name = (midiTemplateName.trim() || "mdrone-midi").replace(/[^a-z0-9._-]+/gi, "-");
+                    const json = exportCcMap(midiCcMap, name);
+                    const blob = new Blob([json], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${name}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                  }}
+                  title="Download the current mapping as a JSON file"
+                >
+                  EXPORT
+                </button>
+                <button
+                  className="header-btn"
+                  onClick={() => midiImportRef.current?.click()}
+                  title="Load a mapping from a JSON file"
+                >
+                  IMPORT
+                </button>
+                <input
+                  ref={midiImportRef}
+                  type="file"
+                  accept="application/json,.json"
+                  style={{ display: "none" }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      const map = parseImportedCcMap(text);
+                      if (!map) {
+                        showNotification("Import failed: no valid CC entries found.");
+                        return;
+                      }
+                      onMidiSetMap(map);
+                      showNotification(`Imported ${Object.keys(map).length} CC mappings from ${file.name}`);
+                    } catch {
+                      showNotification("Import failed: file could not be read.");
+                    }
+                  }}
+                />
+              </div>
+              {Object.keys(midiTemplates).length === 0 ? (
+                <div className="midi-device-empty">No saved templates yet.</div>
+              ) : (
+                <ul className="midi-template-list">
+                  {Object.keys(midiTemplates).sort().map((name) => (
+                    <li key={name} className="midi-template-item">
+                      <span className="midi-template-item-name">{name}</span>
+                      <span className="midi-template-item-meta">
+                        {Object.keys(midiTemplates[name]).length} CCs
+                      </span>
+                      <button
+                        className="header-btn"
+                        onClick={() => {
+                          onMidiSetMap(midiTemplates[name]);
+                          showNotification(`Loaded MIDI template "${name}"`);
+                        }}
+                        title={`Replace the current mapping with "${name}"`}
+                      >
+                        LOAD
+                      </button>
+                      <button
+                        className="header-btn header-btn-danger"
+                        onClick={() => setMidiTemplates(deleteTemplate(name))}
+                        title={`Delete "${name}"`}
+                      >
+                        DEL
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-actions">
+                <button className="header-btn" onClick={onMidiResetMap}>
+                  RESET TO DEFAULTS
                 </button>
               </div>
-              </>)}
             </div>
           </div>
         </div>

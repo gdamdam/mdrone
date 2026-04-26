@@ -575,10 +575,19 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   display: flex;
   align-items: center;
   gap: 8px;
-  opacity: 0.45;
-  transition: opacity 0.2s;
 }
-.header-secondary:hover { opacity: 1; }
+/* Individual buttons fade — only the hovered/focused/active one
+ * brightens, instead of the whole cluster lighting up at once. */
+.header-secondary > button {
+  opacity: 0.5;
+  transition: opacity 0.18s;
+}
+.header-secondary > button:hover,
+.header-secondary > button:focus-visible,
+.header-secondary > button.header-btn-midi-learn-active,
+.header-secondary > button.header-btn-midi-learn-on {
+  opacity: 1;
+}
 
 .header-row-brand {
   justify-content: space-between;
@@ -827,45 +836,54 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 @media (max-width: 720px) {
-  /* Mobile header — three rows:
-       Row 1: MDRONE · sigil            (brand row, unchanged shape)
-       Row 2: tabs · VOL · ⚙
-       Row 3: marquee (grows) · HOLD · RND · ● REC · SHARE
-     Row 1 is the default flex row of .header-row-brand. Rows 2 & 3
-     are produced inside .header-row-main by `display: contents` on
-     its .header-center + .header-secondary wrappers (so the leaf
-     buttons become direct flex children of .header-row-main) plus
-     a pseudo-element line break at order 50. */
+  /* Mobile header — two rows by intent:
+       Row 1: MDRONE [BETA] · scene marquee
+       Row 2: ▶ HOLD · SHARE · RND · ◉ MED · ▤ MIX · VOL · ⚙
+     The brand badge stays visible (small enough). The decorative
+     sigil and the standalone "?" button are hidden — Help is still
+     reachable via the Settings modal. The action row collapses
+     `.header-center` and `.header-secondary` via `display: contents`
+     so all buttons become direct flex children of `.header-row-main`,
+     ordered by intent. A pseudo-element at order 10 forces the row
+     break between brand/marquee (rows < 10) and actions (rows ≥ 10). */
   .header-row-brand .title-badge { display: none; }
+  .title-sigil,
+  .header-btn-help { display: none; }
 
   .header-row-main { flex-wrap: wrap; gap: 6px; align-items: center; }
   .header-center,
   .header-secondary { display: contents; }
   .header-row-main::before {
     content: "";
-    order: 50;
+    order: 10;
     flex-basis: 100%;
     height: 0;
   }
 
-  /* Row 2 */
-  .view-toggle { order: 1; flex: 0 1 auto; min-width: 0; }
-  .header-btn-volume { order: 2; }
-  .header-btn-menu { order: 3; }
-
-  /* Row 3 — marquee grabs the slack, transport cluster packs right. */
+  /* Row 1 */
+  .header-row-main .title { order: 0; flex: 0 0 auto; }
   .header-row-main .header-display {
-    order: 51;
+    order: 1;
     flex: 1 1 0;
     width: auto;
     min-width: 0;
     max-width: none;
   }
-  .header-row-main .header-display-track { text-align: center; }
-  .header-hold-btn { order: 52; }
-  .header-btn-random { order: 53; }
-  .header-btn-record { order: 54; }
-  .header-btn-share { order: 55; }
+  .header-row-main .header-display-track { text-align: right; }
+
+  /* Row 2 — reversed for thumb reach. The most-tapped action (HOLD)
+     sits on the right where the thumb naturally lands when holding
+     the phone; rarely-tapped admin (Settings) lands far left. Reading
+     order: ⚙ · VOL · ▤ MIX · ◉ MED · RND · SHARE · ▶ HOLD. */
+  .header-row-main .header-btn-menu      { order: 20; }
+  .header-row-main .header-btn-volume    { order: 21; }
+  .header-row-main .header-btn-mixer     { order: 22; }
+  .header-row-main .header-btn-meditate  { order: 23; }
+  .header-row-main .header-rnd-wrap      { order: 24; }
+  .header-row-main .header-btn-share     { order: 25; }
+  .header-row-main .header-hold-btn      { order: 26; }
+  /* Tutorial/REC button (rare) keeps tail position when present. */
+  .header-row-main .header-btn-record    { order: 27; }
 
   /* Tighter padding on mobile so the strip doesn't eat a third of
      the viewport height with its own chrome. Grid collapses to a
@@ -1723,6 +1741,212 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   border-color: var(--preview);
 }
 
+/* Global Ableton-style MIDI learn mode. The "MIDI" button in the
+ * header admin cluster toggles a body class; every mappable control
+ * marked with [data-midi-id] glows so users can spot what's clickable
+ * for assignment, and clicks are intercepted at capture phase by
+ * Layout's effect (the underlying control never fires). */
+.header-btn-midi-learn-on {
+  /* MIDI input enabled but not in learn mode — quiet preview tint. */
+  border-color: color-mix(in srgb, var(--preview) 70%, var(--border));
+  color: color-mix(in srgb, var(--preview) 70%, var(--text));
+}
+
+/* MIDI dropdown popover anchored to the header MIDI button. */
+.midi-menu-anchor {
+  position: relative;
+  display: inline-block;
+}
+.midi-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 150px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.midi-menu-item {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.midi-menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--preview) 18%, transparent);
+}
+.midi-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.midi-menu-item-on .midi-menu-check { color: var(--preview); }
+.midi-menu-item-on .midi-menu-label { color: var(--preview); font-weight: 700; }
+.midi-menu-item-learn.midi-menu-item-on {
+  animation: midi-learn-pulse 1s ease-in-out infinite alternate;
+}
+.midi-menu-check {
+  font: 700 13px / 1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+  text-align: center;
+}
+.midi-menu-label {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.midi-menu-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+.midi-menu-divider {
+  height: 1px;
+  margin: 3px 6px;
+  background: var(--border);
+}
+
+/* Wider modal for the mapping table — the standard fx-modal width
+ * gets cramped with three table columns + chips. */
+.fx-modal-wide { max-width: 640px; }
+
+/* Mobile — no MIDI in the header. Web MIDI is desktop-only in
+ * practice, and the header is already crowded on small screens. */
+@media (max-width: 720px) {
+  .midi-menu-anchor { display: none; }
+  /* Visualizer dropdown trigger — drop the "· subtitle" half so the
+   * preview pill stays one line. The popup options still render the
+   * full label, which keeps the picker informative. */
+  .drone-visualizer-preview-select .visualizer-subtitle { display: none; }
+}
+
+.header-btn-midi-learn-active {
+  background: var(--preview);
+  color: #160c06;
+  border-color: var(--preview);
+  animation: midi-learn-btn-pulse 1.6s ease-in-out infinite;
+}
+@keyframes midi-learn-btn-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--preview) 60%, transparent); }
+  50%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--preview) 0%, transparent); }
+}
+body.midi-learn-on [data-midi-id] {
+  outline: 1px dashed color-mix(in srgb, var(--preview) 70%, transparent);
+  outline-offset: 2px;
+  cursor: crosshair;
+  position: relative;
+}
+body.midi-learn-on [data-midi-id]:hover {
+  outline-style: solid;
+  outline-color: var(--preview);
+}
+/* The control whose id is currently armed (waiting for a CC) pulses
+ * brighter. Layout writes the armed id back via the same path the
+ * Settings modal uses (midiLearnTarget), and we mirror it onto a body
+ * data-attr so CSS can target the matching node without React per-control state. */
+body.midi-learn-on [data-midi-id].midi-learn-armed,
+body.midi-learn-on [data-midi-armed="true"] {
+  outline: 2px solid var(--preview);
+  animation: midi-learn-arm-pulse 0.9s ease-in-out infinite;
+}
+@keyframes midi-learn-arm-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--preview) 70%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--preview) 0%, transparent); }
+}
+/* CC badge — appears in the upper-right corner of any [data-midi-id]
+ * control that's currently mapped to a CC. Layout owns the
+ * data-midi-cc mirror; CSS just renders it. Pseudo-elements don't
+ * work on replaced elements like <input>, so wrap raw range inputs
+ * in a div/label and put data-midi-id on the wrapper. */
+body.midi-learn-on [data-midi-id][data-midi-cc]::after {
+  content: "CC" attr(data-midi-cc);
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 5;
+  padding: 1px 5px;
+  font: 600 9px / 1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+  color: #160c06;
+  background: var(--preview);
+  border-radius: 3px;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+/* Climate axis chips on the WeatherPad are absolutely positioned —
+ * the badge would clip the pad edge. Keep it inside the chip. */
+body.midi-learn-on .climate-axis[data-midi-cc]::after {
+  top: -4px; right: -4px;
+}
+
+/* MIDI template manager (Settings → MIDI) */
+.midi-template-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.midi-template-name {
+  flex: 1 1 160px;
+  min-width: 120px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.midi-template-name:focus {
+  outline: none;
+  border-color: var(--preview);
+}
+.midi-template-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.midi-template-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+}
+.midi-template-item-name {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.midi-template-item-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+
 .midi-device-list {
   list-style: none;
   padding: 0;
@@ -1770,20 +1994,57 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin: 8px 0;
 }
 .midi-cc-btn {
+  position: relative;
+  display: flex;
+  background: var(--bg-cell);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.midi-cc-btn:hover {
+  border-color: var(--preview);
+}
+.midi-cc-btn-main {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
   padding: 8px 4px;
-  background: var(--bg-cell);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: 0;
   border-radius: 6px;
-  color: var(--text);
-  cursor: pointer;
+  color: inherit;
   font-family: inherit;
-  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
 }
-.midi-cc-btn:hover {
+.midi-cc-btn-mapped { border-color: color-mix(in srgb, var(--preview) 50%, var(--border)); }
+.midi-cc-btn-mapped .midi-cc-num { color: var(--preview); font-weight: 700; }
+.midi-cc-btn-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 14px / 1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s, background 0.12s;
+}
+.midi-cc-btn:hover .midi-cc-btn-remove { opacity: 1; }
+.midi-cc-btn-remove:hover {
+  color: #160c06;
+  background: var(--preview);
   border-color: var(--preview);
 }
 .midi-cc-btn-learn {
@@ -1804,6 +2065,108 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 11px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+}
+
+/* MIDI CC mapping table — flat table view. Each row is one target;
+ * the CCs cell holds zero or more CC chips with × to delete. Replaces
+ * the older category grid (the .midi-cc-grid / .midi-cc-btn classes
+ * above are kept for back-compat but no longer rendered). */
+.midi-cc-table {
+  width: 100%;
+  margin: 8px 0 4px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.midi-cc-table thead th {
+  text-align: left;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  color: var(--text-dim);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+.midi-cc-table tbody tr {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.midi-cc-table tbody tr:last-child { border-bottom: 0; }
+.midi-cc-table td {
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+.midi-cc-cell-target { width: 38%; }
+.midi-cc-cell-group {
+  width: 18%;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.midi-cc-cell-ccs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.midi-cc-row-learn {
+  display: inline-block;
+  width: 100%;
+  text-align: left;
+  padding: 2px 0;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.midi-cc-row-learn:hover { color: var(--preview); }
+.midi-cc-row-mapped .midi-cc-row-learn { color: var(--text); }
+.midi-cc-row-learning .midi-cc-row-learn {
+  color: var(--preview);
+  animation: midi-learn-pulse 1s ease-in-out infinite alternate;
+}
+.midi-cc-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.midi-cc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 7px;
+  background: var(--bg-cell);
+  border: 1px solid color-mix(in srgb, var(--preview) 50%, var(--border));
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+.midi-cc-chip-num { color: var(--preview); font-weight: 700; }
+.midi-cc-chip-armed {
+  border-style: dashed;
+  animation: midi-learn-pulse 1s ease-in-out infinite alternate;
+}
+.midi-cc-chip-armed .midi-cc-chip-num { color: var(--preview); }
+.midi-cc-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  font: 700 13px / 1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.midi-cc-chip-x:hover {
+  color: #160c06;
+  background: var(--preview);
 }
 
 .midi-cc-group { margin-top: 10px; }

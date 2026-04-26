@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
-import { loadCcMap, saveCcMap, assignCc, resetCcMap, MIDI_TARGETS_BY_ID, type CcMap } from "../engine/midiMapping";
+import { loadCcMap, saveCcMap, assignCc, resetCcMap, ccForTarget, MIDI_TARGETS_BY_ID, enumIndexFromCc, type CcMap } from "../engine/midiMapping";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION, STORAGE_KEYS, type WeatherVisual } from "../config";
@@ -246,10 +246,124 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // manager.
   const [ccMap, setCcMap] = useState<CcMap>(loadCcMap);
   const [midiLearnTarget, setMidiLearnTarget] = useState<string | null>(null);
+  // Global "MIDI" toggle (Ableton-style): when on, click any control
+  // with [data-midi-id] to arm it, wiggle a CC to assign. Coexists
+  // with the per-target Settings flow — both write through midiLearnTarget.
+  const [midiLearnMode, setMidiLearnMode] = useState(false);
   const ccMapRef = useRef(ccMap);
   const midiLearnRef = useRef(midiLearnTarget);
   useEffect(() => { ccMapRef.current = ccMap; }, [ccMap]);
   useEffect(() => { midiLearnRef.current = midiLearnTarget; }, [midiLearnTarget]);
+
+  // Body class so CSS can highlight every [data-midi-id] while learn
+  // mode is on. Cleaned up on toggle off / unmount.
+  useEffect(() => {
+    if (!midiLearnMode) return;
+    document.body.classList.add("midi-learn-on");
+    return () => { document.body.classList.remove("midi-learn-on"); };
+  }, [midiLearnMode]);
+
+  // Capture-phase click handler: in learn mode, intercept clicks on
+  // any [data-midi-id], arm that target, swallow the click so the
+  // underlying control doesn't change value. The next CC message will
+  // be assigned by the existing handleMidiCc learn branch.
+  useEffect(() => {
+    if (!midiLearnMode) return;
+    const onClick = (e: MouseEvent) => {
+      const el = (e.target as Element | null)?.closest?.("[data-midi-id]") as HTMLElement | null;
+      if (!el) return;
+      const id = el.getAttribute("data-midi-id");
+      if (!id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMidiLearnTarget(id);
+    };
+    document.addEventListener("click", onClick, true);
+    document.addEventListener("pointerdown", onClick, true);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("pointerdown", onClick, true);
+    };
+  }, [midiLearnMode]);
+
+  // While learn mode is on, every [data-midi-id] node carries
+  // data-midi-cc="<n>" if a CC is mapped to its id. Pure CSS draws
+  // the small badge. A MutationObserver catches modals/lists that
+  // mount controls after learn mode is enabled.
+  useEffect(() => {
+    if (!midiLearnMode) {
+      document.querySelectorAll<HTMLElement>("[data-midi-cc]")
+        .forEach((el) => el.removeAttribute("data-midi-cc"));
+      return;
+    }
+    const apply = (el: HTMLElement) => {
+      const id = el.getAttribute("data-midi-id");
+      if (!id) return;
+      const cc = ccForTarget(ccMap, id);
+      if (cc != null) el.setAttribute("data-midi-cc", String(cc));
+      else el.removeAttribute("data-midi-cc");
+    };
+    const sweep = () => {
+      document.querySelectorAll<HTMLElement>("[data-midi-id]").forEach(apply);
+    };
+    sweep();
+    const obs = new MutationObserver((muts) => {
+      let dirty = false;
+      for (const m of muts) {
+        m.addedNodes.forEach((n) => {
+          if (!(n instanceof HTMLElement)) return;
+          if (n.matches?.("[data-midi-id]") || n.querySelector?.("[data-midi-id]")) dirty = true;
+        });
+        if (m.type === "attributes" && m.target instanceof HTMLElement
+            && m.attributeName === "data-midi-id") dirty = true;
+      }
+      if (dirty) sweep();
+    });
+    obs.observe(document.body, {
+      childList: true, subtree: true,
+      attributes: true, attributeFilter: ["data-midi-id"],
+    });
+    return () => {
+      obs.disconnect();
+      document.querySelectorAll<HTMLElement>("[data-midi-cc]")
+        .forEach((el) => el.removeAttribute("data-midi-cc"));
+    };
+  }, [midiLearnMode, ccMap]);
+
+  // Mirror the armed target onto its DOM nodes so CSS can pulse them.
+  // Cheap query — only runs on mode/target changes, not per render.
+  useEffect(() => {
+    if (!midiLearnMode || !midiLearnTarget) {
+      document.querySelectorAll<HTMLElement>("[data-midi-armed]")
+        .forEach((el) => el.removeAttribute("data-midi-armed"));
+      return;
+    }
+    const sel = `[data-midi-id="${CSS.escape(midiLearnTarget)}"]`;
+    document.querySelectorAll<HTMLElement>(sel)
+      .forEach((el) => el.setAttribute("data-midi-armed", "true"));
+    return () => {
+      document.querySelectorAll<HTMLElement>(sel)
+        .forEach((el) => el.removeAttribute("data-midi-armed"));
+    };
+  }, [midiLearnMode, midiLearnTarget]);
+
+  // Esc exits learn mode first (before any modal Esc handlers).
+  useEffect(() => {
+    if (!midiLearnMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // stopImmediatePropagation prevents the modals' bubble-phase
+        // Esc handlers from firing too — Esc exits learn mode FIRST,
+        // and only a second Esc closes whatever modal is open.
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        setMidiLearnMode(false);
+        setMidiLearnTarget(null);
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [midiLearnMode]);
 
   // Refs so the dispatch doesn't close over stale handler identities.
   // sceneManager is re-created on every render; handlePanic is an
@@ -308,6 +422,17 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       return;
     }
 
+    // ── Enum — band-split CC value into N option indices and dispatch. ──
+    if (target.kind === "enum") {
+      const opts = target.options ?? [];
+      if (!opts.length) return;
+      const idx = enumIndexFromCc(value, opts.length);
+      switch (targetId) {
+        case "fx.formant.vowel": engine?.getFxChain?.().setFormantVowel(idx); break;
+      }
+      return;
+    }
+
     // ── Continuous dispatch — `norm` is 0..1. Most targets are
     //    nominally 0..1; those that aren't remap inside the case. ─
     const norm = value / 127;
@@ -342,14 +467,17 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       case "drive":   eng?.setDrive?.(1 + norm * 3); break;           // 1..4×
       case "ceiling": eng?.setLimiterCeiling?.(-6 + norm * 6); break; // -6..0 dBFS
 
-      // Voice levels (0..1)
-      case "voice.tanpura": eng?.setVoiceLevel?.("tanpura", norm); break;
-      case "voice.reed":    eng?.setVoiceLevel?.("reed",    norm); break;
-      case "voice.metal":   eng?.setVoiceLevel?.("metal",   norm); break;
-      case "voice.air":     eng?.setVoiceLevel?.("air",     norm); break;
-      case "voice.piano":   eng?.setVoiceLevel?.("piano",   norm); break;
-      case "voice.fm":      eng?.setVoiceLevel?.("fm",      norm); break;
-      case "voice.amp":     eng?.setVoiceLevel?.("amp",     norm); break;
+      // Voice levels (0..1) — must go through DroneView so React
+      // scene state stays in sync; calling engine.setVoiceLevel
+      // directly was overwritten by the next scene resync, so the
+      // CC produced no audible (or visible) change.
+      case "voice.tanpura": dv?.setVoiceLevel?.("tanpura", norm); break;
+      case "voice.reed":    dv?.setVoiceLevel?.("reed",    norm); break;
+      case "voice.metal":   dv?.setVoiceLevel?.("metal",   norm); break;
+      case "voice.air":     dv?.setVoiceLevel?.("air",     norm); break;
+      case "voice.piano":   dv?.setVoiceLevel?.("piano",   norm); break;
+      case "voice.fm":      dv?.setVoiceLevel?.("fm",      norm); break;
+      case "voice.amp":     dv?.setVoiceLevel?.("amp",     norm); break;
 
       // Effect levels (0..1). The SHAPE effect toggles are still the
       // authority on whether an effect is in-chain; this CC just
@@ -607,6 +735,15 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         midiCcMap={ccMap}
         midiLearnTarget={midiLearnTarget}
         onMidiLearn={setMidiLearnTarget}
+        onMidiSetMap={(m) => { setCcMap(m); saveCcMap(m); }}
+        midiLearnMode={midiLearnMode}
+        onToggleMidiLearnMode={() => {
+          setMidiLearnMode((on) => {
+            const next = !on;
+            if (!next) setMidiLearnTarget(null);
+            return next;
+          });
+        }}
         onMidiResetMap={handleResetCcMap}
         weatherVisual={weatherVisual}
         onChangeWeatherVisual={setWeatherVisual}

@@ -351,7 +351,22 @@ export function VisualizerPreview({
             value={visualizer}
             groups={VISUALIZER_GROUPS.map((g) => ({
               label: g.label,
-              items: g.items.map((v) => ({ value: v, label: VISUALIZER_LABELS[v] })),
+              items: g.items.map((v) => {
+                const full = VISUALIZER_LABELS[v];
+                const sepIdx = full.indexOf(" · ");
+                // Split into title + " · subtitle". The subtitle span
+                // is hidden inside the trigger on mobile via CSS so
+                // a long visualizer name like "PHASE PORTRAIT ·
+                // Lissajous attractor" doesn't wrap to three lines on
+                // a phone. The popup keeps the full label.
+                const label = sepIdx === -1 ? full : (
+                  <>
+                    {full.slice(0, sepIdx)}
+                    <span className="visualizer-subtitle">{full.slice(sepIdx)}</span>
+                  </>
+                );
+                return { value: v, label };
+              }),
             }))}
             onChange={onChangeVisualizer}
             className="drone-visualizer-preview-select"

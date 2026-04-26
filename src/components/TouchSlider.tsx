@@ -13,6 +13,10 @@ type TouchSliderProps = {
   style?: React.CSSProperties;
   "aria-label"?: string;
   title?: string;
+  /** Marks this slider as MIDI-mappable. The id matches a MIDI_TARGETS
+   *  entry. Goes onto the outer span so the global learn-mode capture
+   *  click handler can find it via closest('[data-midi-id]'). */
+  midiId?: string;
 };
 
 /**
@@ -31,6 +35,7 @@ export function TouchSlider({
   style,
   title,
   "aria-label": ariaLabel,
+  midiId,
 }: TouchSliderProps) {
   const wrapRef = useRef<HTMLSpanElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,6 +86,7 @@ export function TouchSlider({
           : "touch-slider"
       }
       title={title}
+      data-midi-id={midiId}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

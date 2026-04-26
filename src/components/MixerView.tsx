@@ -26,13 +26,15 @@ interface StripProps {
   onChange: (v: number) => void;
   centre?: number;
   title?: string;
+  /** MIDI target id for global learn mode (Ableton-style). */
+  midiId?: string;
 }
 
-function Strip({ label, value, min, max, step, unit, onChange, centre, title }: StripProps) {
+function Strip({ label, value, min, max, step, unit, onChange, centre, title, midiId }: StripProps) {
   const pct = ((value - min) / (max - min)) * 100;
   const centrePct = centre !== undefined ? ((centre - min) / (max - min)) * 100 : null;
   return (
-    <div className="mixer-strip" title={title}>
+    <div className="mixer-strip" title={title} data-midi-id={midiId}>
       <div className="mixer-strip-label">{label}</div>
       <div className="mixer-strip-slider-wrap">
         {centrePct !== null && (
@@ -212,7 +214,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
     <div className="mixer-layout">
       <div className="mixer-strips">
         {/* HPF toggle column */}
-        <div className="mixer-strip" title="Highpass filter — click to cycle OFF / 20 / 30 / 40 Hz">
+        <div className="mixer-strip" title="Highpass filter — click to cycle OFF / 20 / 30 / 40 Hz" data-midi-id="hpf">
           <div className="mixer-strip-label">HPF</div>
           <button
             onClick={cycleHpf}
@@ -231,18 +233,18 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
         <div className="mixer-divider" />
 
         <Strip label="LOW" value={low} min={-18} max={18} step={0.5} unit="dB" onChange={onLow} centre={0}
-          title="Low shelf — boost or cut below ~250 Hz" />
+          title="Low shelf — boost or cut below ~250 Hz" midiId="eqLow" />
         <Strip label="MID" value={mid} min={-18} max={18} step={0.5} unit="dB" onChange={onMid} centre={0}
-          title="Mid peaking — boost or cut around 1 kHz" />
+          title="Mid peaking — boost or cut around 1 kHz" midiId="eqMid" />
         <Strip label="HIGH" value={high} min={-18} max={18} step={0.5} unit="dB" onChange={onHigh} centre={0}
-          title="High shelf — boost or cut above ~4 kHz" />
+          title="High shelf — boost or cut above ~4 kHz" midiId="eqHigh" />
 
         <div className="mixer-divider" />
 
         <Strip label="GLUE" value={glue} min={0} max={1} step={0.01} unit="" onChange={onGlue}
-          title="Glue compressor — gentle 2:1 bus compression with auto makeup gain" />
+          title="Glue compressor — gentle 2:1 bus compression with auto makeup gain" midiId="glue" />
         <Strip label="DRIVE" value={drive} min={1} max={10} step={0.1} unit="×" onChange={onDrive}
-          title="Soft-clip drive — tanh waveshaper for warmth and harmonics" />
+          title="Soft-clip drive — tanh waveshaper for warmth and harmonics" midiId="drive" />
 
         <div className="mixer-divider" />
 
@@ -284,12 +286,12 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
         </div>
 
         <Strip label="CEIL" value={ceiling} min={-6} max={0} step={0.1} unit="dB" onChange={onCeiling}
-          title="Limiter output ceiling — maximum peak level" />
+          title="Limiter output ceiling — maximum peak level" midiId="ceiling" />
 
         <div className="mixer-divider" />
 
         <Strip label="VOL" value={volume} min={0} max={1.5} step={0.01} unit="" onChange={onVolume}
-          title="Master output trim — final volume, post-limiter" />
+          title="Master output trim — final volume, post-limiter" midiId="volume" />
 
         <Strip label="WIDTH" value={width} min={0} max={2} step={0.01} unit="" onChange={onWidth} centre={1}
           title="Stereo width — M/S matrix. 1 = identity, 0 = mono, 2 = wide (phase-inverted side)." />

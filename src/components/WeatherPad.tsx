@@ -278,10 +278,10 @@ export function WeatherPad({
           className="climate-cursor"
           style={{ left: `${climateX * 100}%`, bottom: `${climateY * 100}%` }}
         />
-        <span className="climate-axis climate-axis-x-left">DARK</span>
-        <span className="climate-axis climate-axis-x-right">BRIGHT</span>
-        <span className="climate-axis climate-axis-y-top">MOVING</span>
-        <span className="climate-axis climate-axis-y-bot">STILL</span>
+        <span className="climate-axis climate-axis-x-left" data-midi-id="weatherX">DARK</span>
+        <span className="climate-axis climate-axis-x-right" data-midi-id="weatherX">BRIGHT</span>
+        <span className="climate-axis climate-axis-y-top" data-midi-id="weatherY">MOVING</span>
+        <span className="climate-axis climate-axis-y-bot" data-midi-id="weatherY">STILL</span>
       </div>
     </div>
   );

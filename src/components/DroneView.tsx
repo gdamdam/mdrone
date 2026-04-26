@@ -290,6 +290,10 @@ export interface DroneViewHandle {
   getSnapshot(): DroneSessionSnapshot;
   applySnapshot(snapshot: DroneSessionSnapshot): void;
   applyLivePatch(patch: DroneLivePatch, options?: { record?: boolean }): void;
+  /** Set a single voice's mix level. Routes through scene state so
+   *  the UI sliders track the change (vs. calling engine.setVoiceLevel
+   *  directly, which the scene reducer would overwrite on next sync). */
+  setVoiceLevel(type: import("../engine/VoiceBuilder").VoiceType, level: number): void;
   togglePlay(): void;
   setRoot(root: PitchClass): void;
   setOctave(octave: number): void;
@@ -833,6 +837,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     getSnapshot: getSnapshotWithLocals,
     applySnapshot: applySnapshotWithLocals,
     applyLivePatch,
+    setVoiceLevel,
     togglePlay,
     setRoot,
     setOctave,
@@ -848,6 +853,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     getSnapshotWithLocals,
     applySnapshotWithLocals,
     applyLivePatch,
+    setVoiceLevel,
     setOctave,
     setRoot,
     startImmediate,
@@ -936,6 +942,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               onClick={() => onMutateScene?.(mutateIntensity)}
               title={`MUTATE — one-shot random perturbation of the current scene by ${Math.round(mutateIntensity * 100)}% (voice mix, macros, effect levels). Fires once per click.`}
               aria-label="Mutate the current scene"
+              data-midi-id="mutate"
             >
               <span className="preset-mut-btn-label">MUTATE</span>
               <span className="preset-mut-btn-icon" aria-hidden="true">↯</span>
@@ -1294,6 +1301,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconBloom />}
                 title="MORPH (seconds) — time the drone takes to cross-fade when you load another preset. 0 = snap, 1 = ~20 s glacial fade."
                 hint="preset-change crossfade"
+                midiId="morph"
               />
               <Macro
                 label="EVOLVE"
@@ -1302,6 +1310,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconDrift />}
                 title="EVOLVE (minutes) — how much the drone drifts on its own while a preset is held. 0 = dead-still, 1 = continuous slow change."
                 hint="autonomous slow drift"
+                midiId="evolve"
               />
               <Macro
                 label="TIME"
@@ -1310,6 +1319,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconTime />}
                 title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
                 hint="rate of weather motion"
+                midiId="time"
               />
             </div>
 
@@ -1322,6 +1332,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconDrift />}
                 title="Drift — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
                 hint="partials wander in pitch"
+                midiId="drift"
               />
               <Macro
                 label="AIR"
@@ -1330,6 +1341,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconAir />}
                 title="Air — wet send into the atmosphere chain (reverb + space)"
                 hint="reverb / space send"
+                midiId="air"
               />
               <Macro
                 label="SUB"
@@ -1338,6 +1350,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconSub />}
                 title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
                 hint="sub-octave triangle layer"
+                midiId="sub"
               />
               <Macro
                 label="BLOOM"
@@ -1347,6 +1360,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 displayValue={`${(0.3 + state.bloom * 9.7).toFixed(1)}s`}
                 title="Bloom — attack time on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
                 hint="voice attack on next HOLD"
+                midiId="bloom"
               />
               <Macro
                 label="GLIDE"
@@ -1356,6 +1370,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 displayValue={`${(0.05 * Math.pow(160, state.glide)).toFixed(2)}s`}
                 title="Glide — how slowly the drone retunes when you pick a new tonic. 50 ms = snap, 8 s = slowly flowing between notes"
                 hint="retune time between notes"
+                midiId="glide"
               />
             </div>
 
@@ -1568,7 +1583,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             {/* Inline level sliders for active voices */}
             {VOICES.map((v) => state.voiceLayers[v.id] && (
               <Fragment key={v.id}>
-                <div className="layer-level-row">
+                <div className="layer-level-row" data-midi-id={v.id !== "noise" ? `voice.${v.id}` : undefined}>
                   <span className="layer-level-label">{v.label}</span>
                   <input
                     type="range" min={0} max={1} step={0.01}
@@ -1817,6 +1832,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                     ? `Locked to Ableton Link: ${linkState.tempo.toFixed(1)} BPM × ${lfoSyncMode} note`
                     : "LFO rate — 0.05 Hz (very slow) to 8 Hz (fluttering). Click SYNC to lock to Ableton Link tempo."
                 }
+                midiId="lfoRate"
               />
               <button
                 type="button"
@@ -1858,6 +1874,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               onChange={setLfoAmount}
               icon={<IconDepth />}
               title="LFO depth — how much it modulates the voice gain. 0 = off, 1 = full breathing"
+              midiId="lfoAmount"
             />
             <div data-tutor="entrain">
               <EntrainPanel
@@ -1894,6 +1911,7 @@ function Macro({
   displayValue,
   hint,
   vertical,
+  midiId,
 }: {
   label: string;
   value: number;
@@ -1911,10 +1929,12 @@ function Macro({
    *  reinforces the two-tier driver/body hierarchy. On narrow
    *  viewports CSS collapses vertical mode back to a row. */
   vertical?: boolean;
+  /** MIDI target id for global learn mode. */
+  midiId?: string;
 }) {
   if (vertical) {
     return (
-      <div className="macro-col" title={title}>
+      <div className="macro-col" title={title} data-midi-id={midiId}>
         <span className="macro-col-label">{label}</span>
         {hint && <span className="macro-col-hint">{hint}</span>}
         <div className="macro-col-fader">
@@ -1950,6 +1970,7 @@ function Macro({
           onChange={onChange}
           className="macro-slider"
           aria-label={label}
+          midiId={midiId}
           style={{ ["--fill" as string]: `${value * 100}%` } as React.CSSProperties}
         />
         <span className="macro-value">

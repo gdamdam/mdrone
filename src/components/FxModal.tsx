@@ -155,6 +155,7 @@ function ParamSlider({
   step,
   unit,
   onChange,
+  midiId,
 }: {
   label: string;
   value: number;
@@ -163,6 +164,7 @@ function ParamSlider({
   step: number;
   unit: string;
   onChange: (v: number) => void;
+  midiId?: string;
 }) {
   return (
     <div className="fx-param-row">
@@ -175,6 +177,7 @@ function ParamSlider({
         onChange={onChange}
         className="fx-param-slider"
         aria-label={label}
+        midiId={midiId}
       />
       <span className="fx-param-value">
         {step < 0.01 ? value.toFixed(3) : step < 1 ? value.toFixed(2) : Math.round(value)}
@@ -205,6 +208,7 @@ function AmountOnly({
         setAmount(v);
         if (engine && fx) fx.setEffectLevel(effectId, v);
       }}
+      midiId={`fx.${effectId}`}
     />
   );
 }
@@ -371,6 +375,7 @@ function FormantParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChain
           {VOWEL_LABELS.map((label, i) => (
             <button
               key={label}
+              data-midi-id="fx.formant.vowel"
               className={`fx-vowel-btn${vowel === i ? " fx-vowel-btn-active" : ""}`}
               onClick={() => { setVowel(i); fx?.setFormantVowel(i); }}
             >
