@@ -128,11 +128,28 @@ export function Header({
   // Drone logo vibration — rAF loop reads the master analyser's RMS
   // and writes a tiny translate transform on the title-art element.
   // Purely imperative: no React state, so no re-renders.
+  //
+  // The halo tracks RMS but stays close to the static CSS look so the
+  // wordmark colour is preserved during playback. The previous version
+  // wrote hard-coded warm rgb shadows (255, 160, 60) at α up to 0.85
+  // which tinted the wordmark orange regardless of palette and shifted
+  // the perceived colour well off the original. Now the halo colour is
+  // sampled from the resolved title text colour (i.e. --preview from
+  // the active palette) and the α range is narrower, so the halo only
+  // modulates intensity, not hue.
   const titleArtRef = useRef<HTMLPreElement>(null);
   useEffect(() => {
     if (!analyser) return;
     const el = titleArtRef.current;
     if (!el) return;
+    // Resolve palette colour once at mount; getComputedStyle returns
+    // "rgb(r, g, b)" or "rgba(r, g, b, a)" — parse out the channels.
+    const parseRgb = (s: string): [number, number, number] => {
+      const m = s.match(/(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)/);
+      if (!m) return [255, 200, 140]; // safe ember fallback
+      return [Math.round(+m[1]), Math.round(+m[2]), Math.round(+m[3])];
+    };
+    const [r, g, b] = parseRgb(getComputedStyle(el).color);
     const buf = new Uint8Array(analyser.fftSize);
     let raf = 0;
     let lastPaint = -Infinity;
@@ -157,13 +174,16 @@ export function Header({
       const dx = Math.sin(t * 23.1) * amp;
       const dy = Math.cos(t * 29.7) * amp;
       el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
-      // Glow that tracks the level — ember text-shadow that grows
-      // with rms. Two stacked shadows for a soft + tight halo.
-      const glowR = 4 + smoothedRms * 16;
-      const glowA = 0.35 + smoothedRms * 0.5;
+      // Halo intensity tracks RMS; colour stays the palette colour.
+      // Outer α 0.18..0.32, inner α 0.32..0.55 — keeps the static
+      // ember halo close to the resting CSS shadow defined in
+      // globals.css (.title-art) while letting it bloom on peaks.
+      const glowR = 4 + smoothedRms * 6;
+      const aOuter = 0.18 + smoothedRms * 0.14;
+      const aInner = 0.32 + smoothedRms * 0.23;
       el.style.textShadow =
-        `0 0 ${glowR.toFixed(1)}px rgba(255, 160, 60, ${glowA.toFixed(2)}),` +
-        ` 0 0 ${(glowR * 0.35).toFixed(1)}px rgba(255, 220, 120, ${(glowA * 1.1).toFixed(2)})`;
+        `0 0 ${glowR.toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aOuter.toFixed(2)}),` +
+        ` 0 0 ${(glowR * 0.35).toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aInner.toFixed(2)})`;
     };
     raf = requestAnimationFrame(tick);
     return () => {
