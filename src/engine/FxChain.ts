@@ -549,15 +549,13 @@ export class FxChain {
 
   /** SUB — true octave-down subharmonic. A triangle oscillator sits at
    *  half the drone root, amplitude-modulated by an envelope follower
-   *  of the input signal. Dry passes through in parallel so the insert
-   *  *adds* sub to the chain instead of replacing the full-band signal
-   *  with bass-only content. Topology:
+   *  of the input signal. Additive insert: dry passes via bypassGain
+   *  (handled by setEffect/setEffectLevel) and the wet path carries
+   *  only the synthesised sub. Topology:
    *
-   *    insertIn ─┬─ dryTap ───────────────────────────────┐
-   *              │                                        │
-   *              └─ absShaper ─ envLp ─┐                   │
-   *                                    ▼                   ▼
-   *                        subOsc ─ envGain ─ outLp ─ trim ─sum → wetGain
+   *    insertIn ── absShaper ── envLp ─┐
+   *                                    ▼
+   *                        subOsc ─ envGain ─ outLp ─ trim → wetGain
    *
    *  The sub oscillator tracks the drone root via setRootFreq(), or
    *  can be manually set via setSubCenter() (the modal's CENTER knob).
@@ -566,11 +564,10 @@ export class FxChain {
     const ctx = this.ctx;
     const ins = this.inserts.sub;
 
-    // Dry pass — so the insert adds sub to the signal instead of
-    // stripping the chain down to bass-only.
-    const dryTap = ctx.createGain();
-    dryTap.gain.value = 1.0;
-    ins.insertIn.connect(dryTap).connect(ins.wetGain);
+    // Sub is now an additive insert (bypass=1 when ON), so the dry
+    // signal flows through `bypassGain` like every other additive
+    // effect. wetGain only carries the synthesised sub-octave; the
+    // modal AMOUNT knob scales just the added sub level.
 
     // Sub oscillator — triangle at root/2. Default 55 Hz (for a
     // 110 Hz default root). Retuned on every setRootFreq() call.
@@ -1384,11 +1381,20 @@ export class FxChain {
     // For every other effect the insert is still a classic bypass↔wet
     // crossfade.
     const wetTarget = on ? this.wetTargetFor(id) : 0;
-    const isAdditive =
-      id === "granular" || id === "graincloud" ||
-      id === "plate" || id === "hall" || id === "shimmer" || id === "cistern" ||
-      id === "halo";
-    const bypassTarget = isAdditive ? 1 : (on ? 0 : 1);
+    // When ON: additive inserts keep dry open (bypass=1) and add wet
+    //          on top — reverbs, grain clouds, sub, delay sends, halo.
+    //          Coloration inserts (tape, wow, comb, ringmod, formant)
+    //          are a wet/dry crossfade — bypass tracks (1 - amount) so
+    //          the modal AMOUNT knob actually controls the effect's
+    //          contribution, not the chain volume. At amount=0 the
+    //          slot passes the signal through clean.
+    // When OFF: bypass=1, wet=0 (clean passthrough) regardless of kind.
+    const additive = this.isAdditiveEffect(id);
+    const bypassTarget = !on
+      ? 1
+      : additive
+        ? 1
+        : 1 - this.levels[id];
     ins.bypassGain.gain.setTargetAtTime(bypassTarget, now, this.xfadeTC);
     ins.wetGain.gain.setTargetAtTime(wetTarget, now, this.xfadeTC);
     // Input-side gate (worklet-backed inserts only) — silence the
@@ -1692,11 +1698,26 @@ export class FxChain {
     const now = this.ctx.currentTime;
     const target = this.enabled[id] ? this.wetTargetFor(id) : 0;
     this.inserts[id].wetGain.gain.setTargetAtTime(target, now, this.xfadeTC);
-    // Granular / graincloud: the worklet's internal `mix` is pinned
-    // to 1.0 (pure grain). The dry/wet blend lives at the insert
-    // level (bypass always 1, wet = amount), so the modal AMOUNT
-    // knob cleanly controls the added grain level. No worklet-side
-    // param update needed here.
+    // Coloration effects do a wet/dry crossfade — bypass holds the
+    // dry, wet holds the processed signal — so AMOUNT must drive
+    // both gains. Without this update, lowering AMOUNT on tape /
+    // wow / comb / ringmod / formant just attenuated the chain
+    // (bypass stayed at 0). Additive inserts keep bypass at 1.
+    if (this.enabled[id] && !this.isAdditiveEffect(id)) {
+      this.inserts[id].bypassGain.gain.setTargetAtTime(1 - v, now, this.xfadeTC);
+    }
+  }
+
+  /** Effects that *add* their wet on top of an open dry path
+   *  (bypass=1 always when ON). Coloration / replacement inserts
+   *  (tape, wow, comb, ringmod, formant) are NOT additive — for
+   *  those the modal's AMOUNT crossfades dry↔wet. */
+  private isAdditiveEffect(id: EffectId): boolean {
+    return id === "granular" || id === "graincloud"
+      || id === "plate" || id === "hall" || id === "shimmer" || id === "cistern"
+      || id === "halo"
+      || id === "delay"   // delay is a typical send — dry + tail
+      || id === "sub";    // sub adds an octave-down on top of dry
   }
 
   getEffectLevel(id: EffectId): number {
