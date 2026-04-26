@@ -16,7 +16,7 @@
  * that flips the existing update banner.
  */
 
-const APP_VERSION = "1.18.11";
+const APP_VERSION = "1.18.13";
 const CACHE = `mdrone-v${APP_VERSION}`;
 
 // Shell files that are stable across a single deploy. Hashed Vite
