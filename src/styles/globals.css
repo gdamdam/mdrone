@@ -1419,13 +1419,12 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     0 0 8px color-mix(in srgb, var(--preview) 32%, transparent),
     0 0 16px color-mix(in srgb, var(--preview) 14%, transparent);
 }
-/* While HOLD is active the wordmark steps back so playing surfaces
-   (preset name, transport, MEDITATE) own the eye. Brand returns on
-   release. The BETA badge follows so the cluster reads as a unit. */
-.header-holding .title-art,
-.header-holding .title-badge {
-  opacity: 0.55;
-}
+/* Wordmark brightness is now driven by the analyser via the rAF in
+   Header.tsx (filter: brightness(0.78..1.0) tracking RMS), so the
+   wordmark is full-bright while the drone is sounding and lightly
+   dimmed when silent — regardless of HOLD state. The previous
+   .header-holding-coupled opacity dim that receded the brand during
+   playback has been removed. */
 
 .title-version {
   font-size: 9px;
