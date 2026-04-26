@@ -129,14 +129,13 @@ export function Header({
   // and writes a tiny translate transform on the title-art element.
   // Purely imperative: no React state, so no re-renders.
   //
-  // The halo tracks RMS but stays close to the static CSS look so the
-  // wordmark colour is preserved during playback. The previous version
-  // wrote hard-coded warm rgb shadows (255, 160, 60) at α up to 0.85
-  // which tinted the wordmark orange regardless of palette and shifted
-  // the perceived colour well off the original. Now the halo colour is
-  // sampled from the resolved title text colour (i.e. --preview from
-  // the active palette) and the α range is narrower, so the halo only
-  // modulates intensity, not hue.
+  // Brightness inverts with sound: at silence the wordmark sits at a
+  // dim α (≈ 0.55) of the palette colour with almost no halo; as RMS
+  // rises, the colour α climbs toward 1.0 and the halo blooms — so
+  // the logo "lights up" when the drone is playing and recedes when
+  // it isn't. The halo colour is sampled from the resolved title
+  // text colour (--preview from the active palette) so it never
+  // forces a warm tint on cool palettes.
   const titleArtRef = useRef<HTMLPreElement>(null);
   useEffect(() => {
     if (!analyser) return;
@@ -169,18 +168,34 @@ export function Header({
       const rms = Math.min(1, Math.sqrt(sum / buf.length) * 3);
       smoothedRms += (rms - smoothedRms) * 0.25;
       const t = now / 1000;
-      // Two-axis jitter — fast micro-sine on top of the rms amplitude
+      // Two-axis jitter — fast micro-sine on top of the rms amplitude.
+      const sx = Math.sin(t * 23.1);
+      const cy = Math.cos(t * 29.7);
       const amp = smoothedRms * 1.8;
-      const dx = Math.sin(t * 23.1) * amp;
-      const dy = Math.cos(t * 29.7) * amp;
+      const dx = sx * amp;
+      const dy = cy * amp;
       el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
-      // Halo intensity tracks RMS; colour stays the palette colour.
-      // Outer α 0.18..0.32, inner α 0.32..0.55 — keeps the static
-      // ember halo close to the resting CSS shadow defined in
-      // globals.css (.title-art) while letting it bloom on peaks.
-      const glowR = 4 + smoothedRms * 6;
-      const aOuter = 0.18 + smoothedRms * 0.14;
-      const aInner = 0.32 + smoothedRms * 0.23;
+      // Vibration magnitude in [0..1] from the same fast micro-sines
+      // that drive the translate. We feed this into the glow so the
+      // halo trembles in sync with the position jitter — without RMS
+      // there is no visible kick, so the kick stays proportional to
+      // how loud the drone is.
+      const vibMag = Math.min(1, Math.hypot(sx, cy) / Math.SQRT2);
+      const vibKick = 1 + 0.6 * vibMag * smoothedRms;
+      // Wordmark colour α: 0.55 at silence → 1.0 at peak. The hue
+      // stays the palette colour; only intensity scales. Avoids the
+      // CSS `opacity` property so HOLD's separate dim (.header-holding
+      // .title-art { opacity: 0.55 }) still composes correctly.
+      const colorA = 0.55 + smoothedRms * 0.45;
+      el.style.color = `rgba(${r}, ${g}, ${b}, ${colorA.toFixed(2)})`;
+      // Halo: faint at silence (close to the static CSS resting look),
+      // blooms when playing AND trembles on every frame in sync with
+      // the position jitter via vibKick. Base outer α 0.05..0.42,
+      // base inner α 0.10..0.62, base radius 2..14 px — all scaled
+      // by vibKick (1.0..1.6 at peak).
+      const glowR = (2 + smoothedRms * 12) * vibKick;
+      const aOuter = Math.min(0.95, (0.05 + smoothedRms * 0.37) * vibKick);
+      const aInner = Math.min(0.95, (0.10 + smoothedRms * 0.52) * vibKick);
       el.style.textShadow =
         `0 0 ${glowR.toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aOuter.toFixed(2)}),` +
         ` 0 0 ${(glowR * 0.35).toFixed(1)}px rgba(${r}, ${g}, ${b}, ${aInner.toFixed(2)})`;
@@ -191,6 +206,7 @@ export function Header({
       if (el) {
         el.style.transform = "";
         el.style.textShadow = "";
+        el.style.color = "";
       }
     };
   }, [analyser]);
