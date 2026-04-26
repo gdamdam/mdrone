@@ -1599,20 +1599,23 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .header-btn-help {
-  /* Anchors the right-edge cluster. The following settings cog
-     cancels its own auto-margin via the adjacent-sibling rule
-     below so the two buttons stay tight together. Quieter
-     treatment than primary buttons — bone text, soft border. */
+  /* Icon-forward utility chip — no border, no background, glyph
+     only. Reads as a discoverable affordance rather than a button
+     in the performance row. Hover lifts it visibly. */
   margin-left: auto;
-  padding: 4px 8px;
+  padding: 4px 6px;
   font-size: 14px;
   font-weight: 800;
   line-height: 1;
-  min-width: 30px;
+  min-width: 24px;
   flex-shrink: 0;
   background: transparent;
   color: var(--text-dim);
-  border-color: color-mix(in srgb, var(--border) 60%, transparent);
+  border-color: transparent;
+}
+.header-btn-help:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 .header-btn-help + .header-btn-menu {
@@ -1621,19 +1624,25 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .header-btn-session,
 .header-btn-menu {
-  background: transparent;
-  color: var(--text-dim);
-  border-color: color-mix(in srgb, var(--border) 60%, transparent);
-  /* Settings cog — pushed to the far right of its flex container so
-     it anchors the header edge, visually separated from the primary
-     play controls by margin-left: auto. */
+  /* Settings cog — icon-forward, no chrome at rest. Matches the
+     ? button so the admin pair reads as a glyph row, not a button
+     row. margin-left: auto pushes it to the far edge; hover
+     restores text + soft border. */
   margin-left: auto;
-  padding: 4px 8px;
+  padding: 4px 6px;
   font-size: 14px;
   font-weight: 800;
   line-height: 1;
-  min-width: 30px;
+  min-width: 24px;
   flex-shrink: 0;
+  background: transparent;
+  color: var(--text-dim);
+  border-color: transparent;
+}
+.header-btn-session:hover,
+.header-btn-menu:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 /* Dialog modal input */
@@ -2309,14 +2318,17 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 /* Header REC + generic button */
 .header-btn {
+  /* Hardware-control feel — sharper corners, tighter padding,
+     subtler border. The min-width floor was making every chip the
+     same width regardless of content; dropped so utility buttons
+     can shrink to fit their glyph. */
   font-size: 10px;
   font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 5px 10px;
+  border-radius: 4px;
   background: var(--bg-cell);
   color: var(--text);
-  border: 1px solid var(--border);
-  min-width: 64px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
 }
 
 /* Dual-label spans: desktop shows the full label, mobile shows a
@@ -3360,10 +3372,13 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 .preset-btn-active {
-  /* Vertical gradient instead of flat amber — desaturates the centre
-     of the card and gives it a hair of inner depth so it stops
-     reading as a solid swatch. The outer glow + amber border still
-     mark it as the unambiguous selected state. */
+  /* Selected preset — incandescent filament feel rather than a
+     polished product tile. Vertical gradient stays for inner
+     depth, but: (1) the outer halo is tighter and warmer-tinted,
+     (2) the top inner highlight uses warm amber rather than white
+     so it reads as glowing filament edge, not glossy bevel, and
+     (3) the bottom inner shadow is lighter so the centre stays
+     warm. The amber border still anchors selection clarity. */
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--preview) 92%, #1a0d05) 0%,
@@ -3372,9 +3387,9 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   );
   border-color: var(--preview);
   box-shadow:
-    0 0 14px color-mix(in srgb, var(--preview) 38%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent),
-    inset 0 -2px 6px color-mix(in srgb, #1a0d05 35%, transparent);
+    0 0 8px color-mix(in srgb, var(--preview) 32%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffd49a 35%, transparent),
+    inset 0 -1px 3px color-mix(in srgb, #1a0d05 22%, transparent);
 }
 
 .preset-btn-active .preset-btn-name,
