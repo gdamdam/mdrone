@@ -2,6 +2,11 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.19.1 — 2026-04-27
+
+- seo: route crawlers to about.html via User-Agent (fix Googlebot path) (7587362)
+- chore: add canonical AGPL-3.0 LICENSE text (1d53403)
+
 ## 1.19.0 — 2026-04-27
 
 - chore: stamp public/version.json → 1.18.23 (c4d466e)
