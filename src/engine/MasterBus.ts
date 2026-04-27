@@ -33,6 +33,12 @@ export class MasterBus {
   private readonly limiterOut: GainNode;
   private readonly limiterComp: DynamicsCompressorNode;
   private readonly outputTrim: GainNode;
+  /** Last-stage duck before destination — pulled down briefly on
+   *  preset change so any swap-domain artefact (voice rebuild race,
+   *  fx routing flip, IR replacement) is masked under a soft dip
+   *  rather than reaching the speaker as a click. Independent of
+   *  outputTrim so user volume / SAFE mode aren't disturbed. */
+  private readonly presetDuck: GainNode;
   private readonly analyser: AnalyserNode;
   /** Pre-limiter peak tap for the mixer CLIP LED. Reading post-limiter
    *  lights the LED whenever the limiter is holding the ceiling — which
@@ -241,6 +247,9 @@ export class MasterBus {
     this.outputTrim = this.ctx.createGain();
     this.outputTrim.gain.value = 1;
 
+    this.presetDuck = this.ctx.createGain();
+    this.presetDuck.gain.value = 1;
+
     this.loudnessTrim = this.ctx.createGain();
     this.loudnessTrim.gain.value = 1;
 
@@ -423,7 +432,8 @@ export class MasterBus {
     this.widthRR.connect(this.widthMerger, 0, 1);
     this.widthMerger.connect(this.loudnessTrim);
     this.loudnessTrim.connect(this.analyser);
-    this.analyser.connect(this.ctx.destination);
+    this.analyser.connect(this.presetDuck);
+    this.presetDuck.connect(this.ctx.destination);
 
     this.applyDebugBypasses();
   }
@@ -827,6 +837,25 @@ export class MasterBus {
    *  null so legacy inspection callers don't crash. */
   getLimiter(): AudioWorkletNode | null { return null; }
   getOutputTrim(): GainNode { return this.outputTrim; }
+
+  /** Soft duck on the master output to mask preset-change artefacts.
+   *  Envelope: dip to ~-6 dB over 20 ms, hold 30 ms, recover over
+   *  80 ms (130 ms total). cancelScheduledValues() so back-to-back
+   *  preset clicks (RND spam) reset the envelope cleanly instead of
+   *  stacking. */
+  duckForPresetChange(): void {
+    const now = this.ctx.currentTime;
+    const g = this.presetDuck.gain;
+    const DIP = 0.5;       // -6 dB
+    const DIP_MS = 20;
+    const HOLD_MS = 30;
+    const RECOVER_MS = 80;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(DIP, now + DIP_MS / 1000);
+    g.linearRampToValueAtTime(DIP, now + (DIP_MS + HOLD_MS) / 1000);
+    g.linearRampToValueAtTime(1, now + (DIP_MS + HOLD_MS + RECOVER_MS) / 1000);
+  }
 
   setMasterVolume(v: number): void {
     const vol = Math.max(0, Math.min(1.5, v));

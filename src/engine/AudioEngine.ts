@@ -402,6 +402,14 @@ export class AudioEngine {
     this.presetTrim.gain.setTargetAtTime(trim, this.ctx.currentTime, 0.08);
   }
 
+  /** Soft master-bus duck to mask preset-change artefacts. Callers
+   *  should fire this immediately before swapping voices / fx so the
+   *  swap happens under the dip. No-op when masterBus is bypassed
+   *  (debug-only path). */
+  duckForPresetChange(): void {
+    this.masterBus.duckForPresetChange();
+  }
+
   getPresetTrim(): number { return this.presetTrim.gain.value; }
 
   setEffect(id: EffectId, on: boolean): void {
