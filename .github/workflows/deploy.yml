@@ -1,0 +1,55 @@
+name: Deploy
+
+# Triggered by pushing a `vX.Y.Z` tag (created by `npm run release`).
+# Re-runs the same checks as CI; if green, publishes `dist/` to the
+# `gh-pages` branch (replacing the manual `npm run deploy` from a
+# developer's machine).
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    name: build + publish to gh-pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests (node --test, legacy)
+        run: npm test
+
+      - name: Unit tests (vitest)
+        run: npm run test:unit
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          # `--dotfiles` equivalent — keeps .nojekyll, CNAME, etc.
+          enable_jekyll: false
+          force_orphan: true
+          commit_message: "deploy: ${{ github.ref_name }}"
