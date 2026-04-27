@@ -62,7 +62,12 @@ export function DialogModal({
       <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
         <div className="fx-modal-header">
           <div className="fx-modal-title">{title}</div>
-          <button className="fx-modal-close" onClick={onCancel} title="Close (Esc)">
+          <button
+            className="fx-modal-close"
+            onClick={onCancel}
+            title="Close (Esc)"
+            aria-label="Close"
+          >
             ×
           </button>
         </div>

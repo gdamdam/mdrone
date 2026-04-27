@@ -1,4 +1,19 @@
 /**
+ * Cached `prefers-reduced-motion: reduce` query. Used by visualizers
+ * that emit involuntary motion (currently the DREAM MACHINE strobe).
+ * `matchMedia` returns the same MediaQueryList object across calls so
+ * `.matches` is a cheap property read each frame — no per-frame
+ * allocation, no listener bookkeeping.
+ */
+const reducedMotionQuery: MediaQueryList | null =
+  typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia("(prefers-reduced-motion: reduce)")
+    : null;
+function prefersReducedMotion(): boolean {
+  return reducedMotionQuery?.matches ?? false;
+}
+
+/**
  * visualizers.ts — the six Meditate-view visualizers.
  *
  * Each visualizer is a pure drawing function that takes:
@@ -326,13 +341,23 @@ export function drawDreamMachine(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
+  // Honour OS-level `prefers-reduced-motion: reduce` — strobing this
+  // fast (10 Hz) is unsafe for users with photosensitive epilepsy or
+  // vestibular disorders. The user has explicitly chosen this
+  // visualizer, so we still render its visual identity (slot overlay,
+  // warm hue field) — but as a slow breathing image, not a strobe.
+  const reduced = prefersReducedMotion();
   // Flicker rate — 10 Hz nominal, nudged ±1 Hz by the slow phase
   // so the brain doesn't lock to a single frequency. Also bent a
   // little by the drone RMS so loud passages feel more insistent.
   const baseHz = 10 + Math.sin(p.t * 0.07) * 1.2 + a.rms * 1.5;
   // Square wave: on for half the cycle, off for the other half.
-  const cyclePos = (p.t * baseHz) % 1;
-  const bright = cyclePos < 0.5;
+  // Under reduced-motion, replace the binary strobe with a slow ~0.2 Hz
+  // breath so the surface still moves but never flickers.
+  const cyclePos = reduced
+    ? 0.5 + 0.5 * Math.sin(p.t * 0.2 * Math.PI * 2)
+    : (p.t * baseHz) % 1;
+  const bright = reduced ? cyclePos > 0.5 : cyclePos < 0.5;
 
   // Background colour cycles slowly through warm hues
   const bgHue = (p.hue + 15) % 360;

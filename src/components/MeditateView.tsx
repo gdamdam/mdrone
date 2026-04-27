@@ -686,6 +686,8 @@ export function MeditateView({
           ref={canvasRef}
           className="meditate-canvas"
           title={label}
+          role="img"
+          aria-label={`MEDITATE visualizer: ${label}`}
         />
         {visualizer === "dreamMachine" && (
           <div className="meditate-warning" role="note">

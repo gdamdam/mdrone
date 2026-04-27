@@ -118,6 +118,8 @@ export function VuMeter({
         width={width}
         height={height}
         className="vu-meter-canvas"
+        role="img"
+        aria-label="Master output level meter"
       />
     </div>
   );

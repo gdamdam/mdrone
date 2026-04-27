@@ -2805,8 +2805,19 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cpu-warning {
-    animation: none;
+  /* Mute every infinite/looping decorative animation. One-shot
+     transitions under ~250 ms (modal open, notification slide-in)
+     are kept — they're transitional UI feedback, not involuntary
+     motion, and removing them confuses more than it helps. */
+  .cpu-warning,
+  .header-display-track,
+  .header-display-sep,
+  .start-sigil,
+  .weather-glow,
+  [class*="midi-learn-pulse"],
+  [class*="midi-learn-btn-pulse"],
+  [class*="midi-learn-arm-pulse"] {
+    animation: none !important;
   }
 }
 

@@ -342,7 +342,11 @@ export function VisualizerPreview({
         onClick={onOpen}
         aria-label={`Open MEDITATE visualizer (${label})`}
       >
-        <canvas ref={canvasRef} className="drone-visualizer-preview-canvas" />
+        <canvas
+          ref={canvasRef}
+          className="drone-visualizer-preview-canvas"
+          aria-hidden="true"
+        />
       </button>
       <div className="drone-visualizer-preview-meta">
         <span className="drone-visualizer-preview-tag">MEDITATE</span>

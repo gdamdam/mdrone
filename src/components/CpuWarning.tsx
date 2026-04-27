@@ -41,6 +41,7 @@ export function CpuWarning({ monitor }: CpuWarningProps) {
                 className="fx-modal-close"
                 onClick={() => setDetailOpen(false)}
                 title="Close (Esc)"
+                aria-label="Close audio load details"
               >
                 ×
               </button>

@@ -273,7 +273,12 @@ export function WeatherPad({
         onPointerLeave={handlePointerUp}
         title="Weather — X: DARK ↔ BRIGHT   Y: STILL ↔ MOVING"
       >
-        <canvas ref={canvasRef} className="weather-canvas" />
+        <canvas
+          ref={canvasRef}
+          className="weather-canvas"
+          role="img"
+          aria-label="Weather pad — drag to control brightness (X) and motion (Y)"
+        />
         <div
           className="climate-cursor"
           style={{ left: `${climateX * 100}%`, bottom: `${climateY * 100}%` }}

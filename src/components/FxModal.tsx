@@ -86,7 +86,12 @@ export function FxModal({ engine, effectId, onClose }: FxModalProps) {
       <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
         <div className="fx-modal-header">
           <div className="fx-modal-title">{EFFECT_TITLES[effectId]}</div>
-          <button className="fx-modal-close" onClick={onClose} title="Close (Esc)">
+          <button
+            className="fx-modal-close"
+            onClick={onClose}
+            title="Close (Esc)"
+            aria-label="Close"
+          >
             ✕
           </button>
         </div>
