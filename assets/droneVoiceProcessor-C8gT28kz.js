@@ -446,6 +446,15 @@ DroneVoiceProcessor.prototype.initTanpura = function() {
     this.jawFormBandR = new Float32Array(this.NUM_STRINGS);
     this.jawFormF    = 2 * Math.sin(Math.PI * 1600 / sampleRate);
     this.jawFormDamp = 0.25; // Q ≈ 4
+    // Per-block scratch buffers for variable-rate KS read positions.
+    // Pre-allocated here so tanpuraProcess() doesn't allocate on every
+    // 128-sample block — naked allocations inside process() trigger GC
+    // on weaker hardware (older Windows laptops, Chromebooks) and read
+    // as random clicks every few seconds.
+    this.delayLens  = new Int32Array(this.NUM_STRINGS);
+    this.delayLensR = new Int32Array(this.NUM_STRINGS);
+    this.fracsL     = new Float32Array(this.NUM_STRINGS);
+    this.fracsR     = new Float32Array(this.NUM_STRINGS);
     // Sympathetic-coupling bus — accumulates each string's bridge
     // contribution at the end of a sample, then feeds a tiny fraction
     // back into all KS write-backs the *following* sample. This is the
@@ -531,10 +540,10 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
     }
 
     // Per-string delay lengths (stable — same root, micro-detune only)
-    const delayLens = new Int32Array(this.NUM_STRINGS);
-    const delayLensR = new Int32Array(this.NUM_STRINGS);
-    const fracsL = new Float32Array(this.NUM_STRINGS);
-    const fracsR = new Float32Array(this.NUM_STRINGS);
+    const delayLens  = this.delayLens;
+    const delayLensR = this.delayLensR;
+    const fracsL     = this.fracsL;
+    const fracsR     = this.fracsR;
     for (let s = 0; s < this.NUM_STRINGS; s++) {
       const dt = this.stringDetune[s];
       const exact = Math.min(this.ksMax - 2, Math.max(8, baseLen / dt));
@@ -568,7 +577,7 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
 
         const cur = buf[idx];
         const nxt = buf[(idx + 1) % dLen];
-        let y = cur * (1 - fracsL[s]) + nxt * fracsL[s] + 1e-25;
+        let y = cur * (1 - fracsL[s]) + nxt * fracsL[s] + 1e-20;
         this.ksLasts[s] = this.ksLasts[s] * 0.35 + y * 0.65;
         y = this.ksLasts[s] * damp;
         // Envelope-driven bridge: leaky |y| follower gates a soft-
@@ -582,8 +591,12 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
         this.jawEnvL[s] = envL;
         // Buzz formant SVF (input = pre-shape y).
         const bH_L = y - this.jawFormLowL[s] - jawFormDamp * this.jawFormBandL[s];
-        this.jawFormBandL[s] += jawFormF * bH_L;
-        this.jawFormLowL[s]  += jawFormF * this.jawFormBandL[s];
+        // +1e-20 keeps the SVF feedback states above subnormal range on
+        // long sustained holds. Q=4 means the bandpass can recirculate
+        // very small values; without this, JSC on iOS / older Firefox
+        // park denormals here and CPU spikes silently every few seconds.
+        this.jawFormBandL[s] += jawFormF * bH_L + 1e-20;
+        this.jawFormLowL[s]  += jawFormF * this.jawFormBandL[s] + 1e-20;
         const buzzL = this.jawFormBandL[s];
         // Soft-knee projection (see jawKneeW comment). Linear above
         // jawThresh + w, zero below jawThresh − w, quadratic in
@@ -608,7 +621,7 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
 
         const curR = bufR[idxR];
         const nxtR = bufR[(idxR + 1) % dLenR];
-        let yR = curR * (1 - fracsR[s]) + nxtR * fracsR[s] + 1e-25;
+        let yR = curR * (1 - fracsR[s]) + nxtR * fracsR[s] + 1e-20;
         this.ksLastsR[s] = this.ksLastsR[s] * 0.35 + yR * 0.65;
         yR = this.ksLastsR[s] * damp;
         const ayR = yR < 0 ? -yR : yR;
@@ -616,8 +629,8 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
         if (ayR > envR) envR = envR + (ayR - envR) * jawEnvAtk;
         this.jawEnvR[s] = envR;
         const bH_R = yR - this.jawFormLowR[s] - jawFormDamp * this.jawFormBandR[s];
-        this.jawFormBandR[s] += jawFormF * bH_R;
-        this.jawFormLowR[s]  += jawFormF * this.jawFormBandR[s];
+        this.jawFormBandR[s] += jawFormF * bH_R + 1e-20;
+        this.jawFormLowR[s]  += jawFormF * this.jawFormBandR[s] + 1e-20;
         const buzzR = this.jawFormBandR[s];
         const dR = ayR - jawThresh;
         let mR;
@@ -1627,18 +1640,18 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
       // +1e-25 on the band-state writes is a denormal escape under
       // long silences (the higher-Q SVFs ring far below audible).
       const bHL = l - this.ampBodyLowL - this.ampBodyDamp * this.ampBodyBandL;
-      this.ampBodyBandL += this.ampBodyF * bHL + 1e-25;
+      this.ampBodyBandL += this.ampBodyF * bHL + 1e-20;
       this.ampBodyLowL  += this.ampBodyF * this.ampBodyBandL;
       const pHL = l - this.ampPresLowL - this.ampPresDamp * this.ampPresBandL;
-      this.ampPresBandL += this.ampPresF * pHL + 1e-25;
+      this.ampPresBandL += this.ampPresF * pHL + 1e-20;
       this.ampPresLowL  += this.ampPresF * this.ampPresBandL;
       const shapedL = l + this.ampBodyBandL * 0.30 + this.ampPresBandL * 0.25;
 
       const bHR = r - this.ampBodyLowR - this.ampBodyDamp * this.ampBodyBandR;
-      this.ampBodyBandR += this.ampBodyF * bHR + 1e-25;
+      this.ampBodyBandR += this.ampBodyF * bHR + 1e-20;
       this.ampBodyLowR  += this.ampBodyF * this.ampBodyBandR;
       const pHR = r - this.ampPresLowR - this.ampPresDamp * this.ampPresBandR;
-      this.ampPresBandR += this.ampPresF * pHR + 1e-25;
+      this.ampPresBandR += this.ampPresF * pHR + 1e-20;
       this.ampPresLowR  += this.ampPresF * this.ampPresBandR;
       const shapedR = r + this.ampBodyBandR * 0.30 + this.ampPresBandR * 0.25;
 

@@ -419,7 +419,11 @@ class ShimmerReverbProcessor extends AudioWorkletProcessor {
     const decay = parameters.decay[0];
     const lpCoef = 0.25; // fixed tail lowpass coefficient
     const apCoef = 0.6;  // allpass diffusion coefficient
-    const ANTI_DENORMAL = 1e-25;
+    // 1e-20 matches the engine-wide flush threshold in voices/shared.js.
+    // Earlier 1e-25 fell below JSC's effective subnormal-flush threshold
+    // on iOS Safari, letting denormals park in the comb feedback loop
+    // and trigger silent CPU spikes on long sustained holds.
+    const ANTI_DENORMAL = 1e-20;
 
     // Clamp feedback + LP state against NaN carryover. One NaN in the
     // feedback loop would latch silence forever; this resets it cheaply.
@@ -1549,6 +1553,16 @@ class LoudnessMeterProcessor extends AudioWorkletProcessor {
     // Publish throttle: emit one port message every ~33 ms ≈ 30 Hz.
     this.publishEveryNBlocks = Math.max(1, Math.floor(sampleRate / (128 * 30)));
     this.publishCounter = 0;
+
+    // Low-power mode lowers the publish rate to ~5 Hz so the meter
+    // burns less main-thread CPU on weak hardware. Driven from the
+    // main thread via `port.postMessage({ type: "publishHz", hz })`.
+    this.port.onmessage = (e) => {
+      const m = e.data;
+      if (m && m.type === "publishHz" && typeof m.hz === "number" && m.hz > 0) {
+        this.publishEveryNBlocks = Math.max(1, Math.floor(sampleRate / (128 * m.hz)));
+      }
+    };
   }
 
   // Biquad (DF-I), returns filtered sample and updates zs in-place.
