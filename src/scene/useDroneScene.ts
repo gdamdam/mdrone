@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useMemo } from "react";
+import { useCallback, useEffect, useReducer, useRef, useMemo, useState } from "react";
 import type { AudioEngine, EngineSceneMutation } from "../engine/AudioEngine";
 import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
 import type { EffectId } from "../engine/FxChain";
@@ -99,6 +99,14 @@ export function useDroneScene({
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  // Parallel reverb send levels (plate/hall/cistern). Kept out of the
+  // persisted DroneSessionSnapshot — they're recomputed from the active
+  // preset on every scene apply (see applyPreset → ui.setParallelSends
+  // and the scene-apply effect below). Local state here only exists so
+  // the FxBar can show hall/cistern/plate as ON when the preset routes
+  // them via the parallel bus instead of as serial inserts.
+  const [parallelSends, setParallelSendsState] = useState<{ plate: number; hall: number; cistern: number }>({ plate: 0, hall: 0, cistern: 0 });
 
   const setActivePresetId = useCallback((presetId: string | null) => {
     dispatch({ type: "merge", patch: { activePresetId: presetId } });
@@ -229,16 +237,42 @@ export function useDroneScene({
     dispatch({ type: "merge", patch: { presetTrim } });
   }, []);
 
+  // Mute the parallel reverb send for hall/cistern/plate when the user
+  // turns the FxBar button OFF — the FxBar treats the button as ON
+  // whenever serial OR parallel is active, so without this a preset-
+  // driven parallel send (e.g. sub-chamber's cistern) would keep
+  // ringing after the toggle. Turning ON only re-enables the serial
+  // insert; the parallel level is not auto-restored on click.
+  const muteParallelIfApplicable = useCallback((id: EffectId) => {
+    if (!engine) return;
+    if (id !== "plate" && id !== "hall" && id !== "cistern") return;
+    setParallelSendsState((prev) => {
+      if (prev[id] === 0) return prev;
+      const next = { ...prev, [id]: 0 };
+      engine.setParallelSends(next);
+      return next;
+    });
+  }, [engine]);
+
   const setEffectEnabled = useCallback((id: EffectId, on: boolean) => {
     dispatch({ type: "setEffect", effectId: id, on });
     engine?.setEffect(id, on);
-  }, [engine]);
+    if (!on) muteParallelIfApplicable(id);
+  }, [engine, muteParallelIfApplicable]);
 
   const toggleEffect = useCallback((id: EffectId) => {
-    const next = !state.effects[id];
+    // Use the *displayed* state as the toggle source: hall/cistern/plate
+    // can be lit purely from a parallel send, in which case state.effects
+    // is false but the user sees ON. Inverting state.effects there would
+    // turn the serial insert ON instead of muting the audible parallel.
+    const isParallelLit = (id === "plate" || id === "hall" || id === "cistern")
+      && parallelSends[id] > 0;
+    const displayed = state.effects[id] || isParallelLit;
+    const next = !displayed;
     dispatch({ type: "setEffect", effectId: id, on: next });
     engine?.setEffect(id, next);
-  }, [engine, state.effects]);
+    if (!next) muteParallelIfApplicable(id);
+  }, [engine, state.effects, parallelSends, muteParallelIfApplicable]);
 
   const toggleVoiceLayer = useCallback((type: VoiceType) => {
     const next = !state.voiceLayers[type];
@@ -423,6 +457,7 @@ export function useDroneScene({
       setRelation,
       setFineTuneOffsets,
       setEffectEnabled,
+      setParallelSends: setParallelSendsState,
       setEntrain,
       engineIntervals: withPartnerIntervals(
         resolveIntervals({
@@ -594,7 +629,15 @@ export function useDroneScene({
     engine.setFmRatio(snapshot.fmRatio);
     engine.setFmIndex(snapshot.fmIndex);
     engine.setFmFeedback(snapshot.fmFeedback);
-    engine.setParallelSends(preset?.parallelSends ?? {});
+    {
+      const ps = {
+        plate: preset?.parallelSends?.plate ?? 0,
+        hall: preset?.parallelSends?.hall ?? 0,
+        cistern: preset?.parallelSends?.cistern ?? 0,
+      };
+      engine.setParallelSends(ps);
+      setParallelSendsState(ps);
+    }
     if (needsVoiceRebuild) {
       engine.applyDroneScene(snapshot.voiceLayers, snapshot.voiceLevels, nextIntervals);
     }
@@ -673,8 +716,19 @@ export function useDroneScene({
     }));
   }, [engine, handlePreset, scale, tuningId, relationId, fineTuneOffsets]);
 
+  // Merged FX state for the FxBar: serial OR parallel = lit. The
+  // FxBar receives this as `states`; the underlying state.effects
+  // remains serial-only (the persisted contract).
+  const displayEffects = useMemo<Record<EffectId, boolean>>(() => ({
+    ...state.effects,
+    plate: state.effects.plate || parallelSends.plate > 0,
+    hall: state.effects.hall || parallelSends.hall > 0,
+    cistern: state.effects.cistern || parallelSends.cistern > 0,
+  }), [state.effects, parallelSends]);
+
   return {
     state,
+    displayEffects,
     freq,
     setRoot,
     setOctave,

@@ -3,6 +3,7 @@ import type { PresetMaterialProfile } from "./presets";
 import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
 import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type TanpuraTuningId, type Voice, type VoiceType } from "./VoiceBuilder";
 import { readAudioDebugFlags } from "./audioDebug";
+import { trace } from "./audioTrace";
 
 /** Spread a layer's voices across the stereo field. With N copies of
  *  the same voice timbre at different intervals, panning each copy
@@ -186,6 +187,7 @@ export class VoiceEngine {
 
     const now = this.ctx.currentTime;
     this.fxChain.restoreEnabledEffects();
+    this.fxChain.armParallelBus();
     this.wetSend.gain.cancelScheduledValues(now);
     this.wetSend.gain.setTargetAtTime(air * 0.8, now, 0.05);
 
@@ -238,7 +240,7 @@ export class VoiceEngine {
     this.wetSend.gain.cancelScheduledValues(now);
     this.wetSend.gain.setValueAtTime(this.wetSend.gain.value, now);
     this.wetSend.gain.linearRampToValueAtTime(0, now + release);
-    this.fxChain.releaseTails();
+    this.fxChain.releaseTails(release);
 
     // Pull any still-retiring voices forward so they go silent with the
     // drone instead of lingering past it.
@@ -270,6 +272,12 @@ export class VoiceEngine {
   }
 
   setDroneFreq(freq: number): void {
+    trace("setDroneFreq", {
+      freq,
+      prev: this.droneRootFreq,
+      hasSub: !!this.subOscs,
+      glideMs: Math.round(this.glideTime() * 1000),
+    });
     this.droneRootFreq = freq;
     this.fxChain.setRootFreq(freq);
     const now = this.ctx.currentTime;
@@ -290,6 +298,13 @@ export class VoiceEngine {
     const next = intervalsCents.length > 0 ? intervalsCents : [0];
     const prevLen = this.droneIntervalsCents.length;
     this.droneIntervalsCents = next;
+    trace("setIntervals", {
+      n: next.length,
+      prevN: prevLen,
+      first3: next.slice(0, 3),
+      droneOn: this.droneOn,
+      path: !this.droneOn ? "skip" : next.length === prevLen ? "retune" : "rebuild",
+    });
     if (!this.droneOn) return;
     // Fast path: when the interval count is unchanged we retune the
     // existing voices via their setFreq() param ramp instead of doing
@@ -326,6 +341,7 @@ export class VoiceEngine {
   setVoiceLayer(type: VoiceType, on: boolean): void {
     if (this.voiceLayers[type] === on) return;
     this.voiceLayers[type] = on;
+    trace("voiceLayer", { type, on });
     this.scheduleVoiceRebuild();
   }
 
@@ -409,7 +425,9 @@ export class VoiceEngine {
   getDrift(): number { return this.drift; }
 
   setSub(v: number): void {
-    this.subAmount = Math.max(0, Math.min(1, v));
+    const clamped = Math.max(0, Math.min(1, v));
+    trace("setSub", { v: clamped, prev: this.subAmount, on: this.droneOn });
+    this.subAmount = clamped;
     if (this.droneOn) {
       this.subVoiceGain.gain.setTargetAtTime(this.effectiveSubGain(), this.ctx.currentTime, this.MACRO_TC);
     }

@@ -21,6 +21,7 @@ import droneWorkletUrl from "./droneVoiceProcessor.js?url";
 import fxWorkletUrl from "./fxChainProcessor.js?url";
 import { showNotification } from "../notifications";
 import { readAudioDebugFlags } from "./audioDebug";
+import { setTraceContext, trace, wireTraceToLoadMonitor } from "./audioTrace";
 
 export type { EngineSceneMutation } from "./EngineSceneMutation";
 
@@ -61,7 +62,18 @@ export class AudioEngine {
     // tried and caused Safari + AirPods under-run hash. "playback" is
     // even larger but adds user-perceived latency on controls.
     this.ctx = new AC({ latencyHint: "balanced" });
+    setTraceContext(this.ctx);
+    trace("ctxCreate", {
+      sampleRate: this.ctx.sampleRate,
+      baseLatencyMs: Math.round((this.ctx.baseLatency ?? 0) * 1000),
+      outputLatencyMs: Math.round((this.ctx.outputLatency ?? 0) * 1000),
+      state: this.ctx.state,
+    });
+    this.ctx.addEventListener("statechange", () => {
+      trace("ctxState", { state: this.ctx.state });
+    });
     this.loadMonitor = new AudioLoadMonitor(this.ctx);
+    wireTraceToLoadMonitor(this.loadMonitor);
 
     this.fxChain = new FxChain(this.ctx);
     this.wetSend = this.ctx.createGain();
@@ -367,6 +379,10 @@ export class AudioEngine {
    *  See VoiceEngine.detectMaxVoiceLayers. P3 — auto-degrader. */
   setMaxVoiceLayers(n: number): void { this.voiceEngine.setMaxVoiceLayers(n); }
   getMaxVoiceLayers(): number { return this.voiceEngine.getMaxVoiceLayers(); }
+
+  getParallelSends(): { plate: number; hall: number; cistern: number } {
+    return this.fxChain.getParallelSends();
+  }
 
   setParallelSends(sends: Partial<{ plate: number; hall: number; cistern: number }>): void {
     this.fxChain.setParallelSends(sends);

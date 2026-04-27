@@ -16,6 +16,7 @@ import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } 
 import { enableLinkBridge, onLinkState, getLinkState, type LinkState } from "../engine/linkBridge";
 import type { AudioLoadMonitor } from "../engine/AudioLoadMonitor";
 import { CpuWarning } from "./CpuWarning";
+import { hasAudioDebugFlag } from "../engine/audioDebug";
 import { STORAGE_KEYS } from "../config";
 import { showNotification } from "../notifications";
 import { trackEvent } from "../analytics";
@@ -365,6 +366,35 @@ export function Header({
             </span>
           </div>
           <CpuWarning monitor={loadMonitor} />
+          {hasAudioDebugFlag("trace") && (
+            <button
+              type="button"
+              onClick={() => {
+                const w = window as unknown as { __mdroneDumpTrace?: (r?: string) => void };
+                if (w.__mdroneDumpTrace) {
+                  w.__mdroneDumpTrace("manual");
+                  showNotification("Trace dumped to DevTools console (open it with ⌥⌘I / F12).", "info");
+                } else {
+                  showNotification("Trace not initialized yet — wait for audio to start.", "warning");
+                }
+              }}
+              title="Dump audio trace ring buffer to DevTools console. Open DevTools (⌥⌘I / F12) before clicking — JS can't open it for you."
+              style={{
+                marginLeft: 6,
+                padding: "2px 8px",
+                fontSize: 10,
+                fontFamily: "monospace",
+                background: "rgba(255, 80, 80, 0.15)",
+                border: "1px solid rgba(255, 80, 80, 0.5)",
+                color: "var(--ink, #fff)",
+                borderRadius: 3,
+                cursor: "pointer",
+                letterSpacing: "0.5px",
+              }}
+            >
+              ⏺ DUMP TRACE
+            </button>
+          )}
         </div>
         {/* Center — scene marquee. Clickable so tapping the current
             preset name pops open the preset list (tab auto-switches

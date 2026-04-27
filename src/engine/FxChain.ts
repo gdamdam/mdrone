@@ -30,6 +30,7 @@
  */
 
 import { readAudioDebugFlags } from "./audioDebug";
+import { trace } from "./audioTrace";
 
 export type EffectId =
   | "tape"
@@ -971,6 +972,12 @@ export class FxChain {
     const wetCur = wetParam.value;
     const FADE_SEC = 0.03;
     const audible = wetCur > 0.001;
+    trace("swapConv", {
+      audible,
+      wetCur: Math.round(wetCur * 1000) / 1000,
+      target: Math.round(target * 1000) / 1000,
+      bufferLen: newBuffer ? newBuffer.length : 0,
+    });
     const now = this.ctx.currentTime;
     if (audible) {
       wetParam.cancelScheduledValues(now);
@@ -1286,6 +1293,10 @@ export class FxChain {
     this.applyParallelSends();
   }
 
+  getParallelSends(): { plate: number; hall: number; cistern: number } {
+    return { ...this.parallelSendLevels };
+  }
+
   private applyParallelSends(): void {
     this.syncNativeReverbBuffers();
     const now = this.ctx.currentTime;
@@ -1307,6 +1318,7 @@ export class FxChain {
    *  output trim is ramped to 0. All effects keep running but their
    *  internal state is cleared. */
   panic(): void {
+    trace("panic");
     // Swap PARALLEL convolver buffers to a 1-sample silent buffer to
     // truncate any in-flight reverb tail. Serial hall/cistern run on
     // worklets now — those get a `clear` port message below. Then
@@ -1358,6 +1370,7 @@ export class FxChain {
     // produces audible wet-level flutter over long sessions.
     if (this.enabled[id] === on) return;
     this.enabled[id] = on;
+    trace("setEffect", { id, on });
     const ins = this.inserts[id];
     const now = this.ctx.currentTime;
 
@@ -1723,13 +1736,34 @@ export class FxChain {
     return this.levels[id];
   }
 
-  releaseTails(): void {
+  releaseTails(releaseSec = 0.6): void {
     const now = this.ctx.currentTime;
     this.delayFbGain.gain.setTargetAtTime(0, now, 0.08);
     this.combFbGain.gain.setTargetAtTime(0, now, 0.08);
     if (this.freezeWorklet) {
       this.freezeWorklet.parameters.get("active")!.setTargetAtTime(0, now, 0.05);
     }
+    // Mute the parallel reverb return. The hall/cistern/plate convolvers
+    // run multi-second IRs and `applyParallelSends` holds their per-send
+    // wet at the preset value (e.g. cistern 0.45 in "Sub Chamber"), so
+    // without this the reverb tail keeps ringing for seconds after
+    // stopDrone — even with no serial FX enabled. Per-send levels are
+    // preserved; only this master gain is ramped. Restored on the next
+    // fresh start via armParallelBus().
+    const pb = this.parallelBus.gain;
+    pb.cancelScheduledValues(now);
+    pb.setValueAtTime(pb.value, now);
+    pb.linearRampToValueAtTime(0, now + releaseSec);
+    trace("releaseTails", { releaseSec, parallelBusFrom: pb.value });
+  }
+
+  armParallelBus(): void {
+    const now = this.ctx.currentTime;
+    const pb = this.parallelBus.gain;
+    pb.cancelScheduledValues(now);
+    pb.setValueAtTime(pb.value, now);
+    pb.linearRampToValueAtTime(1, now + 0.05);
+    trace("armParallelBus");
   }
 
   restoreEnabledEffects(): void {
@@ -1754,6 +1788,11 @@ export class FxChain {
     const combTime = Math.min(1 / Math.max(20, freq), 0.059);
     // Sub oscillator tracks half the drone root — a true octave-down.
     const subFreq = Math.max(20, Math.min(220, freq * 0.5));
+    trace("fxRootFreq", {
+      freq: Math.round(freq * 100) / 100,
+      subFreq: Math.round(subFreq * 100) / 100,
+      combTimeMs: Math.round(combTime * 1000),
+    });
     if (this.subOsc) {
       this.subOsc.frequency.setTargetAtTime(subFreq, now, 0.1);
     }

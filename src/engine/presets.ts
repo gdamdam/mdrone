@@ -3288,6 +3288,11 @@ export interface PresetUiSetters {
   setRelation: (id: RelationId | null) => void;
   setFineTuneOffsets: (offsets: number[]) => void;
   setEffectEnabled: (id: EffectId, on: boolean) => void;
+  /** Mirror of preset.parallelSends to the UI layer. The FxBar's
+   *  hall/cistern/plate buttons are lit when serial OR parallel is
+   *  active, so the React tree needs the parallel send levels in
+   *  state. Optional for non-React callers. */
+  setParallelSends?: (sends: { plate: number; hall: number; cistern: number }) => void;
   /** Optional ENTRAIN state setter. Called only when the preset
    *  carries an `entrain` field. */
   setEntrain?: (state: EntrainState) => void;
@@ -3338,6 +3343,14 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
   ui.setVoiceLayers(layers);
   ui.setVoiceLevels(levels);
   ui.setNoiseColor(preset.noiseColor ?? 0.3);
+  // Mirror parallel reverb sends to the UI so the FxBar can light
+  // hall/cistern/plate when the preset routes them via the parallel
+  // bus rather than as serial inserts (e.g. sub-chamber's cistern).
+  ui.setParallelSends?.({
+    plate: preset.parallelSends?.plate ?? 0,
+    hall: preset.parallelSends?.hall ?? 0,
+    cistern: preset.parallelSends?.cistern ?? 0,
+  });
 
   // Macros
   ui.setDrift(preset.drift);

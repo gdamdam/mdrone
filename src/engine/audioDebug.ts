@@ -25,13 +25,14 @@ export type AudioDebugFlag =
   | "no-native-fx"    // skip only native-node inserts (tape, wow, sub, comb, ringmod, formant, delay)
   | "mono-voice"      // clamp to ONE voice layer and ONE interval
   | "no-master"       // skip MasterBus entirely (voice source -> destination)
-  | "no-all";         // mono-voice + no-fx + no-master
+  | "no-all"          // mono-voice + no-fx + no-master
+  | "trace";          // enable engine event ring buffer (see audioTrace.ts)
 
 const ALL_FLAGS: ReadonlySet<AudioDebugFlag> = new Set<AudioDebugFlag>([
   "no-limiter", "no-glue", "no-comp", "no-drive", "no-hpf", "hpf40",
   "no-eq", "no-width", "no-loudness", "no-fx", "no-parallel",
   "no-insert-dsp", "no-worklet-fx", "no-native-fx",
-  "mono-voice", "no-master", "no-all",
+  "mono-voice", "no-master", "no-all", "trace",
 ]);
 
 let cached: Set<AudioDebugFlag> | null = null;

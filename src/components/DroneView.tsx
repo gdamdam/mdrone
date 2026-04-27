@@ -352,6 +352,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setLfoAmount,
     setClimate,
     toggleEffect,
+    displayEffects,
     togglePlay,
     handlePreset,
     getSnapshot,
@@ -1632,7 +1633,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           >
             <FxBar
               engine={engine}
-              states={state.effects}
+              states={displayEffects}
               onToggle={toggleEffect}
               order={effectOrder}
               onReorder={handleEffectReorder}
