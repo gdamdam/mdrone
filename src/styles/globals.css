@@ -185,7 +185,11 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .view-drawer > * {
   width: 100%;
   max-width: min(1400px, calc(100vw - 24px));
+  /* `dvh` (dynamic viewport height) excludes the iOS Safari URL bar
+     when it's visible, so the drawer doesn't overflow the actually-
+     visible area. `vh` fallback for very old browsers. */
   max-height: 75vh;
+  max-height: 75dvh;
   overflow-y: auto;
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
@@ -6146,4 +6150,18 @@ input.share-modal-url:focus {
   opacity: 0.7;
   font-weight: 700;
   letter-spacing: 0.08em;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Touch-device hit targets — meet the WCAG 2.5.5 / Apple HIG
+   44×44 minimum on coarse pointers (phones, tablets) without
+   bloating the compact mouse UI on desktop. Only enlarges the
+   tap surface; visual size of inner glyphs is unchanged. */
+@media (pointer: coarse) {
+  .meditate-hud-btn,
+  .fx-modal-close,
+  .fx-modal-help {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }

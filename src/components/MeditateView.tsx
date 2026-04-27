@@ -116,6 +116,38 @@ export function MeditateView({
   const onPopOutChangeRef = useRef(onPopOutChange);
   useEffect(() => { onPopOutChangeRef.current = onPopOutChange; }, [onPopOutChange]);
   useEffect(() => { onPopOutChangeRef.current?.(isPopOut); }, [isPopOut]);
+
+  // Screen wake-lock for the main MEDITATE view. The pop-out window
+  // already manages its own (popWakeLockRef); this covers the more
+  // common case of the user opening MEDITATE on the same tab and
+  // expecting the screen not to sleep mid-drone. The OS releases the
+  // sentinel when the tab is backgrounded, so we re-acquire on
+  // `visibilitychange` whenever MEDITATE is still active.
+  useEffect(() => {
+    if (!active || isPopOut) return;
+    type WakeLockNav = Navigator & {
+      wakeLock?: { request: (t: "screen") => Promise<WakeLockSentinel> };
+    };
+    const nav = navigator as WakeLockNav;
+    if (!nav.wakeLock?.request) return;
+    let sentinel: WakeLockSentinel | null = null;
+    const acquire = () => {
+      nav.wakeLock!
+        .request("screen")
+        .then((s) => { sentinel = s; })
+        .catch(() => { /* denied / unsupported — ok */ });
+    };
+    acquire();
+    const onVis = () => {
+      if (document.visibilityState === "visible" && !sentinel) acquire();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      sentinel?.release().catch(() => { /* ok */ });
+      sentinel = null;
+    };
+  }, [active, isPopOut]);
   const closePopOut = useCallback(() => {
     if (popPollRef.current !== null) {
       window.clearInterval(popPollRef.current);
