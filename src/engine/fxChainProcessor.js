@@ -419,7 +419,11 @@ class ShimmerReverbProcessor extends AudioWorkletProcessor {
     const decay = parameters.decay[0];
     const lpCoef = 0.25; // fixed tail lowpass coefficient
     const apCoef = 0.6;  // allpass diffusion coefficient
-    const ANTI_DENORMAL = 1e-25;
+    // 1e-20 matches the engine-wide flush threshold in voices/shared.js.
+    // Earlier 1e-25 fell below JSC's effective subnormal-flush threshold
+    // on iOS Safari, letting denormals park in the comb feedback loop
+    // and trigger silent CPU spikes on long sustained holds.
+    const ANTI_DENORMAL = 1e-20;
 
     // Clamp feedback + LP state against NaN carryover. One NaN in the
     // feedback loop would latch silence forever; this resets it cheaply.

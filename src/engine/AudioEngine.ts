@@ -43,6 +43,16 @@ export class AudioEngine {
     const AC =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AC) {
+      // Very old Safari / pre-Chromium Edge / sandboxed iframes can land
+      // here. Surface a clear message instead of crashing with
+      // "AC is not a constructor" deep in the stack.
+      showNotification(
+        "Your browser doesn't support Web Audio. Try a recent version of Chrome, Firefox, or Safari.",
+        "error",
+      );
+      throw new Error("Web Audio API unavailable");
+    }
     // Let the device pick its native rate. Forcing 44.1 kHz wasted headroom
     // on 48 k hardware and added unnecessary resampling aliasing.
     // latencyHint "balanced" — matches mpump's Safari-clean pattern.
@@ -122,6 +132,18 @@ export class AudioEngine {
       }
     });
 
+    if (typeof this.ctx.audioWorklet === "undefined") {
+      // AudioWorklet shipped in Chrome 66 / Firefox 76 / Safari 14.1.
+      // Browsers older than that hit this path and would otherwise
+      // throw a synchronous TypeError on .addModule that the Promise
+      // .catch() below cannot catch — leaving the user with a dead
+      // app and only a console error.
+      showNotification(
+        "This browser is too old for the audio engine (AudioWorklet required). Please upgrade to a recent Chrome, Firefox, or Safari.",
+        "error",
+      );
+      return;
+    }
     const voiceReady = this.ctx.audioWorklet.addModule(droneWorkletUrl);
     const fxReady = this.ctx.audioWorklet.addModule(fxWorkletUrl);
     Promise.all([voiceReady, fxReady])

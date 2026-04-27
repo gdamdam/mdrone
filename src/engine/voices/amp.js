@@ -122,18 +122,18 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
       // +1e-25 on the band-state writes is a denormal escape under
       // long silences (the higher-Q SVFs ring far below audible).
       const bHL = l - this.ampBodyLowL - this.ampBodyDamp * this.ampBodyBandL;
-      this.ampBodyBandL += this.ampBodyF * bHL + 1e-25;
+      this.ampBodyBandL += this.ampBodyF * bHL + 1e-20;
       this.ampBodyLowL  += this.ampBodyF * this.ampBodyBandL;
       const pHL = l - this.ampPresLowL - this.ampPresDamp * this.ampPresBandL;
-      this.ampPresBandL += this.ampPresF * pHL + 1e-25;
+      this.ampPresBandL += this.ampPresF * pHL + 1e-20;
       this.ampPresLowL  += this.ampPresF * this.ampPresBandL;
       const shapedL = l + this.ampBodyBandL * 0.30 + this.ampPresBandL * 0.25;
 
       const bHR = r - this.ampBodyLowR - this.ampBodyDamp * this.ampBodyBandR;
-      this.ampBodyBandR += this.ampBodyF * bHR + 1e-25;
+      this.ampBodyBandR += this.ampBodyF * bHR + 1e-20;
       this.ampBodyLowR  += this.ampBodyF * this.ampBodyBandR;
       const pHR = r - this.ampPresLowR - this.ampPresDamp * this.ampPresBandR;
-      this.ampPresBandR += this.ampPresF * pHR + 1e-25;
+      this.ampPresBandR += this.ampPresF * pHR + 1e-20;
       this.ampPresLowR  += this.ampPresF * this.ampPresBandR;
       const shapedR = r + this.ampBodyBandR * 0.30 + this.ampPresBandR * 0.25;
 
