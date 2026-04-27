@@ -20,6 +20,12 @@ function createFakeEngine() {
     hall: 0.7,
     shimmer: 0.8,
     freeze: 0.9,
+    cistern: 0.15,
+    granular: 0.25,
+    graincloud: 0.35,
+    ringmod: 0.45,
+    formant: 0.55,
+    halo: 0.65,
   };
 
   const calls = [];
@@ -31,11 +37,15 @@ function createFakeEngine() {
     getCombFeedback: () => 0.85,
     getSubCenter: () => 110,
     getFreezeFeedback: () => 0.75,
+    getFreezeMode: () => 0,
+    getHaloTilt: () => 0.5,
     setDelayTime: (value) => calls.push(["delayTime", value]),
     setDelayFeedback: (value) => calls.push(["delayFeedback", value]),
     setCombFeedback: (value) => calls.push(["combFeedback", value]),
     setSubCenter: (value) => calls.push(["subCenter", value]),
     setFreezeFeedback: (value) => calls.push(["freezeMix", value]),
+    setFreezeMode: (value) => calls.push(["freezeMode", value]),
+    setHaloTilt: (value) => calls.push(["haloTilt", value]),
     setEffectLevel: (id, value) => calls.push([id, value]),
   };
 
@@ -108,6 +118,12 @@ test("apply snapshot helpers push values back into the engine", () => {
       hall: 0.4,
       shimmer: 0.4,
       freeze: 0.4,
+      cistern: 0.4,
+      granular: 0.4,
+      graincloud: 0.4,
+      ringmod: 0.4,
+      formant: 0.4,
+      halo: 0.4,
     },
     delayTime: 0.7,
     delayFeedback: 0.65,

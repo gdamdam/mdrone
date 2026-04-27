@@ -647,7 +647,7 @@ test("fx worklets — plate / shimmer / freeze stay finite under silent + impuls
   const cases = [
     { name: "fx-plate",    params: { decay: 0.6, damping: 0.4, diffusion: 0.75, mix: 1 } },
     { name: "fx-shimmer",  params: { feedback: 0.6, mix: 0.5, decay: 0.7 } },
-    { name: "fx-freeze",   params: { active: 1, mix: 1 } },
+    { name: "fx-freeze",   params: { active: 1, mix: 1, mode: 0 } },
     { name: "fx-granular", params: { size: 0.2, density: 6, pitchSpread: 0.2, panSpread: 0.6, position: 0.4, mix: 0.9, pitchMode: 0, envelope: 0, spawnMode: 0 } },
   ];
   for (const { name, params } of cases) {
