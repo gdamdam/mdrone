@@ -161,7 +161,7 @@ function ReferenceTab() {
       <div className="fx-modal-section-label">SURFACES</div>
       <ul className="help-list">
         <li><strong>DRONE</strong> — the instrument. Presets, tonic/mode, SHAPE macros, FX chain, ADVANCED (tuning + LFO).</li>
-        <li><strong>MEDITATE</strong> — 25 visualizers in 4 groups by function: HARMONIC · LANDSCAPE · RITUAL · VOID/HYPNOTIC (B&amp;W first, then colour within each). All in one warm parchment / ember palette. Toggled inline via the header <strong>◉ MEDITATE</strong> button. Tile navigator: dropdown · ◂ ▸ cycle · ↻ reset · ↗ open. Fullscreen HUD adds 🎲 random + ↗ pop out.</li>
+        <li><strong>MEDITATE</strong> — 25 visualizers in 4 groups by function: HARMONIC · LANDSCAPE · RITUAL · VOID/HYPNOTIC (B&amp;W first, then colour within each). All in one warm parchment / ember palette. Toggled inline via the header <strong>◉ MEDITATE</strong> button. Tile navigator: dropdown · ◂ ▸ cycle · ↻ reset · ↗ open. Fullscreen HUD adds 🎲 random + ↗ pop out. Screen wake-lock keeps the display on while MEDITATE is open. <em>DREAM MACHINE</em> uses a 10 Hz strobe — if your OS asks for reduced motion, it's automatically replaced with a slow ~0.2 Hz breath.</li>
         <li><strong>MIXER</strong> — master bus: HPF, 3-band EQ, <strong>MUD</strong> trim toggle (-3.5 dB @ 300 Hz, on by default), glue, drive, look-ahead brickwall limiter + ceiling, <strong>WIDTH</strong> (always-on bass-mono fold under 120 Hz), <strong>ROOM</strong> (parallel cathedral-IR send), <strong>COLOR</strong> (parallel saturation + air-band exciter). <strong>SAFE</strong> clamps to −6 dBFS for headphones.</li>
       </ul>
 
@@ -224,6 +224,14 @@ function ReferenceTab() {
           </a>{" "}(tiny local helper).
         </li>
         <li><strong>Palette</strong> — Settings → APPEARANCE. Three warm dark themes (Ember · Copper · Dusk) + one light (Parchment) for bright rooms.</li>
+      </ul>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">SETTINGS &amp; PERFORMANCE</div>
+      <ul className="help-list">
+        <li><strong>Low-Power Mode</strong> — Settings → SESSION → LOW-POWER MODE (off by default). For older laptops, low-end Windows machines, and weak tablets. Clamps the MEDITATE visualizer to 15 fps, throttles the loudness meter, and skips a small preset-change duck. The MEDITATE rAF loop also adapts automatically — if frames drop, it steps down 30 → 20 → 15 → 10 fps without you doing anything.</li>
+        <li><strong>Offline / Install</strong> — mdrone caches itself as a PWA. After the first load you can hold a drone with no internet. Use your browser's install affordance ("Add to Home Screen" on iOS, install icon in the URL bar on desktop) to launch it as a standalone app.</li>
+        <li><strong>Motion Sensitivity</strong> — when your OS prefers reduced motion, the DREAM MACHINE strobe is replaced with a slow breath, and looping decorative animations (header marquee, MIDI-learn pulses) are muted. Audible content is unaffected.</li>
       </ul>
 
       <div className="fx-modal-divider" />

@@ -29,6 +29,7 @@
 - **Visualises** — an inline live-visualizer tile and a fullscreen MEDITATE overlay with 25 authored visualizers (harmonic, landscape, ritual, void) sharing one warm parchment / ember palette.
 - **Mixes** — a master-bus drawer with HPF, EQ, mud trim, glue, drive, look-ahead limiter, parallel cathedral-IR room send, color saturation, M/S width, headphone-safe mode, and LUFS / peak metering.
 - **Saves + shares** — named local sessions, share-URL encoding of the full scene (plus optional gesture recording and custom tuning cents), 24-bit WAV master capture.
+- **Works offline + installs** — full service worker; once the page loads, you can hold a drone in airplane mode. "Add to home screen" on iOS / "Install" on desktop runs it as a standalone PWA.
 
 ---
 
@@ -44,6 +45,7 @@
 - [Visualizers](#visualizers)
 - [Sessions, Sharing, Recording](#sessions-sharing-recording)
 - [Keyboard, MIDI & Link](#keyboard-midi--link)
+- [Accessibility](#accessibility)
 - [Privacy](#privacy)
 - [Going Deeper](#going-deeper)
 - [License](#license)
@@ -179,6 +181,14 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
 **Ableton Link** — the breathing LFO RATE syncs to Link tempo via a small chip (FREE / 1/1 / 1/2 / 1/4 / 1/8 / 1/16). mdrone reuses mpump's [Link Bridge](https://github.com/gdamdam/mpump/releases) — a tiny cross-platform companion that bridges Link (UDP multicast) ↔ browser (localhost WebSocket). Run the bridge, enable Link in Settings, and any Link-enabled app syncs automatically. Nothing leaves your machine.
 
 ---
+
+## Accessibility
+
+- **`prefers-reduced-motion` honoured.** When your OS asks for reduced motion, the **DREAM MACHINE** 10 Hz strobe is replaced by a slow ~0.2 Hz breath, and looping decorative animations (header marquee, MIDI-learn pulses, weather glow) are muted. Audible content is unaffected.
+- **Screen-reader labels** on every icon button and canvas (MEDITATE visualizer, WEATHER pad, VU meter).
+- **44 × 44 touch targets** on touch devices — the compact mouse UI is preserved on desktop.
+- **Top-level error boundary** so a render exception in one panel doesn't blank the whole app.
+- **Low-Power Mode** (Settings → SESSION → LOW-POWER MODE, off by default) — for older laptops, low-end Windows machines, and weak tablets. Clamps the MEDITATE visualizer to 15 fps, throttles the loudness meter to 5 Hz, and skips the master-bus preset-change duck.
 
 ## Privacy
 
