@@ -1,4 +1,13 @@
 <h1 align="center">mdrone</h1>
+
+<p align="center">
+  <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/github/package-json/v/gdamdam/mdrone?color=blue&label=version" alt="Version"></a>
+  <a href="https://github.com/gdamdam/mdrone/actions/workflows/ci.yml"><img src="https://github.com/gdamdam/mdrone/workflows/CI/badge.svg" alt="CI"></a>
+  <a href="https://github.com/gdamdam/mdrone/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
+  <img src="https://img.shields.io/badge/Web%20Audio-API-FF6600" alt="Web Audio API">
+  <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">
+</p>
+
 <p align="center"><strong>Hold a note. Shape the air. Save the atmosphere.</strong><br><br>A microtonal drone instrument in your browser.<br>Hand-authored voices, long-form motion, and shareable tunings.<br>No install. No account. Free.</p>
 
 <p align="center">
@@ -7,14 +16,6 @@
 
 <p align="center">
   <img src="public/mdrone_screenshot.png" alt="mdrone screenshot" width="1200">
-</p>
-
-<p align="center">
-  <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/github/package-json/v/gdamdam/mdrone?color=blue&label=version" alt="Version"></a>
-  <a href="https://github.com/gdamdam/mdrone/actions/workflows/ci.yml"><img src="https://github.com/gdamdam/mdrone/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://github.com/gdamdam/mdrone/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
-  <img src="https://img.shields.io/badge/Web%20Audio-API-FF6600" alt="Web Audio API">
-  <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">
 </p>
 
 ---
