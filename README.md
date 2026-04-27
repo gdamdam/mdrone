@@ -192,7 +192,17 @@ If you want to dig past the overview:
 
 - **Parameter reference** — `docs/parameters.md` is auto-generated; regenerate via `npm run docs:params`.
 - **Source layout** — `src/components/` (React UI), `src/engine/` (audio engine, voices, FX, worklets, presets, MIDI), `src/scene/` (scene model, share/snapshot codec), `src/microtuning.ts` (tuning tables + custom registry), `scripts/` (worklet bundle, doc + version generators), `tests/` (node:test suites).
-- **Build & deploy** — standard Vite app; `npm run dev` for local, `npm run deploy` to publish `dist/` to the `gh-pages` branch.
+- **Local dev** — standard Vite app: `npm run dev` for the dev server, `npm run build` for a production bundle, `npm run test` / `npm run test:unit` / `npm run test:e2e` for the three test suites.
+- **CI** — every push to `main` and every PR runs lint + typecheck + node tests + vitest + Playwright E2E + build via `.github/workflows/ci.yml`. Status visible from the badge above.
+- **Releases** — tag-gated, not push-to-main. To cut a release:
+  ```
+  npm run release           # bumps patch (or `release minor` / `release major` / `release X.Y.Z`),
+                            # regenerates CHANGELOG.md from git history, stages both files
+  git commit -m "X.Y.Z — release: <summary>"
+  git tag vX.Y.Z
+  git push origin main --tags
+  ```
+  The `--tags` push triggers `.github/workflows/deploy.yml`, which re-runs every CI check and only then publishes `dist/` to the `gh-pages` branch (mdrone.org). Push to `main` without a tag never deploys — every commit is *checked* but doesn't ship until you cut a release. `npm run deploy` still exists as a manual escape hatch from a developer machine.
 - **Code** — full source on [GitHub](https://github.com/gdamdam/mdrone).
 
 ---
