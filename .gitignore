@@ -42,3 +42,8 @@ worker/.dev.vars
 
 # Audit / measurement output (npm run audit:presets)
 tmp/
+
+# Generated build artifact — written by scripts/write-version-json.mjs
+# on the prebuild hook. Source of truth is package.json; keeping a
+# tracked copy meant every release dirtied a second file.
+public/version.json
