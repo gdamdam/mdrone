@@ -22,7 +22,12 @@ import { VuMeter } from "./VuMeter";
 import { DropdownSelect } from "./DropdownSelect";
 import { WeatherPad } from "./WeatherPad";
 import { EntrainPanel } from "./EntrainPanel";
-import { VisualizerPreview } from "./VisualizerPreview";
+// VisualizerPreview also pulls the `meditate` chunk (visualizers.ts).
+// Lazy-loaded so the chunk only fetches when the user enables the
+// preview tile (Settings → APPEARANCE) — it's off by default.
+const VisualizerPreview = lazy(() =>
+  import("./VisualizerPreview").then((m) => ({ default: m.VisualizerPreview })),
+);
 import type { Visualizer } from "./visualizers";
 
 const PRESET_GROUPS: PresetGroup[] = [
@@ -1181,13 +1186,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             what MEDITATE will expand into. Selector inline; tap canvas
             to expand to MEDITATE. */}
         {visualPreviewOn && meditateVisualizer && onOpenMeditate && (
-          <VisualizerPreview
-            engine={engine}
-            visualizer={meditateVisualizer}
-            onChangeVisualizer={onChangeMeditateVisualizer}
-            onOpen={onOpenMeditate}
-            paused={meditatePreviewPaused}
-          />
+          <Suspense fallback={null}>
+            <VisualizerPreview
+              engine={engine}
+              visualizer={meditateVisualizer}
+              onChangeVisualizer={onChangeMeditateVisualizer}
+              onOpen={onOpenMeditate}
+              paused={meditatePreviewPaused}
+            />
+          </Suspense>
         )}
         <div className="weather-macro-row">
           <WeatherPad

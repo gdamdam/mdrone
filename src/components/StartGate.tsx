@@ -64,7 +64,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
     : null;
 
   return (
-    <div className="start-gate">
+    <main className="start-gate">
       <div className="start-gate-inner">
         <span className="start-gate-corner start-gate-corner-tl" aria-hidden="true" />
         <span className="start-gate-corner start-gate-corner-tr" aria-hidden="true" />
@@ -210,7 +210,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
 
         <span className="start-gate-version">v{APP_VERSION}</span>
       </div>
-    </div>
+    </main>
   );
 }
 

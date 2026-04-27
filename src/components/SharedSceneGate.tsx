@@ -67,7 +67,7 @@ export function SharedSceneGate({ scene, onStart }: SharedSceneGateProps) {
   };
 
   return (
-    <div className="start-gate">
+    <main className="start-gate">
       <div className="start-gate-inner shared-scene-gate">
         <div className="shared-scene-label">SHARED SCENE</div>
 
@@ -95,6 +95,6 @@ export function SharedSceneGate({ scene, onStart }: SharedSceneGateProps) {
           Press Play to resume the browser's audio and hear it.
         </div>
       </div>
-    </div>
+    </main>
   );
 }

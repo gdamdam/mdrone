@@ -3158,11 +3158,12 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
 }
 .macro-col-slider {
   /* Native vertical slider — `writing-mode: vertical-lr` + `direction: rtl`
-     flips the track so 0 sits at the bottom (as a fader should). */
+     flips the track so 0 sits at the bottom (as a fader should). The
+     legacy `appearance: slider-vertical` is removed — Chromium 132+
+     deprecates it (chromestatus.com/feature/6001359429566464) and
+     `writing-mode` alone is now the standard mechanism. */
   writing-mode: vertical-lr;
   direction: rtl;
-  -webkit-appearance: slider-vertical;
-  appearance: slider-vertical;
   width: 6px;
   height: 100%;
   margin: 0;
@@ -4930,8 +4931,8 @@ input.share-modal-url:focus {
   margin: 0;
   opacity: 0;
   cursor: ns-resize;
-  -webkit-appearance: slider-vertical;
-  appearance: slider-vertical;
+  /* `writing-mode: vertical-lr` is the standard vertical-slider
+     mechanism; `appearance: slider-vertical` is deprecated. */
   writing-mode: vertical-lr;
   direction: rtl;
 }

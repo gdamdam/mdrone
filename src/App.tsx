@@ -63,7 +63,7 @@ export function App() {
     if (sharedState.status === "loading") {
       // Brief neutral state while the URL is probed — avoids flashing
       // the generic splash for shared links.
-      return <div className="start-gate" aria-busy="true" />;
+      return <main className="start-gate" aria-busy="true" />;
     }
     if (sharedState.scene) {
       return (

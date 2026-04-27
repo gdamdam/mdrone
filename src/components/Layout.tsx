@@ -12,7 +12,14 @@ import { measureAllPresets } from "../devtools/measureLoudness";
 import { auditArrival } from "../devtools/auditArrival";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
-import { MeditateView } from "./MeditateView";
+// MeditateView pulls the `meditate` chunk (visualizers + meditate
+// state). Lazy + gated on first-open so the chunk doesn't fetch
+// until the user actually clicks ◉ MEDITATE. Once mounted it stays
+// mounted (see hasOpenedMeditate below) so visualizer phase clocks
+// and smoothing buffers don't reset on every toggle.
+const MeditateView = lazy(() =>
+  import("./MeditateView").then((m) => ({ default: m.MeditateView })),
+);
 import { trackEvent } from "../analytics";
 import { TutorialFlow } from "./TutorialFlow";
 import { TutorialOffer } from "./TutorialOffer";
@@ -45,10 +52,17 @@ interface LayoutProps {
  */
 export function Layout({ engine, startupMode }: LayoutProps) {
   const [viewMode, setViewModeRaw] = useState<ViewMode>("drone");
+  // First-time-MEDITATE gate. The MeditateView chunk only fetches once
+  // this flips to true; once mounted the component stays in the tree
+  // (CSS hides it) so its rAF loop and visualizer state survive
+  // toggles. Without this gate the chunk would still load, just under
+  // a different React.lazy code-path.
+  const [hasOpenedMeditate, setHasOpenedMeditate] = useState(false);
   const setViewMode = useCallback((mode: ViewMode) => {
     // Track non-default mode switches — gives a sense of how many
     // sessions actually reach MEDITATE / MIXER vs never leave DRONE.
     if (mode !== "drone") trackEvent(`view/${mode}`);
+    if (mode === "meditate") setHasOpenedMeditate(true);
     setViewModeRaw(mode);
   }, []);
   const [isRec, setIsRec] = useState(false);
@@ -864,6 +878,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           }
           aria-hidden={viewMode !== "meditate"}
         >
+          {hasOpenedMeditate && (
+          <Suspense fallback={null}>
           <MeditateView
             engine={engine}
             active={viewMode === "meditate"}
@@ -882,6 +898,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
               droneViewRef.current?.applyLivePatch?.({ climateX: x01, climateY: y01 }, { record: true });
             }}
           />
+          </Suspense>
+          )}
         </section>
         <section
           className={viewMode === "mixer" ? "view-drawer view-drawer-active" : "view-drawer"}
