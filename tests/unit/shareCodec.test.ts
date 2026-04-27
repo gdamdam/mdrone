@@ -88,4 +88,67 @@ describe("shareCodec malformed input", () => {
     expect(await decodeScenePayload("", false)).toBeNull();
     expect(await decodeScenePayload("", true)).toBeNull();
   });
+
+  it("decodeScenePayload returns null when payload is JSON but not a scene object", async () => {
+    // Valid base64 of `42` and `[]` and `"hello"` — JSON parses fine but
+    // normalizePortableScene must reject anything that isn't a record
+    // with drone+mixer subrecords. These are the partial-corruption-
+    // after-successful-decode cases the audit flagged.
+    const cases = ["42", "[]", '"hello"', "null", "true"];
+    for (const json of cases) {
+      const b64 = btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      expect(await decodeScenePayload(b64, false)).toBeNull();
+    }
+  });
+
+  it("decodeScenePayload returns null when the JSON object is missing drone or mixer", async () => {
+    const cases = [
+      "{}",
+      '{"drone":{}}',         // mixer missing
+      '{"mixer":{}}',         // drone missing
+      '{"drone":null,"mixer":{}}',
+      '{"drone":{},"mixer":"not-an-object"}',
+    ];
+    for (const json of cases) {
+      const b64 = btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      expect(await decodeScenePayload(b64, false)).toBeNull();
+    }
+  });
+});
+
+describe("normalizePortableScene defends against bad input", () => {
+  it("returns null for non-record inputs", () => {
+    expect(normalizePortableScene(null)).toBeNull();
+    expect(normalizePortableScene(undefined)).toBeNull();
+    expect(normalizePortableScene(42)).toBeNull();
+    expect(normalizePortableScene("string")).toBeNull();
+    expect(normalizePortableScene([])).toBeNull();
+    expect(normalizePortableScene(true)).toBeNull();
+  });
+
+  it("drops a customTuning whose degrees array is the wrong length", () => {
+    const s = normalizePortableScene({
+      drone: {},
+      mixer: {},
+      fx: {},
+      ui: {},
+      customTuning: { id: "custom:bogus", label: "Bogus", degrees: [0, 100, 200] },
+    });
+    expect(s).not.toBeNull();
+    expect(s!.customTuning).toBeUndefined();
+  });
+
+  it("preserves a customTuning with the required 13-degree shape", () => {
+    const degrees = Array.from({ length: 13 }, (_, i) => i * 100);
+    const s = normalizePortableScene({
+      drone: {},
+      mixer: {},
+      fx: {},
+      ui: {},
+      customTuning: { id: "custom:ok", label: "OK", degrees },
+    });
+    expect(s).not.toBeNull();
+    expect(s!.customTuning?.degrees).toHaveLength(13);
+    expect(s!.customTuning?.degrees[12]).toBe(1200);
+  });
 });

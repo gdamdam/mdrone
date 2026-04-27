@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AudioEngine } from "./engine/AudioEngine";
 import { Layout } from "./components/Layout";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { StartGate } from "./components/StartGate";
 import { SharedSceneGate } from "./components/SharedSceneGate";
 import { applyPalette, loadPaletteId, PALETTES } from "./themes";
@@ -91,5 +92,9 @@ export function App() {
   }
 
   const engine = getEngine();
-  return <Layout engine={engine} startupMode={startupMode} />;
+  return (
+    <ErrorBoundary scope="the drone view">
+      <Layout engine={engine} startupMode={startupMode} />
+    </ErrorBoundary>
+  );
 }
