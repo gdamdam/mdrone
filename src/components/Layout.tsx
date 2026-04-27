@@ -540,6 +540,23 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     // If the user disables it while a recording is in progress, stop it.
     if (!on && sceneManager.isRecordingMotion) sceneManager.handleToggleMotionRecord();
   }, [sceneManager]);
+
+  // Low-power mode — opt-in toggle in Settings. When on: MEDITATE
+  // clamps to 15 fps, the LUFS meter publishes at ~5 Hz instead of
+  // ~30 Hz, and the master-bus duck on preset change is skipped.
+  const [lowPowerMode, setLowPowerModeState] = useState<boolean>(() => {
+    try { return localStorage.getItem(STORAGE_KEYS.lowPowerMode) === "1"; }
+    catch { return false; }
+  });
+  // Push the persisted value into the engine once it's available.
+  useEffect(() => {
+    engine?.setLowPowerMode?.(lowPowerMode);
+  }, [engine, lowPowerMode]);
+  const setLowPowerMode = useCallback((on: boolean) => {
+    setLowPowerModeState(on);
+    try { localStorage.setItem(STORAGE_KEYS.lowPowerMode, on ? "1" : "0"); }
+    catch { /* noop */ }
+  }, []);
   // Global keyboard shortcuts (always active)
   useEffect(() => {
     const globalHandler = (e: KeyboardEvent) => {
@@ -749,6 +766,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onChangeWeatherVisual={setWeatherVisual}
         motionRecEnabled={motionRecEnabled}
         onToggleMotionRec={setMotionRecEnabled}
+        lowPowerMode={lowPowerMode}
+        onToggleLowPower={setLowPowerMode}
         meditatePreviewOn={visualPreviewOn}
         onToggleMeditatePreview={toggleVisualPreview}
         analyser={engine.getAnalyser()}
@@ -848,6 +867,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           <MeditateView
             engine={engine}
             active={viewMode === "meditate"}
+            lowPowerMode={lowPowerMode}
             visualizer={sceneManager.meditateVisualizer}
             onChangeVisualizer={(v) => {
               trackEvent(`visualizer/${v}`);

@@ -1553,6 +1553,16 @@ class LoudnessMeterProcessor extends AudioWorkletProcessor {
     // Publish throttle: emit one port message every ~33 ms ≈ 30 Hz.
     this.publishEveryNBlocks = Math.max(1, Math.floor(sampleRate / (128 * 30)));
     this.publishCounter = 0;
+
+    // Low-power mode lowers the publish rate to ~5 Hz so the meter
+    // burns less main-thread CPU on weak hardware. Driven from the
+    // main thread via `port.postMessage({ type: "publishHz", hz })`.
+    this.port.onmessage = (e) => {
+      const m = e.data;
+      if (m && m.type === "publishHz" && typeof m.hz === "number" && m.hz > 0) {
+        this.publishEveryNBlocks = Math.max(1, Math.floor(sampleRate / (128 * m.hz)));
+      }
+    };
   }
 
   // Biquad (DF-I), returns filtered sample and updates zs in-place.

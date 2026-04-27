@@ -65,6 +65,10 @@ export class MasterBus {
    *  getLoudnessMeter() / onLoudnessUpdate(). P3. */
   private loudnessMeter: AudioWorkletNode | null = null;
   private loudnessListeners: Set<(m: { lufsShort: number; peakDb: number }) => void> = new Set();
+  /** Low-power mode — when true, the LUFS meter publishes at ~5 Hz
+   *  instead of ~30 Hz to reduce main-thread CPU on weak hardware.
+   *  Cached so the rate can be applied after the worklet loads. */
+  private lowPowerMode = false;
 
   /** Stereo width stage — mid/side matrix between outputTrim and the
    *  analyser. width = 1.0 is identity (LL=RR=1, LR=RL=0); width = 0
@@ -534,6 +538,11 @@ export class MasterBus {
             for (const cb of this.loudnessListeners) cb(payload);
           }
         };
+        // If low-power mode was enabled before the worklet loaded,
+        // apply the throttled publish rate now.
+        if (this.lowPowerMode) {
+          this.loudnessMeter.port.postMessage({ type: "publishHz", hz: 5 });
+        }
       } catch { /* registration may race; leave null */ }
     }
 
@@ -837,6 +846,13 @@ export class MasterBus {
    *  null so legacy inspection callers don't crash. */
   getLimiter(): AudioWorkletNode | null { return null; }
   getOutputTrim(): GainNode { return this.outputTrim; }
+
+  setLowPowerMode(on: boolean): void {
+    this.lowPowerMode = on;
+    if (this.loudnessMeter) {
+      this.loudnessMeter.port.postMessage({ type: "publishHz", hz: on ? 5 : 30 });
+    }
+  }
 
   /** Soft duck on the master output to mask preset-change artefacts.
    *  Envelope: dip to ~-6 dB over 20 ms, hold 30 ms, recover over

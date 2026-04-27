@@ -33,6 +33,10 @@ export const STORAGE_KEYS = {
   linkEnabled: "mdrone-link-enabled",
   /** LFO rate sync mode. "free" | "1/1" | "1/2" | "1/4" | "1/8" | "1/16". */
   lfoSyncMode: "mdrone-lfo-sync-mode",
+  /** Low-power mode opt-in. When true: MEDITATE clamps to 15 fps,
+   *  the LUFS meter publishes at ~5 Hz instead of ~30 Hz, and the
+   *  master-bus duck on preset change is skipped. Off by default. */
+  lowPowerMode: "mdrone-low-power",
 } as const;
 
 export type WeatherVisual = "waveform" | "flow" | "minimal";

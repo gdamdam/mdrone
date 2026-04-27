@@ -30,6 +30,10 @@ import { clearDeityPreview } from "./deities";
 interface MeditateViewProps {
   engine: AudioEngine | null;
   active: boolean; // true when meditate tab is visible
+  /** Low-power mode (Settings → SESSION). Hard-clamps the rAF loop
+   *  to ~15 fps and disables the adaptive throttle's promotion
+   *  arm — pure CPU saving for weaker hardware. */
+  lowPowerMode?: boolean;
   visualizer: Visualizer;
   onChangeVisualizer: (visualizer: Visualizer) => void;
   /** Single click or drag on the canvas — the whole surface acts as
@@ -53,6 +57,7 @@ const HUD_IDLE_MS = 2500;
 export function MeditateView({
   engine,
   active,
+  lowPowerMode = false,
   visualizer,
   onChangeVisualizer,
   onWeather,
@@ -60,6 +65,10 @@ export function MeditateView({
   onRandomScene,
   onPopOutChange,
 }: MeditateViewProps) {
+  // Carry the latest low-power flag into the rAF closure without
+  // re-mounting the loop on every toggle.
+  const lowPowerRef = useRef(lowPowerMode);
+  useEffect(() => { lowPowerRef.current = lowPowerMode; }, [lowPowerMode]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Refs that carry the latest weather callback into the tick-loop
@@ -457,10 +466,28 @@ export function MeditateView({
     if (canvas.parentElement) ro.observe(canvas.parentElement);
 
     let lastPaint = -Infinity;
-    const FRAME_MS = 1000 / 30;
+    // Adaptive frame budget — starts at 30 fps. If draw() consistently
+    // overruns ~85% of the budget we step down (30 → 20 → 15 → 10 fps);
+    // if it stays comfortably under ~40% we step back up. Low-power
+    // mode is a hard clamp at 15 fps with no promotion.
+    const FPS_TIERS = [30, 20, 15, 10];
+    let fpsTierIdx = 0;
+    let FRAME_MS = 1000 / FPS_TIERS[fpsTierIdx];
+    let drawEma = 0;
+    let frameCount = 0;
+    let slowCount = 0;
+    const applyLowPowerClamp = () => {
+      if (lowPowerRef.current) {
+        const tier = FPS_TIERS.indexOf(15);
+        if (fpsTierIdx < tier) fpsTierIdx = tier;
+        FRAME_MS = 1000 / FPS_TIERS[fpsTierIdx];
+      }
+    };
+    applyLowPowerClamp();
 
     const tick = (now: number) => {
       if (document.hidden && !isPopOut) return;
+      applyLowPowerClamp();
       if (now - lastPaint < FRAME_MS) return;
       lastPaint = now;
       const dtMs = Math.min(80, now - lastNow);
@@ -589,14 +616,37 @@ export function MeditateView({
       const visRate = playing ? VIS_ATTACK : VIS_RELEASE;
       visibility += (visTarget - visibility) * (1 - Math.pow(1 - visRate, dtScale));
 
+      let drawMs = 0;
       if (playing) {
         const draw = VISUALIZER_FNS[visualizerRef.current];
+        const drawStart = performance.now();
         draw(ctx, cssW, cssH, frame, phase);
+        drawMs = performance.now() - drawStart;
       }
 
       if (visibility < 0.999) {
         ctx.fillStyle = `rgba(0, 0, 0, ${1 - visibility})`;
         ctx.fillRect(0, 0, cssW, cssH);
+      }
+
+      // Adaptive throttle — only when not low-power (low-power is a
+      // hard floor). Sample 60 frames; demote if 30+ overran 85% of
+      // the budget; promote if EMA stays under 40% of the budget.
+      if (!lowPowerRef.current && playing) {
+        drawEma = drawEma === 0 ? drawMs : drawEma * 0.9 + drawMs * 0.1;
+        frameCount++;
+        if (drawMs > FRAME_MS * 0.85) slowCount++;
+        if (frameCount >= 60) {
+          if (slowCount >= 30 && fpsTierIdx < FPS_TIERS.length - 1) {
+            fpsTierIdx++;
+            FRAME_MS = 1000 / FPS_TIERS[fpsTierIdx];
+          } else if (drawEma < FRAME_MS * 0.4 && fpsTierIdx > 0) {
+            fpsTierIdx--;
+            FRAME_MS = 1000 / FPS_TIERS[fpsTierIdx];
+          }
+          frameCount = 0;
+          slowCount = 0;
+        }
       }
     };
     lastNow = performance.now();

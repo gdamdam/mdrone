@@ -432,6 +432,13 @@ export class AudioEngine {
     this.masterBus.duckForPresetChange();
   }
 
+  private lowPowerMode = false;
+  isLowPower(): boolean { return this.lowPowerMode; }
+  setLowPowerMode(on: boolean): void {
+    this.lowPowerMode = on;
+    this.masterBus.setLowPowerMode(on);
+  }
+
   getPresetTrim(): number { return this.presetTrim.gain.value; }
 
   setEffect(id: EffectId, on: boolean): void {

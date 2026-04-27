@@ -3374,7 +3374,10 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     // Master-bus duck masks any swap-domain click (voice rebuild
     // race, fx routing flip, IR buffer replacement). Fired before
     // the scene swap so the dip is in place when the swap lands.
-    engine.duckForPresetChange?.();
+    // Skipped in low-power mode — the dip itself adds a couple of
+    // setValueAtTime / linearRamp scheduling calls per preset apply
+    // that we'd rather not pay on weak hardware.
+    if (!engine.isLowPower?.()) engine.duckForPresetChange?.();
     // (A) Apply per-preset loudness trim before the scene builds so
     // the new voices come in at the corrected level.
     engine.setPresetTrim(preset.gain ?? 1);

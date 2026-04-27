@@ -79,6 +79,8 @@ interface HeaderProps {
   onChangeWeatherVisual: (v: import("../config").WeatherVisual) => void;
   motionRecEnabled: boolean;
   onToggleMotionRec: (on: boolean) => void;
+  lowPowerMode: boolean;
+  onToggleLowPower: (on: boolean) => void;
   analyser: AnalyserNode | null;
   loadMonitor: AudioLoadMonitor;
   /** Inline MEDITATE preview tile toggle. Lives next to HOLD so the
@@ -130,6 +132,8 @@ export function Header({
   onChangeWeatherVisual,
   motionRecEnabled,
   onToggleMotionRec,
+  lowPowerMode,
+  onToggleLowPower,
   analyser,
   loadMonitor,
   meditatePreviewOn,
@@ -762,6 +766,26 @@ export function Header({
                     : "Show the REC MOTION button in the drone view"}
                 >
                   {motionRecEnabled ? "● MOTION RECORDING" : "MOTION RECORDING"}
+                </button>
+              </div>
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">LOW-POWER MODE</div>
+              <p className="fx-modal-desc">
+                For older laptops, low-end Windows machines, and weak
+                tablets. Clamps the MEDITATE visualizer to 15 fps,
+                throttles the loudness meter, and skips a tiny
+                preset-change duck. Off by default.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className={lowPowerMode ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => onToggleLowPower(!lowPowerMode)}
+                  title={lowPowerMode
+                    ? "Disable low-power mode"
+                    : "Enable low-power mode for weaker hardware"}
+                >
+                  {lowPowerMode ? "● LOW-POWER MODE" : "LOW-POWER MODE"}
                 </button>
               </div>
 
