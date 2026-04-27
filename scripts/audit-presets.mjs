@@ -43,7 +43,7 @@ import { dirname, join } from "node:path";
 import { execSync } from "node:child_process";
 import {
   SR, BLK, makeBuffers, makeParamArr,
-  integratedLufs, bandEnergyDb, basicStats, lrCorrelation,
+  integratedLufs, bandEnergyDb, basicStats, lrCorrelation, clickStats,
   applyEffectChain, normalizeVoiceLevels,
 } from "./audit-helpers.mjs";
 
@@ -255,6 +255,7 @@ async function main() {
     const lufs = stats.finite ? integratedLufs(L, R, SR) : null;
     const corr = stats.finite ? lrCorrelation(L, R) : null;
     const bands = stats.finite ? bandEnergyDb(L, SR) : null;
+    const clicks = stats.finite ? clickStats(L, R, SR) : null;
     const ms = Date.now() - t0;
     process.stderr.write(`${ms}ms${skipped.length ? `  (skipped FX: ${skipped.join(",")})` : ""}\n`);
     results[id] = {
@@ -268,6 +269,11 @@ async function main() {
       lrCorr: corr !== null ? Number(corr.toFixed(3)) : null,
       bands: bands ? Object.fromEntries(
         Object.entries(bands).map(([k, v]) => [k, Number(v.toFixed(2))])) : null,
+      clicks: clicks ? {
+        maxDelta: Number(clicks.maxDelta.toFixed(4)),
+        count01: clicks.count01,
+        count02: clicks.count02,
+      } : null,
       skippedFx: skipped,
     };
   }
@@ -289,8 +295,8 @@ async function main() {
   // Markdown table for stdout.
   console.log(`# mdrone preset audit — v${pkg.version} @ ${commit}`);
   console.log(`Render: ${args.seconds}s ${args.fx ? "voice + FX (worklet effects + master limiter)" : "voice bus only"}. Sample rate ${SR} Hz.\n`);
-  console.log("| Preset | LUFS | Peak dB | RMS dB | Crest | DC(L) | L/R corr | low | mud | harsh | air |");
-  console.log("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
+  console.log("| Preset | LUFS | Peak dB | RMS dB | Crest | DC(L) | L/R corr | low | mud | harsh | air | maxΔ |");
+  console.log("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
   // Sort by LUFS descending for quick eyeballing.
   const sorted = ids
     .map((id) => [id, results[id]])
@@ -299,7 +305,8 @@ async function main() {
     const fmt = (v, d = 1) => v == null ? "—" : v.toFixed(d);
     console.log(`| ${id} | ${fmt(r.lufs)} | ${fmt(r.samplePeakDb)} | ${fmt(r.rmsDb)} | `
       + `${fmt(r.crestFactor, 2)} | ${fmt(r.dc.L, 4)} | ${fmt(r.lrCorr, 2)} | `
-      + `${fmt(r.bands?.lowDb)} | ${fmt(r.bands?.mudDb)} | ${fmt(r.bands?.harshDb)} | ${fmt(r.bands?.airDb)} |`);
+      + `${fmt(r.bands?.lowDb)} | ${fmt(r.bands?.mudDb)} | ${fmt(r.bands?.harshDb)} | ${fmt(r.bands?.airDb)} | `
+      + `${fmt(r.clicks?.maxDelta, 3)} |`);
   }
 
   // Library-wide context lines.
@@ -308,6 +315,19 @@ async function main() {
     const med = lufses.slice().sort((a, b) => a - b)[Math.floor(lufses.length / 2)];
     const max = Math.max(...lufses), min = Math.min(...lufses);
     console.log(`\n**LUFS spread:** median ${med.toFixed(1)}, range ${min.toFixed(1)} … ${max.toFixed(1)} (${(max - min).toFixed(1)} dB)`);
+  }
+
+  // Click warnings — anything with maxDelta > 0.2 is a likely click.
+  // 0.1 is reported in JSON for borderline cases but not flagged here.
+  const clickWarn = sorted
+    .filter(([_, r]) => r.clicks && r.clicks.count02 > 0)
+    .map(([id, r]) => `  - ${id}: maxΔ=${r.clicks.maxDelta.toFixed(3)}, ${r.clicks.count02} samples > 0.2`);
+  if (clickWarn.length > 0) {
+    console.log(`\n**⚠ Click candidates** (sample-jump > 0.2 — almost certainly a discontinuity):`);
+    console.log(clickWarn.join("\n"));
+  } else {
+    const maxDelta = Math.max(0, ...sorted.map(([_, r]) => r.clicks?.maxDelta ?? 0));
+    console.log(`\n**✓ No click candidates.** Max sample-jump across the library: ${maxDelta.toFixed(3)} (clean threshold ≤ 0.2).`);
   }
 }
 

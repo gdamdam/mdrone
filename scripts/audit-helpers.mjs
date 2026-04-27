@@ -134,6 +134,35 @@ export function basicStats(left, right) {
   };
 }
 
+/**
+ * Per-channel sample-jump (click) detector. Real audio is bandlimited
+ * at sampleRate/2; a single-sample delta of more than ~0.1 is rare
+ * even on sharp transients (KS plucks etc., because of the LP smoothing
+ * in their physical models). A delta of >0.2 is suspicious; >0.3 is
+ * almost certainly a click — a discontinuity in the buffer rather than
+ * a musical event.
+ *
+ * Returns max abs delta across both channels and counts of samples
+ * exceeding two thresholds. Skips the first `skipSamples` (default
+ * 50 ms at 48 kHz) so worklet startup transients don't pollute.
+ */
+export function clickStats(left, right, sampleRate = 48000) {
+  const skipSamples = Math.floor(sampleRate * 0.05);
+  let maxDelta = 0;
+  let count01 = 0;  // |Δ| > 0.1  (informational)
+  let count02 = 0;  // |Δ| > 0.2  (warning — likely click)
+  const N = left.length;
+  for (let i = skipSamples + 1; i < N; i++) {
+    const dl = Math.abs(left[i] - left[i - 1]);
+    const dr = Math.abs(right[i] - right[i - 1]);
+    const d = dl > dr ? dl : dr;
+    if (d > maxDelta) maxDelta = d;
+    if (d > 0.1) count01++;
+    if (d > 0.2) count02++;
+  }
+  return { maxDelta, count01, count02 };
+}
+
 export function lrCorrelation(left, right) {
   const N = left.length;
   let mL = 0, mR = 0;
