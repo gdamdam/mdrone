@@ -430,8 +430,24 @@ export class AudioEngine {
 
   /** Serial effect-chain order. UI (FxBar) persists the user's
    *  reorder via localStorage and replays it on every engine spin-up
-   *  so the saved chain order survives reloads. */
+   *  so the saved chain order survives reloads.
+   *
+   *  Drag-reorder while audio is hot triggers a synchronous
+   *  disconnect/reconnect of every serial-insert link inside FxChain
+   *  — a click without protection on long reverb tails. We dip the
+   *  master ~6 dB for ~130 ms (same envelope used by preset-change)
+   *  before applying so the swap lands under silence. Skipped when
+   *  the rewire is a no-op, when the drone isn't playing, or in
+   *  low-power mode (matches the applyPreset duck policy). */
   setEffectOrder(order: readonly EffectId[]): void {
+    if (shouldDuckOnEffectReorder(
+      this.fxChain.getEffectOrder(),
+      order,
+      this.voiceEngine.isPlaying(),
+      this.isLowPower(),
+    )) {
+      this.masterBus.duckForPresetChange();
+    }
     this.fxChain.setEffectOrder(order);
   }
 
@@ -801,4 +817,28 @@ export class AudioEngine {
   subscribeLiveSafe(listener: (s: LiveSafeState) => void): () => void {
     return this.liveSafe.subscribe(listener);
   }
+}
+
+/** Decide whether a serial-chain reorder warrants firing the master
+ *  preset duck before FxChain rewires the graph. Pure helper extracted
+ *  for unit testing — see tests/unit/audioEngineEffectOrder.test.ts.
+ *
+ *  Skip the duck when:
+ *    - the new order is identical to the current one (no rewire),
+ *    - the drone isn't playing (no audible signal to protect),
+ *    - effective low-power mode is on (matches applyPreset's policy
+ *      of skipping the duck on weak hardware).
+ */
+export function shouldDuckOnEffectReorder(
+  currentOrder: readonly EffectId[],
+  newOrder: readonly EffectId[],
+  isPlaying: boolean,
+  isLowPower: boolean,
+): boolean {
+  if (!isPlaying || isLowPower) return false;
+  if (currentOrder.length !== newOrder.length) return true;
+  for (let i = 0; i < currentOrder.length; i++) {
+    if (currentOrder[i] !== newOrder[i]) return true;
+  }
+  return false;
 }

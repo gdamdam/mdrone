@@ -723,13 +723,20 @@ export class FxChain {
    *  contains every EffectId exactly once, then disconnects the
    *  current chain graph and rewires in the new order. Insert DSP
    *  (worklets, biquads) is preserved — only the inter-insert links
-   *  are rewired. If `order` is invalid, no-op. */
-  setEffectOrder(order: readonly EffectId[]): void {
-    if (order.length !== EFFECT_ORDER.length) return;
+   *  are rewired. If `order` is invalid, no-op.
+   *
+   *  Returns true when the chain was actually rewired. The caller
+   *  (AudioEngine) reads this to decide whether to fire the master
+   *  preset duck — synchronous disconnect/reconnect of the serial
+   *  chain produces an audible click on hot tails (reverb, granular)
+   *  if the master output isn't briefly dipped first.
+   */
+  setEffectOrder(order: readonly EffectId[]): boolean {
+    if (order.length !== EFFECT_ORDER.length) return false;
     const seen = new Set<string>();
     for (const id of order) {
-      if (!(id in this.inserts)) return;
-      if (seen.has(id)) return;
+      if (!(id in this.inserts)) return false;
+      if (seen.has(id)) return false;
       seen.add(id);
     }
     // No-op if the new order matches the current one.
@@ -737,10 +744,12 @@ export class FxChain {
     for (let i = 0; i < order.length; i++) {
       if (order[i] !== this.currentOrder[i]) { same = false; break; }
     }
-    if (same) return;
+    if (same) return false;
     this.unwireInsertChain(this.currentOrder);
     this.currentOrder = [...order];
     this.wireInsertChain(this.currentOrder);
+    trace("setEffectOrder", { order: this.currentOrder });
+    return true;
   }
 
   /** Returns a copy of the current chain order. The UI reads this
