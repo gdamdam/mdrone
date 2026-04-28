@@ -22,16 +22,16 @@ class FakeMonitor implements AdaptiveLoadSource {
 
 interface FakeAdapter extends AdaptiveAdapter {
   fakeNow: number;
-  lowPower: boolean;
+  adaptiveLowPower: boolean;
   effects: Record<EffectId, boolean>;
   voiceMax: number;
   notifications: { msg: string; kind: "info" | "warning" }[];
 }
 
-function makeAdapter(overrides: Partial<FakeAdapter> = {}): FakeAdapter {
+function makeAdapter(): FakeAdapter {
   const effects: Record<EffectId, boolean> = {} as Record<EffectId, boolean>;
   for (const id of EFFECT_ORDER) effects[id] = false;
-  // Enable all heavy fx so stage 2 has things to bypass.
+  // Heavy FX user-intended ON so stage 2 has things to bypass.
   effects.shimmer = true;
   effects.granular = true;
   effects.graincloud = true;
@@ -43,19 +43,17 @@ function makeAdapter(overrides: Partial<FakeAdapter> = {}): FakeAdapter {
 
   const a: FakeAdapter = {
     fakeNow: 0,
-    lowPower: false,
+    adaptiveLowPower: false,
     effects,
     voiceMax: 7,
     notifications: [],
-    isLowPower() { return a.lowPower; },
-    setLowPower(on) { a.lowPower = on; },
+    setAdaptiveLowPower(on) { a.adaptiveLowPower = on; },
     getEffectStates() { return { ...a.effects }; },
     setEffect(id, on) { a.effects[id] = on; },
     getMaxVoiceLayers() { return a.voiceMax; },
     setMaxVoiceLayers(n) { a.voiceMax = n; },
     notify(msg, kind) { a.notifications.push({ msg, kind }); },
     now() { return a.fakeNow; },
-    ...overrides,
   };
   return a;
 }
@@ -69,9 +67,9 @@ describe("AdaptiveStabilityEngine", () => {
     monitor = new FakeMonitor();
     adapter = makeAdapter();
     engine = new AdaptiveStabilityEngine(monitor, adapter, {
-      cooldownMs: 1000,
-      stableMs: 5000,
-      voiceCapDelta: 2,
+      cooldownEscalateMs: 1000,
+      cooldownRecoverMs: 4000,
+      stableMs: 8000,
       fxStepCount: 4,
     });
   });
@@ -84,25 +82,25 @@ describe("AdaptiveStabilityEngine", () => {
     expect(s.voiceCap).toBe(null);
   });
 
-  it("escalates to stage 1 (low-power) on first sustained struggle", () => {
+  it("escalates to stage 1 (adaptive low-power overlay) on sustained struggle", () => {
     adapter.fakeNow = 10000;
     monitor.emit({ struggling: true, underruns: 3 });
     expect(engine.getState().stage).toBe(1);
-    expect(adapter.lowPower).toBe(true);
-    expect(adapter.notifications.at(-1)?.kind).toBe("warning");
+    expect(adapter.adaptiveLowPower).toBe(true);
+    // The controller never observes user low-power — only writes adaptive overlay.
+    expect(engine.getState().lowPower).toBe(true);
   });
 
-  it("respects cooldown — does not jump multiple stages on one signal", () => {
+  it("respects escalation cooldown", () => {
     adapter.fakeNow = 10000;
     monitor.emit({ struggling: true, underruns: 1 });
     expect(engine.getState().stage).toBe(1);
-    // Only 500ms later, another struggle signal — should not escalate.
     adapter.fakeNow = 10500;
     monitor.emit({ struggling: true, underruns: 2 });
     expect(engine.getState().stage).toBe(1);
   });
 
-  it("escalates through stages 1 -> 2 -> 3 across cooldowns", () => {
+  it("escalates 1 -> 2 -> 3 across cooldowns", () => {
     adapter.fakeNow = 10000;
     monitor.emit({ struggling: true, underruns: 1 });
     expect(engine.getState().stage).toBe(1);
@@ -114,23 +112,22 @@ describe("AdaptiveStabilityEngine", () => {
     expect(adapter.effects.granular).toBe(false);
     expect(adapter.effects.graincloud).toBe(false);
     expect(adapter.effects.halo).toBe(false);
-    // freeze/cistern/hall/plate should still be on (we only step 4).
     expect(adapter.effects.freeze).toBe(true);
 
     adapter.fakeNow = 14000;
     monitor.emit({ struggling: true, underruns: 3 });
     expect(engine.getState().stage).toBe(3);
-    expect(adapter.voiceMax).toBe(5);
+    // First-entry stage 3 is decisive: 7 → 4 (clamped to ceiling).
+    expect(adapter.voiceMax).toBe(4);
   });
 
-  it("does not escalate on a single isolated drift event (monitor not struggling)", () => {
+  it("does not escalate on a single isolated drift event", () => {
     adapter.fakeNow = 10000;
-    // underrun bump but struggling=false (monitor's hysteresis hasn't tripped)
     monitor.emit({ struggling: false, underruns: 1 });
     expect(engine.getState().stage).toBe(0);
   });
 
-  it("de-escalates after sustained stability and restores state", () => {
+  it("recovery is slower than mitigation (uses cooldownRecoverMs + stableMs)", () => {
     // Climb to stage 2.
     adapter.fakeNow = 10000;
     monitor.emit({ struggling: true, underruns: 1 });
@@ -138,63 +135,78 @@ describe("AdaptiveStabilityEngine", () => {
     monitor.emit({ struggling: true, underruns: 2 });
     expect(engine.getState().stage).toBe(2);
 
-    // Stable now. lastUnderrunAt was 12000, stableMs=5000.
-    // Need cooldown (1000) AND >=stableMs since last underrun.
-    adapter.fakeNow = 17500;
+    // 4s after last underrun: cooldown (4s) just met but stableMs (8s) not yet.
+    adapter.fakeNow = 16000;
     monitor.emit({ struggling: false, underruns: 2 });
-    // First de-escalation: stage 2 -> 1 (restore fx).
+    expect(engine.getState().stage).toBe(2);
+
+    // 8s after last underrun: stable window met. Stage 2 -> 1.
+    adapter.fakeNow = 20000;
+    monitor.emit({ struggling: false, underruns: 2 });
     expect(engine.getState().stage).toBe(1);
+    // Bypassed FX restored.
     expect(adapter.effects.shimmer).toBe(true);
     expect(adapter.effects.granular).toBe(true);
     expect(adapter.effects.graincloud).toBe(true);
     expect(adapter.effects.halo).toBe(true);
+    expect(engine.isFxSuppressed("shimmer")).toBe(false);
 
-    adapter.fakeNow = 19000;
+    // Recovery cooldown is 4s, so next step needs 4s past last stage change (20000).
+    adapter.fakeNow = 24000;
     monitor.emit({ struggling: false, underruns: 2 });
-    // Stage 1 -> 0 (restore low power).
     expect(engine.getState().stage).toBe(0);
-    expect(adapter.lowPower).toBe(false);
+    expect(adapter.adaptiveLowPower).toBe(false);
     expect(adapter.notifications.at(-1)?.msg).toMatch(/recovered/i);
   });
 
-  it("does not flap: a fresh underrun during recovery restarts the stable window", () => {
+  it("a fresh underrun during the stable window restarts recovery", () => {
     adapter.fakeNow = 10000;
     monitor.emit({ struggling: true, underruns: 1 });
     expect(engine.getState().stage).toBe(1);
 
-    // Almost recovered, then a new underrun.
-    adapter.fakeNow = 14000;
+    // Almost recovered, then a new underrun resets stableSince.
+    adapter.fakeNow = 17000;
     monitor.emit({ struggling: false, underruns: 2 });
-    // Cooldown elapsed (4000 > 1000) but stableMs (5000) since last
-    // underrun (just now) hasn't elapsed.
+    // Cooldown elapsed but stableMs (8s) since latest underrun (17000) hasn't.
     expect(engine.getState().stage).toBe(1);
   });
 
-  it("does not re-disable an effect the user turned back on during recovery", () => {
+  it("does not re-disable an FX the user turned back on during recovery", () => {
     adapter.fakeNow = 10000;
     monitor.emit({ struggling: true, underruns: 1 });
     adapter.fakeNow = 12000;
     monitor.emit({ struggling: true, underruns: 2 });
     expect(adapter.effects.shimmer).toBe(false);
 
-    // User manually re-enables shimmer mid-recovery.
-    adapter.effects.shimmer = true;
-    adapter.fakeNow = 17500;
+    adapter.effects.shimmer = true; // user re-enables mid-recovery
+    adapter.fakeNow = 20000;
     monitor.emit({ struggling: false, underruns: 2 });
-    // Recovery should leave the user's choice alone.
     expect(adapter.effects.shimmer).toBe(true);
   });
 
-  it("preserves a low-power setting the user already had on", () => {
-    adapter.lowPower = true;
+  it("never observes or stomps the user's persisted low-power setting", () => {
+    // The split adapter has no isLowPower/setLowPower — only adaptive overlay.
+    // Adapter starts with adaptiveLowPower=false; recovery should leave it at false.
     adapter.fakeNow = 10000;
     monitor.emit({ struggling: true, underruns: 1 });
-    expect(adapter.lowPower).toBe(true);
+    expect(adapter.adaptiveLowPower).toBe(true);
 
-    adapter.fakeNow = 17000;
+    adapter.fakeNow = 22000;
     monitor.emit({ struggling: false, underruns: 1 });
-    // We shouldn't turn off low-power: the user wanted it on.
-    expect(adapter.lowPower).toBe(true);
+    // Recovery cleared the adaptive overlay; nothing about user state was touched.
+    expect(adapter.adaptiveLowPower).toBe(false);
+  });
+
+  it("exposes suppressed FX via state for UI consumption", () => {
+    adapter.fakeNow = 10000;
+    monitor.emit({ struggling: true, underruns: 1 });
+    adapter.fakeNow = 12000;
+    monitor.emit({ struggling: true, underruns: 2 });
+    const s = engine.getState();
+    expect(s.bypassedFx).toContain("shimmer");
+    expect(s.bypassedFx).toContain("granular");
+    expect(engine.isFxSuppressed("shimmer")).toBe(true);
+    expect(engine.isFxSuppressed("freeze")).toBe(false);
   });
 
   it("emits state to subscribers on transitions", () => {
@@ -203,5 +215,147 @@ describe("AdaptiveStabilityEngine", () => {
     adapter.fakeNow = 10000;
     monitor.emit({ struggling: true, underruns: 1 });
     expect(seen).toContain(1);
+  });
+
+  describe("progressive Stage 3", () => {
+    function climbToStage3(): void {
+      adapter.fakeNow = 10000;
+      monitor.emit({ struggling: true, underruns: 1 });
+      adapter.fakeNow = 12000;
+      monitor.emit({ struggling: true, underruns: 2 });
+      adapter.fakeNow = 14000;
+      monitor.emit({ struggling: true, underruns: 3 });
+      expect(engine.getState().stage).toBe(3);
+    }
+
+    it("first cap reduction is decisive: 7 → 4", () => {
+      adapter.voiceMax = 7;
+      climbToStage3();
+      expect(adapter.voiceMax).toBe(4);
+    });
+
+    it("first cap reduction clamps high caps to the initial ceiling", () => {
+      adapter.voiceMax = 6;
+      climbToStage3();
+      expect(adapter.voiceMax).toBe(4);
+      // savedVoiceMax should reflect the user's original cap (6), not 4.
+      // Recovery test below proves this.
+    });
+
+    it("first reduction from the ceiling drops to the floor: 4 → 3", () => {
+      adapter.voiceMax = 4;
+      climbToStage3();
+      expect(adapter.voiceMax).toBe(3);
+    });
+
+    it("first reduction at floor is a no-op (3 → 3) and does not transition stage 3", () => {
+      adapter.voiceMax = 3;
+      adapter.fakeNow = 10000;
+      monitor.emit({ struggling: true, underruns: 1 });
+      adapter.fakeNow = 12000;
+      monitor.emit({ struggling: true, underruns: 2 });
+      adapter.fakeNow = 14000;
+      monitor.emit({ struggling: true, underruns: 3 });
+      // Cannot reduce — stage stays at 2, no false notification.
+      expect(engine.getState().stage).toBe(2);
+      expect(adapter.voiceMax).toBe(3);
+      const stage3Notice = adapter.notifications.find(
+        (n) => n.msg.includes("voice density"),
+      );
+      expect(stage3Notice).toBeUndefined();
+    });
+
+    it("continued struggling past cooldown steps further: 7 → 4 → 3", () => {
+      adapter.voiceMax = 7;
+      climbToStage3();
+      expect(adapter.voiceMax).toBe(4);
+      // Push past cooldown — another struggle tick steps cap by 1.
+      adapter.fakeNow = 16000;
+      monitor.emit({ struggling: true, underruns: 4 });
+      expect(adapter.voiceMax).toBe(3);
+      expect(engine.getState().stage).toBe(3);
+    });
+
+    it("does not reduce below 3", () => {
+      adapter.voiceMax = 7;
+      climbToStage3();
+      adapter.fakeNow = 16000;
+      monitor.emit({ struggling: true, underruns: 4 });
+      expect(adapter.voiceMax).toBe(3);
+      // Further struggle — still at 3.
+      adapter.fakeNow = 18000;
+      monitor.emit({ struggling: true, underruns: 5 });
+      expect(adapter.voiceMax).toBe(3);
+      adapter.fakeNow = 20000;
+      monitor.emit({ struggling: true, underruns: 6 });
+      expect(adapter.voiceMax).toBe(3);
+    });
+
+    it("respects escalation cooldown between cap steps", () => {
+      adapter.voiceMax = 7;
+      climbToStage3();
+      expect(adapter.voiceMax).toBe(4);
+      // Within cooldown (1000 ms) — no further step.
+      adapter.fakeNow = 14500;
+      monitor.emit({ struggling: true, underruns: 4 });
+      expect(adapter.voiceMax).toBe(4);
+    });
+
+    it("recovery restores the original user cap in one shot", () => {
+      adapter.voiceMax = 7;
+      climbToStage3();
+      adapter.fakeNow = 16000;
+      monitor.emit({ struggling: true, underruns: 4 });
+      expect(adapter.voiceMax).toBe(3);
+
+      // Recovery — stable window + cooldown.
+      adapter.fakeNow = 26000;
+      monitor.emit({ struggling: false, underruns: 4 });
+      // Stage 3 → 2 should restore the original cap, not just step up.
+      expect(engine.getState().stage).toBe(2);
+      expect(adapter.voiceMax).toBe(7);
+    });
+
+    it("only notifies once per meaningful cap reduction", () => {
+      adapter.voiceMax = 7;
+      climbToStage3();
+      const afterFirst = adapter.notifications.filter(
+        (n) => n.msg.includes("voice density"),
+      ).length;
+      expect(afterFirst).toBe(1);
+
+      adapter.fakeNow = 16000;
+      monitor.emit({ struggling: true, underruns: 4 });
+      const afterSecond = adapter.notifications.filter(
+        (n) => n.msg.includes("voice density"),
+      ).length;
+      expect(afterSecond).toBe(2);
+
+      // At floor — no further notification.
+      adapter.fakeNow = 18000;
+      monitor.emit({ struggling: true, underruns: 5 });
+      const afterFloor = adapter.notifications.filter(
+        (n) => n.msg.includes("voice density"),
+      ).length;
+      expect(afterFloor).toBe(2);
+    });
+  });
+
+  it("notification copy is calm and instrument-like", () => {
+    adapter.fakeNow = 10000;
+    monitor.emit({ struggling: true, underruns: 1 });
+    expect(adapter.notifications.at(-1)?.msg).toBe(
+      "Audio under load — reducing visuals.",
+    );
+    adapter.fakeNow = 12000;
+    monitor.emit({ struggling: true, underruns: 2 });
+    expect(adapter.notifications.at(-1)?.msg).toBe(
+      "Audio under load — simplifying FX.",
+    );
+    adapter.fakeNow = 14000;
+    monitor.emit({ struggling: true, underruns: 3 });
+    expect(adapter.notifications.at(-1)?.msg).toBe(
+      "Audio under load — reducing voice density.",
+    );
   });
 });

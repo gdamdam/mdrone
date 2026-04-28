@@ -140,11 +140,11 @@ export class AudioEngine {
     this.loopBouncer = new LoopBouncer(this.ctx, this.masterBus.getAnalyser());
 
     // Adaptive stability — staged mitigation under sustained audio load.
-    // The controller saves runtime state itself; nothing here mutates
-    // saved scenes / share URLs / persisted settings.
+    // The controller keeps its own runtime overlay; the engine composes
+    // user intent and adaptive overlay before reporting effective state,
+    // so saved scenes / share URLs / persisted settings stay clean.
     this.adaptiveStability = new AdaptiveStabilityEngine(this.loadMonitor, {
-      isLowPower: () => this.isLowPower(),
-      setLowPower: (on) => this.setLowPowerMode(on),
+      setAdaptiveLowPower: (on) => this.setAdaptiveLowPower(on),
       getEffectStates: () => this.fxChain.getEffectStates(),
       setEffect: (id, on) => this.fxChain.setEffect(id, on),
       getMaxVoiceLayers: () => this.voiceEngine.getMaxVoiceLayers(),
@@ -467,11 +467,25 @@ export class AudioEngine {
     this.masterBus.duckForPresetChange();
   }
 
-  private lowPowerMode = false;
-  isLowPower(): boolean { return this.lowPowerMode; }
+  /** Two layers compose into the effective low-power state applied to
+   *  the master bus / visuals: a persisted user setting (Layout owns it,
+   *  re-syncs on every render via setLowPowerMode) and a runtime
+   *  adaptive overlay (Stage 1 mitigation). User layer is what shows in
+   *  the UI and what survives across sessions; adaptive layer is
+   *  transient and never persisted. */
+  private userLowPower = false;
+  private adaptiveLowPower = false;
+  isLowPower(): boolean { return this.userLowPower || this.adaptiveLowPower; }
+  isUserLowPower(): boolean { return this.userLowPower; }
   setLowPowerMode(on: boolean): void {
-    this.lowPowerMode = on;
-    this.masterBus.setLowPowerMode(on);
+    if (this.userLowPower === on) return;
+    this.userLowPower = on;
+    this.masterBus.setLowPowerMode(this.isLowPower());
+  }
+  setAdaptiveLowPower(on: boolean): void {
+    if (this.adaptiveLowPower === on) return;
+    this.adaptiveLowPower = on;
+    this.masterBus.setLowPowerMode(this.isLowPower());
   }
 
   getPresetTrim(): number { return this.presetTrim.gain.value; }
@@ -482,6 +496,17 @@ export class AudioEngine {
 
   isEffect(id: EffectId): boolean { return this.fxChain.isEffect(id); }
   getEffectStates(): Record<EffectId, boolean> { return this.fxChain.getEffectStates(); }
+  /** User-intent effect states — overlays adaptive-suppressed FX as ON.
+   *  Snapshot/share/autosave code paths must read this, not
+   *  getEffectStates(), so a snapshot taken during adaptive mitigation
+   *  preserves the user's intended FX configuration. */
+  getUserEffectStates(): Record<EffectId, boolean> {
+    const live = this.fxChain.getEffectStates();
+    for (const id of Object.keys(live) as EffectId[]) {
+      if (this.adaptiveStability.isFxSuppressed(id)) live[id] = true;
+    }
+    return live;
+  }
   getFxChain(): FxChain { return this.fxChain; }
 
   setTime(v: number): void {

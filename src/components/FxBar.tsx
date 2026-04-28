@@ -38,6 +38,12 @@ interface FxBarProps {
   order?: readonly EffectId[];
   /** Called with the new order when the user completes a drag. */
   onReorder?: (next: EffectId[]) => void;
+  /** Effect ids the adaptive-stability engine has temporarily forced
+   *  off. The button still renders as ON (user intent is preserved)
+   *  but with a dimmed/striped style so the user can see at a glance
+   *  that audio protection — not their toggle — is the reason no sound
+   *  is coming through this insert. */
+  suppressed?: ReadonlySet<EffectId>;
 }
 
 interface FxDef {
@@ -129,7 +135,7 @@ const FX_DEFS: Record<EffectId, FxDef> = {
   },
 };
 
-export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps) {
+export function FxBar({ engine, states, onToggle, order, onReorder, suppressed }: FxBarProps) {
   const [modalFx, setModalFx] = useState<EffectId | null>(null);
 
   // Long-press gates a toggle — if the hold fires, open the modal and
@@ -248,6 +254,13 @@ export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps
         {chainOrder.map((id) => {
           const fx = FX_DEFS[id];
           const pos = activePositions[id];
+          const isSuppressed = suppressed?.has(id) === true && states[id] === true;
+          const cls = states[id]
+            ? (isSuppressed ? "fx-btn fx-btn-active fx-btn-suppressed" : "fx-btn fx-btn-active")
+            : "fx-btn";
+          const titleSuffix = isSuppressed
+            ? "\n\nTemporarily suppressed by audio protection — your setting is preserved."
+            : "";
           return (
             <button
               key={id}
@@ -261,11 +274,13 @@ export function FxBar({ engine, states, onToggle, order, onReorder }: FxBarProps
               onDragStart={onDragStart(id)}
               onDragOver={onDragOver}
               onDrop={onDropBtn(id)}
-              className={states[id] ? "fx-btn fx-btn-active" : "fx-btn"}
+              className={cls}
+              aria-pressed={states[id]}
+              data-suppressed={isSuppressed ? "true" : undefined}
               title={
-                pos !== undefined
+                (pos !== undefined
                   ? `${fx.hint}\n\nActive chain position: ${pos} of ${activeChain.length}. Drag to reorder · long-press for settings.`
-                  : `${fx.hint}\n\nInactive — drag to reorder · long-press for settings.`
+                  : `${fx.hint}\n\nInactive — drag to reorder · long-press for settings.`) + titleSuffix
               }
             >
               <span className="fx-btn-num" aria-hidden="true">{pos ?? ""}</span>

@@ -75,6 +75,11 @@ All sound is synthesised in real time with the Web Audio API and AudioWorklet. N
 - **Reverbs** — PLATE uses a real EMT 140 IR (Greg Hopkins, CC-BY); HALL and CISTERN are FDN worklets; the master ROOM send uses a recording of Saint-Lawrence Church, Molenbeek-Wersbeek (Public Domain CC).
 - **Determinism** — IR seeds and evolve drift derive from a per-scene PRNG (FNV-1a hash of the preset ID or share-URL seed). Same URL ⇒ same tail.
 - **Recording** — the final post-limiter master is captured to **24-bit stereo WAV** through a dedicated worklet tap (bit-identical, no codec).
+- **Adaptive stability** — when the audio thread is sustainedly struggling (drift between `AudioContext.currentTime` and wall-clock), the engine auto-mitigates in three stages, each gated by a cooldown so the graph isn't flapped on noisy signals:
+  1. **Visuals** — engages a low-power overlay (clamps MEDITATE FPS and the loudness meter). Composed with the user's persisted setting; never overwrites it.
+  2. **Heavy FX** — temporarily suppresses shimmer / granular / graincloud / halo. The FxBar still shows them as ON with a striped "suppressed" cue, since user intent is preserved — autosave, share URLs, and snapshots all read user-intent state, not the runtime overlay.
+  3. **Voice density** — progressively lowers the max active voice layers. The first reduction is decisive (7 → 4); continued struggle steps further (4 → 3) down to a musical floor of 3. The original cap is restored on recovery.
+  Mitigation is fast (~9 s cooldown). Recovery is slow (~20 s cooldown + a 30 s underrun-free window) so a brief lull doesn't bounce a performance back into danger. Stages unwind one at a time. Notifications are calm and infrequent ("Audio under load — simplifying FX.", "Audio recovered."). Saved scenes, share URLs, and persisted settings are never mutated — mitigation is runtime-only.
 
 ---
 

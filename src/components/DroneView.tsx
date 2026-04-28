@@ -607,6 +607,19 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     try { window.localStorage?.setItem(STORAGE_KEYS.effectOrder, JSON.stringify(next)); } catch { /* noop */ }
   }, []);
 
+  // Adaptive-stability mitigation overlay — which FX the controller has
+  // temporarily forced off so FxBar can render them as ON-but-suppressed
+  // instead of confusing the user with a button that flipped itself.
+  const [suppressedFx, setSuppressedFx] = useState<ReadonlySet<EffectId>>(
+    () => new Set<EffectId>(),
+  );
+  useEffect(() => {
+    if (!engine) return;
+    return engine.subscribeAdaptiveStability((s) => {
+      setSuppressedFx(new Set(s.bypassedFx));
+    });
+  }, [engine]);
+
   // Tanpura string-tuning picker. Shown in the SHAPE panel only when
   // the tanpura voice is active. Persisted so reloads keep the choice.
   // Pitch-locked LFO division cycle — 0 = off, otherwise LFO rate =
@@ -1637,6 +1650,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               onToggle={toggleEffect}
               order={effectOrder}
               onReorder={handleEffectReorder}
+              suppressed={suppressedFx}
             />
           </div>
         </div>

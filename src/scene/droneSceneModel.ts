@@ -99,7 +99,7 @@ export function createInitialDroneScene(engine: AudioEngine | null): LiveDroneSc
       amp: engine?.getVoiceLevel("amp") ?? 1,
       noise: engine?.getVoiceLevel("noise") ?? 1,
     },
-    effects: engine?.getEffectStates() ?? {
+    effects: engine?.getUserEffectStates() ?? {
       tape: false,
       wow: false,
       plate: false,

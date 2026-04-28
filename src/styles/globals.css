@@ -4387,6 +4387,22 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   color: #0a0602;
 }
 
+/* Adaptive-stability mitigation: user-intended ON, runtime OFF.
+ * Stays in the active palette so user intent reads, but desaturated +
+ * diagonal-stripe overlay communicates "audio protection has temporarily
+ * suppressed this insert". */
+.fx-btn-active.fx-btn-suppressed {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--preview) 70%, transparent) 0 6px,
+      color-mix(in srgb, var(--preview) 30%, transparent) 6px 12px
+    );
+  opacity: 0.62;
+  box-shadow: none;
+}
+.fx-btn-active.fx-btn-suppressed:hover { opacity: 0.78; }
+
 .fx-btn-icon {
   display: inline-flex;
   width: 18px;

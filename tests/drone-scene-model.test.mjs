@@ -26,7 +26,7 @@ test("createInitialDroneScene reads engine-backed defaults", () => {
   const fakeEngine = {
     getVoiceLayers: () => ({ tanpura: false, reed: true, metal: false, air: true }),
     getVoiceLevel: (voiceType) => ({ tanpura: 0.2, reed: 0.8, metal: 0.4, air: 0.6 })[voiceType],
-    getEffectStates: () => ({
+    getUserEffectStates: () => ({
       tape: true,
       wow: false,
       plate: true,
