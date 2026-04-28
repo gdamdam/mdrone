@@ -3390,7 +3390,14 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     // Skipped in low-power mode — the dip itself adds a couple of
     // setValueAtTime / linearRamp scheduling calls per preset apply
     // that we'd rather not pay on weak hardware.
-    if (!engine.isLowPower?.()) engine.duckForPresetChange?.();
+    // Skip the duck only when the *user* has explicitly opted into
+    // low-power (deliberate weak-hardware setting). Skipping it when
+    // the adaptive engine has raised the overlay would invert the
+    // intent — adaptive lowPower fires precisely when the audio
+    // thread is struggling, which is when transition protection is
+    // most needed. (Reported as audible clicks switching between
+    // House Drone / Sub Chamber once Adaptive Stage 1 had engaged.)
+    if (!engine.isUserLowPower?.()) engine.duckForPresetChange?.();
     // (A) Apply per-preset loudness trim before the scene builds so
     // the new voices come in at the corrected level.
     engine.setPresetTrim(preset.gain ?? 1);

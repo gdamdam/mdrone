@@ -20,13 +20,22 @@ describe("shouldDuckOnEffectReorder", () => {
     ).toBe(false);
   });
 
-  it("does NOT duck in effective low-power mode", () => {
+  it("does NOT duck when the user opted into low-power", () => {
     expect(
       shouldDuckOnEffectReorder(baseline, reordered, true, true),
     ).toBe(false);
   });
 
-  it("ducks on a real reorder while playing in normal-power mode", () => {
+  it("DUCKS even when adaptive lowPower is engaged — that flag is the wrong gate", () => {
+    // The third arg models USER lowPower only. When adaptive engaged,
+    // user lowPower stays false; the duck must still fire — adaptive
+    // engages precisely when the audio thread is struggling.
+    expect(
+      shouldDuckOnEffectReorder(baseline, reordered, true, /* userLowPower */ false),
+    ).toBe(true);
+  });
+
+  it("ducks on a real reorder while playing and user lowPower is off", () => {
     expect(
       shouldDuckOnEffectReorder(baseline, reordered, true, false),
     ).toBe(true);

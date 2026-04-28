@@ -252,6 +252,46 @@ describe("renderAudioDiagnosticsMarkdown", () => {
   });
 });
 
+describe("mixer getters preserve `this` (regression for v1.20.0 report bug)", () => {
+  // Shape AudioEngine actually has — getters that delegate via `this.masterBus`.
+  // Bare-method-reference call would lose `this`, throw, and the report
+  // would silently report null for every mixer field. Asserts the
+  // diagnostics module passes a `this`-bound closure, not a method ref.
+  class FakeEngineWithThis {
+    private trim = 0.7;
+    private limOn = true;
+    ctx = {
+      state: "running", sampleRate: 48000, baseLatency: 0.005,
+      outputLatency: 0.012, currentTime: 1,
+    } as unknown as AudioContext;
+    getLoadMonitor() { return { getState: () => ({ struggling: false, driftMs: 0, underruns: 0, baseLatencyMs: 5, outputLatencyMs: 12, sampleRate: 48000 }) }; }
+    getAdaptiveStabilityState() { return { stage: 0 as const, lowPower: false, bypassedFx: [], voiceCap: null }; }
+    getLiveSafeState() { return { active: false, voiceCap: null, suppressedFx: [] }; }
+    isLowPower() { return false; }
+    isUserLowPower() { return false; }
+    getRootFreq() { return 110; }
+    getIntervalsCents() { return [0]; }
+    getVoiceLayers() { return {}; }
+    getMaxVoiceLayers() { return 7; }
+    getEffectStates() { return {}; }
+    getUserEffectStates() { return {}; }
+    getMasterVolume() { return this.trim; }                    // requires `this`
+    isLimiterEnabled() { return this.limOn; }                  // requires `this`
+    getLimiterCeiling() { return -0.5; }
+    isHeadphoneSafe() { return false; }
+    getWidth() { return 1; }
+    getRoomAmount() { return 0; }
+    getDrive() { return 0; }
+  }
+
+  it("reads `this`-dependent mixer values without losing the receiver", () => {
+    const engine = new FakeEngineWithThis() as unknown as DiagnosticsEngineLike;
+    const r = buildAudioDiagnostics(makeHooks({ engine }));
+    expect(r.mixer.masterVolume).toBe(0.7);
+    expect(r.mixer.limiterEnabled).toBe(true);
+  });
+});
+
 describe("privacy guarantees", () => {
   it("does not include localStorage / session data — only what hooks provide", () => {
     // The builder only reads from explicit hooks. Verify no globals

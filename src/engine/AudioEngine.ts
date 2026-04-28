@@ -440,11 +440,14 @@ export class AudioEngine {
    *  the rewire is a no-op, when the drone isn't playing, or in
    *  low-power mode (matches the applyPreset duck policy). */
   setEffectOrder(order: readonly EffectId[]): void {
+    // Use *user* low-power, not effective. Adaptive overlay raises
+    // lowPower precisely when the thread is struggling — exactly when
+    // we want the duck firing. See parallel fix in presets.ts.
     if (shouldDuckOnEffectReorder(
       this.fxChain.getEffectOrder(),
       order,
       this.voiceEngine.isPlaying(),
-      this.isLowPower(),
+      this.isUserLowPower(),
     )) {
       this.masterBus.duckForPresetChange();
     }
@@ -826,16 +829,17 @@ export class AudioEngine {
  *  Skip the duck when:
  *    - the new order is identical to the current one (no rewire),
  *    - the drone isn't playing (no audible signal to protect),
- *    - effective low-power mode is on (matches applyPreset's policy
- *      of skipping the duck on weak hardware).
+ *    - the user has explicitly opted into low-power (deliberate
+ *      weak-hardware setting). Adaptive lowPower overlay does NOT
+ *      skip the duck — see presets.ts for the same policy.
  */
 export function shouldDuckOnEffectReorder(
   currentOrder: readonly EffectId[],
   newOrder: readonly EffectId[],
   isPlaying: boolean,
-  isLowPower: boolean,
+  isUserLowPower: boolean,
 ): boolean {
-  if (!isPlaying || isLowPower) return false;
+  if (!isPlaying || isUserLowPower) return false;
   if (currentOrder.length !== newOrder.length) return true;
   for (let i = 0; i < currentOrder.length; i++) {
     if (currentOrder[i] !== newOrder[i]) return true;

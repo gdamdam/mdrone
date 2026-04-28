@@ -171,9 +171,16 @@ function readHardwareConcurrency(): number | null {
   return typeof v === "number" ? v : null;
 }
 
-function safeCall<T>(fn: (() => T) | undefined): T | null {
-  if (!fn) return null;
-  try { return fn(); } catch { return null; }
+/** Run a closure that reads engine state, normalising undefined → null
+ *  and swallowing thrown errors. Callers MUST pass an arrow closure
+ *  rather than a bare method reference (e.g. `() => e.getMasterVolume?.()`)
+ *  so `this` is preserved — bare references lose the AudioEngine
+ *  receiver and the call throws on `this.masterBus`. */
+function safeRead<T>(fn: () => T | undefined): T | null {
+  try {
+    const v = fn();
+    return v === undefined ? null : v;
+  } catch { return null; }
 }
 
 export function buildAudioDiagnostics(
@@ -263,13 +270,13 @@ export function buildAudioDiagnostics(
       suppressed,
     },
     mixer: {
-      masterVolume: safeCall(e.getMasterVolume),
-      limiterEnabled: safeCall(e.isLimiterEnabled),
-      limiterCeilingDb: safeCall(e.getLimiterCeiling),
-      headphoneSafe: safeCall(e.isHeadphoneSafe),
-      width: safeCall(e.getWidth),
-      roomAmount: safeCall(e.getRoomAmount),
-      drive: safeCall(e.getDrive),
+      masterVolume: safeRead(() => e.getMasterVolume?.()),
+      limiterEnabled: safeRead(() => e.isLimiterEnabled?.()),
+      limiterCeilingDb: safeRead(() => e.getLimiterCeiling?.()),
+      headphoneSafe: safeRead(() => e.isHeadphoneSafe?.()),
+      width: safeRead(() => e.getWidth?.()),
+      roomAmount: safeRead(() => e.getRoomAmount?.()),
+      drive: safeRead(() => e.getDrive?.()),
     },
     audioDebugFlags: [...flags],
     trace: {
