@@ -82,6 +82,8 @@ interface HeaderProps {
   onToggleMotionRec: (on: boolean) => void;
   lowPowerMode: boolean;
   onToggleLowPower: (on: boolean) => void;
+  liveSafeMode: boolean;
+  onToggleLiveSafeMode: (on: boolean) => void;
   analyser: AnalyserNode | null;
   loadMonitor: AudioLoadMonitor;
   adaptive?: {
@@ -139,6 +141,8 @@ export function Header({
   onToggleMotionRec,
   lowPowerMode,
   onToggleLowPower,
+  liveSafeMode,
+  onToggleLiveSafeMode,
   analyser,
   loadMonitor,
   adaptive,
@@ -821,6 +825,28 @@ export function Header({
                     : "Enable low-power mode for weaker hardware"}
                 >
                   {lowPowerMode ? "● LOW-POWER MODE" : "LOW-POWER MODE"}
+                </button>
+              </div>
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">LIVE SAFE</div>
+              <p className="fx-modal-desc">
+                Stage / pro use. Trades a bit of richness for solid
+                audio: clamps the voice cap to 4, suppresses the
+                heaviest FX (halo, granular, graincloud, shimmer,
+                freeze), and engages low-power visuals. Saved scenes
+                and share URLs are not changed — your settings are
+                restored when LIVE SAFE is turned off.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className={liveSafeMode ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => onToggleLiveSafeMode(!liveSafeMode)}
+                  title={liveSafeMode
+                    ? "Disable LIVE SAFE — restore voice cap, heavy FX, and visuals"
+                    : "Enable LIVE SAFE — prioritize stable audio for stage / pro use"}
+                >
+                  {liveSafeMode ? "● LIVE SAFE" : "LIVE SAFE"}
                 </button>
               </div>
 

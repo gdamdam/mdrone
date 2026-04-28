@@ -10,6 +10,8 @@ import { NotificationTray } from "./NotificationTray";
 import { showNotification } from "../notifications";
 import { measureAllPresets } from "../devtools/measureLoudness";
 import { auditArrival } from "../devtools/auditArrival";
+import { createPresetCertController, type PresetCertHooks } from "../devtools/presetCertification";
+import { PRESETS as ALL_PRESETS } from "../engine/presets";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
 // MeditateView pulls the `meditate` chunk (visualizers + meditate
@@ -236,6 +238,52 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     // same trick.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__engine = engine;
+
+    // Preset certification — hands-and-ears auditioning with structured
+    // tags / scores / notes export. See src/devtools/presetCertification.ts
+    // and misc/2026-04-28-preset-certification.md.
+    const certHooks: PresetCertHooks = {
+      presets: ALL_PRESETS.map((p) => ({
+        id: p.id, name: p.name, group: p.group, hidden: p.hidden,
+      })),
+      applyPresetById: (id) => droneViewRef.current?.applyPresetById(id),
+      ensurePlaying: () => {
+        if (!engine.isPlaying()) holdToggleRef.current?.();
+      },
+      captureTechnical: () => {
+        const layers = engine.getVoiceLayers();
+        const userFx = engine.getUserEffectStates();
+        const adaptive = engine.getAdaptiveStabilityState();
+        const monitor = engine.getLoadMonitor().getState();
+        return {
+          voiceLayers: (Object.keys(layers) as Array<keyof typeof layers>)
+            .filter((k) => layers[k]) as string[],
+          effects: (Object.keys(userFx) as Array<keyof typeof userFx>)
+            .filter((k) => userFx[k]),
+          adaptiveStage: adaptive.stage,
+          underruns: monitor.underruns,
+          lufsShort: null,
+          peakDb: null,
+        };
+      },
+      download: (filename, body, mime) => {
+        try {
+          const blob = new Blob([body], { type: mime });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch { /* browser may block consecutive downloads */ }
+      },
+    };
+    const cert = createPresetCertController(certHooks);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__presetCert = cert;
+
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__measureAllPresets;
@@ -243,6 +291,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       delete (window as any).__auditArrival;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__engine;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__presetCert;
     };
   }, [engine]);
 
@@ -571,6 +621,22 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     try { localStorage.setItem(STORAGE_KEYS.lowPowerMode, on ? "1" : "0"); }
     catch { /* noop */ }
   }, []);
+
+  // LIVE SAFE — explicit user-facing stability mode. Persisted; pushed
+  // to the engine on hydrate and on every toggle. The engine controller
+  // is idempotent so re-pushing the same value is a no-op.
+  const [liveSafeMode, setLiveSafeModeState] = useState<boolean>(() => {
+    try { return localStorage.getItem(STORAGE_KEYS.liveSafeMode) === "1"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    engine?.setLiveSafeMode?.(liveSafeMode);
+  }, [engine, liveSafeMode]);
+  const setLiveSafeMode = useCallback((on: boolean) => {
+    setLiveSafeModeState(on);
+    try { localStorage.setItem(STORAGE_KEYS.liveSafeMode, on ? "1" : "0"); }
+    catch { /* noop */ }
+  }, []);
   // Global keyboard shortcuts (always active)
   useEffect(() => {
     const globalHandler = (e: KeyboardEvent) => {
@@ -782,6 +848,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleMotionRec={setMotionRecEnabled}
         lowPowerMode={lowPowerMode}
         onToggleLowPower={setLowPowerMode}
+        liveSafeMode={liveSafeMode}
+        onToggleLiveSafeMode={setLiveSafeMode}
         meditatePreviewOn={visualPreviewOn}
         onToggleMeditatePreview={toggleVisualPreview}
         analyser={engine.getAnalyser()}

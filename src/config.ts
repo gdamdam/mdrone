@@ -37,6 +37,10 @@ export const STORAGE_KEYS = {
    *  the LUFS meter publishes at ~5 Hz instead of ~30 Hz, and the
    *  master-bus duck on preset change is skipped. Off by default. */
   lowPowerMode: "mdrone-low-power",
+  /** LIVE SAFE — explicit stability mode for stage / pro use. Clamps
+   *  voice cap, suppresses heavy FX, engages low-power visuals. Off
+   *  by default. */
+  liveSafeMode: "mdrone-live-safe",
 } as const;
 
 export type WeatherVisual = "waveform" | "flow" | "minimal";

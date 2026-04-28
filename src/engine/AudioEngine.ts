@@ -11,6 +11,7 @@ import {
   AdaptiveStabilityEngine,
   type AdaptiveStabilityState,
 } from "./AdaptiveStabilityEngine";
+import { LiveSafeMode, type LiveSafeState } from "./LiveSafeMode";
 import { FxChain } from "./FxChain";
 import type { EffectId } from "./FxChain";
 import type { EngineSceneMutation } from "./EngineSceneMutation";
@@ -42,6 +43,7 @@ export class AudioEngine {
   private readonly loopBouncer: LoopBouncer;
   private readonly loadMonitor: AudioLoadMonitor;
   private readonly adaptiveStability: AdaptiveStabilityEngine;
+  private readonly liveSafe: LiveSafeMode;
   private isWorkletReady = false;
   private pendingStart: { freq: number; intervalsCents: number[] } | null = null;
 
@@ -151,6 +153,17 @@ export class AudioEngine {
       setMaxVoiceLayers: (n) => this.voiceEngine.setMaxVoiceLayers(n),
       notify: (msg, kind) => showNotification(msg, kind),
       now: () => performance.now(),
+    });
+
+    // LIVE SAFE — explicit user-initiated reliability mode. Persisted at
+    // the Layout layer; the controller is the engine-side mechanism.
+    this.liveSafe = new LiveSafeMode({
+      setLiveSafeLowPower: (on) => this.setLiveSafeLowPower(on),
+      getEffectStates: () => this.fxChain.getEffectStates(),
+      setEffect: (id, on) => this.fxChain.setEffect(id, on),
+      getMaxVoiceLayers: () => this.voiceEngine.getMaxVoiceLayers(),
+      setMaxVoiceLayers: (n) => this.voiceEngine.setMaxVoiceLayers(n),
+      notify: (msg, kind) => showNotification(msg, kind),
     });
 
     // Auto-resume after sleep/wake — browsers suspend the AudioContext
@@ -475,7 +488,10 @@ export class AudioEngine {
    *  transient and never persisted. */
   private userLowPower = false;
   private adaptiveLowPower = false;
-  isLowPower(): boolean { return this.userLowPower || this.adaptiveLowPower; }
+  private liveSafeLowPower = false;
+  isLowPower(): boolean {
+    return this.userLowPower || this.adaptiveLowPower || this.liveSafeLowPower;
+  }
   isUserLowPower(): boolean { return this.userLowPower; }
   setLowPowerMode(on: boolean): void {
     if (this.userLowPower === on) return;
@@ -485,6 +501,11 @@ export class AudioEngine {
   setAdaptiveLowPower(on: boolean): void {
     if (this.adaptiveLowPower === on) return;
     this.adaptiveLowPower = on;
+    this.masterBus.setLowPowerMode(this.isLowPower());
+  }
+  setLiveSafeLowPower(on: boolean): void {
+    if (this.liveSafeLowPower === on) return;
+    this.liveSafeLowPower = on;
     this.masterBus.setLowPowerMode(this.isLowPower());
   }
 
@@ -503,7 +524,12 @@ export class AudioEngine {
   getUserEffectStates(): Record<EffectId, boolean> {
     const live = this.fxChain.getEffectStates();
     for (const id of Object.keys(live) as EffectId[]) {
-      if (this.adaptiveStability.isFxSuppressed(id)) live[id] = true;
+      if (
+        this.adaptiveStability.isFxSuppressed(id) ||
+        this.liveSafe.isFxSuppressed(id)
+      ) {
+        live[id] = true;
+      }
     }
     return live;
   }
@@ -764,5 +790,15 @@ export class AudioEngine {
     listener: (s: AdaptiveStabilityState) => void,
   ): () => void {
     return this.adaptiveStability.subscribe(listener);
+  }
+
+  /** LIVE SAFE — explicit user-initiated stability mode. Idempotent;
+   *  Layout owns the persisted bit and pushes it on hydrate / on every
+   *  toggle. */
+  setLiveSafeMode(on: boolean): void { this.liveSafe.setActive(on); }
+  isLiveSafeMode(): boolean { return this.liveSafe.isActive(); }
+  getLiveSafeState(): LiveSafeState { return this.liveSafe.getState(); }
+  subscribeLiveSafe(listener: (s: LiveSafeState) => void): () => void {
+    return this.liveSafe.subscribe(listener);
   }
 }

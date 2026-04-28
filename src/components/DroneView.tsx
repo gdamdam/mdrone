@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -607,18 +608,24 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     try { window.localStorage?.setItem(STORAGE_KEYS.effectOrder, JSON.stringify(next)); } catch { /* noop */ }
   }, []);
 
-  // Adaptive-stability mitigation overlay — which FX the controller has
-  // temporarily forced off so FxBar can render them as ON-but-suppressed
-  // instead of confusing the user with a button that flipped itself.
-  const [suppressedFx, setSuppressedFx] = useState<ReadonlySet<EffectId>>(
-    () => new Set<EffectId>(),
-  );
+  // FX suppressed by runtime stability mechanisms (adaptive mitigation
+  // and/or LIVE SAFE). Both overlays force the live FxChain off while
+  // preserving user intent, so FxBar renders these as ON-but-suppressed
+  // rather than confusing the user with a button that flipped itself.
+  const [adaptiveBypassed, setAdaptiveBypassed] = useState<readonly EffectId[]>([]);
+  const [liveSafeBypassed, setLiveSafeBypassed] = useState<readonly EffectId[]>([]);
   useEffect(() => {
     if (!engine) return;
-    return engine.subscribeAdaptiveStability((s) => {
-      setSuppressedFx(new Set(s.bypassedFx));
-    });
+    return engine.subscribeAdaptiveStability((s) => setAdaptiveBypassed(s.bypassedFx));
   }, [engine]);
+  useEffect(() => {
+    if (!engine) return;
+    return engine.subscribeLiveSafe((s) => setLiveSafeBypassed(s.suppressedFx));
+  }, [engine]);
+  const suppressedFx = useMemo<ReadonlySet<EffectId>>(
+    () => new Set<EffectId>([...adaptiveBypassed, ...liveSafeBypassed]),
+    [adaptiveBypassed, liveSafeBypassed],
+  );
 
   // Tanpura string-tuning picker. Shown in the SHAPE panel only when
   // the tanpura voice is active. Persisted so reloads keep the choice.
