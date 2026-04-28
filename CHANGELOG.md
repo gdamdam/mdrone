@@ -2,6 +2,15 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.19.3 — 2026-04-28
+
+- adaptive stability: persistence boundary + progressive Stage 3 (5e13b75)
+- feat: adaptive stability engine — staged auto-mitigation under audio load (87338a5)
+- fix sub-chamber long tail + FxBar parallel-send display (2c00ee4)
+- chore: gitignore public/version.json — generated build artifact (52c6c21)
+- chore: untrack misc/scripts/ — superseded by npm run release + deploy.yml (f63be75)
+- docs: badges above the fold + fix CI badge URL (d881517)
+
 ## 1.19.1 — 2026-04-27
 
 - seo: route crawlers to about.html via User-Agent (fix Googlebot path) (7587362)
