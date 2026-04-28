@@ -84,6 +84,10 @@ interface HeaderProps {
   onToggleLowPower: (on: boolean) => void;
   analyser: AnalyserNode | null;
   loadMonitor: AudioLoadMonitor;
+  adaptive?: {
+    getState: () => import("../engine/AdaptiveStabilityEngine").AdaptiveStabilityState;
+    subscribe: (l: (s: import("../engine/AdaptiveStabilityEngine").AdaptiveStabilityState) => void) => () => void;
+  };
   /** Inline MEDITATE preview tile toggle. Lives next to HOLD so the
    *  performance row owns transport + visualizer in one place. */
   meditatePreviewOn: boolean;
@@ -137,6 +141,7 @@ export function Header({
   onToggleLowPower,
   analyser,
   loadMonitor,
+  adaptive,
   meditatePreviewOn,
   onToggleMeditatePreview,
 }: HeaderProps) {
@@ -365,7 +370,7 @@ export function Header({
               beta
             </span>
           </div>
-          <CpuWarning monitor={loadMonitor} />
+          <CpuWarning monitor={loadMonitor} adaptive={adaptive} />
           {hasAudioDebugFlag("trace") && (
             <button
               type="button"

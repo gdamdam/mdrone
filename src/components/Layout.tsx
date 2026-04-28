@@ -786,6 +786,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleMeditatePreview={toggleVisualPreview}
         analyser={engine.getAnalyser()}
         loadMonitor={engine.getLoadMonitor()}
+        adaptive={{
+          getState: () => engine.getAdaptiveStabilityState(),
+          subscribe: (l) => engine.subscribeAdaptiveStability(l),
+        }}
       />
 
       {updateAvailable && (

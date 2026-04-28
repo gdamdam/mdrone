@@ -7,6 +7,10 @@
  */
 
 import { AudioLoadMonitor } from "./AudioLoadMonitor";
+import {
+  AdaptiveStabilityEngine,
+  type AdaptiveStabilityState,
+} from "./AdaptiveStabilityEngine";
 import { FxChain } from "./FxChain";
 import type { EffectId } from "./FxChain";
 import type { EngineSceneMutation } from "./EngineSceneMutation";
@@ -37,6 +41,7 @@ export class AudioEngine {
   private readonly masterRecorder: MasterRecorder;
   private readonly loopBouncer: LoopBouncer;
   private readonly loadMonitor: AudioLoadMonitor;
+  private readonly adaptiveStability: AdaptiveStabilityEngine;
   private isWorkletReady = false;
   private pendingStart: { freq: number; intervalsCents: number[] } | null = null;
 
@@ -133,6 +138,20 @@ export class AudioEngine {
 
     this.masterRecorder = new MasterRecorder(this.ctx, this.masterBus.getAnalyser());
     this.loopBouncer = new LoopBouncer(this.ctx, this.masterBus.getAnalyser());
+
+    // Adaptive stability — staged mitigation under sustained audio load.
+    // The controller saves runtime state itself; nothing here mutates
+    // saved scenes / share URLs / persisted settings.
+    this.adaptiveStability = new AdaptiveStabilityEngine(this.loadMonitor, {
+      isLowPower: () => this.isLowPower(),
+      setLowPower: (on) => this.setLowPowerMode(on),
+      getEffectStates: () => this.fxChain.getEffectStates(),
+      setEffect: (id, on) => this.fxChain.setEffect(id, on),
+      getMaxVoiceLayers: () => this.voiceEngine.getMaxVoiceLayers(),
+      setMaxVoiceLayers: (n) => this.voiceEngine.setMaxVoiceLayers(n),
+      notify: (msg, kind) => showNotification(msg, kind),
+      now: () => performance.now(),
+    });
 
     // Auto-resume after sleep/wake — browsers suspend the AudioContext
     // when the device sleeps or the tab is backgrounded for too long.
@@ -709,4 +728,16 @@ export class AudioEngine {
   }
 
   getLoadMonitor(): AudioLoadMonitor { return this.loadMonitor; }
+
+  /** Current adaptive stability state — what the runtime mitigation
+   *  controller has temporarily overridden, if anything. */
+  getAdaptiveStabilityState(): AdaptiveStabilityState {
+    return this.adaptiveStability.getState();
+  }
+
+  subscribeAdaptiveStability(
+    listener: (s: AdaptiveStabilityState) => void,
+  ): () => void {
+    return this.adaptiveStability.subscribe(listener);
+  }
 }

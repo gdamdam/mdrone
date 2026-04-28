@@ -1,15 +1,27 @@
 import { useEffect, useState } from "react";
 import type { AudioLoadMonitor, AudioLoadState } from "../engine/AudioLoadMonitor";
+import type { AdaptiveStabilityState } from "../engine/AdaptiveStabilityEngine";
 
 interface CpuWarningProps {
   monitor: AudioLoadMonitor;
+  adaptive?: {
+    getState: () => AdaptiveStabilityState;
+    subscribe: (l: (s: AdaptiveStabilityState) => void) => () => void;
+  };
 }
 
-export function CpuWarning({ monitor }: CpuWarningProps) {
+export function CpuWarning({ monitor, adaptive }: CpuWarningProps) {
   const [state, setState] = useState<AudioLoadState>(() => monitor.getState());
+  const [adaptiveState, setAdaptiveState] = useState<AdaptiveStabilityState | null>(
+    () => adaptive ? adaptive.getState() : null,
+  );
   const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => monitor.subscribe(setState), [monitor]);
+  useEffect(() => {
+    if (!adaptive) return;
+    return adaptive.subscribe(setAdaptiveState);
+  }, [adaptive]);
 
   useEffect(() => {
     if (!detailOpen) return;
@@ -18,7 +30,8 @@ export function CpuWarning({ monitor }: CpuWarningProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [detailOpen]);
 
-  if (!state.struggling) return null;
+  const stage = adaptiveState?.stage ?? 0;
+  if (!state.struggling && stage === 0) return null;
 
   return (
     <>
@@ -52,6 +65,13 @@ export function CpuWarning({ monitor }: CpuWarningProps) {
               heavy effects (shimmer, granular, plate).
             </p>
             <div className="fx-modal-params">
+              {adaptiveState && stage > 0 && (
+                <div className="fx-modal-param">
+                  <span className="fx-modal-param-label">
+                    MITIGATION <span className="fx-modal-param-value">stage {stage}</span>
+                  </span>
+                </div>
+              )}
               <div className="fx-modal-param">
                 <span className="fx-modal-param-label">
                   DRIFT <span className="fx-modal-param-value">{state.driftMs.toFixed(1)} ms</span>
