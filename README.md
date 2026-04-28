@@ -48,6 +48,7 @@
 - [Keyboard, MIDI & Link](#keyboard-midi--link)
 - [Accessibility](#accessibility)
 - [Privacy](#privacy)
+- [Reliability & Diagnostics](#reliability--diagnostics)
 - [Going Deeper](#going-deeper)
 - [License](#license)
 
@@ -199,6 +200,18 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
 ## Privacy
 
 mdrone has no accounts, no cookies, no ads, no fingerprinting, no third-party trackers. Sessions, custom tunings, and recordings stay on your device. Anonymous, cookieless page-view counting via [GoatCounter](https://goatcounter.com); a handful of feature events are deduped once per page-load. DNT disables all counting. Hosted on GitHub Pages.
+
+---
+
+## Reliability & Diagnostics
+
+Three layered systems exist for keeping audio stable and debugging it when something slips.
+
+- **Adaptive stability** — described under [Audio Engine](#audio-engine). Reactive: the engine itself responds to sustained struggle by dropping visuals → heavy FX → voice density and restoring conservatively after a stable window.
+- **LIVE SAFE** — explicit user-initiated mode in *Settings → LIVE SAFE*. Trades richness for reliability before stepping on stage: clamps the voice cap to 4, suppresses the heaviest FX (halo / granular / graincloud / shimmer / freeze), engages low-power visuals. Conservative revert — if you change something while LIVE SAFE is on, your change wins. Saved scenes and share URLs are not modified.
+- **Copy Audio Report** — when the *CPU* warning indicator appears, tapping it opens a detail modal with a **COPY AUDIO REPORT** button. Produces a structured Markdown payload (browser/device, AudioContext, load monitor, adaptive + LIVE SAFE state, voice cap, user-intended vs effective FX, mixer state, audio-debug flags, optional trace ring). The same report is available in the console as `await __mdroneAudioReport()`. URLs are reduced to origin + path so share-encoded scene data is never included; localStorage / session names / custom tuning arrays are not read.
+
+If the audio thread hashes or crackles, reload with `?audio-debug=trace` in the URL to enable a 512-event ring buffer. Underruns auto-dump it; `__mdroneDumpTrace()` triggers a manual dump. Per-stage bypass flags (`?audio-debug=no-fx`, `no-master`, `no-limiter`, `no-glue`, `no-eq`, etc.) help isolate which DSP stage is responsible.
 
 ---
 

@@ -11,6 +11,14 @@ import { showNotification } from "../notifications";
 import { measureAllPresets } from "../devtools/measureLoudness";
 import { auditArrival } from "../devtools/auditArrival";
 import { createPresetCertController, type PresetCertHooks } from "../devtools/presetCertification";
+import {
+  buildAudioDiagnostics,
+  copyToClipboard,
+  renderAudioDiagnosticsMarkdown,
+  type DiagnosticsHooks,
+} from "../devtools/audioDiagnostics";
+import { isTraceEnabled, snapshotTrace } from "../engine/audioTrace";
+import { readAudioDebugFlags } from "../engine/audioDebug";
 import { PRESETS as ALL_PRESETS } from "../engine/presets";
 import { DroneView, type DroneViewHandle } from "./DroneView";
 import { MixerView } from "./MixerView";
@@ -209,6 +217,38 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     return () => window.clearInterval(id);
   }, [headerHolding]);
 
+  // Audio diagnostics — single-call aggregator for crackle / frrrr
+  // reports. Builds a structured payload, renders Markdown, attempts
+  // clipboard copy, returns the JSON object. Stable callback so the
+  // UI ("Copy Audio Report" button in the CpuWarning detail) and the
+  // window devtool (__mdroneAudioReport) share one implementation.
+  const copyAudioReport = useCallback(async () => {
+    const snap = droneViewRef.current?.getSnapshot();
+    const presetId = snap?.activePresetId ?? null;
+    const presetName = presetId
+      ? (ALL_PRESETS.find((p) => p.id === presetId)?.name ?? null)
+      : null;
+    const hooks: DiagnosticsHooks = {
+      appVersion: APP_VERSION,
+      engine,
+      getPreset: () => ({ id: presetId, name: presetName }),
+      getTrace: () => ({
+        enabled: isTraceEnabled(),
+        events: snapshotTrace(),
+      }),
+      getAudioDebugFlags: () => Array.from(readAudioDebugFlags()),
+    };
+    const report = buildAudioDiagnostics(hooks);
+    const md = renderAudioDiagnosticsMarkdown(report);
+    console.log(md);
+    const ok = await copyToClipboard(md);
+    showNotification(
+      ok ? "Audio report copied to clipboard." : "Audio report logged to console (clipboard unavailable).",
+      "info",
+    );
+    return report;
+  }, [engine]);
+
   // Dev tool — iterate every preset, sample the loudness worklet,
   // emit a markdown audit table + download file. Exposed on window
   // so the review can be triggered from the browser console:
@@ -284,6 +324,12 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__presetCert = cert;
 
+    // Audio diagnostics console handle — delegates to the shared
+    // copyAudioReport callback so the UI button and window helper
+    // produce identical output.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__mdroneAudioReport = () => copyAudioReport();
+
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__measureAllPresets;
@@ -293,8 +339,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       delete (window as any).__engine;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).__presetCert;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).__mdroneAudioReport;
     };
-  }, [engine]);
+  }, [engine, copyAudioReport]);
 
   // MIDI input — external keyboard drives tonic + octave.
   const handleMidiNote = useCallback((note: number) => {
@@ -858,6 +906,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           getState: () => engine.getAdaptiveStabilityState(),
           subscribe: (l) => engine.subscribeAdaptiveStability(l),
         }}
+        onCopyAudioReport={() => { void copyAudioReport(); }}
       />
 
       {updateAvailable && (

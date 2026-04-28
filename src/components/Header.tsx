@@ -90,6 +90,9 @@ interface HeaderProps {
     getState: () => import("../engine/AdaptiveStabilityEngine").AdaptiveStabilityState;
     subscribe: (l: (s: import("../engine/AdaptiveStabilityEngine").AdaptiveStabilityState) => void) => () => void;
   };
+  /** Optional handler — copy a structured audio diagnostics report to
+   *  the clipboard. Surfaced inside the CpuWarning detail modal. */
+  onCopyAudioReport?: () => void | Promise<void>;
   /** Inline MEDITATE preview tile toggle. Lives next to HOLD so the
    *  performance row owns transport + visualizer in one place. */
   meditatePreviewOn: boolean;
@@ -146,6 +149,7 @@ export function Header({
   analyser,
   loadMonitor,
   adaptive,
+  onCopyAudioReport,
   meditatePreviewOn,
   onToggleMeditatePreview,
 }: HeaderProps) {
@@ -374,7 +378,11 @@ export function Header({
               beta
             </span>
           </div>
-          <CpuWarning monitor={loadMonitor} adaptive={adaptive} />
+          <CpuWarning
+            monitor={loadMonitor}
+            adaptive={adaptive}
+            onCopyAudioReport={onCopyAudioReport}
+          />
           {hasAudioDebugFlag("trace") && (
             <button
               type="button"

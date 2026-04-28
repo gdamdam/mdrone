@@ -8,9 +8,12 @@ interface CpuWarningProps {
     getState: () => AdaptiveStabilityState;
     subscribe: (l: (s: AdaptiveStabilityState) => void) => () => void;
   };
+  /** Optional handler to copy the full audio diagnostics report.
+   *  Shown as a button in the detail modal when present. */
+  onCopyAudioReport?: () => void | Promise<void>;
 }
 
-export function CpuWarning({ monitor, adaptive }: CpuWarningProps) {
+export function CpuWarning({ monitor, adaptive, onCopyAudioReport }: CpuWarningProps) {
   const [state, setState] = useState<AudioLoadState>(() => monitor.getState());
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveStabilityState | null>(
     () => adaptive ? adaptive.getState() : null,
@@ -98,6 +101,17 @@ export function CpuWarning({ monitor, adaptive }: CpuWarningProps) {
                 </span>
               </div>
             </div>
+            {onCopyAudioReport && (
+              <div className="fx-modal-actions">
+                <button
+                  className="header-btn"
+                  onClick={() => { void onCopyAudioReport(); }}
+                  title="Copy a structured audio diagnostics report (no scene data) to your clipboard"
+                >
+                  COPY AUDIO REPORT
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
