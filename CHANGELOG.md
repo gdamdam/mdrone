@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.1 — 2026-04-28
+
+- fix: preset-change duck must fire when adaptive low-power is engaged (53d60b8)
+
 ## 1.20.0 — 2026-04-28
 
 - fx-chain reorder: master-bus duck on serial rewire (50f7f5a)
