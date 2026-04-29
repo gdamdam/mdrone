@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.4 — 2026-04-29
+
+_No user-visible changes._
+
 ## 1.20.3 — 2026-04-29
 
 - ui: positioning — recordable, not shareable (9fc6f65)

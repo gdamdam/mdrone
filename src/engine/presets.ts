@@ -237,14 +237,16 @@ const SCALE_INTERVALS: Record<ScaleId, number[]> = {
  * from the curated set.
  */
 export const ARRIVAL_PRESET_IDS = [
-  "stars-of-the-lid",       // 47 — looped-string, sub 0.34, instant
-  "fennesz-endless",        // 46 — chord-holder, fills 3s cleanly
-  "shruti-box",             // 45 — reed bed, harmonium identity
-  "hollow-drone",           // 45 — power-fifth body, immediate
-  "tanpura-drone",          // 44 — solo jawari showcase
-  "eno-airport",            // 43 — iconic ambient piano
-  "malone-organ",           // 41 — chamber organ contrast
-  "young-well-tuned",       // 40 — Young WTP lattice, settles fast
+  "stars-of-the-lid",       // "Nitrous Oxide" — 47 · looped-string, sub 0.34, instant
+  "fennesz-endless",        // "Endless Summer" — 46 · chord-holder, fills 3s cleanly
+  "shruti-box",             // "Shruti Box" — 45 · reed bed, harmonium identity
+  "hollow-drone",           // "Hollow" — 45 · power-fifth body, immediate
+  "tanpura-drone",          // "Tanpura Drone" — 44 · solo jawari showcase
+  "eno-airport",            // "Terminal Airport" — 43 · iconic ambient piano
+  "malone-organ",           // "Kali Organ" — 41 · chamber organ contrast
+  "young-well-tuned",       // "Well-Tuned" — 40 · Young WTP lattice, settles fast
+  "sub-chamber",            // "Sub Chamber" — low-register amp drone in deep cistern; all floor, no ceiling
+  "niblock-wall",           // "Microtone Wall" — dense beating wall of close-tuned wind + metal
 ] as const;
 
 export const SAFE_RANDOM_PRESET_IDS = [
