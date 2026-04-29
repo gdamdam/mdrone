@@ -12,7 +12,7 @@
  * modals and the settings-tabs class for the tab strip.
  */
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   type FlowId,
   requestCloseSettings,
@@ -48,6 +48,23 @@ function W({ slug, children }: { slug: string; children: React.ReactNode }) {
 
 export function HelpModal({ onClose, onBeforeTutorialReveal }: HelpModalProps) {
   const [tab, setTab] = useState<Tab>("play");
+  const titleId = useId();
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (opener && typeof opener.focus === "function") {
+        try { opener.focus(); } catch { /* ok */ }
+      }
+    };
+  }, [onClose]);
 
   const replayFlow = (id: FlowId) => {
     resetFlow(id);
@@ -60,10 +77,16 @@ export function HelpModal({ onClose, onBeforeTutorialReveal }: HelpModalProps) {
 
   return (
     <div className="fx-modal-backdrop" onClick={onClose}>
-      <div className="fx-modal help-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="fx-modal help-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="fx-modal-header">
-          <div className="fx-modal-title">Help</div>
-          <button className="fx-modal-close" onClick={onClose} title="Close (Esc)">×</button>
+          <div className="fx-modal-title" id={titleId}>Help</div>
+          <button ref={closeRef} className="fx-modal-close" onClick={onClose} title="Close (Esc)" aria-label="Close">×</button>
         </div>
 
         <div className="fx-modal-params help-modal-body">

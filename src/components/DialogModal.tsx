@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 interface DialogModalProps {
   /** Modal title */
@@ -31,13 +31,23 @@ export function DialogModal({
 }: DialogModalProps) {
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+  const descId = useId();
 
   useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
     if (mode === "prompt") {
-      // Focus + select all on mount
       const el = inputRef.current;
       if (el) { el.focus(); el.select(); }
+    } else {
+      cancelRef.current?.focus();
     }
+    return () => {
+      if (opener && typeof opener.focus === "function") {
+        try { opener.focus(); } catch { /* ok */ }
+      }
+    };
   }, [mode]);
 
   useEffect(() => {
@@ -59,9 +69,16 @@ export function DialogModal({
 
   return (
     <div className="fx-modal-backdrop" onClick={onCancel}>
-      <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="fx-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="fx-modal-header">
-          <div className="fx-modal-title">{title}</div>
+          <div className="fx-modal-title" id={titleId}>{title}</div>
           <button
             className="fx-modal-close"
             onClick={onCancel}
@@ -71,7 +88,7 @@ export function DialogModal({
             ×
           </button>
         </div>
-        {description && <p className="fx-modal-desc">{description}</p>}
+        {description && <p className="fx-modal-desc" id={descId}>{description}</p>}
         {mode === "prompt" && (
           <div className="fx-modal-params">
             <input
@@ -85,7 +102,7 @@ export function DialogModal({
           </div>
         )}
         <div className="fx-modal-actions">
-          <button className="header-btn" onClick={onCancel}>
+          <button ref={cancelRef} className="header-btn" onClick={onCancel}>
             CANCEL
           </button>
           <button

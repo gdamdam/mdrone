@@ -6181,3 +6181,52 @@ input.share-modal-url:focus {
     min-height: 44px;
   }
 }
+
+/* ── Accessibility helpers ─────────────────────────────────────────
+   Visually-hidden but keyboard- and screen-reader-reachable. Used by
+   the WeatherPad keyboard equivalents — sliders are off-screen
+   visually but receive focus on Tab and announce via SR. */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.weather-sr-controls > .visually-hidden:focus-within {
+  outline: 2px solid var(--preview, #dcc070);
+  outline-offset: 2px;
+  clip: auto !important;
+  width: auto !important;
+  height: auto !important;
+  position: static !important;
+  margin: 4px 0 !important;
+  padding: 4px !important;
+  background: var(--bg-cell);
+  color: var(--text);
+  font-size: 11px;
+}
+
+/* Focus-visible rings for the most common interactive controls. */
+.header-hold-btn:focus-visible,
+.header-btn:focus-visible,
+.fx-btn:focus-visible,
+.fx-modal-close:focus-visible,
+.help-tab:focus-visible,
+.tonic-key:focus-visible,
+.preset-btn:focus-visible,
+.share-style-btn:focus-visible {
+  outline: 2px solid var(--preview, #dcc070);
+  outline-offset: 2px;
+}
+
+/* Reduced-motion: instant dialog swap. */
+@media (prefers-reduced-motion: reduce) {
+  .fx-modal-backdrop {
+    animation: none !important;
+  }
+}

@@ -14,7 +14,7 @@
  * writes localStorage directly.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   BUILTIN_TUNINGS,
   DEGREE_LABELS,
@@ -68,6 +68,23 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
     return "";
   });
   const [degrees, setDegrees] = useState<number[]>(() => [...initialBase.degrees]);
+  const titleId = useId();
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (opener && typeof opener.focus === "function") {
+        try { opener.focus(); } catch { /* ok */ }
+      }
+    };
+  }, [onClose]);
 
   const refreshRegistry = () => setAllTunings(getAllTunings());
 
@@ -110,10 +127,16 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
 
   return (
     <div className="fx-modal-backdrop" onClick={onClose}>
-      <div className="fx-modal scale-editor-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="fx-modal scale-editor-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="fx-modal-header">
-          <div className="fx-modal-title">Scale Editor · custom tuning</div>
-          <button className="fx-modal-close" onClick={onClose} title="Close (Esc)">×</button>
+          <div className="fx-modal-title" id={titleId}>Scale Editor · custom tuning</div>
+          <button ref={closeRef} className="fx-modal-close" onClick={onClose} title="Close (Esc)" aria-label="Close">×</button>
         </div>
         <p className="fx-modal-desc">
           Author a 13-degree tuning table. Cents are measured above the

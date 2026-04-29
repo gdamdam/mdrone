@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { PortableScene } from "../session";
 import {
   SCENE_CARD_STYLE_LABELS,
@@ -46,6 +46,8 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
   const [error, setError] = useState<string | null>(null);
   const [baseUrl, setBaseUrl] = useState("");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
   const canNativeShare = useMemo(
     () => typeof navigator !== "undefined" && typeof navigator.share === "function",
     [],
@@ -123,7 +125,14 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (opener && typeof opener.focus === "function") {
+        try { opener.focus(); } catch { /* ok */ }
+      }
+    };
   }, [onClose]);
 
   useEffect(() => {
@@ -221,10 +230,16 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
 
   return (
     <div className="fx-modal-backdrop" onClick={onClose}>
-      <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="fx-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="fx-modal-header">
-          <div className="fx-modal-title">Share Scene</div>
-          <button className="fx-modal-close" onClick={onClose} title="Close (Esc)">
+          <div className="fx-modal-title" id={titleId}>Share Scene</div>
+          <button ref={closeRef} className="fx-modal-close" onClick={onClose} title="Close (Esc)" aria-label="Close">
             ×
           </button>
         </div>

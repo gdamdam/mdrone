@@ -10,7 +10,7 @@
  * prototype — they show only the description and an on/off hint.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { EffectId } from "../engine/FxChain";
 import { TouchSlider } from "./TouchSlider";
@@ -73,20 +73,37 @@ const EFFECT_DESCRIPTIONS: Record<EffectId, string> = {
 
 export function FxModal({ engine, effectId, onClose }: FxModalProps) {
   // Close on Escape key
+  const titleId = useId();
+  const closeRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const opener = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (opener && typeof opener.focus === "function") {
+        try { opener.focus(); } catch { /* ok */ }
+      }
+    };
   }, [onClose]);
 
   return (
     <div className="fx-modal-backdrop" onClick={onClose}>
-      <div className="fx-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="fx-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="fx-modal-header">
-          <div className="fx-modal-title">{EFFECT_TITLES[effectId]}</div>
+          <div className="fx-modal-title" id={titleId}>{EFFECT_TITLES[effectId]}</div>
           <button
+            ref={closeRef}
             className="fx-modal-close"
             onClick={onClose}
             title="Close (Esc)"

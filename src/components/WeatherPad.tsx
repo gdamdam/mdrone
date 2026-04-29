@@ -256,6 +256,9 @@ export function WeatherPad({
     )`,
   };
 
+  const xPct = Math.round(climateX * 100);
+  const yPct = Math.round(climateY * 100);
+
   return (
     <div className="weather-section" data-tutor="weather">
       <div className="weather-header">
@@ -287,6 +290,40 @@ export function WeatherPad({
         <span className="climate-axis climate-axis-x-right" data-midi-id="weatherX">BRIGHT</span>
         <span className="climate-axis climate-axis-y-top" data-midi-id="weatherY">MOVING</span>
         <span className="climate-axis climate-axis-y-bot" data-midi-id="weatherY">STILL</span>
+      </div>
+      {/*
+        Keyboard / screen-reader equivalent for the XY pad. Visually
+        hidden but Tab-reachable; arrow keys nudge brightness/motion
+        without disturbing the painted pad. */}
+      <div className="weather-sr-controls" aria-label="Weather pad controls">
+        <label className="visually-hidden">
+          <span>Brightness (DARK to BRIGHT)</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={xPct}
+            aria-valuetext={`Brightness ${xPct} percent`}
+            data-midi-id="weatherX"
+            onChange={(e) => onChange(parseInt(e.target.value, 10) / 100, climateY)}
+            onKeyDown={() => onDismissIntro()}
+          />
+        </label>
+        <label className="visually-hidden">
+          <span>Motion (STILL to MOVING)</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={yPct}
+            aria-valuetext={`Motion ${yPct} percent`}
+            data-midi-id="weatherY"
+            onChange={(e) => onChange(climateX, parseInt(e.target.value, 10) / 100)}
+            onKeyDown={() => onDismissIntro()}
+          />
+        </label>
       </div>
     </div>
   );

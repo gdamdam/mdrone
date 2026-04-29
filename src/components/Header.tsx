@@ -492,6 +492,8 @@ export function Header({
           className={holding ? "header-hold-btn header-hold-btn-active" : "header-hold-btn"}
           onClick={onToggleHold}
           title={holding ? "Release the drone" : "Hold the current tonic"}
+          aria-label={holding ? `Release drone (tonic ${tonic}${octave})` : `Hold drone (tonic ${tonic}${octave})`}
+          aria-pressed={holding}
         >
           <span className="header-hold-label">{holding ? "■ HOLDING" : "▶ HOLD"}</span>
           <span className="header-hold-sub">{tonic}{octave}</span>
@@ -828,6 +830,8 @@ export function Header({
                 <button
                   className={lowPowerMode ? "header-btn header-btn-midi-on" : "header-btn"}
                   onClick={() => onToggleLowPower(!lowPowerMode)}
+                  aria-pressed={lowPowerMode}
+                  aria-label={lowPowerMode ? "Low-power mode on, press to disable" : "Low-power mode off, press to enable"}
                   title={lowPowerMode
                     ? "Disable low-power mode"
                     : "Enable low-power mode for weaker hardware"}
@@ -850,6 +854,8 @@ export function Header({
                 <button
                   className={liveSafeMode ? "header-btn header-btn-midi-on" : "header-btn"}
                   onClick={() => onToggleLiveSafeMode(!liveSafeMode)}
+                  aria-pressed={liveSafeMode}
+                  aria-label={liveSafeMode ? "LIVE SAFE on, press to disable" : "LIVE SAFE off, press to enable"}
                   title={liveSafeMode
                     ? "Disable LIVE SAFE — restore voice cap, heavy FX, and visuals"
                     : "Enable LIVE SAFE — prioritize stable audio for stage / pro use"}
