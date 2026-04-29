@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">
 </p>
 
-<p align="center"><strong>Hold a note. Shape the air. Save the atmosphere.</strong><br><br>A microtonal drone instrument in your browser.<br>Hand-authored voices, long-form motion, and shareable tunings.<br>No install. No account. Free.</p>
+<p align="center"><strong>Hold a note. Shape the air. Save the atmosphere.</strong><br><br>A microtonal drone instrument in your browser.<br>Hand-authored voices, long-form motion, recordable scenes.<br>No install. No account. Free.</p>
 
 <p align="center">
   <a href="https://mdrone.org/">https://mdrone.org/</a>

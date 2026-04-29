@@ -142,11 +142,11 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
         </p>
 
         <p className="start-gate-intro">
-          Hand-authored voices, long-form motion, and shareable tunings.
+          Hand-authored voices, long-form motion, recordable scenes.
         </p>
         <div className="start-gate-pills" aria-hidden="true">
           <span className="start-gate-pill">microtonal</span>
-          <span className="start-gate-pill">shareable</span>
+          <span className="start-gate-pill">recordable</span>
           <span className="start-gate-pill">open-source</span>
         </div>
 
