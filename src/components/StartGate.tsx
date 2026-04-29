@@ -192,10 +192,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
 
         <a href="./about.html" className="start-gate-landing-link">About</a>
 
-        <span className="start-gate-version">
-          v{APP_VERSION}
-          <span aria-label="Beta release"> · beta</span>
-        </span>
+        <span className="start-gate-version">v{APP_VERSION}</span>
       </div>
     </main>
   );
