@@ -2,6 +2,15 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.3 — 2026-04-29
+
+- ui: positioning — recordable, not shareable (9fc6f65)
+- ui: remove beta badge from in-app header (3411798)
+- ui: drop "beta" from StartGate first screen, surface in About colophon (49ed7f9)
+- worker: instrument OG/card paths with SLOW_OG warning (15fa40e)
+- ui: demote Beta badge — quieter status, stronger arrival (cba5339)
+- a11y: dialog semantics, HOLD/LIVE SAFE state, WEATHER keyboard (7fa385d)
+
 ## 1.20.2 — 2026-04-29
 
 _No user-visible changes._
