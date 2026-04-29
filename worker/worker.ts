@@ -599,6 +599,7 @@ async function handleRequest(
   }
 
   if (url.pathname === "/img" || url.pathname === "/img/") {
+    const ogStart = performance.now();
     const z = url.searchParams.get("z");
     const b = url.searchParams.get("b");
     const raw = z || b;
@@ -611,15 +612,24 @@ async function handleRequest(
     );
     const { svg } = buildShareCardSvg(scene, scene.name, styleChoice);
     const png = await svgToPng(svg);
-    return new Response(png, {
+    const res = new Response(png, {
       headers: {
         "Content-Type": "image/png",
         "Cache-Control": "public, max-age=604800, immutable",
       },
     });
+    const ogDurationMs = performance.now() - ogStart;
+    if (ogDurationMs > 8) {
+      console.warn("SLOW_OG", {
+        duration_ms: Math.round(ogDurationMs * 100) / 100,
+        path: new URL(request.url).pathname,
+      });
+    }
+    return res;
   }
 
   if (url.pathname === "/" || url.pathname === "") {
+    const ogStart = performance.now();
     const z = url.searchParams.get("z");
     const b = url.searchParams.get("b");
     const raw = z || b;
@@ -650,12 +660,20 @@ async function handleRequest(
       width: SCENE_CARD_WIDTH,
       height: SCENE_CARD_HEIGHT,
     });
-    return new Response(html, {
+    const res = new Response(html, {
       headers: {
         "Content-Type": "text/html;charset=UTF-8",
         "Cache-Control": "public, max-age=86400",
       },
     });
+    const ogDurationMs = performance.now() - ogStart;
+    if (ogDurationMs > 8) {
+      console.warn("SLOW_OG", {
+        duration_ms: Math.round(ogDurationMs * 100) / 100,
+        path: new URL(request.url).pathname,
+      });
+    }
+    return res;
   }
 
   return new Response("Not found", { status: 404 });
