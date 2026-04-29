@@ -30,10 +30,7 @@ export interface Flow {
 
 const INTRO: Flow = {
   id: "intro",
-  // WEATHER step removed — the ARRIVE choreography now teaches WEATHER
-  // inline with a callout + glow on a fresh first launch, so the
-  // spotlight tour can stay shorter and not duplicate the lesson.
-  offerLabel: "Tour · 3 steps",
+  offerLabel: "Tour · 4 steps",
   offerAnchor: '[data-tutor="hold"]',
   steps: [
     {
@@ -43,15 +40,21 @@ const INTRO: Flow = {
       body: "Tap HOLD to begin the drone. Tap again to release. The tonic is your anchor — everything else colours it.",
     },
     {
+      id: "weather",
+      selector: '[data-tutor="weather"]',
+      title: "2 — Drag WEATHER",
+      body: "Drag anywhere inside this pad to shape brightness and motion. It is the main expressive gesture.",
+    },
+    {
       id: "presets",
       selector: '[data-tutor="presets"]',
-      title: "2 — Browse presets",
+      title: "3 — Browse presets",
       body: "Tap here to open the scene list, or hit RND in the header for a gentle random variation.",
     },
     {
       id: "views",
       selector: '[data-tutor="views"]',
-      title: "3 — MEDITATE / MIXER",
+      title: "4 — MEDITATE / MIXER",
       body: "Optional: MEDITATE goes fullscreen with a visualizer. MIXER opens the master bus. You can ignore both and just play.",
     },
   ],
