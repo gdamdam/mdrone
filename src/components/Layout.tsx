@@ -31,6 +31,7 @@ const MeditateView = lazy(() =>
   import("./MeditateView").then((m) => ({ default: m.MeditateView })),
 );
 import { trackEvent } from "../analytics";
+import { buildWavFilename, formatDurationMs } from "../engine/recordingFilename";
 import { TutorialFlow } from "./TutorialFlow";
 import { TutorialOffer } from "./TutorialOffer";
 import { addHoldTime, isFlowDone, requestOfferFlow } from "../tutorial/state";
@@ -111,6 +112,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const resumedRef = useRef(false);
   const droneViewRef = useRef<DroneViewHandle | null>(null);
   const holdToggleRef = useRef<(() => void) | null>(null);
+  const recMemUnsubRef = useRef<(() => void) | null>(null);
 
   const sceneManager = useSceneManager({
     engine,
@@ -149,6 +151,22 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       setRecTimeMs(0);
     };
   }, [isRec]);
+
+  // beforeunload guard — warn the user only while a master recording
+  // or loop bounce is in flight, so an accidental close/reload doesn't
+  // discard the take. Idle pages stay quiet (no warning).
+  useEffect(() => {
+    if (!isRec && !loopBusy) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Modern browsers ignore the custom string and show a generic
+      // confirm; preventDefault + a non-empty returnValue is the
+      // portable way to trigger the prompt.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isRec, loopBusy]);
 
   // Check for a newer build every 5 minutes. vite.config.ts writes
   // public/version.json on build; if the fetched version doesn't match
@@ -755,27 +773,61 @@ export function Layout({ engine, startupMode }: LayoutProps) {
 
   const recordingSupport = engine.getRecordingSupport();
   const recordingTitle = !recordingSupport.supported
-    ? (recordingSupport.reason ?? "Recording is unavailable in this browser.")
+    ? (recordingSupport.reason ?? "WAV recording is unavailable in this browser.")
     : isRec
-      ? "Stop master recording and download the WAV"
-      : "Record the full master output as a WAV file";
+      ? "Stop and download the WAV — full 24-bit master capture"
+      : "Record the full master output as a 24-bit WAV file. Starts the drone if it isn't already playing.";
 
   const handleToggleRec = async () => {
     if (recBusy) return;
     setRecBusy(true);
     try {
       if (!isRec) {
+        await engine.resume();
+        // Auto-HOLD on REC start so REC WAV never produces a silent
+        // file by default. Mirrors loop-bounce behavior.
+        if (!engine.isPlaying()) holdToggleRef.current?.();
+        // One-shot long-recording memory nudge (~15 min) — Float32
+        // chunks live in memory; warn once per take.
+        const unsubscribe = engine.setMasterRecordingMemoryWarning(
+          15 * 60 * 1000,
+          () => showNotification(
+            "Long recording — browser memory may grow. Consider stopping and starting a new take.",
+            "warning",
+          ),
+        );
         await engine.startMasterRecording();
         trackEvent("recording/wav");
         setIsRec(true);
+        // Park the unsubscribe so we clean up on stop.
+        recMemUnsubRef.current = unsubscribe;
       } else {
-        await engine.stopMasterRecording();
+        const result = await engine.stopMasterRecording();
+        recMemUnsubRef.current?.();
+        recMemUnsubRef.current = null;
         setIsRec(false);
+        if (result) {
+          const filename = buildWavFilename(sceneManager.shareInitialName);
+          const blob = new Blob([result.wav], { type: "audio/wav" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+          showNotification(
+            `WAV saved — ${formatDurationMs(result.durationMs)}`,
+            "info",
+          );
+        }
       }
     } catch (error) {
       console.error("mdrone: recording failed", error);
       const message = error instanceof Error ? error.message : "Unknown recording error.";
       showNotification(`Recording failed — ${message}`, "error");
+      recMemUnsubRef.current?.();
+      recMemUnsubRef.current = null;
       setIsRec(false);
     } finally {
       setRecBusy(false);
@@ -801,10 +853,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       });
       trackEvent("recording/loop");
       const blob = new Blob([result.wav], { type: "audio/wav" });
-      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const baseName = buildWavFilename(sceneManager.shareInitialName).replace(/\.wav$/, "");
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `mdrone-loop-${loopLengthSec}s-${ts}.wav`;
+      a.download = `${baseName}-loop-${loopLengthSec}s.wav`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

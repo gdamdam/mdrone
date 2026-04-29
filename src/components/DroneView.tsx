@@ -1592,12 +1592,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   title={recordingTitle ?? "Record master output to WAV"}
                 >
                   {!recordingSupported
-                    ? "REC N/A"
+                    ? "WAV N/A"
                     : recordingBusy
-                      ? "REC…"
+                      ? "REC WAV…"
                       : isRec
                         ? `■ ${Math.floor((recTimeMs ?? 0) / 60000)}:${String(Math.floor(((recTimeMs ?? 0) / 1000) % 60)).padStart(2, "0")}`
-                        : "● REC"}
+                        : "● REC WAV"}
                 </button>
               )}
               {/* Seamless-loop bounce — short fixed-length WAV that

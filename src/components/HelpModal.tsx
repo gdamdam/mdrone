@@ -231,8 +231,9 @@ function ReferenceTab() {
       <div className="fx-modal-section-label">SAVE &amp; SHARE</div>
       <ul className="help-list">
         <li><strong>⤴ SHARE</strong> — encodes the full scene + optional motion recording into a link.</li>
-        <li><strong>● REC</strong> — 24-bit stereo WAV of master output via AudioWorklet tap. Bit-identical to the engine.</li>
-        <li><strong>REC MOTION</strong> (opt-in in Settings → Advanced) — captures gestures (60 s / 200 events) into the next share URL. Recipients hear the sweep you made.</li>
+        <li><strong>● REC WAV</strong> — 24-bit stereo WAV of the master output via a parallel AudioWorklet tap (bit-identical, no codec). Auto-starts HOLD if the drone isn't playing. Filename is <code>mdrone-&lt;scene&gt;-&lt;date&gt;.wav</code>; you'll see a <em>WAV saved — M:SS</em> confirmation. Long takes (~15 min+) get a one-time memory nudge; the page warns before close while recording is active.</li>
+        <li><strong>◌ LOOP</strong> — bounces a short seamless-loop WAV (10–60 s) with a linear crossfade at the seam and a RIFF <code>smpl</code> chunk so samplers auto-detect the loop region. Different from REC WAV: this is a sampler-ready loop, not a long-form take.</li>
+        <li><strong>REC MOTION</strong> (opt-in in Settings → Advanced) — captures live gestures (60 s / 200 events) into the next share URL. <em>Not an audio file</em> — recipients hear the sweep you made by replaying the gestures over the synth.</li>
         <li><strong>Sessions</strong> — Settings → SESSION: name, save, load, rename. Local-only, never uploaded.</li>
         <li><strong>Scale editor</strong> — ✎ next to the tuning dropdown opens a 13-degree cents table editor. Authored tunings travel in the share URL.</li>
       </ul>

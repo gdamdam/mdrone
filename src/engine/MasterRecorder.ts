@@ -17,6 +17,13 @@ export interface RecordingSupport {
   reason?: string;
 }
 
+export interface MasterRecordingResult {
+  /** 24-bit PCM WAV bytes ready to wrap in a Blob. */
+  wav: ArrayBuffer;
+  /** Capture duration in milliseconds, derived from sample count. */
+  durationMs: number;
+}
+
 export class MasterRecorder {
   private readonly ctx: AudioContext;
   private readonly tapNode: AudioNode;
@@ -26,6 +33,9 @@ export class MasterRecorder {
   private totalFrames = 0;
   private capturing = false;
   private donePromise: Promise<void> | null = null;
+  private memoryWarnAtFrames = Number.POSITIVE_INFINITY;
+  private memoryWarnFired = false;
+  private onMemoryWarning: (() => void) | null = null;
 
   constructor(ctx: AudioContext, tapNode: AudioNode) {
     this.ctx = ctx;
@@ -40,6 +50,18 @@ export class MasterRecorder {
       };
     }
     return { supported: true };
+  }
+
+  /** Subscribe to a one-shot warning fired when capture passes the
+   *  long-recording threshold (default 15 minutes). Returns an
+   *  unsubscribe. The warning fires at most once per recording. */
+  setMemoryWarning(thresholdMs: number, listener: () => void): () => void {
+    this.memoryWarnAtFrames = Math.max(1, Math.floor((thresholdMs / 1000) * this.ctx.sampleRate));
+    this.onMemoryWarning = listener;
+    return () => {
+      this.memoryWarnAtFrames = Number.POSITIVE_INFINITY;
+      this.onMemoryWarning = null;
+    };
   }
 
   async start(): Promise<void> {
@@ -65,6 +87,7 @@ export class MasterRecorder {
     this.chunksL = [];
     this.chunksR = [];
     this.totalFrames = 0;
+    this.memoryWarnFired = false;
 
     let resolveDone!: () => void;
     this.donePromise = new Promise<void>((r) => { resolveDone = r; });
@@ -78,6 +101,14 @@ export class MasterRecorder {
         this.chunksL.push(left);
         this.chunksR.push(right);
         this.totalFrames += left.length;
+        if (
+          !this.memoryWarnFired &&
+          this.totalFrames >= this.memoryWarnAtFrames &&
+          this.onMemoryWarning
+        ) {
+          this.memoryWarnFired = true;
+          try { this.onMemoryWarning(); } catch { /* swallow listener errors */ }
+        }
       } else if (msg.type === "done") {
         resolveDone();
       }
@@ -90,9 +121,12 @@ export class MasterRecorder {
     this.capturing = true;
   }
 
-  async stop(): Promise<void> {
+  /** Stop capture and return the encoded WAV + duration. The caller
+   *  is responsible for naming + downloading. Returns null if there
+   *  was no capture or zero frames were recorded. */
+  async stop(): Promise<MasterRecordingResult | null> {
     const node = this.recorderNode;
-    if (!node || !this.capturing) return;
+    if (!node || !this.capturing) return null;
     this.capturing = false;
 
     node.port.postMessage({ type: "stop" });
@@ -101,24 +135,17 @@ export class MasterRecorder {
     try { this.tapNode.disconnect(node); } catch { /* ok */ }
     this.recorderNode = null;
 
-    if (this.totalFrames === 0) return;
+    if (this.totalFrames === 0) return null;
 
-    const left = this.concatChunks(this.chunksL, this.totalFrames);
-    const right = this.concatChunks(this.chunksR, this.totalFrames);
+    const frames = this.totalFrames;
+    const left = this.concatChunks(this.chunksL, frames);
+    const right = this.concatChunks(this.chunksR, frames);
     this.chunksL = [];
     this.chunksR = [];
 
     const wav = encodeWav24(left, right, this.ctx.sampleRate);
-    const wavBlob = new Blob([wav], { type: "audio/wav" });
-
-    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 23);
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(wavBlob);
-    a.download = `mdrone-${ts}.wav`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    const durationMs = Math.round((frames / this.ctx.sampleRate) * 1000);
+    return { wav, durationMs };
   }
 
   isRecording(): boolean {

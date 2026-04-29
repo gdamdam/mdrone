@@ -294,8 +294,16 @@ export class AudioEngine {
     await this.masterRecorder.start();
   }
 
-  async stopMasterRecording(): Promise<void> {
-    await this.masterRecorder.stop();
+  /** Stop the master recording and return the encoded WAV bytes plus
+   *  the capture duration in ms. Caller handles filename + download. */
+  async stopMasterRecording(): Promise<import("./MasterRecorder").MasterRecordingResult | null> {
+    return this.masterRecorder.stop();
+  }
+
+  /** Subscribe to a one-shot long-recording memory warning. Returns
+   *  an unsubscribe. The warning fires at most once per recording. */
+  setMasterRecordingMemoryWarning(thresholdMs: number, listener: () => void): () => void {
+    return this.masterRecorder.setMemoryWarning(thresholdMs, listener);
   }
 
   isRecording(): boolean { return this.masterRecorder.isRecording(); }

@@ -3,7 +3,7 @@
  * master tap.
  *
  * Drones are the ideal case for seamless-loop export: no transients
- * means a short equal-power crossfade at the seam is inaudible. The
+ * means a short linear crossfade at the seam is inaudible. The
  * bounced file carries a RIFF `smpl` chunk so samplers auto-detect
  * the loop region and the user can hold the drone indefinitely from
  * a tiny file.
@@ -248,7 +248,9 @@ function resize(src: Float32Array, target: number): Float32Array {
 }
 
 /**
- * Equal-power cosine crossfade. Writes `loopFrames` of output from
+ * Linear crossfade — see header comment for why linear (drones are
+ * highly correlated, so equal-power introduces a ~3 dB mid-fade
+ * loudness bump). Writes `loopFrames` of output from
  * `captured` (which must be loopFrames + fadeFrames long) so that
  * the output loops seamlessly at (0, loopFrames - 1).
  *

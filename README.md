@@ -175,7 +175,9 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
 
 - **Sessions** are named local saves in `localStorage` (Settings modal). They include scene, tuning + detune, voices, macros, climate, both LFOs, effect chain, mixer, evolve seed, journey, partner, and the optional motion recording.
 - **Share URLs** compress the full scene; older URLs load with sensible defaults for newer fields. Custom and authored tuning cents travel inside the URL.
-- **Recording** captures the post-limiter master to 24-bit stereo WAV. ~44 MB per 10 min at 48 kHz — render long sessions in passes.
+- **REC WAV** captures the post-limiter master to 24-bit stereo WAV via a parallel worklet tap (bit-identical, no codec). The button auto-starts HOLD if the drone isn't already playing, so you never get a silent file. Saves as `mdrone-<scene>-<YYYY-MM-DD-HHMM>.wav`, confirms with a `WAV saved — M:SS` toast, warns once per take past ~15 min (browser memory grows ~44 MB per 10 min at 48 kHz — render long sessions in passes), and prompts before close/reload while recording is active.
+- **LOOP** bounces a short seamless-loop WAV at the selected length with a linear crossfade at the seam and a RIFF `smpl` chunk so samplers auto-detect the loop region.
+- **REC MOTION** is a separate, opt-in capture of your live gestures (60 s / 200 events) that travels inside the share URL — not an audio file. Three captures, three concepts: **REC WAV** = audio file · **LOOP** = sampler-ready loop WAV · **REC MOTION** = gesture replay encoded into a share link.
 
 ---
 
