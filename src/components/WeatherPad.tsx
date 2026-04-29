@@ -15,6 +15,13 @@ interface WeatherPadProps {
   onDismissIntro: () => void;
   analyser: AnalyserNode | null;
   visual?: "waveform" | "flow" | "minimal";
+  /** Optional ARRIVE callout rendered inside .weather-section, just
+   *  above the XY pad. Spatially anchors the prompt to the surface
+   *  it teaches without disrupting layout when absent. */
+  arriveCallout?: React.ReactNode;
+  /** Whether this surface is the active ARRIVE target. Adds a soft
+   *  outer glow on .weather-section without changing its dimensions. */
+  arriveActive?: boolean;
 }
 
 interface Particle {
@@ -35,6 +42,8 @@ function noise2d(x: number, y: number): number {
 export function WeatherPad({
   climateX, climateY, onChange, intro, onDismissIntro, analyser,
   visual = "waveform",
+  arriveCallout,
+  arriveActive = false,
 }: WeatherPadProps) {
   const xyRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -260,11 +269,16 @@ export function WeatherPad({
   const yPct = Math.round(climateY * 100);
 
   return (
-    <div className="weather-section" data-tutor="weather">
+    <div
+      className={`weather-section${arriveActive ? " arrive-target-active" : ""}`}
+      data-tutor="weather"
+      data-arrive-target={arriveActive ? "weather" : undefined}
+    >
       <div className="weather-header">
         <span className={`weather-title${intro ? " weather-title-intro" : ""}`}>WEATHER</span>
         <span className={`weather-hint${intro ? " weather-hint-intro" : ""}`}>drag to change the room</span>
       </div>
+      {arriveCallout}
       <div
         ref={xyRef}
         className="climate-xy weather-xy"

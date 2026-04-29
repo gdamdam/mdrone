@@ -1058,7 +1058,21 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               + kbd toggle + Hz readout. On mobile this row is lifted
               to a persistent footer-above-footer via CSS (see
               @media (max-width: 720px) .preset-strip-perform). */}
-          <div className="preset-strip-perform">
+          <div
+            className={
+              arriveStep === "tonic"
+                ? "preset-strip-perform arrive-target-active"
+                : "preset-strip-perform"
+            }
+            data-arrive-target={arriveStep === "tonic" ? "tonic" : undefined}
+          >
+          {arriveStep === "tonic" && (
+            <ArriveCallout
+              step="tonic"
+              title="Try a new TONIC"
+              body="Tap a key to retune the drone"
+            />
+          )}
           {/* Inline piano keyboard — sits left of the tonic readout so
               the user can retune without scrolling. Relocated from the
               scene-actions area per the layout pass (P2.3). Hidden on
@@ -1215,40 +1229,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         </>
         )}
 
-        {/* ── WEATHER + MACROS — two-column primary row ─────
-            ARRIVE prompt: a single line whose copy shifts with
-            arriveStep. Sits above the WEATHER+SHAPE row so it's
-            within eyeshot of whichever target is being taught. */}
-        {arriveStep && (
-          <div
-            className="panel-hint arrive-prompt"
-            role="status"
-            aria-live="polite"
-            data-arrive-step={arriveStep}
-            style={{
-              textAlign: "center",
-              marginBottom: 6,
-              letterSpacing: "0.4px",
-              color: "var(--preview)",
-            }}
-          >
-            {arriveStep === "shape" && (
-              <>
-                <strong>Shape the drone</strong> — move AIR, BLOOM, or SUB
-              </>
-            )}
-            {arriveStep === "weather" && (
-              <>
-                <strong>Move the room</strong> — drag WEATHER
-              </>
-            )}
-            {arriveStep === "tonic" && (
-              <>
-                <strong>Change the root</strong> — try a new TONIC
-              </>
-            )}
-          </div>
-        )}
+        {/* ARRIVE choreography is now inline-targeted — each step
+            renders an <ArriveCallout> directly inside the surface
+            it teaches (SHAPE panel, WEATHER pad, TONIC keys), and
+            that surface gets an `.arrive-target-active` glow class.
+            See renders below. */}
         {/* Inline MEDITATE preview — small live tile sitting above the
             WEATHER pad. Runs the currently-selected MEDITATE visualizer
             at 15 fps so DRONE has a quiet instrument-display reading of
@@ -1274,6 +1259,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             onDismissIntro={dismissWeatherIntro}
             analyser={engine?.getAnalyser() ?? null}
             visual={weatherVisual ?? "flow"}
+            arriveActive={arriveStep === "weather"}
+            arriveCallout={
+              arriveStep === "weather" ? (
+                <ArriveCallout
+                  step="weather"
+                  title="Move the room"
+                  body="Drag WEATHER"
+                />
+              ) : null
+            }
           />
 
           {/* Mobile tonic + octave — lives between the XY pad and the
@@ -1338,7 +1333,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               "weather-controls",
               shapeHintsOn ? "shape-hints-on" : "",
               shapeCollapsed ? "shape-collapsed" : "",
-              arriveStep === "shape" ? "arrive-active" : "",
+              arriveStep === "shape" ? "arrive-target-active" : "",
             ].filter(Boolean).join(" ")}
             onPointerDownCapture={() => {
               // First time the user touches the SHAPE panel, offer
@@ -1379,6 +1374,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 ?
               </button>
             </div>
+            {arriveStep === "shape" && (
+              <ArriveCallout
+                step="shape"
+                title="Shape the drone"
+                body="Move AIR, BLOOM, or SUB"
+              />
+            )}
             <div className="shape-tier-label">MOTION</div>
             <div className="macro-primary-col">
               <Macro
@@ -1988,6 +1990,31 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     </>
   );
 });
+
+/** ARRIVE choreography callout — small ember-bordered card rendered
+ *  inside the surface a step is teaching. role="status" + aria-live
+ *  so screen readers announce the step transition; not a focus trap. */
+function ArriveCallout({
+  step,
+  title,
+  body,
+}: {
+  step: "shape" | "weather" | "tonic";
+  title: string;
+  body: string;
+}) {
+  return (
+    <div
+      className="arrive-callout"
+      role="status"
+      aria-live="polite"
+      data-arrive-step={step}
+    >
+      <span className="arrive-callout-title">{title}</span>
+      <span className="arrive-callout-body">{body}</span>
+    </div>
+  );
+}
 
 /** Horizontal macro slider with icon + label + live value readout. */
 function Macro({

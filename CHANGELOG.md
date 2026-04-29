@@ -2,6 +2,12 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.7 — 2026-04-29
+
+- recording polish v1: REC WAV, auto-HOLD, named files (e93dfdb)
+- ARRIVE: gesture-driven SHAPE → WEATHER → TONIC (2270989)
+- arrival pool: add Sub Chamber + Microtone Wall (835f2c7)
+
 ## 1.20.6 — 2026-04-29
 
 - ARRIVE: gesture-driven SHAPE → WEATHER → TONIC (2270989)

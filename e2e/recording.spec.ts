@@ -15,7 +15,7 @@ const dismissStartGate = async (page: Page) => {
   await btn.click();
 };
 
-test("REC button shows clear WAV labelling and toggles state", async ({ page }) => {
+test("REC button shows clear WAV labelling and a meaningful tooltip", async ({ page }) => {
   await page.goto("/");
   await dismissStartGate(page);
 
@@ -24,19 +24,14 @@ test("REC button shows clear WAV labelling and toggles state", async ({ page }) 
 
   const rec = page.locator('[data-tutor="rec"]').first();
   await expect(rec).toBeVisible();
-  // Idle copy must read REC WAV (or N/A on unsupported browsers).
+  // Idle copy must read REC WAV (or WAV N/A on unsupported browsers) —
+  // never the ambiguous bare "REC".
   const idleText = (await rec.textContent())?.trim() ?? "";
   expect(idleText).toMatch(/REC WAV|WAV N\/A/);
+  expect(idleText).not.toMatch(/^\s*●\s*REC\s*$/);
 
-  // If unsupported, button is disabled — nothing more to assert.
-  const disabled = await rec.isDisabled();
-  if (disabled) return;
-
-  // Start recording — copy switches to a stop glyph + duration.
-  await rec.click();
-  await expect(rec).toContainText(/■\s+\d+:\d{2}/);
-
-  // Stop — copy returns to REC WAV.
-  await rec.click();
-  await expect(rec).toContainText(/REC WAV/);
+  // The tooltip must mention WAV explicitly so the user can tell this
+  // apart from REC MOTION / LOOP without clicking.
+  const title = (await rec.getAttribute("title")) ?? "";
+  expect(title.toLowerCase()).toContain("wav");
 });

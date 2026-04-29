@@ -4051,18 +4051,65 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   100% { text-shadow: 0 0 18px color-mix(in srgb, var(--preview) 60%, transparent); }
 }
 
-/* ARRIVE choreography — soft pulse on the SHAPE panel when its step
-   is active, mirroring the WEATHER intro glow. The TONIC step rides
-   on the inline tonic-keys' existing :focus styling, so no extra
-   class is needed there. */
-.weather-controls.arrive-active .shape-title {
-  color: var(--preview);
-  text-shadow: 0 0 12px color-mix(in srgb, var(--preview) 45%, transparent);
-  animation: weather-glow-pulse 1.5s ease-in-out infinite alternate;
+/* ── ARRIVE choreography ────────────────────────────────────────────
+   Inline targeted callouts (ember-bordered card) anchored to the
+   surface a step is teaching, paired with a soft outer glow on that
+   surface so the prompt is spatially connected to the control. */
+.arrive-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px;
+  margin: 4px 0 8px;
+  background: color-mix(in srgb, var(--preview) 8%, var(--bg-cell));
+  border: 1px solid color-mix(in srgb, var(--preview) 60%, transparent);
+  border-radius: 6px;
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--preview) 22%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--preview) 18%, transparent);
+  animation: arrive-callout-pulse 2.4s ease-in-out infinite alternate;
 }
-.arrive-prompt strong {
-  color: var(--preview);
+.arrive-callout-title {
+  font-size: 12px;
+  font-weight: 800;
   letter-spacing: 0.6px;
+  color: var(--preview);
+  text-transform: uppercase;
+}
+.arrive-callout-body {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.85;
+  letter-spacing: 0.3px;
+}
+
+@keyframes arrive-callout-pulse {
+  0%   { box-shadow: 0 0 8px color-mix(in srgb, var(--preview) 12%, transparent),
+                     inset 0 0 0 1px color-mix(in srgb, var(--preview) 14%, transparent); }
+  100% { box-shadow: 0 0 16px color-mix(in srgb, var(--preview) 28%, transparent),
+                     inset 0 0 0 1px color-mix(in srgb, var(--preview) 24%, transparent); }
+}
+
+/* Soft glow on the surface that hosts the active callout. Applied
+   to .weather-controls (SHAPE), .weather-section (WEATHER), and
+   .preset-strip-perform (TONIC). Outline doesn't change box size. */
+.arrive-target-active {
+  outline: 1px solid color-mix(in srgb, var(--preview) 55%, transparent);
+  outline-offset: 4px;
+  border-radius: 6px;
+  animation: arrive-target-glow 2.4s ease-in-out infinite alternate;
+}
+@keyframes arrive-target-glow {
+  0%   { outline-color: color-mix(in srgb, var(--preview) 35%, transparent); }
+  100% { outline-color: color-mix(in srgb, var(--preview) 70%, transparent); }
+}
+
+/* Reduced-motion: keep the visual cue, drop the loop. */
+@media (prefers-reduced-motion: reduce) {
+  .arrive-callout,
+  .arrive-target-active {
+    animation: none !important;
+  }
 }
 
 /* Weather pad — square-ish to fill the left column. Primary
