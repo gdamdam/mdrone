@@ -38,26 +38,32 @@ test("fresh launch shows visible SHAPE callout inside the SHAPE panel", async ({
   await expect(page.locator('[data-tutor="shape"] .arrive-callout')).toHaveCount(1);
 });
 
-test("touching a SHAPE macro advances to a visible WEATHER callout", async ({ page }) => {
+test("touching a SHAPE macro advances to a visible WEATHER callout (after linger)", async ({ page }) => {
   await startFreshNew(page);
   await expect(callout(page)).toHaveAttribute("data-arrive-step", "shape");
 
   await page.locator('[data-tutor="shape"]').first().click({ position: { x: 4, y: 4 }, force: true });
 
+  // Linger window: callout disappears for ~5 s so the user can hear
+  // the change. Assert the briefly-empty state, then wait through
+  // the dwell for the WEATHER callout to appear.
+  await expect(page.locator(".arrive-callout")).toHaveCount(0, { timeout: 1500 });
+
   const c = callout(page);
-  await expect(c).toHaveAttribute("data-arrive-step", "weather");
+  await expect(c).toHaveAttribute("data-arrive-step", "weather", { timeout: 8000 });
   await expect(c).toContainText(/move the room/i);
   await expect(c).toContainText(/drag weather/i);
 
-  // Glow moves to the WEATHER pad.
+  // Glow now lights up on the WEATHER pad.
   await expect(page.locator('[data-tutor="weather"]')).toHaveClass(/arrive-target-active/);
   await expect(page.locator('[data-tutor="weather"] .arrive-callout')).toHaveCount(1);
 });
 
-test("dragging WEATHER advances to a visible TONIC callout", async ({ page }) => {
+test("dragging WEATHER advances to a visible TONIC callout (after linger)", async ({ page }) => {
   await startFreshNew(page);
   await page.locator('[data-tutor="shape"]').first().click({ position: { x: 4, y: 4 }, force: true });
-  await expect(callout(page)).toHaveAttribute("data-arrive-step", "weather");
+  // Wait through SHAPE→WEATHER linger.
+  await expect(callout(page)).toHaveAttribute("data-arrive-step", "weather", { timeout: 8000 });
 
   const pad = page.locator('[data-tutor="weather"] .weather-xy').first();
   const box = await pad.boundingBox();
@@ -67,12 +73,14 @@ test("dragging WEATHER advances to a visible TONIC callout", async ({ page }) =>
   await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.4, { steps: 6 });
   await page.mouse.up();
 
+  // WEATHER→TONIC linger: callout briefly empty.
+  await expect(page.locator(".arrive-callout")).toHaveCount(0, { timeout: 1500 });
+
   const c = callout(page);
-  await expect(c).toHaveAttribute("data-arrive-step", "tonic");
+  await expect(c).toHaveAttribute("data-arrive-step", "tonic", { timeout: 8000 });
   await expect(c).toContainText(/try a new tonic/i);
   await expect(c).toContainText(/tap a key to retune/i);
 
-  // Glow moves to the TONIC area.
   await expect(page.locator('[data-arrive-target="tonic"]')).toHaveClass(/arrive-target-active/);
 });
 
@@ -90,7 +98,7 @@ test("returning user with autosave does not see ARRIVE", async ({ page }) => {
   await expect(page.locator(".arrive-callout")).toHaveCount(0);
 });
 
-test("keyboard SHAPE input advances to WEATHER callout", async ({ page }) => {
+test("keyboard SHAPE input advances to WEATHER callout (after linger)", async ({ page }) => {
   await startFreshNew(page);
   await expect(callout(page)).toHaveAttribute("data-arrive-step", "shape");
 
@@ -98,22 +106,39 @@ test("keyboard SHAPE input advances to WEATHER callout", async ({ page }) => {
   await macro.focus();
   await macro.press("ArrowRight");
 
-  await expect(callout(page)).toHaveAttribute("data-arrive-step", "weather");
+  await expect(callout(page)).toHaveAttribute("data-arrive-step", "weather", { timeout: 8000 });
 });
 
-test("keyboard WEATHER slider advances to TONIC callout", async ({ page }) => {
+test("keyboard WEATHER slider advances to TONIC callout (after linger)", async ({ page }) => {
   await startFreshNew(page);
 
   const macro = page.locator('[data-tutor="shape"] input[type="range"]').first();
   await macro.focus();
   await macro.press("ArrowRight");
-  await expect(callout(page)).toHaveAttribute("data-arrive-step", "weather");
+  await expect(callout(page)).toHaveAttribute("data-arrive-step", "weather", { timeout: 8000 });
 
   const brightness = page.getByRole("slider", { name: /brightness/i }).first();
   await brightness.focus();
   await brightness.press("ArrowRight");
 
-  await expect(callout(page)).toHaveAttribute("data-arrive-step", "tonic");
+  await expect(callout(page)).toHaveAttribute("data-arrive-step", "tonic", { timeout: 8000 });
+});
+
+test("after a SHAPE gesture, callout disappears for the linger window then reappears as WEATHER", async ({ page }) => {
+  await startFreshNew(page);
+  await page.locator('[data-tutor="shape"]').first().click({ position: { x: 4, y: 4 }, force: true });
+
+  // Immediately after the gesture: no callout visible (linger).
+  await expect(page.locator(".arrive-callout")).toHaveCount(0, { timeout: 1500 });
+  // Glow is also gone during the dwell.
+  await expect(page.locator(".arrive-target-active")).toHaveCount(0);
+
+  // 1.5 s into the dwell — still no callout.
+  await page.waitForTimeout(1500);
+  await expect(page.locator(".arrive-callout")).toHaveCount(0);
+
+  // After the full ~5 s dwell, the WEATHER callout takes over.
+  await expect(callout(page)).toHaveAttribute("data-arrive-step", "weather", { timeout: 8000 });
 });
 
 test("ARRIVE never auto-advances without a gesture (no timers)", async ({ page }) => {

@@ -2,6 +2,15 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.8 — 2026-04-29
+
+- Revert "1.20.8 — intro tour: drop redundant WEATHER step" (1951bc1)
+- intro tour: drop redundant WEATHER step (5618d5e)
+- ARRIVE: inline targeted callouts + active-target glow (e8ca413)
+- recording polish v1: REC WAV, auto-HOLD, named files (e93dfdb)
+- ARRIVE: gesture-driven SHAPE → WEATHER → TONIC (2270989)
+- arrival pool: add Sub Chamber + Microtone Wall (835f2c7)
+
 ## 1.20.7 — 2026-04-29
 
 - recording polish v1: REC WAV, auto-HOLD, named files (e93dfdb)

@@ -673,25 +673,50 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // on a true first launch (no prior autosave). Teaches the most
   // playable controls in order: SHAPE → WEATHER → TONIC. Strictly
   // gesture-driven: each step advances only on real user interaction
-  // with that surface; no timers. Once null, stays null for the
-  // session.
+  // with that surface; no auto-advance timers.
+  //
+  // Linger: between SHAPE→WEATHER and WEATHER→TONIC, the next
+  // callout + glow are suppressed for ARRIVE_LINGER_MS so the user
+  // can hear the change they just made before being prompted again.
+  // TONIC has no linger — gesture dismisses immediately.
   type ArriveStep = "shape" | "weather" | "tonic" | null;
+  const ARRIVE_LINGER_MS = 5000;
   const [arriveStep, setArriveStep] = useState<ArriveStep>(() => {
     try { return !localStorage.getItem("mdrone-autosave") ? "shape" : null; }
     catch { return "shape"; }
   });
+  const [arriveLingering, setArriveLingering] = useState(false);
+  const lingerTimerRef = useRef<number | null>(null);
   const advanceArrive = useCallback((from: NonNullable<ArriveStep>) => {
     setArriveStep((s) => {
       if (s !== from) return s;
-      if (from === "shape") return "weather";
-      if (from === "weather") return "tonic";
-      return null;
+      if (from === "tonic") return null;
+      const next: ArriveStep = from === "shape" ? "weather" : "tonic";
+      if (lingerTimerRef.current !== null) {
+        window.clearTimeout(lingerTimerRef.current);
+      }
+      setArriveLingering(true);
+      lingerTimerRef.current = window.setTimeout(() => {
+        setArriveLingering(false);
+        lingerTimerRef.current = null;
+      }, ARRIVE_LINGER_MS);
+      return next;
     });
   }, []);
-  // Back-compat alias for downstream code/comments referring to the
-  // older single-flag intro. WEATHER pad's pulse only lights up
-  // during its own step.
-  const weatherIntro = arriveStep === "weather";
+  useEffect(() => {
+    return () => {
+      if (lingerTimerRef.current !== null) {
+        window.clearTimeout(lingerTimerRef.current);
+        lingerTimerRef.current = null;
+      }
+    };
+  }, []);
+  // True only when the current step's callout/glow should actually
+  // render (i.e. step is set AND we're not inside a linger window).
+  const arriveVisible = arriveStep !== null && !arriveLingering;
+  // Back-compat alias for downstream code referring to the older
+  // single-flag intro. WEATHER pad's pulse follows the same gate.
+  const weatherIntro = arriveStep === "weather" && arriveVisible;
 
   // Auto-open the DETUNE disclosure when fine-tune offsets become
   // non-zero (e.g. loading a preset or share URL with authored
@@ -1060,13 +1085,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               @media (max-width: 720px) .preset-strip-perform). */}
           <div
             className={
-              arriveStep === "tonic"
+              arriveStep === "tonic" && arriveVisible
                 ? "preset-strip-perform arrive-target-active"
                 : "preset-strip-perform"
             }
-            data-arrive-target={arriveStep === "tonic" ? "tonic" : undefined}
+            data-arrive-target={arriveStep === "tonic" && arriveVisible ? "tonic" : undefined}
           >
-          {arriveStep === "tonic" && (
+          {arriveStep === "tonic" && arriveVisible && (
             <ArriveCallout
               step="tonic"
               title="Try a new TONIC"
@@ -1259,9 +1284,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             onDismissIntro={dismissWeatherIntro}
             analyser={engine?.getAnalyser() ?? null}
             visual={weatherVisual ?? "flow"}
-            arriveActive={arriveStep === "weather"}
+            arriveActive={arriveStep === "weather" && arriveVisible}
             arriveCallout={
-              arriveStep === "weather" ? (
+              arriveStep === "weather" && arriveVisible ? (
                 <ArriveCallout
                   step="weather"
                   title="Move the room"
@@ -1328,17 +1353,17 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
           <div
             data-tutor="shape"
-            data-arrive-target={arriveStep === "shape" ? "shape" : undefined}
+            data-arrive-target={arriveStep === "shape" && arriveVisible ? "shape" : undefined}
             className={[
               "weather-controls",
               shapeHintsOn ? "shape-hints-on" : "",
               shapeCollapsed ? "shape-collapsed" : "",
-              arriveStep === "shape" ? "arrive-target-active" : "",
+              arriveStep === "shape" && arriveVisible ? "arrive-target-active" : "",
             ].filter(Boolean).join(" ")}
             onPointerDownCapture={() => {
-              // First time the user touches the SHAPE panel, offer
-              // the tour. Offer-bus already no-ops when done.
-              if (!isFlowDone("shape")) requestOfferFlow("shape");
+              // First-touch advances ARRIVE if it's still on this step.
+              // The dedicated SHAPE tutorial flow was removed — the
+              // inline ARRIVE callout teaches the panel sufficiently.
               advanceArrive("shape");
             }}
             onInputCapture={() => {
@@ -1374,7 +1399,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 ?
               </button>
             </div>
-            {arriveStep === "shape" && (
+            {arriveStep === "shape" && arriveVisible && (
               <ArriveCallout
                 step="shape"
                 title="Shape the drone"

@@ -135,13 +135,13 @@ describe("tutorial/state — event buses", () => {
     const offA = onOfferRequested((id) => offerSeen.push(id));
     const offB = onFlowRequested((id) => flowSeen.push(id));
     requestOfferFlow("effects");
-    requestFlow("shape");
+    requestFlow("share");
     offA();
     offB();
     // Offers go only to offer subscribers; full flow starts go only
     // to flow subscribers — no cross-talk.
     expect(offerSeen).toEqual(["effects"]);
-    expect(flowSeen).toEqual(["shape"]);
+    expect(flowSeen).toEqual(["share"]);
   });
 
   it("requestCloseSettings and requestExpandAdvanced fire their own channels", () => {

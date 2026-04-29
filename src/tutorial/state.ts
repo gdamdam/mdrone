@@ -14,7 +14,7 @@
  * re-showing a tutorial to existing users.
  */
 
-export type FlowId = "intro" | "advanced" | "share" | "effects" | "shape";
+export type FlowId = "intro" | "advanced" | "share" | "effects";
 
 const INTRO_STORAGE_KEY = "mdrone-tutorial-intro-v1";
 const FLOW_DONE_PREFIX = "mdrone-tutorial-flow-done-v1:";

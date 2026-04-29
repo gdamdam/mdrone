@@ -150,32 +150,11 @@ const EFFECTS: Flow = {
   ],
 };
 
-const SHAPE: Flow = {
-  id: "shape",
-  offerLabel: "Learn SHAPE · 2 steps",
-  offerAnchor: '[data-tutor="shape"]',
-  steps: [
-    {
-      id: "shape-motion",
-      selector: '[data-tutor="shape"]',
-      title: "1 — MOTION + BODY",
-      body: "SHAPE is the evolution engine. MOTION macros (MORPH, EVOLVE, TIME) control how the drone moves on its own. BODY macros (DRIFT, AIR, SUB, BLOOM, GLIDE) sculpt the timbre live.",
-    },
-    {
-      id: "shape-hints",
-      selector: '[data-tutor="shape"]',
-      title: "2 — Hints toggle",
-      body: "The ? button in the SHAPE header toggles one-line descriptions under every macro. Turn it on while you're learning, off when you want a clean panel.",
-    },
-  ],
-};
-
 export const FLOWS: Record<FlowId, Flow> = {
   intro: INTRO,
   advanced: ADVANCED,
   share: SHARE,
   effects: EFFECTS,
-  shape: SHAPE,
 };
 
 export const FLOW_LABELS: Record<FlowId, string> = {
@@ -183,5 +162,4 @@ export const FLOW_LABELS: Record<FlowId, string> = {
   advanced: "Advanced: tuning, LFO, ATTUNE",
   share: "Share, save, and record",
   effects: "Effects chain",
-  shape: "SHAPE panel",
 };
