@@ -131,22 +131,6 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
           >
             {LOGO}
           </pre>
-          <span
-            aria-label="Beta"
-            style={{
-              fontSize: 10,
-              fontWeight: 800,
-              letterSpacing: 1.2,
-              color: "#1a0f08",
-              background: "var(--preview)",
-              padding: "2px 6px",
-              borderRadius: 3,
-              textTransform: "uppercase",
-              marginTop: 4,
-            }}
-          >
-            beta
-          </span>
         </div>
 
         <p className="start-gate-sub">
@@ -208,7 +192,10 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
 
         <a href="./about.html" className="start-gate-landing-link">About</a>
 
-        <span className="start-gate-version">v{APP_VERSION}</span>
+        <span className="start-gate-version">
+          v{APP_VERSION}
+          <span aria-label="Beta release"> · beta</span>
+        </span>
       </div>
     </main>
   );

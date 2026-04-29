@@ -359,24 +359,7 @@ export function Header({
               indicator that should not vibrate with the brand. */}
           <div className="title-brand" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
-            <span
-              className="title-badge"
-              aria-label="Beta"
-              style={{
-                fontSize: 9,
-                fontWeight: 800,
-                letterSpacing: 1,
-                color: "#1a0f08",
-                background: "var(--preview)",
-                padding: "1px 5px",
-                borderRadius: 3,
-                textTransform: "uppercase",
-                alignSelf: "flex-start",
-                marginTop: 2,
-              }}
-            >
-              beta
-            </span>
+            <span className="title-badge" aria-label="Beta release">beta</span>
           </div>
           <CpuWarning
             monitor={loadMonitor}

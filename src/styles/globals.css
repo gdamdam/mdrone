@@ -1456,21 +1456,24 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 .title-badge {
   display: inline-block;
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 3px;
-  background: var(--preview);
-  color: #160c06;
+  /* Demoted from a filled ember pill to a low-contrast outlined chip.
+     Status remains discoverable (preserved for screen readers via
+     aria-label, and visible in muted form next to the wordmark) but
+     no longer competes with the wordmark for first-viewport attention.
+     The brand-cluster vibrate/brightness rAF still drives this span,
+     so the chip subtly breathes with the rest of the brand. */
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-dim) 55%, transparent);
+  color: var(--text-dim);
   font-size: 8px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 1px;
-  /* Palette-aware halo so the badge has a glow to pulse. The
-     analyser-driven brightness filter on `.title-brand` scales this
-     halo together with the wordmark text-shadow, so both pieces of
-     the brand cluster bloom in sync. Two stacked shadows for a soft
-     + tight ring matching the wordmark's halo aesthetic. */
-  box-shadow:
-    0 0 4px color-mix(in srgb, var(--preview) 40%, transparent),
-    0 0 10px color-mix(in srgb, var(--preview) 18%, transparent);
+  text-transform: uppercase;
+  align-self: flex-start;
+  margin-top: 2px;
+  opacity: 0.7;
 }
 
 /* View toggle (DRONE | MIXER) */
