@@ -153,22 +153,16 @@ export function Header({
   meditatePreviewOn,
   onToggleMeditatePreview,
 }: HeaderProps) {
-  // Brand cluster animation — rAF loop reads the master analyser's
-  // RMS and writes both a tiny translate transform AND a brightness
-  // filter onto the `.title-brand` wrapper, so the wordmark and the
-  // BETA badge vibrate and light up as one unit. Purely imperative:
-  // no React state, so no re-renders.
-  //
-  // The BETA badge picks up the same vibration because the transform
-  // is on its parent. It picks up the same glow pulse because (a) the
-  // brightness filter is on the parent and (b) `.title-badge` has a
-  // palette-aware box-shadow halo defined in globals.css that scales
-  // with the same filter.
+  // Brand animation — rAF loop reads the master analyser's RMS and
+  // writes a tiny translate transform plus a brightness filter onto
+  // the `.title-brand` wrapper, so the wordmark vibrates and lights
+  // up with the sound. Purely imperative: no React state, no
+  // re-renders.
   //
   // When sound plays the cluster sits at its full static CSS look
   // (palette-aware --preview colour + the multi-layer halo defined
   // in globals.css `.title-art`, matching the splash page wordmark).
-  // When silent, the brightness filter dims the whole composite.
+  // When silent, the brightness filter dims it.
   // text-shadow is intentionally NOT overridden inline — earlier
   // attempts to JS-write a warm rgb halo tinted the wordmark and
   // bloomed it on peaks; the static CSS halo is palette-aware and
@@ -178,10 +172,9 @@ export function Header({
     if (!analyser) return;
     const el = titleArtRef.current;
     if (!el) return;
-    // The wordmark's direct parent is `.title-brand` (wordmark + BETA
-    // badge cluster). Transform + filter live on this element so both
-    // children animate together; CpuWarning sits one level up under
-    // `.title` and is not affected.
+    // The wordmark's direct parent is `.title-brand`. Transform +
+    // filter live on this element; CpuWarning sits one level up
+    // under `.title` and is not affected.
     const brand = el.parentElement;
     if (!brand) return;
     const buf = new Uint8Array(analyser.fftSize);
@@ -352,14 +345,13 @@ export function Header({
     <header className={holding ? "header header-holding" : "header"}>
       <div className="header-row header-row-main">
         <div className="title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {/* Brand cluster — wordmark + BETA badge. Treated as one unit
-              by the rAF loop in Header.tsx (vibration + brightness
-              filter on this element so both pieces move and glow
-              together). CpuWarning sits outside as a separate status
+          {/* Brand cluster — just the wordmark now. The rAF loop in
+              Header.tsx (vibration + brightness filter) targets the
+              .title-brand wrapper so the wordmark animates as one
+              unit. CpuWarning sits outside as a separate status
               indicator that should not vibrate with the brand. */}
           <div className="title-brand" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <pre ref={titleArtRef} className="title-art">{LOGO}</pre>
-            <span className="title-badge" aria-label="Beta release">beta</span>
           </div>
           <CpuWarning
             monitor={loadMonitor}

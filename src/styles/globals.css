@@ -850,7 +850,6 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
      so all buttons become direct flex children of `.header-row-main`,
      ordered by intent. A pseudo-element at order 10 forces the row
      break between brand/marquee (rows < 10) and actions (rows ≥ 10). */
-  .header-row-brand .title-badge { display: none; }
   .title-sigil,
   .header-btn-help { display: none; }
 
@@ -1452,28 +1451,6 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   font-size: 9px;
   color: var(--text-dim);
   letter-spacing: 0.5px;
-}
-
-.title-badge {
-  display: inline-block;
-  padding: 1px 5px;
-  border-radius: 3px;
-  /* Demoted from a filled ember pill to a low-contrast outlined chip.
-     Status remains discoverable (preserved for screen readers via
-     aria-label, and visible in muted form next to the wordmark) but
-     no longer competes with the wordmark for first-viewport attention.
-     The brand-cluster vibrate/brightness rAF still drives this span,
-     so the chip subtly breathes with the rest of the brand. */
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--text-dim) 55%, transparent);
-  color: var(--text-dim);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  align-self: flex-start;
-  margin-top: 2px;
-  opacity: 0.7;
 }
 
 /* View toggle (DRONE | MIXER) */
@@ -2440,7 +2417,6 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
 
 .title-art,
 .title-version,
-.title-badge,
 .header-display-track,
 .header-display-sep,
 .dropdown-select-chevron,
