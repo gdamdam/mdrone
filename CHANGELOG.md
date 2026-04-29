@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.5 — 2026-04-29
+
+- arrival pool: add Sub Chamber + Microtone Wall (835f2c7)
+
 ## 1.20.4 — 2026-04-29
 
 _No user-visible changes._

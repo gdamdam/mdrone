@@ -348,7 +348,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const handleMidiNote = useCallback((note: number) => {
     const { pitchClass, octave } = midiNoteToPitch(note);
     const clamped = Math.max(1, Math.min(6, octave));
-    droneViewRef.current?.setRoot(pitchClass);
+    droneViewRef.current?.setRootFromUser(pitchClass);
     droneViewRef.current?.setOctave(clamped);
   }, []);
 
@@ -723,7 +723,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       const pc = QWERTY[e.code];
       if (pc) {
         e.preventDefault();
-        droneViewRef.current?.setRoot(pc);
+        droneViewRef.current?.setRootFromUser(pc);
         return;
       }
       if (e.code === "KeyZ") {
@@ -858,7 +858,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         rndArrivalRemaining={sceneManager.rndArrivalRemaining}
         tonic={headerTonic}
         octave={headerOctave}
-        onChangeTonic={(pc) => droneViewRef.current?.setRoot(pc)}
+        onChangeTonic={(pc) => droneViewRef.current?.setRootFromUser(pc)}
         onChangeOctave={(o) => droneViewRef.current?.setOctave(Math.max(1, Math.min(6, o)))}
         onToggleHold={handleToggleHold}
         holding={headerHolding}

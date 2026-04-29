@@ -306,8 +306,13 @@ export function WeatherPad({
             value={xPct}
             aria-valuetext={`Brightness ${xPct} percent`}
             data-midi-id="weatherX"
-            onChange={(e) => onChange(parseInt(e.target.value, 10) / 100, climateY)}
-            onKeyDown={() => onDismissIntro()}
+            onChange={(e) => {
+              onChange(parseInt(e.target.value, 10) / 100, climateY);
+              // onChange only fires from real user input (controlled
+              // value prop), so this safely advances ARRIVE on both
+              // mouse drag of the SR slider and keyboard arrow keys.
+              onDismissIntro();
+            }}
           />
         </label>
         <label className="visually-hidden">
@@ -320,8 +325,10 @@ export function WeatherPad({
             value={yPct}
             aria-valuetext={`Motion ${yPct} percent`}
             data-midi-id="weatherY"
-            onChange={(e) => onChange(climateX, parseInt(e.target.value, 10) / 100)}
-            onKeyDown={() => onDismissIntro()}
+            onChange={(e) => {
+              onChange(climateX, parseInt(e.target.value, 10) / 100);
+              onDismissIntro();
+            }}
           />
         </label>
       </div>

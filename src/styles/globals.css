@@ -4051,6 +4051,20 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   100% { text-shadow: 0 0 18px color-mix(in srgb, var(--preview) 60%, transparent); }
 }
 
+/* ARRIVE choreography — soft pulse on the SHAPE panel when its step
+   is active, mirroring the WEATHER intro glow. The TONIC step rides
+   on the inline tonic-keys' existing :focus styling, so no extra
+   class is needed there. */
+.weather-controls.arrive-active .shape-title {
+  color: var(--preview);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--preview) 45%, transparent);
+  animation: weather-glow-pulse 1.5s ease-in-out infinite alternate;
+}
+.arrive-prompt strong {
+  color: var(--preview);
+  letter-spacing: 0.6px;
+}
+
 /* Weather pad — square-ish to fill the left column. Primary
    instrument surface, so it gets the same burnished edge + faint
    inner-glow treatment as the main panel: hairline amber top edge

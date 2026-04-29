@@ -302,6 +302,11 @@ export interface DroneViewHandle {
   setVoiceLevel(type: import("../engine/VoiceBuilder").VoiceType, level: number): void;
   togglePlay(): void;
   setRoot(root: PitchClass): void;
+  /** User-originated tonic change (Header dropdown, MIDI note-on,
+   *  QWERTY key). Identical to setRoot but advances the ARRIVE
+   *  prompt through its TONIC step. Use this for any caller that
+   *  represents a real human gesture. */
+  setRootFromUser(root: PitchClass): void;
   setOctave(octave: number): void;
   applyPresetById(presetId: string): void;
   startImmediate(root: PitchClass, octave: number, presetId?: string): void;
@@ -664,17 +669,29 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     try { window.localStorage?.setItem(STORAGE_KEYS.tanpuraTuning, id); } catch { /* noop */ }
   }, []);
 
-  // WEATHER intro emphasis — true only on first fresh mount (no
-  // prior autosave). Dismisses on first WEATHER interaction or 5s
-  // timeout. One-shot: once false, stays false for the session.
-  const [weatherIntro, setWeatherIntro] = useState(() => {
-    try { return !localStorage.getItem("mdrone-autosave"); } catch { return true; }
+  // ARRIVE choreography — a tiny 3-step state machine that runs only
+  // on a true first launch (no prior autosave). Teaches the most
+  // playable controls in order: SHAPE → WEATHER → TONIC. Strictly
+  // gesture-driven: each step advances only on real user interaction
+  // with that surface; no timers. Once null, stays null for the
+  // session.
+  type ArriveStep = "shape" | "weather" | "tonic" | null;
+  const [arriveStep, setArriveStep] = useState<ArriveStep>(() => {
+    try { return !localStorage.getItem("mdrone-autosave") ? "shape" : null; }
+    catch { return "shape"; }
   });
-  useEffect(() => {
-    if (!weatherIntro) return;
-    const timer = window.setTimeout(() => setWeatherIntro(false), 5000);
-    return () => clearTimeout(timer);
-  }, [weatherIntro]);
+  const advanceArrive = useCallback((from: NonNullable<ArriveStep>) => {
+    setArriveStep((s) => {
+      if (s !== from) return s;
+      if (from === "shape") return "weather";
+      if (from === "weather") return "tonic";
+      return null;
+    });
+  }, []);
+  // Back-compat alias for downstream code/comments referring to the
+  // older single-flag intro. WEATHER pad's pulse only lights up
+  // during its own step.
+  const weatherIntro = arriveStep === "weather";
 
   // Auto-open the DETUNE disclosure when fine-tune offsets become
   // non-zero (e.g. loading a preset or share URL with authored
@@ -828,7 +845,17 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePlay, undo, redo]);
 
-  const dismissWeatherIntro = useCallback(() => setWeatherIntro(false), []);
+  const dismissWeatherIntro = useCallback(() => advanceArrive("weather"), [advanceArrive]);
+
+  // Explicit user-originated tonic setter. Use ONLY at UI call sites
+  // (piano keys, mobile dropdown, MIDI note-on, QWERTY tonic) — not
+  // for programmatic paths like scene/preset/share/autosave restore.
+  // Those still use the raw `setRoot` so loading a scene with a
+  // different root never accidentally advances ARRIVE.
+  const setRootFromUser = useCallback<typeof setRoot>((pc) => {
+    setRoot(pc);
+    advanceArrive("tonic");
+  }, [setRoot, advanceArrive]);
 
   // Wrap getSnapshot/applySnapshot so tanpuraTuning — which lives in
   // DroneView state rather than the scene reducer — round-trips
@@ -866,6 +893,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setVoiceLevel,
     togglePlay,
     setRoot,
+    setRootFromUser,
     setOctave,
     applyPresetById(presetId) {
       handlePreset(presetId);
@@ -882,6 +910,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setVoiceLevel,
     setOctave,
     setRoot,
+    setRootFromUser,
     startImmediate,
     togglePlay,
     handlePreset,
@@ -1046,7 +1075,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   className={
                     `tonic-key${isSharp ? " tonic-key-black" : ""}${isActive ? " tonic-key-active" : ""}`
                   }
-                  onClick={() => setRoot(pc)}
+                  onClick={() => setRootFromUser(pc)}
                   title={pc}
                   aria-label={pc}
                 >
@@ -1079,7 +1108,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               }))}
               onChange={(v) => {
                 const [pc, oct] = v.split("|");
-                setRoot(pc as PitchClass);
+                setRootFromUser(pc as PitchClass);
                 setOctave(parseInt(oct, 10));
               }}
               className="preset-strip-tonic-btn"
@@ -1186,11 +1215,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         </>
         )}
 
-        {/* ── WEATHER + MACROS — two-column primary row ───── */}
-        {weatherIntro && (
+        {/* ── WEATHER + MACROS — two-column primary row ─────
+            ARRIVE prompt: a single line whose copy shifts with
+            arriveStep. Sits above the WEATHER+SHAPE row so it's
+            within eyeshot of whichever target is being taught. */}
+        {arriveStep && (
           <div
-            className="panel-hint"
-            role="note"
+            className="panel-hint arrive-prompt"
+            role="status"
+            aria-live="polite"
+            data-arrive-step={arriveStep}
             style={{
               textAlign: "center",
               marginBottom: 6,
@@ -1198,7 +1232,21 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               color: "var(--preview)",
             }}
           >
-            Headphones recommended — drag WEATHER to open the room.
+            {arriveStep === "shape" && (
+              <>
+                <strong>Shape the drone</strong> — move AIR, BLOOM, or SUB
+              </>
+            )}
+            {arriveStep === "weather" && (
+              <>
+                <strong>Move the room</strong> — drag WEATHER
+              </>
+            )}
+            {arriveStep === "tonic" && (
+              <>
+                <strong>Change the root</strong> — try a new TONIC
+              </>
+            )}
           </div>
         )}
         {/* Inline MEDITATE preview — small live tile sitting above the
@@ -1252,7 +1300,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 }))}
                 onChange={(v) => {
                   const [pc, oct] = v.split("|");
-                  setRoot(pc as PitchClass);
+                  setRootFromUser(pc as PitchClass);
                   setOctave(parseInt(oct, 10));
                 }}
                 className="preset-strip-tonic-btn"
@@ -1285,15 +1333,26 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
           <div
             data-tutor="shape"
+            data-arrive-target={arriveStep === "shape" ? "shape" : undefined}
             className={[
               "weather-controls",
               shapeHintsOn ? "shape-hints-on" : "",
               shapeCollapsed ? "shape-collapsed" : "",
+              arriveStep === "shape" ? "arrive-active" : "",
             ].filter(Boolean).join(" ")}
             onPointerDownCapture={() => {
               // First time the user touches the SHAPE panel, offer
               // the tour. Offer-bus already no-ops when done.
               if (!isFlowDone("shape")) requestOfferFlow("shape");
+              advanceArrive("shape");
+            }}
+            onInputCapture={() => {
+              // Catches keyboard ArrowUp/Down on any macro range
+              // input (or programmatic input events). Range inputs
+              // fire `input` on every value change, so this advances
+              // ARRIVE for keyboard-only users too. Bubbles up from
+              // inputs since `input` is a bubbling event.
+              advanceArrive("shape");
             }}
           >
             <div className="shape-header">
