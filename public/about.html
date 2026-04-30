@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>mdrone — Microtonal Drone Instrument in Your Browser</title>
+  <title>mdrone — An instrument where melodies emerge without being played</title>
   <meta
     name="description"
-    content="A free drone instrument that runs in your browser. Hold a sustained tone, shape its colour over minutes, explore 22 microtonal tunings. No install, no account."
+    content="A browser-based microtonal drone instrument. Hold one tone, let it drift for minutes or hours. Sustained, evolving sound where perceived melodies emerge from the drone itself."
   />
   <meta name="robots" content="index,follow,max-image-preview:large" />
   <link rel="canonical" href="https://mdrone.org/about.html" />
-  <meta property="og:title" content="mdrone — Microtonal Drone Instrument in Your Browser" />
+  <meta property="og:title" content="mdrone — An instrument where melodies emerge without being played" />
   <meta
     property="og:description"
-    content="A free drone instrument that runs in your browser. Hold a sustained tone, shape its colour over minutes, explore 22 microtonal tunings."
+    content="A browser-based microtonal drone instrument. Hold one tone, let it drift for minutes or hours. Melodies emerge from the sound itself."
   />
   <meta property="og:url" content="https://mdrone.org/about.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="mdrone" />
   <meta property="og:image" content="https://mdrone.org/mdrone_screenshot.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="mdrone — Microtonal Drone Instrument in Your Browser" />
+  <meta name="twitter:title" content="mdrone — An instrument where melodies emerge without being played" />
   <meta
     name="twitter:description"
-    content="A free drone instrument that runs in your browser. Hold a sustained tone, shape its colour over minutes, explore 22 microtonal tunings."
+    content="A browser-based microtonal drone instrument. Hold one tone, let it drift for minutes or hours. Melodies emerge from the sound itself."
   />
   <meta name="twitter:image" content="https://mdrone.org/mdrone_screenshot.png" />
   <meta name="theme-color" content="#0d0906" />
@@ -32,13 +32,13 @@
     {
       "@context": "https://schema.org",
       "@type": "AboutPage",
-      "name": "mdrone — Microtonal Drone Instrument in Your Browser",
+      "name": "mdrone — An instrument where melodies emerge without being played",
       "url": "https://mdrone.org/about.html",
-      "description": "A free drone instrument that runs in your browser. Hold a sustained tone, shape its colour over minutes, explore 22 microtonal tunings.",
+      "description": "A browser-based microtonal drone instrument. Hold one tone, let it drift for minutes or hours. Melodies emerge from the sound itself.",
       "about": {
         "@type": "SoftwareApplication",
         "name": "mdrone",
-        "description": "Free open-source browser-native drone instrument. Microtonal tuning, long-form motion, shareable scenes.",
+        "description": "Microtonal drone instrument running in the browser. Sustained tones, slow evolution, emergent melody.",
         "applicationCategory": "MusicApplication",
         "operatingSystem": "iOS, iPadOS, Android, Windows, macOS, Linux",
         "browserRequirements": "Requires JavaScript and Web Audio support",
@@ -135,8 +135,8 @@
 
     .mantra {
       text-align: center; font-family: var(--serif); font-style: italic;
-      font-size: clamp(32px, 4.4vw, 50px); line-height: 1.04;
-      color: #fff7e4; max-width: 12ch; margin: 0 auto;
+      font-size: clamp(28px, 4.0vw, 44px); line-height: 1.08;
+      color: #fff7e4; max-width: 16ch; margin: 0 auto;
     }
     .subline {
       text-align: center; font-family: var(--mono);
@@ -279,7 +279,7 @@
     .relic-caption em { color: var(--blood); font-style: normal; letter-spacing: 0.16em; }
 
     .rubric {
-      max-width: 640px; margin: 90px auto 40px; text-align: center;
+      max-width: 680px; margin: 90px auto 40px; text-align: center;
       border-top: 1px solid var(--ink-faint); border-bottom: 1px solid var(--ink-faint);
       padding: 32px 0;
     }
@@ -343,8 +343,24 @@
     }
     .glossary dd { color: var(--ink); font-style: normal; font-weight: 300; }
 
+    .closing {
+      max-width: 680px; margin: 90px auto 0; text-align: center;
+      padding: 40px 0;
+    }
+    .closing p {
+      font-family: var(--serif); font-style: italic;
+      font-size: clamp(22px, 2.6vw, 30px); line-height: 1.4;
+      color: #fff7e4;
+    }
+    .closing p + p {
+      margin-top: 18px;
+      font-style: normal; font-family: var(--mono);
+      font-size: 13px; letter-spacing: 0.24em;
+      text-transform: uppercase; color: var(--ink-faint);
+    }
+
     .colophon {
-      margin-top: 100px; text-align: center;
+      margin-top: 80px; text-align: center;
       font-family: var(--mono); font-size: 12px;
       letter-spacing: 0.24em; text-transform: uppercase;
       color: var(--ink-faint);
@@ -360,17 +376,17 @@
     <span class="corner c-bl"></span>
     <span class="corner c-br"></span>
 
-    <div class="supra">drone instrument · microtonal · browser-native</div>
+    <div class="supra">microtonal · drone · long-form</div>
 
     <section class="compass">
       <div class="quadrant q-nw">
-        <div class="q-label">Play</div>
-        <p class="q-text"><strong>Hold a tone.</strong> Eight authored voices blend into one sustained bed: tanpura, reed, metal, air, piano, FM, amp, noise.</p>
+        <div class="q-label">Hold</div>
+        <p class="q-text"><strong>Hold one tone.</strong> Let it drift for minutes—or hours. Eight voices blend into a single sustained body.</p>
       </div>
 
       <div class="quadrant q-ne">
-        <div class="q-label">Shape</div>
-        <p class="q-text">Drag the <strong>weather pad</strong> for brightness and motion. Dial macros and a 14-effect chain while it sounds.</p>
+        <div class="q-label">Drift</div>
+        <p class="q-text">No beats. No grid. No return. The sound <strong>moves on its own</strong>—breath, flicker, slow weather.</p>
       </div>
 
       <div class="sigil-wrap">
@@ -419,18 +435,18 @@
           </svg>
         </a>
 
-        <h1 class="mantra">A microtonal drone instrument.</h1>
-        <div class="subline">Browser-native. Long-form. Shareable.</div>
+        <h1 class="mantra">Melodies emerge without being played.</h1>
+        <div class="subline">A microtonal drone instrument</div>
       </div>
 
       <div class="quadrant q-sw">
-        <div class="q-label">Drift</div>
-        <p class="q-text">Scenes evolve on their own. <strong>Breathing LFO</strong>, second-modulator flicker, authored journeys. Walk away, come back, still changing.</p>
+        <div class="q-label">Tune</div>
+        <p class="q-text">Twenty-two tuning systems. The same held note speaks in <strong>different intervals</strong>—each one bends what you hear.</p>
       </div>
 
       <div class="quadrant q-se">
-        <div class="q-label">Share</div>
-        <p class="q-text">Save a scene locally, or encode the entire atmosphere as a <strong>link</strong>. Record a WAV. Works on any modern phone or computer.</p>
+        <div class="q-label">Listen</div>
+        <p class="q-text">Walk away. Come back. <strong>It is still changing.</strong> Phantom melodies surface in the overtones, then dissolve.</p>
       </div>
     </section>
 
@@ -438,12 +454,17 @@
       <a class="rite primary" href="https://mdrone.org/">Open mdrone</a>
       <a class="rite" href="https://github.com/gdamdam/mdrone">Source on GitHub</a>
     </div>
-    <p class="aside-note">Local-first. The music stays in your browser unless you decide to share it.</p>
+    <p class="aside-note">Local-first. The sound is synthesised on your device.</p>
+
+    <section class="rubric">
+      <div class="supra" style="margin-bottom: 22px;">The idea</div>
+      <p><em>An instrument built around one sustained tone.</em> Layered voices in microtonal tuning, two slow modulators, a long reverb tail. Hold a note for hours and it never settles. Pitches you never played start to surface inside the drone—then dissolve back into it.</p>
+    </section>
 
     <section class="listening" aria-labelledby="listen-title">
       <div class="listening-head">
         <h2 id="listen-title" class="listening-title">Listen first</h2>
-        <p class="listening-copy">Four short captures from the instrument: no samples, no DAW, just mdrone holding the room open.</p>
+        <p class="listening-copy">Four short captures. No samples, no DAW—just mdrone holding the room open.</p>
       </div>
 
       <div class="demo-grid">
@@ -458,7 +479,7 @@
 
         <article class="demo-card">
           <h2>Terminal Airport</h2>
-          <p>Soft airport glow, long bloom, and consonant air around the root.</p>
+          <p>Soft glow, long bloom, consonant air around the root.</p>
           <audio controls preload="none">
             <source src="./demos/terminal-preview.ogg" type="audio/ogg; codecs=opus" />
             <source src="./demos/terminal-preview.mp3" type="audio/mpeg" />
@@ -467,7 +488,7 @@
 
         <article class="demo-card">
           <h2>Sub Chamber</h2>
-          <p>Low-pressure room tone, sub weight, and a dark reverb body.</p>
+          <p>Low-pressure room tone, sub weight, dark reverb body.</p>
           <audio controls preload="none">
             <source src="./demos/subchamber-preview.ogg" type="audio/ogg; codecs=opus" />
             <source src="./demos/subchamber-preview.mp3" type="audio/mpeg" />
@@ -476,7 +497,7 @@
 
         <article class="demo-card">
           <h2>Tired Eyes</h2>
-          <p>Soft ambient sustain with tape movement and long harmonic blur.</p>
+          <p>Soft sustain with tape movement and long harmonic blur.</p>
           <audio controls preload="none">
             <source src="./demos/tired-preview.ogg" type="audio/ogg; codecs=opus" />
             <source src="./demos/tired-preview.mp3" type="audio/mpeg" />
@@ -485,36 +506,33 @@
       </div>
     </section>
 
-    <section class="rubric">
-      <div class="supra" style="margin-bottom: 22px;">What it is</div>
-      <p><em>An instrument built around one sustained tone.</em> Layered voices, slow weather, microtonal tuning, a long reverb tail, and two slow modulators, so a held note stays interesting for hours. No clock, no beats, no quantize.</p>
-    </section>
-
     <section class="primer">
       <h2>What is a drone?</h2>
       <p>
-        A drone is one sustained tone, or a small set of tones, held for a
-        long time. There's no melody, no beat. A note simply <em>stays</em>,
-        and its colour shifts slowly underneath. You've heard drones all your
-        life: the hum under Indian classical music, the bagpipe's low note,
-        the ringing of Tibetan bowls, the long chords of ambient records.
+        One sustained tone, or a small set of tones, held for a long time.
+        No melody played, no beat. The note simply <em>stays</em>, and its
+        colour shifts underneath. The hum beneath Indian classical music,
+        the low pipe of a bagpipe, the ring of a Tibetan bowl, the long
+        chord at the end of a record.
       </p>
 
-      <h2>What does microtonal mean?</h2>
+      <h2>Why microtonal?</h2>
       <p>
-        A piano splits the octave into twelve equal steps. Most of the
-        world's music doesn't. mdrone ships twenty-two tuning systems:
-        Pythagorean, Kirnberger III, just intonation, 31-TET, Yaman, Bayati,
-        and more. A sustained fifth sounds one way in one tuning, then a
-        noticeably different way when you switch.
+        A piano divides the octave into twelve equal steps. Most music in
+        the world doesn't. mdrone ships twenty-two tuning systems—Pythagorean,
+        just intonation, Kirnberger III, 31-TET, Yaman, Bayati, and more.
+        The same held interval rings differently in each. Beat patterns
+        between partials shift. New consonances open. The drone becomes
+        a different room.
       </p>
 
-      <h2>Why in a browser?</h2>
+      <h2>How do melodies appear?</h2>
       <p>
-        No install, no account, no sign-up. The sound is synthesised on your
-        device. Nothing is uploaded. Sessions live in your browser. Scenes
-        share as URLs, not as server-hosted files. Works on any modern phone,
-        tablet, or laptop, and it's free.
+        Sustain a chord long enough and the ear stops hearing it as a chord.
+        Overtones beat against each other. The slow modulators raise and
+        lower partials inside the spectrum. Pitches lift forward, hold for
+        a moment, recede. <em>Nothing was triggered. Nothing was played.</em>
+        The melody is in the listening.
       </p>
     </section>
 
@@ -523,37 +541,40 @@
         <h3>Sound</h3>
         <dl>
           <dt>Voices</dt>
-          <dd>tanpura, reed, metal, air, piano, FM, amp, noise. 8 authored timbres.</dd>
-          <dt>Effects</dt>
-          <dd>14-effect chain: tape, wow, sub, comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular, graincloud</dd>
-          <dt>Macros</dt>
-          <dd>drift, air, time, sub, bloom, glide. Plus a large XY weather pad.</dd>
+          <dd>tanpura, reed, metal, air, piano, FM, amp, noise. Eight authored timbres, blended.</dd>
           <dt>Tuning</dt>
-          <dd>6 built-in + 16 authored tuning systems · 6 interval relations · per-interval fine detune · a scale editor for your own 13-degree tables</dd>
-          <dt>Presets</dt>
-          <dd>56 authored scenes across 6 groups: sacred, minimal, organ, ambient, pulse, noise. One-click GOOD DRONE for guided microtonal states.</dd>
+          <dd>22 systems · 6 interval relations · per-interval fine detune · custom 13-degree scale editor.</dd>
+          <dt>Effects</dt>
+          <dd>14-stage chain: tape, wow, sub, comb, ringmod, formant, delay, plate, hall, shimmer, freeze, cistern, granular, graincloud.</dd>
+          <dt>Macros</dt>
+          <dd>drift, air, time, sub, bloom, glide—plus an XY weather pad.</dd>
         </dl>
       </div>
       <div>
         <h3>Motion &amp; state</h3>
         <dl>
-          <dt>Long-form motion</dt>
-          <dd>breathing LFO · a second "flicker" modulator (delta–gamma bands, optional) · evolve, mutate, journeys · URL-deterministic drift</dd>
-          <dt>Meditate</dt>
-          <dd>24 fullscreen visualizers in 4 groups · pop-out window for dual-screen listening</dd>
-          <dt>Keep</dt>
-          <dd>named local sessions · shareable URLs that encode the full scene plus optional recorded gestures · 24-bit WAV master record</dd>
+          <dt>Slow evolution</dt>
+          <dd>Breathing LFO, a second flicker modulator (delta–gamma bands), authored journeys, deterministic drift.</dd>
+          <dt>Presets</dt>
+          <dd>56 scenes across six groups: sacred, minimal, organ, ambient, pulse, noise.</dd>
+          <dt>Keep &amp; share</dt>
+          <dd>Local sessions, full scenes encoded as URLs, 24-bit WAV master record.</dd>
           <dt>Control</dt>
-          <dd>MIDI note-on → tonic · ~46 CC targets with learn-on-click · Ableton Link sync · QWERTY keyboard shortcuts</dd>
+          <dd>MIDI tonic + ~46 CC targets with learn-on-click, Ableton Link, QWERTY shortcuts.</dd>
           <dt>Care</dt>
-          <dd>brickwall limiter · SAFE clamp for headphones · LUFS-S + peak meters · everything stays in your browser</dd>
+          <dd>brickwall limiter, SAFE clamp for headphones, LUFS-S + peak meters.</dd>
         </dl>
       </div>
     </section>
 
+    <section class="closing">
+      <p>Hold one tone. Let it drift for minutes—or hours.<br>The melodies arrive on their own.</p>
+      <p>An instrument for listening</p>
+    </section>
+
     <footer class="colophon">
       mdrone · Built by <a href="https://github.com/gdamdam/mdrone">gdamdam</a> · AGPL-3.0
-      · Public beta — feedback welcome on <a href="https://github.com/gdamdam/mdrone/issues">GitHub Issues</a>
+      · Public beta — feedback on <a href="https://github.com/gdamdam/mdrone/issues">GitHub Issues</a>
     </footer>
   </main>
 </body>
