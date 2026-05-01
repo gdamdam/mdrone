@@ -145,8 +145,9 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
         s[3] = this._fix("airState3", s[3]);
       }
     }
-    this.hsL = this._fix("hsL", this.hsL);
-    this.hsR = this._fix("hsR", this.hsR);
+    // hsL/hsR were vestigial — no voice initializes or writes them. The
+    // 1.20.10 diagnostic surfaced this as `voice=air fires=2 {hsL: 1, hsR: 1}`
+    // after the per-voice scoping in 1.20.11. Removed.
   }
 
   _sanitizePiano() {

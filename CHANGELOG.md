@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.12 — 2026-05-01
+
+- fix: drop vestigial `hsL` / `hsR` from `_sanitizeAir`. After the 1.20.11 per-voice scoping, the diagnostic surfaced `voice=air fires=2 {hsL:1, hsR:1}` — narrowed from 37 cross-voice fields. A grep across all voice files confirmed no DSP ever initializes or writes `this.hsL`/`this.hsR` — they're orphaned state from an earlier voice iteration that the sanitize sweep kept checking. Removed; AIR now sanitizes only `airStates[][]`. Console should be silent under normal play; remaining fires would be real audio-processing NaN events.
+
 ## 1.20.11 — 2026-05-01
 
 - diagnostics: scope `sanitizeState()` per voice type. The 1.20.10 instrumentation revealed each voice instance was firing a fixed boot-noise count (tanpura 31, fm 36, air 37, amp 21, etc.) on cross-voice prototype state that the constructor doesn't initialize — none of it touched by audio processing, all clamped to 0 once and silent forever after. Refactored `sanitizeState()` into a `switch (voiceType)` dispatcher that calls per-voice `_sanitizeTanpura/Reed/Air/Piano/Fm/Amp/Metal` methods touching only that voice's own state fields. NOISE has no feedback state. Halfband oversamplers (jawHb / ampHb / metalHb) scoped to their owning voices. Console is now silent under normal play; any nan-diag fire is a real audio-processing event worth investigating.
