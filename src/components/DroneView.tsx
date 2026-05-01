@@ -1233,7 +1233,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               key={p.id}
               onClick={() => onPresetClick(p.id, p.group)}
               className={state.activePresetId === p.id ? "preset-btn preset-btn-active" : "preset-btn"}
-              title={`${p.name} — ${p.attribution}${isArrival ? "\n\n✦ Curated arrival preset" : ""}${p.certifiedAt ? `\n\n✓ Certified ${p.certifiedAt}${p.certHardware ? ` — ${p.certHardware}` : ""}` : ""}\n\n${p.hint}`}
+              title={`${p.name} — ${p.attribution}${isArrival ? "\n\n✦ Curated arrival preset" : ""}${p.testedAt ? `\n\n✓ Tested ${p.testedAt}${p.testedHardware ? ` — ${p.testedHardware}` : ""}` : ""}\n\n${p.hint}`}
             >
               <span
                 className="preset-btn-icon"
@@ -1244,7 +1244,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 <span className="preset-btn-name">
                   {isArrival && <span className="preset-btn-arrival" aria-hidden="true">✦ </span>}
                   {p.name}
-                  {p.certifiedAt && <span className="preset-btn-cert" aria-label="certified preset"> ✓</span>}
+                  {p.testedAt && <span className="preset-btn-tested" aria-label="tested preset"> ✓</span>}
                 </span>
                 <span className="preset-btn-attr">{p.attribution}</span>
               </span>

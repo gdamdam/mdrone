@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.20 — 2026-05-02
+
+- rename: "certified" → "tested" across the recent preset-quality-tag work. The author is the human listener, not a certifying authority — "tested" is the honest framing. `Preset.certifiedAt` → `testedAt`, `Preset.certHardware` → `testedHardware`. Tooltip "✓ Certified …" → "✓ Tested …". Picker badge class `preset-btn-cert` → `preset-btn-tested` (no CSS attached to the old name, so no style migration needed). The 6 preset entries from 1.20.14 updated atomically. The older `presetCertification.ts` listening-protocol devtool is unrelated and unchanged.
+
 ## 1.20.19 — 2026-05-02
 
 - ux: HOLD button breathes gently for ~10s after pressing play (post-cert finding #4). Drone DSP needs ~10s to settle delay lines, feedback states, and oversamplers; pushing macros fast inside that window produces audible "frr" artifacts that go away once the engine has converged. This isn't a DSP bug — it's intrinsic to feedback-rich audio — so the fix is communication, not engine work. Added a `header-hold-btn-warming` class with a 4×2.5s opacity pulse (1.0 → 0.72 → 1.0) that auto-clears after 10s. Tooltip changes during the window to "Engine warming up — let it settle for ~10s before pushing macros." Respects `prefers-reduced-motion`. Implementation: `headerWarming` state + cleanup timer in `Layout.tsx`, optional `warming` prop on `Header`, single CSS keyframe block. Triggers on HOLD on/off only — preset-switch settling can land in a follow-up if it turns out to need its own indicator.

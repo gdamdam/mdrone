@@ -115,11 +115,13 @@ export interface Preset {
   gain?: number;
 
   /** ISO date (YYYY-MM-DD) on which the preset passed the hands-and-ears
-   *  cert protocol (20-min stress + idle hold). Surfaced in the picker
-   *  as a small ✓ badge. Set only after a real listening session. */
-  certifiedAt?: string;
-  /** Free-form description of the hardware chain used during cert. */
-  certHardware?: string;
+   *  test protocol (20-min stress + idle hold). Surfaced in the picker
+   *  as a small ✓ badge. Set only after a real listening session.
+   *  "tested" rather than "certified" — the author is the human listener,
+   *  not a certifying authority. */
+  testedAt?: string;
+  /** Free-form description of the hardware chain used during the test. */
+  testedHardware?: string;
 
   /** Authored evolve behavior so each preset can feel alive in its own way. */
   motionProfile: PresetMotionProfile;
@@ -315,8 +317,8 @@ export const PRESETS: Preset[] = [
     name: "Tanpura Drone",
     attribution: "Jawari string drone · buzzing overtones",
     hint: "Lone tanpura with jawari buzz. Rooted, overtone-rich, almost dry.",
-    certifiedAt: "2026-05-02",
-    certHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully certified, iOS audio quality good but suspend/resume bug logged)",
+    testedAt: "2026-05-02",
+    testedHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully tested, iOS audio quality good but suspend/resume bug logged)",
     voiceLayers: ["tanpura"],
     voiceLevels: { tanpura: 1 },
     octaveRange: [2, 2],
@@ -357,8 +359,8 @@ export const PRESETS: Preset[] = [
     name: "Shruti Box",
     attribution: "Indian devotional · reed bellows",
     hint: "Harmonium / shruti-box sustain. Warm, woody, slow breath in a wooden room.",
-    certifiedAt: "2026-05-02",
-    certHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully certified, iOS audio quality good but suspend/resume bug logged)",
+    testedAt: "2026-05-02",
+    testedHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully tested, iOS audio quality good but suspend/resume bug logged)",
     tuningId: "just5", relationId: "tonic-fifth",
     voiceLayers: ["reed"],
     voiceLevels: { reed: 1 },
@@ -524,8 +526,8 @@ export const PRESETS: Preset[] = [
     name: "Nitrous Oxide",
     attribution: "Sustained minor triad · slow swells · tape body",
     hint: "Bowed-string reed + air as a sustained minor triad, slow 25 s swells. Warm tape-and-room body.",
-    certifiedAt: "2026-05-02",
-    certHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully certified, iOS audio quality good but suspend/resume bug logged)",
+    testedAt: "2026-05-02",
+    testedHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully tested, iOS audio quality good but suspend/resume bug logged)",
     tuningId: "just5", relationId: "minor-triad",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.45 },
@@ -572,8 +574,8 @@ export const PRESETS: Preset[] = [
     name: "Tired Eyes",
     attribution: "Degraded tape strings · funereal wow · buried cathedral",
     hint: "Cassette-dubbed bowed strings through heavy wow and tape hiss. Funereal, slow, dissolving.",
-    certifiedAt: "2026-05-02",
-    certHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully certified, iOS audio quality good but suspend/resume bug logged)",
+    testedAt: "2026-05-02",
+    testedHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully tested, iOS audio quality good but suspend/resume bug logged)",
     tuningId: "just5", relationId: "minor-triad",
     voiceLayers: ["reed", "air"],
     voiceLevels: { reed: 1, air: 0.35 },
@@ -1315,8 +1317,8 @@ export const PRESETS: Preset[] = [
     name: "Endless Summer",
     attribution: "Warm continuous guitar smear · golden haze",
     hint: "Guitar-like reed with an air halo, long bloom through tape and graincloud. Warm melodic smear under grain shimmer.",
-    certifiedAt: "2026-05-02",
-    certHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully certified, iOS audio quality good but suspend/resume bug logged) · 60-min idle hold passed",
+    testedAt: "2026-05-02",
+    testedHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully tested, iOS audio quality good but suspend/resume bug logged) · 60-min idle hold passed",
     // Kirnberger III warms the held triad — tempered key colour
     // rather than flat 12-TET equal.
     tuningId: "custom:kirnberger-iii", relationId: "drone-triad",
@@ -2462,8 +2464,8 @@ export const PRESETS: Preset[] = [
     name: "Hollow",
     attribution: "Open-fifth power drone · archetypal empty space",
     hint: "Amp sustain and tanpura locked on a near-unison field around root and fifth. Power chord as meditation.",
-    certifiedAt: "2026-05-02",
-    certHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully certified, iOS audio quality good but suspend/resume bug logged)",
+    testedAt: "2026-05-02",
+    testedHardware: "Apple Silicon (MBP M3 + Mac Studio + iPhone — desktop fully tested, iOS audio quality good but suspend/resume bug logged)",
     voiceLayers: ["amp", "tanpura"],
     voiceLevels: { amp: 1, tanpura: 0.38 },
     octaveRange: [1, 2],
