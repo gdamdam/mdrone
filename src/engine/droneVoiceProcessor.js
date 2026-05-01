@@ -448,6 +448,17 @@ const TANPURA_TUNING_RATIOS = {
   "sa-ma-pa-ni": [1.0, 4 / 3, 1.5, 15 / 8],
 };
 
+// Intrinsic loudness trim for the TANPURA voice. The 2026-05-01 preset
+// audit (1.20.12) measured tanpura-drone at -22.7 LUFS while the next
+// loudest "main voice" preset (sunn-amp-drone) sat at -23.1 and the
+// polite middle (eno-airport / hollow-drone / fennesz-endless) lived
+// around -28 to -32 LUFS. Tanpura's jawari buzz puts harmonic energy
+// in the 2-8 kHz band where ear sensitivity peaks, making it
+// perceptually 5-8 dB hotter than equal-RMS voices. 0.5 = -6 dB,
+// applied at the final output write so amp / drift / pluck dynamics
+// stay intact.
+const TANPURA_INTRINSIC_GAIN = 0.5;
+
 DroneVoiceProcessor.prototype.initTanpura = function() {
     this.NUM_STRINGS = 4;
     const tuningId = this.tanpuraTuningOpt || "classic";
@@ -749,8 +760,8 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
       const dcOutR = postR - this.tanDcPrevInR + dcCoef * this.tanDcPrevOutR;
       this.tanDcPrevInR = postR; this.tanDcPrevOutR = dcOutR;
 
-      L[i] = dcOutL * amp;
-      R[i] = dcOutR * amp;
+      L[i] = dcOutL * amp * TANPURA_INTRINSIC_GAIN;
+      R[i] = dcOutR * amp * TANPURA_INTRINSIC_GAIN;
     }
 };
 

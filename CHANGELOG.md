@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.13 — 2026-05-01
+
+- mix: trim TANPURA voice intrinsic gain by −6 dB (×0.5 at output write). The 1.20.12 preset audit measured `tanpura-drone` at −22.7 LUFS — the loudest "main voice" preset, ~6 dB above the polite middle (eno-airport −28.9, fennesz-endless −26.5, hollow-drone −32.0) and clearly perceived louder during 1.20.12 cert listening. Tanpura's jawari buzz puts harmonic energy in 2–8 kHz where ear sensitivity peaks, so peak-trim history (1.19.0 commits c64f10d / a31efac / f1b48de tuning post-sum 0.30 → 0.26 → 0.22) closed peak headroom but never closed perceptual loudness. After trim: tanpura-drone sits at −28.7 LUFS, mid-pack with eno-airport (−28.9) and the cert-candidate cohort (−26.5 to −35.0 excluding deliberately-quiet stars-of-the-lid). Other tanpura-using presets shifted proportionally; sitar-sympathy (−5.9 dB), wiese-baraka (−4.6 dB), alice-coltrane-devotional (−3.3 dB) — flagged for follow-up per-preset master gain compensation. Constant lives at top of `voices/tanpura.js` as `TANPURA_INTRINSIC_GAIN = 0.5` for future tuning.
+
 ## 1.20.12 — 2026-05-01
 
 - fix: drop vestigial `hsL` / `hsR` from `_sanitizeAir`. After the 1.20.11 per-voice scoping, the diagnostic surfaced `voice=air fires=2 {hsL:1, hsR:1}` — narrowed from 37 cross-voice fields. A grep across all voice files confirmed no DSP ever initializes or writes `this.hsL`/`this.hsR` — they're orphaned state from an earlier voice iteration that the sanitize sweep kept checking. Removed; AIR now sanitizes only `airStates[][]`. Console should be silent under normal play; remaining fires would be real audio-processing NaN events.
