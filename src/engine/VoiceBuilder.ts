@@ -107,6 +107,20 @@ export function buildVoice(
     },
   });
 
+  // DIAGNOSTIC: surface NaN-clamp fires from the worklet's
+  // sanitizeState() to the console. Only fires when the clamp
+  // actually triggered, throttled to ~once per second per voice.
+  // Remove with `sanitizeState` once the source of NaN is fixed.
+  node.port.onmessage = (e) => {
+    const msg = e.data;
+    if (!msg || msg.type !== "nan-diag") return;
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[mdrone:nan-diag] voice=${msg.voiceType} fires=${msg.fires}`,
+      msg.fields,
+    );
+  };
+
   const freqParam = node.parameters.get("freq")!;
   const driftParam = node.parameters.get("drift")!;
   const ampParam = node.parameters.get("amp")!;

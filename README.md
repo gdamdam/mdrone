@@ -219,6 +219,8 @@ Three layered systems exist for keeping audio stable and debugging it when somet
 
 If the audio thread hashes or crackles, reload with `?audio-debug=trace` in the URL to enable a 512-event ring buffer. Underruns auto-dump it; `__mdroneDumpTrace()` triggers a manual dump. Per-stage bypass flags (`?audio-debug=no-fx`, `no-master`, `no-limiter`, `no-glue`, `no-eq`, etc.) help isolate which DSP stage is responsible.
 
+The voice worklet's `sanitizeState()` clamps non-finite feedback state to 0 once per block. When that clamp ever fires it now posts a `nan-diag` message back to the main thread (throttled to ~once per second per voice) which the console surfaces as `[mdrone:nan-diag] voice=<type> fires=<n> {field: count, ...}`. Open the console while playing — silence means the engine never produces NaN/Infinity in real use; any output names the voice and state field so the underlying instability can be fixed at the source.
+
 ### Stage hardening
 
 The path from "passes Chromium smoke tests" to "credible live instrument" is documented in [`docs/stage-hardening.md`](docs/stage-hardening.md). The short version:

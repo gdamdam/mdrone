@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.10 — 2026-05-01
+
+- diagnostics: voice worklet `sanitizeState()` now counts non-finite clamps per state field and posts a throttled `nan-diag` message back to the main thread; surfaced in the console as `[mdrone:nan-diag]`. Reveals whether the NaN clamp ever fires in real use and names the voice / state field so the underlying instability can be fixed at the source.
+
 ## 1.20.9 — 2026-05-01
 
 - stage-hardening: relax CI underrun budget to 2, document schedule drift (836da05)

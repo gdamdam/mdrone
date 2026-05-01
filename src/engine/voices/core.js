@@ -94,73 +94,86 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // would otherwise latch the voice at silence or subsonic DC. Called
   // once per block from process(); O(voiceState) but state is small.
   sanitizeState() {
+    // DIAGNOSTIC: counts fires per field and posts a `nan-diag` message
+    // back to the main thread every ~1s when any clamp fired. Lets us
+    // discover whether sanitizeState ever fires in real use, and which
+    // voice / state field is the culprit. Cheap: counter increment only
+    // on a path that's already a non-finite branch.
+    const fix = (name, v) => {
+      if (Number.isFinite(v)) return v;
+      this._nanFires = (this._nanFires | 0) + 1;
+      if (!this._nanFieldCounts) this._nanFieldCounts = Object.create(null);
+      this._nanFieldCounts[name] = (this._nanFieldCounts[name] | 0) + 1;
+      return 0;
+    };
+
     // Tanpura body SVF + KS last-sample lowpass
-    if (!Number.isFinite(this.ksBodyLowL))  this.ksBodyLowL  = 0;
-    if (!Number.isFinite(this.ksBodyBandL)) this.ksBodyBandL = 0;
-    if (!Number.isFinite(this.ksBodyLowR))  this.ksBodyLowR  = 0;
-    if (!Number.isFinite(this.ksBodyBandR)) this.ksBodyBandR = 0;
-    if (!Number.isFinite(this.hsKsL)) this.hsKsL = 0;
-    if (!Number.isFinite(this.hsKsR)) this.hsKsR = 0;
-    if (this.ksLasts)  for (let i = 0; i < this.ksLasts.length;  i++) if (!Number.isFinite(this.ksLasts[i]))  this.ksLasts[i]  = 0;
-    if (this.ksLastsR) for (let i = 0; i < this.ksLastsR.length; i++) if (!Number.isFinite(this.ksLastsR[i])) this.ksLastsR[i] = 0;
+    this.ksBodyLowL  = fix("ksBodyLowL",  this.ksBodyLowL);
+    this.ksBodyBandL = fix("ksBodyBandL", this.ksBodyBandL);
+    this.ksBodyLowR  = fix("ksBodyLowR",  this.ksBodyLowR);
+    this.ksBodyBandR = fix("ksBodyBandR", this.ksBodyBandR);
+    this.hsKsL = fix("hsKsL", this.hsKsL);
+    this.hsKsR = fix("hsKsR", this.hsKsR);
+    if (this.ksLasts)  for (let i = 0; i < this.ksLasts.length;  i++) this.ksLasts[i]  = fix("ksLasts",  this.ksLasts[i]);
+    if (this.ksLastsR) for (let i = 0; i < this.ksLastsR.length; i++) this.ksLastsR[i] = fix("ksLastsR", this.ksLastsR[i]);
 
     // Reed formant SVF state
     if (this.reedFormN) {
       for (let i = 0; i < this.reedFormN; i++) {
-        if (!Number.isFinite(this.reedFormLowL[i]))  this.reedFormLowL[i]  = 0;
-        if (!Number.isFinite(this.reedFormBandL[i])) this.reedFormBandL[i] = 0;
-        if (!Number.isFinite(this.reedFormLowR[i]))  this.reedFormLowR[i]  = 0;
-        if (!Number.isFinite(this.reedFormBandR[i])) this.reedFormBandR[i] = 0;
+        this.reedFormLowL[i]  = fix("reedFormLowL",  this.reedFormLowL[i]);
+        this.reedFormBandL[i] = fix("reedFormBandL", this.reedFormBandL[i]);
+        this.reedFormLowR[i]  = fix("reedFormLowR",  this.reedFormLowR[i]);
+        this.reedFormBandR[i] = fix("reedFormBandR", this.reedFormBandR[i]);
       }
     }
-    if (!Number.isFinite(this.hsReedL)) this.hsReedL = 0;
-    if (!Number.isFinite(this.hsReedR)) this.hsReedR = 0;
+    this.hsReedL = fix("hsReedL", this.hsReedL);
+    this.hsReedR = fix("hsReedR", this.hsReedR);
 
     // Air SVF state (per-resonator)
     if (this.airStates) {
       for (let i = 0; i < this.airStates.length; i++) {
         const s = this.airStates[i];
-        if (!Number.isFinite(s[0])) s[0] = 0;
-        if (!Number.isFinite(s[1])) s[1] = 0;
-        if (!Number.isFinite(s[2])) s[2] = 0;
-        if (!Number.isFinite(s[3])) s[3] = 0;
+        s[0] = fix("airState0", s[0]);
+        s[1] = fix("airState1", s[1]);
+        s[2] = fix("airState2", s[2]);
+        s[3] = fix("airState3", s[3]);
       }
     }
-    if (!Number.isFinite(this.hsL)) this.hsL = 0;
-    if (!Number.isFinite(this.hsR)) this.hsR = 0;
+    this.hsL = fix("hsL", this.hsL);
+    this.hsR = fix("hsR", this.hsR);
 
     // Piano soundboard SVFs + brightness LP
-    if (!Number.isFinite(this.pianoBodyLowL))  this.pianoBodyLowL  = 0;
-    if (!Number.isFinite(this.pianoBodyBandL)) this.pianoBodyBandL = 0;
-    if (!Number.isFinite(this.pianoBodyLowR))  this.pianoBodyLowR  = 0;
-    if (!Number.isFinite(this.pianoBodyBandR)) this.pianoBodyBandR = 0;
-    if (!Number.isFinite(this.pianoMidLowL))   this.pianoMidLowL   = 0;
-    if (!Number.isFinite(this.pianoMidBandL))  this.pianoMidBandL  = 0;
-    if (!Number.isFinite(this.pianoMidLowR))   this.pianoMidLowR   = 0;
-    if (!Number.isFinite(this.pianoMidBandR))  this.pianoMidBandR  = 0;
-    if (!Number.isFinite(this.hsPianoL)) this.hsPianoL = 0;
-    if (!Number.isFinite(this.hsPianoR)) this.hsPianoR = 0;
+    this.pianoBodyLowL  = fix("pianoBodyLowL",  this.pianoBodyLowL);
+    this.pianoBodyBandL = fix("pianoBodyBandL", this.pianoBodyBandL);
+    this.pianoBodyLowR  = fix("pianoBodyLowR",  this.pianoBodyLowR);
+    this.pianoBodyBandR = fix("pianoBodyBandR", this.pianoBodyBandR);
+    this.pianoMidLowL   = fix("pianoMidLowL",   this.pianoMidLowL);
+    this.pianoMidBandL  = fix("pianoMidBandL",  this.pianoMidBandL);
+    this.pianoMidLowR   = fix("pianoMidLowR",   this.pianoMidLowR);
+    this.pianoMidBandR  = fix("pianoMidBandR",  this.pianoMidBandR);
+    this.hsPianoL = fix("hsPianoL", this.hsPianoL);
+    this.hsPianoR = fix("hsPianoR", this.hsPianoR);
 
     // FM feedback sample
-    if (!Number.isFinite(this.fmModFbSample)) this.fmModFbSample = 0;
+    this.fmModFbSample = fix("fmModFbSample", this.fmModFbSample);
 
     // Amp cabinet SVF + DC-block state + speaker feedback
-    if (!Number.isFinite(this.ampBodyLowL))  this.ampBodyLowL  = 0;
-    if (!Number.isFinite(this.ampBodyBandL)) this.ampBodyBandL = 0;
-    if (!Number.isFinite(this.ampBodyLowR))  this.ampBodyLowR  = 0;
-    if (!Number.isFinite(this.ampBodyBandR)) this.ampBodyBandR = 0;
-    if (!Number.isFinite(this.ampPresLowL))  this.ampPresLowL  = 0;
-    if (!Number.isFinite(this.ampPresBandL)) this.ampPresBandL = 0;
-    if (!Number.isFinite(this.ampPresLowR))  this.ampPresLowR  = 0;
-    if (!Number.isFinite(this.ampPresBandR)) this.ampPresBandR = 0;
-    if (!Number.isFinite(this.ampCabL))      this.ampCabL      = 0;
-    if (!Number.isFinite(this.ampCabR))      this.ampCabR      = 0;
-    if (!Number.isFinite(this.ampDcPrevInL))  this.ampDcPrevInL  = 0;
-    if (!Number.isFinite(this.ampDcPrevOutL)) this.ampDcPrevOutL = 0;
-    if (!Number.isFinite(this.ampDcPrevInR))  this.ampDcPrevInR  = 0;
-    if (!Number.isFinite(this.ampDcPrevOutR)) this.ampDcPrevOutR = 0;
-    if (!Number.isFinite(this.ampSpkFbL)) this.ampSpkFbL = 0;
-    if (!Number.isFinite(this.ampSpkFbR)) this.ampSpkFbR = 0;
+    this.ampBodyLowL  = fix("ampBodyLowL",  this.ampBodyLowL);
+    this.ampBodyBandL = fix("ampBodyBandL", this.ampBodyBandL);
+    this.ampBodyLowR  = fix("ampBodyLowR",  this.ampBodyLowR);
+    this.ampBodyBandR = fix("ampBodyBandR", this.ampBodyBandR);
+    this.ampPresLowL  = fix("ampPresLowL",  this.ampPresLowL);
+    this.ampPresBandL = fix("ampPresBandL", this.ampPresBandL);
+    this.ampPresLowR  = fix("ampPresLowR",  this.ampPresLowR);
+    this.ampPresBandR = fix("ampPresBandR", this.ampPresBandR);
+    this.ampCabL      = fix("ampCabL",      this.ampCabL);
+    this.ampCabR      = fix("ampCabR",      this.ampCabR);
+    this.ampDcPrevInL  = fix("ampDcPrevInL",  this.ampDcPrevInL);
+    this.ampDcPrevOutL = fix("ampDcPrevOutL", this.ampDcPrevOutL);
+    this.ampDcPrevInR  = fix("ampDcPrevInR",  this.ampDcPrevInR);
+    this.ampDcPrevOutR = fix("ampDcPrevOutR", this.ampDcPrevOutR);
+    this.ampSpkFbL = fix("ampSpkFbL", this.ampSpkFbL);
+    this.ampSpkFbR = fix("ampSpkFbR", this.ampSpkFbR);
 
     // Halfband oversampler state — reset-on-NaN, cheap.
     if (this.ampHbL)   this.ampHbL.sanitize();
@@ -169,6 +182,25 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
     if (this.metalHbR) this.metalHbR.sanitize();
     if (this.jawHbL) for (const hb of this.jawHbL) hb.sanitize();
     if (this.jawHbR) for (const hb of this.jawHbR) hb.sanitize();
+
+    // Periodic diag emit — every ~1s (375 blocks @ 48kHz/128). Only
+    // posts when fires > 0, so silent voices stay silent on the port.
+    this._diagBlocks = (this._diagBlocks | 0) + 1;
+    if (this._diagBlocks >= 375) {
+      if (this._nanFires > 0) {
+        try {
+          this.port.postMessage({
+            type: "nan-diag",
+            voiceType: this.voiceType,
+            fires: this._nanFires,
+            fields: this._nanFieldCounts,
+          });
+        } catch { /* ok */ }
+      }
+      this._nanFires = 0;
+      this._nanFieldCounts = null;
+      this._diagBlocks = 0;
+    }
   }
 
   process(_inputs, outputs, parameters) {
