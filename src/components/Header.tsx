@@ -84,6 +84,10 @@ interface HeaderProps {
   onToggleLowPower: (on: boolean) => void;
   liveSafeMode: boolean;
   onToggleLiveSafeMode: (on: boolean) => void;
+  /** Count of heavy FX currently bypassed by LIVE SAFE — surfaced in
+   *  the header pill's tooltip so performers can read at a glance how
+   *  much the mode is doing. 0 when LIVE SAFE is off. */
+  liveSafeSuppressedFxCount?: number;
   analyser: AnalyserNode | null;
   loadMonitor: AudioLoadMonitor;
   adaptive?: {
@@ -146,6 +150,7 @@ export function Header({
   onToggleLowPower,
   liveSafeMode,
   onToggleLiveSafeMode,
+  liveSafeSuppressedFxCount = 0,
   analyser,
   loadMonitor,
   adaptive,
@@ -509,6 +514,27 @@ export function Header({
         >
           <span className="header-btn-label-full">MIXER</span>
           <span className="header-btn-label-glyph" aria-hidden="true">▤</span>
+        </button>
+
+        {/* LIVE SAFE — explicit stage-readiness pill. Lives in the
+            performance row so the active state is impossible to miss
+            during a set, distinct from the auto CPU-warning blink and
+            from the gradient creative-active idiom of HOLD/MEDITATE.
+            The same toggle still lives in Settings for discoverability. */}
+        <button
+          type="button"
+          className={liveSafeMode ? "header-btn header-btn-livesafe header-btn-livesafe-active" : "header-btn header-btn-livesafe"}
+          onClick={() => onToggleLiveSafeMode(!liveSafeMode)}
+          aria-pressed={liveSafeMode}
+          aria-label={liveSafeMode ? "LIVE SAFE on, press to disable" : "LIVE SAFE off, press to enable stage-stable mode"}
+          title={
+            liveSafeMode
+              ? `LIVE SAFE on — voice cap 4, ${liveSafeSuppressedFxCount} heavy FX bypassed, low-power visuals. Click to disable.`
+              : "LIVE SAFE — prioritize stable audio for stage / pro use. Caps voice density and bypasses heavy FX without touching your scene."
+          }
+        >
+          <span className="header-btn-label-full">{liveSafeMode ? "● LIVE SAFE" : "LIVE SAFE"}</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">{liveSafeMode ? "●" : "◌"}</span>
         </button>
 
         {/* Admin cluster — VOL readout, help, settings. Quietest

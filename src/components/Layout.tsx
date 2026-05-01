@@ -10,7 +10,7 @@ import { NotificationTray } from "./NotificationTray";
 import { showNotification } from "../notifications";
 import { measureAllPresets } from "../devtools/measureLoudness";
 import { auditArrival } from "../devtools/auditArrival";
-import { createPresetCertController, type PresetCertHooks } from "../devtools/presetCertification";
+import { createPresetCertController, captureBrowserEnv, type PresetCertHooks } from "../devtools/presetCertification";
 import {
   buildAudioDiagnostics,
   copyToClipboard,
@@ -139,13 +139,27 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // REC timer tick — sync to external timer (Date.now). When isRec flips
   // off, the timer interval is cleared and we reset in the next frame via
   // a cleanup setter to avoid setState-in-effect lint warning.
+  // Staged long-recording warnings (10/20/30 min) — Float32 stereo
+  // chunks live in memory; the recommended max is ~30 min before
+  // browser memory pressure becomes user-visible.
   useEffect(() => {
     if (!isRec) return;
     recStartRef.current = Date.now();
-    const id = window.setInterval(
-      () => setRecTimeMs(Date.now() - recStartRef.current),
-      200,
-    );
+    const warnedAt = new Set<number>();
+    const id = window.setInterval(() => {
+      const ms = Date.now() - recStartRef.current;
+      setRecTimeMs(ms);
+      const minutes = ms / 60_000;
+      const fire = (mark: number, message: string, kind: "info" | "warning") => {
+        if (minutes >= mark && !warnedAt.has(mark)) {
+          warnedAt.add(mark);
+          showNotification(message, kind);
+        }
+      };
+      fire(10, "Recording past 10 min — long takes consume browser memory. Consider segmenting.", "info");
+      fire(20, "Recording past 20 min — approaching the recommended max. Prepare to stop.", "warning");
+      fire(30, "Recording past 30 min — at the recommended max take length. Stop and start a new take to keep memory bounded.", "warning");
+    }, 200);
     return () => {
       window.clearInterval(id);
       setRecTimeMs(0);
@@ -324,6 +338,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           peakDb: null,
         };
       },
+      captureEnv: () => captureBrowserEnv(engine.ctx ?? null),
       download: (filename, body, mime) => {
         try {
           const blob = new Blob([body], { type: mime });
@@ -703,6 +718,16 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     try { localStorage.setItem(STORAGE_KEYS.liveSafeMode, on ? "1" : "0"); }
     catch { /* noop */ }
   }, []);
+  // Surface the engine's suppressed-FX count to the header pill so the
+  // tooltip can read at a glance how much LIVE SAFE is doing.
+  const [liveSafeSuppressedFxCount, setLiveSafeSuppressedFxCount] = useState(0);
+  useEffect(() => {
+    if (!engine) return;
+    const unsub = engine.subscribeLiveSafe?.((s) => {
+      setLiveSafeSuppressedFxCount(s.suppressedFx.length);
+    });
+    return () => { unsub?.(); };
+  }, [engine]);
   // Global keyboard shortcuts (always active)
   useEffect(() => {
     const globalHandler = (e: KeyboardEvent) => {
@@ -772,11 +797,14 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   panicRef.current = handlePanic;
 
   const recordingSupport = engine.getRecordingSupport();
+  // Float32 stereo at 48 kHz ≈ 22 MB / 5 min in-memory. Surfaced in the
+  // tooltip so a performer can read live cost without opening devtools.
+  const recApproxMb = ((recTimeMs / 1000) * 48000 * 2 * 4) / (1024 * 1024);
   const recordingTitle = !recordingSupport.supported
     ? (recordingSupport.reason ?? "WAV recording is unavailable in this browser.")
     : isRec
-      ? "Stop and download the WAV — full 24-bit master capture"
-      : "Record the full master output as a 24-bit WAV file. Starts the drone if it isn't already playing.";
+      ? `Stop and download the WAV — ${formatDurationMs(recTimeMs)} captured (~${recApproxMb.toFixed(0)} MB in memory). Recommended max take: 30 min.`
+      : "Record the full master output as a 24-bit WAV file. Starts the drone if it isn't already playing. Recommended max take: 30 min — long sessions are best done as separate takes.";
 
   const handleToggleRec = async () => {
     if (recBusy) return;
@@ -950,6 +978,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleLowPower={setLowPowerMode}
         liveSafeMode={liveSafeMode}
         onToggleLiveSafeMode={setLiveSafeMode}
+        liveSafeSuppressedFxCount={liveSafeSuppressedFxCount}
         meditatePreviewOn={visualPreviewOn}
         onToggleMeditatePreview={toggleVisualPreview}
         analyser={engine.getAnalyser()}

@@ -16,7 +16,7 @@ import { FxChain } from "./FxChain";
 import type { EffectId } from "./FxChain";
 import type { EngineSceneMutation } from "./EngineSceneMutation";
 import { MasterBus } from "./MasterBus";
-import { MasterRecorder, type RecordingSupport } from "./MasterRecorder";
+import { MasterRecorder, type RecordingSupport, type MasterRecorderStartOptions } from "./MasterRecorder";
 import { LoopBouncer, type BounceOptions, type BounceResult } from "./LoopBouncer";
 import { MotionEngine } from "./MotionEngine";
 import { VoiceEngine } from "./VoiceEngine";
@@ -290,14 +290,19 @@ export class AudioEngine {
     return this.masterRecorder.getRecordingSupport();
   }
 
-  async startMasterRecording(): Promise<void> {
-    await this.masterRecorder.start();
+  async startMasterRecording(opts: MasterRecorderStartOptions = {}): Promise<void> {
+    await this.masterRecorder.start(opts);
   }
 
   /** Stop the master recording and return the encoded WAV bytes plus
    *  the capture duration in ms. Caller handles filename + download. */
   async stopMasterRecording(): Promise<import("./MasterRecorder").MasterRecordingResult | null> {
     return this.masterRecorder.stop();
+  }
+
+  /** Discard a recording in progress without producing a WAV. */
+  async cancelMasterRecording(): Promise<void> {
+    await this.masterRecorder.cancel();
   }
 
   /** Subscribe to a one-shot long-recording memory warning. Returns
@@ -307,6 +312,9 @@ export class AudioEngine {
   }
 
   isRecording(): boolean { return this.masterRecorder.isRecording(); }
+  /** Live elapsed / size accessors for record-button UI. Cheap reads. */
+  recordingElapsedMs(): number { return this.masterRecorder.elapsedMs(); }
+  recordingApproxBytes(): number { return this.masterRecorder.approxBytes(); }
 
   /** Bounce a seamless-loop WAV from the live master output. */
   async bounceLoop(opts: BounceOptions): Promise<BounceResult> {

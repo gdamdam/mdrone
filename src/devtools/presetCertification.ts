@@ -66,6 +66,22 @@ export interface PresetCertMarkInput {
   notes?: string;
 }
 
+export interface PresetCertEnv {
+  /** Best-effort browser/device string. Empty when not in a browser. */
+  userAgent: string;
+  /** AudioContext.sampleRate at capture time, or null if unavailable. */
+  sampleRate: number | null;
+  /** AudioContext.baseLatency at capture (seconds), or null. */
+  baseLatency: number | null;
+  /** AudioContext.outputLatency at capture (seconds), or null when the
+   *  browser does not expose it (Firefox, older Safari). */
+  outputLatency: number | null;
+  /** AudioContext.state at capture: "running" | "suspended" | "closed". */
+  contextState: string | null;
+  /** True if the browser exposes audioWorklet on AudioContext. */
+  audioWorklet: boolean;
+}
+
 export interface PresetCertTechnical {
   voiceLayers: string[];
   /** User-intended ON effects (not the runtime overlay — we want
@@ -78,6 +94,10 @@ export interface PresetCertTechnical {
   /** Settled LUFS-S median if a measurement was performed; null if not. */
   lufsShort: number | null;
   peakDb: number | null;
+  /** Browser / AudioContext metadata captured alongside the listening
+   *  snapshot. Optional so legacy entries / fake test hooks remain
+   *  shape-compatible. */
+  env?: PresetCertEnv;
 }
 
 export interface PresetCertEntry {
@@ -108,10 +128,15 @@ export interface PresetCertCurrent {
 }
 
 export interface PresetCertStartOptions {
-  /** Minimum audition time before mark() should be considered. The
-   *  controller does not enforce — it just reports elapsed/required
-   *  via current() so a wrapper UI / human can decide. */
+  /** Minimum audition time before mark() should be considered. By
+   *  default the controller reports elapsed/required via current() so
+   *  a wrapper UI / human can decide. Set requireAudition=true to
+   *  reject mark() before the threshold passes — useful for the
+   *  semi-automated flow. */
   auditionMs?: number;
+  /** When true, mark() throws if called before auditionMs has elapsed
+   *  on the current preset. Defaults to false (advisory). */
+  requireAudition?: boolean;
   /** Only audition presets matching this filter. Defaults to all
    *  visible (non-hidden) presets. */
   filter?: (p: PresetCertItem) => boolean;
@@ -131,12 +156,31 @@ export interface PresetCertHooks {
   /** Return a fresh technical snapshot for the currently-loaded preset.
    *  Optional — tests don't need a real engine. */
   captureTechnical?: () => PresetCertTechnical;
+  /** Return browser/audio-context environment metadata. Optional —
+   *  defaults to a best-effort browser read; tests can stub. */
+  captureEnv?: () => PresetCertEnv;
   /** Time source — overridable for tests. Returns ISO string. */
   nowIso?: () => string;
   /** Monotonic ms — overridable for tests. */
   nowMs?: () => number;
   /** Side-effect for export — file download in browser; no-op in tests. */
   download?: (filename: string, body: string, mime: string) => void;
+}
+
+/** Default environment-capture helper. Pure read of browser globals;
+ *  swallows missing fields so a worker / Node test environment yields
+ *  a well-shaped object with nulls rather than throwing. */
+export function captureBrowserEnv(ctx?: AudioContext | null): PresetCertEnv {
+  const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+  const ac = ctx ?? null;
+  const sampleRate = ac && typeof ac.sampleRate === "number" ? ac.sampleRate : null;
+  const baseLatency = ac && typeof (ac as AudioContext).baseLatency === "number"
+    ? (ac as AudioContext).baseLatency : null;
+  const outputLatency = ac && typeof (ac as { outputLatency?: number }).outputLatency === "number"
+    ? (ac as { outputLatency?: number }).outputLatency ?? null : null;
+  const contextState = ac && typeof ac.state === "string" ? ac.state : null;
+  const audioWorklet = !!(ac && (ac as AudioContext).audioWorklet);
+  return { userAgent: ua, sampleRate, baseLatency, outputLatency, contextState, audioWorklet };
 }
 
 export interface PresetCertController {
@@ -190,6 +234,7 @@ export function validateMark(input: PresetCertMarkInput): void {
 interface Session {
   startedAt: string;
   auditionRequiredMs: number;
+  requireAudition: boolean;
   presets: PresetCertItem[];
   index: number;
   entries: Map<string, PresetCertEntry>;
@@ -202,6 +247,12 @@ export function createPresetCertController(
   const nowIso = hooks.nowIso ?? (() => new Date().toISOString());
   const nowMs = hooks.nowMs ?? (() => (typeof performance !== "undefined" ? performance.now() : Date.now()));
   const captureTechnical = hooks.captureTechnical ?? (() => ({ ...EMPTY_TECHNICAL }));
+  const captureEnv = hooks.captureEnv ?? (() => captureBrowserEnv(null));
+
+  function snapshotTechnical(): PresetCertTechnical {
+    const t = captureTechnical();
+    return { ...t, env: t.env ?? captureEnv() };
+  }
 
   let session: Session | null = null;
 
@@ -221,12 +272,12 @@ export function createPresetCertController(
         presetName: preset.name,
         group: preset.group,
         startedAt: nowIso(),
-        technical: captureTechnical(),
+        technical: snapshotTechnical(),
       });
     } else {
       // Re-applying (prev/next round-trip) — refresh technical only, keep mark.
       const entry = s.entries.get(preset.id)!;
-      entry.technical = captureTechnical();
+      entry.technical = snapshotTechnical();
     }
   }
 
@@ -240,6 +291,7 @@ export function createPresetCertController(
       session = {
         startedAt: nowIso(),
         auditionRequiredMs: opts.auditionMs ?? DEFAULT_AUDITION_MS,
+        requireAudition: opts.requireAudition === true,
         presets: [...presets],
         index: 0,
         entries: new Map(),
@@ -285,6 +337,16 @@ export function createPresetCertController(
     mark(input: PresetCertMarkInput): void {
       const s = ensureSession("mark");
       validateMark(input);
+      if (s.requireAudition) {
+        const elapsed = nowMs() - s.auditionStartMs;
+        if (elapsed < s.auditionRequiredMs) {
+          const remain = Math.ceil((s.auditionRequiredMs - elapsed) / 1000);
+          throw new Error(
+            `presetCert: audition gate — listen ~${remain}s more before marking ` +
+              `(elapsed ${(elapsed / 1000).toFixed(1)}s of ${s.auditionRequiredMs / 1000}s)`,
+          );
+        }
+      }
       const preset = s.presets[s.index];
       const entry = s.entries.get(preset.id);
       if (!entry) throw new Error(`presetCert: no entry for ${preset.id}`);
@@ -330,6 +392,16 @@ export function createPresetCertController(
         if (e.technical.adaptiveStage > 0) lines.push(`- Adaptive stage during audition: ${e.technical.adaptiveStage}`);
         if (e.technical.underruns > 0) lines.push(`- Underruns observed: ${e.technical.underruns}`);
         if (e.technical.lufsShort !== null) lines.push(`- LUFS-S: ${e.technical.lufsShort.toFixed(1)} (peak ${e.technical.peakDb?.toFixed(1) ?? "—"} dBFS)`);
+        if (e.technical.env) {
+          const env = e.technical.env;
+          const envBits: string[] = [];
+          if (env.sampleRate) envBits.push(`${env.sampleRate} Hz`);
+          if (env.baseLatency != null) envBits.push(`base ${(env.baseLatency * 1000).toFixed(1)} ms`);
+          if (env.outputLatency != null) envBits.push(`out ${(env.outputLatency * 1000).toFixed(1)} ms`);
+          if (env.contextState) envBits.push(env.contextState);
+          if (envBits.length) lines.push(`- Audio context: ${envBits.join(" · ")}`);
+          if (env.userAgent) lines.push(`- UA: \`${env.userAgent.replace(/`/g, "")}\``);
+        }
         if (e.technical.voiceLayers.length) lines.push(`- Voice layers: ${e.technical.voiceLayers.join(", ")}`);
         if (e.technical.effects.length) lines.push(`- FX (user intent): ${e.technical.effects.join(", ")}`);
         if (e.verdict) {

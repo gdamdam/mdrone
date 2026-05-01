@@ -2669,6 +2669,33 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   box-shadow: 0 0 14px color-mix(in srgb, var(--preview) 60%, transparent);
 }
 
+/* LIVE SAFE — explicit stage-readiness pill. Lives in the performance
+   row. The active state uses the same red-orange the CPU warning
+   uses, but steady (no blink) so it reads as a deliberate user
+   choice rather than an automated alert. */
+.header-btn.header-btn-livesafe {
+  border-color: color-mix(in srgb, #d94a2b 35%, var(--border));
+  color: color-mix(in srgb, #d94a2b 70%, var(--text));
+  letter-spacing: 0.04em;
+}
+.header-btn.header-btn-livesafe:hover {
+  border-color: color-mix(in srgb, #d94a2b 70%, var(--border));
+  color: #d94a2b;
+}
+.header-btn.header-btn-livesafe-active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, #d94a2b 32%, var(--bg-cell)),
+    color-mix(in srgb, #d94a2b 14%, var(--bg-cell))
+  );
+  border-color: #d94a2b;
+  color: #fff5f1;
+  box-shadow: 0 0 10px color-mix(in srgb, #d94a2b 55%, transparent);
+}
+.header-btn.header-btn-livesafe-active:hover {
+  box-shadow: 0 0 14px color-mix(in srgb, #d94a2b 70%, transparent);
+}
+
 /* Header REC + generic button */
 .header-btn {
   /* Hardware-control feel — sharper corners, tighter padding,

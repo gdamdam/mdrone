@@ -23,15 +23,41 @@ import type { EffectId } from "./FxChain";
 
 /** Effects most likely to push a struggling box past the buffer
  *  budget. Tier ordering matches the adaptive engine's heavy-FX list,
- *  with halo first because it's the spendiest tail. */
+ *  with halo first because it's the spendiest tail. Cistern joins the
+ *  list because the long convolution tail is one of the heavier
+ *  worklet reverbs — already mitigated by AdaptiveStabilityEngine
+ *  stage-2 — and a deliberate stage choice should bypass it too. */
 export const LIVE_SAFE_HEAVY_FX: readonly EffectId[] = [
-  "halo", "granular", "graincloud", "shimmer", "freeze",
+  "halo", "granular", "graincloud", "shimmer", "freeze", "cistern",
 ];
 
 /** Voice-layer ceiling under LIVE SAFE. Below 4 the drone loses
  *  characteristic stack thickness; above 4 we start risking under-runs
  *  on weaker hardware. */
 export const LIVE_SAFE_VOICE_CAP = 4;
+
+export type StageRisk = "low" | "medium" | "high";
+
+/** Stage-readiness classifier — a derived helper, not preset metadata.
+ *  Any new preset is auto-classified by its voice-layer count and the
+ *  set of FX it asks to enable. The optional stageRiskOverride field
+ *  on a preset is the rare escape hatch for "measures heavy but is fine
+ *  in practice". Authoring stays low-friction: nothing to remember. */
+export interface StageRiskInput {
+  voiceLayers: readonly unknown[];
+  effects: readonly EffectId[];
+  stageRiskOverride?: StageRisk;
+}
+
+export function stageRiskOf(p: StageRiskInput): StageRisk {
+  if (p.stageRiskOverride) return p.stageRiskOverride;
+  const heavyOn = p.effects.filter((e) => LIVE_SAFE_HEAVY_FX.includes(e)).length;
+  const dense = p.voiceLayers.length > LIVE_SAFE_VOICE_CAP;
+  if (heavyOn >= 2 && dense) return "high";
+  if (heavyOn >= 2 || (heavyOn >= 1 && dense)) return "medium";
+  if (heavyOn >= 1 || dense) return "medium";
+  return "low";
+}
 
 export interface LiveSafeAdapter {
   /** Toggle the engine-side LIVE-SAFE low-power overlay. Composed with

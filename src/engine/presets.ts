@@ -122,6 +122,12 @@ export interface Preset {
    *  target. Omitted on presets that don't care about FLICKER — they
    *  leave the user's current FLICKER state alone. */
   entrain?: EntrainState;
+
+  /** Rare escape hatch for the derived stageRiskOf() classifier — only
+   *  set when a preset's measured-heavy combination behaves fine in
+   *  practice (or vice versa). Almost always omit; the default
+   *  classifier reads voice density + heavy-FX intersection. */
+  stageRiskOverride?: import("./LiveSafeMode").StageRisk;
 }
 
 export interface PresetMaterialProfile {

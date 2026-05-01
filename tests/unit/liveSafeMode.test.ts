@@ -3,6 +3,7 @@ import {
   LiveSafeMode,
   LIVE_SAFE_HEAVY_FX,
   LIVE_SAFE_VOICE_CAP,
+  stageRiskOf,
   type LiveSafeAdapter,
 } from "../../src/engine/LiveSafeMode";
 import { EFFECT_ORDER, type EffectId } from "../../src/engine/FxChain";
@@ -172,5 +173,56 @@ describe("LiveSafeMode", () => {
     mode.setActive(true);
     expect(adapter.effects.shimmer).toBe(false);
     expect(mode.getState().suppressedFx).toContain("shimmer");
+  });
+
+  it("LIVE_SAFE_HEAVY_FX includes cistern (stage parity with adaptive)", () => {
+    expect(LIVE_SAFE_HEAVY_FX).toContain("cistern");
+  });
+
+  it("apply: bypasses cistern when user-intended on", () => {
+    adapter.effects.cistern = true;
+    mode.setActive(true);
+    expect(adapter.effects.cistern).toBe(false);
+    expect(mode.getState().suppressedFx).toContain("cistern");
+    mode.setActive(false);
+    expect(adapter.effects.cistern).toBe(true);
+  });
+});
+
+describe("stageRiskOf", () => {
+  it("low: lean voice, no heavy FX", () => {
+    expect(stageRiskOf({
+      voiceLayers: ["sine"],
+      effects: ["tape"],
+    })).toBe("low");
+  });
+
+  it("medium: dense voice alone", () => {
+    expect(stageRiskOf({
+      voiceLayers: ["sine", "saw", "noise", "reed", "fm"],
+      effects: ["tape"],
+    })).toBe("medium");
+  });
+
+  it("medium: one heavy FX with lean voice", () => {
+    expect(stageRiskOf({
+      voiceLayers: ["sine"],
+      effects: ["shimmer"],
+    })).toBe("medium");
+  });
+
+  it("high: dense voice + two heavy FX", () => {
+    expect(stageRiskOf({
+      voiceLayers: ["sine", "saw", "noise", "reed", "fm", "comb"],
+      effects: ["shimmer", "halo", "tape"],
+    })).toBe("high");
+  });
+
+  it("override: forces stageRiskOverride regardless of measured shape", () => {
+    expect(stageRiskOf({
+      voiceLayers: ["sine", "saw", "noise", "reed", "fm", "comb"],
+      effects: ["shimmer", "halo"],
+      stageRiskOverride: "low",
+    })).toBe("low");
   });
 });

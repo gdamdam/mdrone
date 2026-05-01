@@ -42,6 +42,7 @@ function makeHooks(overrides: Partial<PresetCertHooks> = {}): FakeHooks {
       lufsShort: null,
       peakDb: null,
     })),
+    captureEnv: overrides.captureEnv,
     nowMs: () => out.fakeNowMs,
     nowIso: () => `2026-04-28T00:00:0${out.fakeNowIsoCounter++}.000Z`,
     download: (filename: string, body: string, mime: string) => {
@@ -271,5 +272,89 @@ describe("createPresetCertController — exports", () => {
     expect(hooks.downloads.length).toBe(2);
     expect(hooks.downloads[0].mime).toBe("text/markdown");
     expect(hooks.downloads[1].mime).toBe("application/json");
+  });
+});
+
+describe("createPresetCertController — listen-gate + env capture", () => {
+  let hooks: FakeHooks;
+  let cert: PresetCertController;
+
+  beforeEach(() => {
+    hooks = makeHooks();
+    cert = createPresetCertController(hooks);
+  });
+
+  it("requireAudition: rejects mark before threshold, accepts after", async () => {
+    hooks.fakeNowMs = 0;
+    await cert.start({ auditionMs: 10_000, requireAudition: true });
+    hooks.fakeNowMs = 4000; // 4s elapsed of 10s required
+    expect(() => cert.mark({ tag: "STUDIO" })).toThrow(/audition gate/);
+    hooks.fakeNowMs = 12_000; // past the threshold
+    expect(() => cert.mark({ tag: "STUDIO" })).not.toThrow();
+    const alpha = cert._entries().find((e) => e.presetId === "alpha")!;
+    expect(alpha.tag).toBe("STUDIO");
+  });
+
+  it("requireAudition: gate resets per preset on next()", async () => {
+    hooks.fakeNowMs = 0;
+    await cert.start({ auditionMs: 5_000, requireAudition: true });
+    hooks.fakeNowMs = 5_500;
+    cert.mark({ tag: "STUDIO" }); // alpha after threshold — fine
+    hooks.fakeNowMs = 6_000;
+    await cert.next(); // beta starts; auditionStartMs reset
+    hooks.fakeNowMs = 7_000; // only 1s on beta
+    expect(() => cert.mark({ tag: "RICH" })).toThrow(/audition gate/);
+  });
+
+  it("default (no requireAudition) is advisory — mark() never throws on time alone", async () => {
+    hooks.fakeNowMs = 0;
+    await cert.start({ auditionMs: 60_000 });
+    hooks.fakeNowMs = 100; // way under
+    expect(() => cert.mark({ tag: "STUDIO" })).not.toThrow();
+  });
+
+  it("env: captureEnv hook attaches env metadata to every entry", async () => {
+    const env = {
+      userAgent: "TestRunner/1.0",
+      sampleRate: 48000,
+      baseLatency: 0.005,
+      outputLatency: 0.01,
+      contextState: "running",
+      audioWorklet: true,
+    };
+    hooks = makeHooks({ captureEnv: () => env });
+    cert = createPresetCertController(hooks);
+    await cert.start();
+    const alpha = cert._entries().find((e) => e.presetId === "alpha")!;
+    expect(alpha.technical.env).toEqual(env);
+  });
+
+  it("env: exportMarkdown surfaces the audio context summary line", async () => {
+    hooks = makeHooks({
+      captureEnv: () => ({
+        userAgent: "TestRunner/1.0",
+        sampleRate: 48000,
+        baseLatency: 0.005,
+        outputLatency: 0.01,
+        contextState: "running",
+        audioWorklet: true,
+      }),
+    });
+    cert = createPresetCertController(hooks);
+    await cert.start();
+    cert.mark({ tag: "STUDIO" });
+    const md = cert.exportMarkdown();
+    expect(md).toContain("Audio context: 48000 Hz · base 5.0 ms · out 10.0 ms · running");
+    expect(md).toContain("UA: `TestRunner/1.0`");
+  });
+
+  it("env: missing env still produces a clean entry (legacy path)", async () => {
+    // No captureEnv hook — defaults to the browser helper, which
+    // returns nulls in a non-browser env. The entry must still
+    // include an env field so consumers can rely on the shape.
+    await cert.start();
+    const alpha = cert._entries().find((e) => e.presetId === "alpha")!;
+    expect(alpha.technical.env).toBeDefined();
+    expect(alpha.technical.env?.sampleRate).toBeNull();
   });
 });
