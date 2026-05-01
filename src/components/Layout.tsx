@@ -125,6 +125,24 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
   }, [iosDiagEnabled, engine, headerHolding]);
 
+  // iOS recover-resume: if the audioStuck overlay just reloaded the
+  // page, auto-trigger HOLD a moment after mount so the user lands
+  // back in playing state with one tap (the StartGate "Continue"
+  // they used to satisfy autoplay policy) instead of two. The flag
+  // is one-shot — read + cleared on first effect run. Delay gives
+  // useDroneScene time to apply the autosaved scene before HOLD
+  // fires; otherwise togglePlay would start with default scene.
+  useEffect(() => {
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem("mdrone-recover-resume"); } catch { /* ok */ }
+    if (raw !== "1") return;
+    try { sessionStorage.removeItem("mdrone-recover-resume"); } catch { /* ok */ }
+    const t = window.setTimeout(() => {
+      droneViewRef.current?.togglePlay();
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, []);
+
   // iOS hard-recovery overlay. When the AudioContext is stuck in
   // a non-running state for >1 s while HOLD is on (typically after
   // an iOS audio session interruption that resume() can't recover
@@ -1080,7 +1098,15 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       {audioStuck && (
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={() => {
+            // Carry the "we were playing" intent across the reload so
+            // App.tsx + Layout can auto-start HOLD once the user clicks
+            // "Continue" on StartGate (the unavoidable post-reload
+            // gesture browsers require for autoplay). Cuts recovery
+            // from 3 taps (overlay → continue → HOLD) to 2.
+            try { sessionStorage.setItem("mdrone-recover-resume", "1"); } catch { /* ok */ }
+            window.location.reload();
+          }}
           aria-label="Audio interrupted — tap to restart"
           style={{
             position: "fixed",
