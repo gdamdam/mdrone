@@ -125,6 +125,44 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
   }, [iosDiagEnabled, engine, headerHolding]);
 
+  // iOS hard-recovery overlay. When the AudioContext is stuck in
+  // a non-running state for >1 s while HOLD is on (typically after
+  // an iOS audio session interruption that resume() can't recover
+  // because the underlying audio hardware allocation was released),
+  // surface a tappable banner that location.reload()s the page.
+  // The autosave mechanism preserves the scene so the user lands
+  // back on the same drone after the reload. Post-cert finding #1
+  // — the only path that's actually guaranteed to work when iOS
+  // refuses to resume the existing context.
+  const [audioStuck, setAudioStuck] = useState(false);
+  useEffect(() => {
+    if (!headerHolding) {
+      setAudioStuck(false);
+      return;
+    }
+    const check = () => {
+      if (engine.ctx.state === "running") {
+        setAudioStuck(false);
+      } else if (headerHolding) {
+        setAudioStuck(true);
+      }
+    };
+    // Re-check on visibility return + on a low-frequency timer so
+    // the overlay appears within ~1.5 s of the user noticing audio
+    // is dead, and clears within ~1.5 s of recovery.
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        window.setTimeout(check, 1200);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    const interval = window.setInterval(check, 1500);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearInterval(interval);
+    };
+  }, [headerHolding, engine]);
+
   // Screen wake lock while playing — prevents iPhone (and any other
   // device that supports the Wake Lock API) from auto-locking during a
   // long listen. The OS releases the sentinel when the tab is
@@ -1039,6 +1077,40 @@ export function Layout({ engine, startupMode }: LayoutProps) {
 
   return (
     <div className="layout" onPointerDown={handleUnlock}>
+      {audioStuck && (
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          aria-label="Audio interrupted — tap to restart"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10000,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
+            padding: "32px 24px",
+            background: "rgba(8, 5, 3, 0.92)",
+            color: "var(--preview, #f5b97a)",
+            border: "none",
+            font: "inherit",
+            fontSize: 20,
+            lineHeight: 1.4,
+            textAlign: "center",
+            cursor: "pointer",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
+        >
+          <span style={{ fontSize: 48, lineHeight: 1, opacity: 0.85 }}>↻</span>
+          <span>Audio was interrupted by the lock screen.</span>
+          <span style={{ opacity: 0.7, fontSize: 16 }}>
+            Tap anywhere to restart — your scene will reload.
+          </span>
+        </button>
+      )}
       <Header
         viewMode={viewMode}
         setViewMode={setViewMode}
