@@ -639,7 +639,10 @@ export const PRESETS: Preset[] = [
     effects: ["plate", "shimmer"],
     parallelSends: { plate: 0.25 },
     scale: "drone",
-    gain: 0.85,
+    // 1.20.18: +5.9 dB comp (0.85 → 1.67) to recover authored loudness
+    // after the 1.20.13 TANPURA −6 dB voice trim dropped this preset
+    // from −29.9 to −35.8 LUFS. Per post-cert finding #6, plan 2.
+    gain: 1.67,
     motionProfile: motionProfile({
       climateXRange: [0.48, 0.64],
       climateYRange: [0.1, 0.22],
@@ -873,7 +876,10 @@ export const PRESETS: Preset[] = [
     effects: ["tape", "wow"],
     parallelSends: { hall: 0.28 },
     scale: "drone",
-    gain: 0.19,
+    // 1.20.18: +3 dB comp (0.19 → 0.27) to recover authored loudness
+    // after the 1.20.15 AMP −4 dB voice trim dropped this preset
+    // from −28.9 to −31.9 LUFS. Per post-cert finding #6, plan 2.
+    gain: 0.27,
     motionProfile: motionProfile({
       climateXRange: [0.14, 0.22],
       climateYRange: [0.04, 0.1],
@@ -2479,7 +2485,11 @@ export const PRESETS: Preset[] = [
     // near-unisons at root, fifth, and octave. The tuning itself
     // imposes the power-chord identity regardless of relation.
     tuningId: "custom:hollow-fifth", relationId: "harmonic-stack",
-    gain: 0.34,
+    // 1.20.18: +4 dB comp (0.34 → 0.54) to recover authored loudness
+    // after the cumulative 1.20.13 TANPURA + 1.20.15 AMP voice trims
+    // dropped this preset from −32.1 to −36.1 LUFS. Per post-cert
+    // finding #6, plan 2.
+    gain: 0.54,
     motionProfile: motionProfile({
       climateXRange: [0.26, 0.4],
       climateYRange: [0.12, 0.26],
