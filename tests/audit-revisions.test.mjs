@@ -54,12 +54,13 @@ test("FxChain WET_GAIN: reverb family lowered, others unchanged", () => {
 
 // ── Comb feedback cap ────────────────────────────────────────────────
 
-test("FxChain setCombFeedback: cap is 0.92 (was 0.98)", () => {
+test("FxChain setCombFeedback: cap is 0.50 (1.20.17 — was 0.92)", () => {
   const src = read("src/engine/FxChain.ts");
   const fn = src.match(/setCombFeedback\s*\([^)]*\)\s*:\s*void\s*\{[\s\S]*?\n\s\s\}/);
   assert.ok(fn, "setCombFeedback not found");
-  assert.match(fn[0], /Math\.min\(\s*0\.92\s*,/, "comb feedback cap should be 0.92");
+  assert.match(fn[0], /Math\.min\(\s*0\.50\s*,/, "comb feedback cap should be 0.50 (1.20.17 dropped from 0.92)");
   assert.doesNotMatch(fn[0], /Math\.min\(\s*0\.98\s*,/, "comb feedback cap must not be the pre-audit 0.98");
+  assert.doesNotMatch(fn[0], /Math\.min\(\s*0\.92\s*,/, "comb feedback cap must not be the pre-1.20.17 0.92");
 });
 
 // ── Comb retune flush wired in setRootFreq ──────────────────────────

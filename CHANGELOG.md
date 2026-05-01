@@ -2,6 +2,13 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.22 — 2026-05-02
+
+- ci: rebaseline tests after the 1.20.13 / 1.20.15 / 1.20.17 voice + COMB changes. The deploy workflow runs lint + typecheck + node-test + vitest before publishing to gh-pages, and three CI gates have been silently failing since 1.20.13 — explaining why the published build still showed an older version. Three test fixes:
+  1. `tests/audit-revisions.test.mjs` — `setCombFeedback` cap assertion bumped 0.92 → 0.50 (matches 1.20.17).
+  2. `tests/dsp-smoke.test.mjs` — 16-voice+FX `rmsMin` lowered 0.04 → 0.025 to absorb the cumulative −10 dB from TANPURA −6 dB and AMP −4 dB. Still ~250× the silence floor.
+  3. `tests/baselines/preset-fingerprints.json` — regenerated via `npm run audit:fingerprints` to capture post-trim LUFS for the fingerprinted presets (tanpura-drone shifted −6 dB, others proportionally).
+
 ## 1.20.21 — 2026-05-02
 
 - ios: keep the screen awake while playing + handle audio session interruptions (post-cert finding #1, partial). Two complementary changes that together cover the most common iOS pain pattern (long listen with phone idle):
