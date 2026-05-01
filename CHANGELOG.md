@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.11 — 2026-05-01
+
+- diagnostics: scope `sanitizeState()` per voice type. The 1.20.10 instrumentation revealed each voice instance was firing a fixed boot-noise count (tanpura 31, fm 36, air 37, amp 21, etc.) on cross-voice prototype state that the constructor doesn't initialize — none of it touched by audio processing, all clamped to 0 once and silent forever after. Refactored `sanitizeState()` into a `switch (voiceType)` dispatcher that calls per-voice `_sanitizeTanpura/Reed/Air/Piano/Fm/Amp/Metal` methods touching only that voice's own state fields. NOISE has no feedback state. Halfband oversamplers (jawHb / ampHb / metalHb) scoped to their owning voices. Console is now silent under normal play; any nan-diag fire is a real audio-processing event worth investigating.
+
 ## 1.20.10 — 2026-05-01
 
 - diagnostics: voice worklet `sanitizeState()` now counts non-finite clamps per state field and posts a throttled `nan-diag` message back to the main thread; surfaced in the console as `[mdrone:nan-diag]`. Reveals whether the NaN clamp ever fires in real use and names the voice / state field so the underlying instability can be fixed at the source.

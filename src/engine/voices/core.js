@@ -93,98 +93,123 @@ class DroneVoiceProcessor extends AudioWorkletProcessor {
   // Guards every feedback-rich scalar against NaN / Infinity that
   // would otherwise latch the voice at silence or subsonic DC. Called
   // once per block from process(); O(voiceState) but state is small.
-  sanitizeState() {
-    // DIAGNOSTIC: counts fires per field and posts a `nan-diag` message
-    // back to the main thread every ~1s when any clamp fired. Lets us
-    // discover whether sanitizeState ever fires in real use, and which
-    // voice / state field is the culprit. Cheap: counter increment only
-    // on a path that's already a non-finite branch.
-    const fix = (name, v) => {
-      if (Number.isFinite(v)) return v;
-      this._nanFires = (this._nanFires | 0) + 1;
-      if (!this._nanFieldCounts) this._nanFieldCounts = Object.create(null);
-      this._nanFieldCounts[name] = (this._nanFieldCounts[name] | 0) + 1;
-      return 0;
-    };
+  // Shared helper for per-voice sanitize methods. Counts fires per field
+  // and increments _nanFires so the periodic diag emit can post counts
+  // back to the main thread.
+  _fix(name, v) {
+    if (Number.isFinite(v)) return v;
+    this._nanFires = (this._nanFires | 0) + 1;
+    if (!this._nanFieldCounts) this._nanFieldCounts = Object.create(null);
+    this._nanFieldCounts[name] = (this._nanFieldCounts[name] | 0) + 1;
+    return 0;
+  }
 
-    // Tanpura body SVF + KS last-sample lowpass
-    this.ksBodyLowL  = fix("ksBodyLowL",  this.ksBodyLowL);
-    this.ksBodyBandL = fix("ksBodyBandL", this.ksBodyBandL);
-    this.ksBodyLowR  = fix("ksBodyLowR",  this.ksBodyLowR);
-    this.ksBodyBandR = fix("ksBodyBandR", this.ksBodyBandR);
-    this.hsKsL = fix("hsKsL", this.hsKsL);
-    this.hsKsR = fix("hsKsR", this.hsKsR);
-    if (this.ksLasts)  for (let i = 0; i < this.ksLasts.length;  i++) this.ksLasts[i]  = fix("ksLasts",  this.ksLasts[i]);
-    if (this.ksLastsR) for (let i = 0; i < this.ksLastsR.length; i++) this.ksLastsR[i] = fix("ksLastsR", this.ksLastsR[i]);
+  // Per-voice sanitize methods — only touch the state fields the voice
+  // actually uses. Avoids firing on uninitialized cross-voice prototype
+  // state at boot (the diagnostic showed the previous unconditional
+  // sweep produced ~30 init-noise fires per voice instance with no
+  // real audio-processing significance).
+  _sanitizeTanpura() {
+    this.ksBodyLowL  = this._fix("ksBodyLowL",  this.ksBodyLowL);
+    this.ksBodyBandL = this._fix("ksBodyBandL", this.ksBodyBandL);
+    this.ksBodyLowR  = this._fix("ksBodyLowR",  this.ksBodyLowR);
+    this.ksBodyBandR = this._fix("ksBodyBandR", this.ksBodyBandR);
+    this.hsKsL = this._fix("hsKsL", this.hsKsL);
+    this.hsKsR = this._fix("hsKsR", this.hsKsR);
+    if (this.ksLasts)  for (let i = 0; i < this.ksLasts.length;  i++) this.ksLasts[i]  = this._fix("ksLasts",  this.ksLasts[i]);
+    if (this.ksLastsR) for (let i = 0; i < this.ksLastsR.length; i++) this.ksLastsR[i] = this._fix("ksLastsR", this.ksLastsR[i]);
+    if (this.jawHbL) for (const hb of this.jawHbL) hb.sanitize();
+    if (this.jawHbR) for (const hb of this.jawHbR) hb.sanitize();
+  }
 
-    // Reed formant SVF state
+  _sanitizeReed() {
     if (this.reedFormN) {
       for (let i = 0; i < this.reedFormN; i++) {
-        this.reedFormLowL[i]  = fix("reedFormLowL",  this.reedFormLowL[i]);
-        this.reedFormBandL[i] = fix("reedFormBandL", this.reedFormBandL[i]);
-        this.reedFormLowR[i]  = fix("reedFormLowR",  this.reedFormLowR[i]);
-        this.reedFormBandR[i] = fix("reedFormBandR", this.reedFormBandR[i]);
+        this.reedFormLowL[i]  = this._fix("reedFormLowL",  this.reedFormLowL[i]);
+        this.reedFormBandL[i] = this._fix("reedFormBandL", this.reedFormBandL[i]);
+        this.reedFormLowR[i]  = this._fix("reedFormLowR",  this.reedFormLowR[i]);
+        this.reedFormBandR[i] = this._fix("reedFormBandR", this.reedFormBandR[i]);
       }
     }
-    this.hsReedL = fix("hsReedL", this.hsReedL);
-    this.hsReedR = fix("hsReedR", this.hsReedR);
+    this.hsReedL = this._fix("hsReedL", this.hsReedL);
+    this.hsReedR = this._fix("hsReedR", this.hsReedR);
+  }
 
-    // Air SVF state (per-resonator)
+  _sanitizeAir() {
     if (this.airStates) {
       for (let i = 0; i < this.airStates.length; i++) {
         const s = this.airStates[i];
-        s[0] = fix("airState0", s[0]);
-        s[1] = fix("airState1", s[1]);
-        s[2] = fix("airState2", s[2]);
-        s[3] = fix("airState3", s[3]);
+        s[0] = this._fix("airState0", s[0]);
+        s[1] = this._fix("airState1", s[1]);
+        s[2] = this._fix("airState2", s[2]);
+        s[3] = this._fix("airState3", s[3]);
       }
     }
-    this.hsL = fix("hsL", this.hsL);
-    this.hsR = fix("hsR", this.hsR);
+    this.hsL = this._fix("hsL", this.hsL);
+    this.hsR = this._fix("hsR", this.hsR);
+  }
 
-    // Piano soundboard SVFs + brightness LP
-    this.pianoBodyLowL  = fix("pianoBodyLowL",  this.pianoBodyLowL);
-    this.pianoBodyBandL = fix("pianoBodyBandL", this.pianoBodyBandL);
-    this.pianoBodyLowR  = fix("pianoBodyLowR",  this.pianoBodyLowR);
-    this.pianoBodyBandR = fix("pianoBodyBandR", this.pianoBodyBandR);
-    this.pianoMidLowL   = fix("pianoMidLowL",   this.pianoMidLowL);
-    this.pianoMidBandL  = fix("pianoMidBandL",  this.pianoMidBandL);
-    this.pianoMidLowR   = fix("pianoMidLowR",   this.pianoMidLowR);
-    this.pianoMidBandR  = fix("pianoMidBandR",  this.pianoMidBandR);
-    this.hsPianoL = fix("hsPianoL", this.hsPianoL);
-    this.hsPianoR = fix("hsPianoR", this.hsPianoR);
+  _sanitizePiano() {
+    this.pianoBodyLowL  = this._fix("pianoBodyLowL",  this.pianoBodyLowL);
+    this.pianoBodyBandL = this._fix("pianoBodyBandL", this.pianoBodyBandL);
+    this.pianoBodyLowR  = this._fix("pianoBodyLowR",  this.pianoBodyLowR);
+    this.pianoBodyBandR = this._fix("pianoBodyBandR", this.pianoBodyBandR);
+    this.pianoMidLowL   = this._fix("pianoMidLowL",   this.pianoMidLowL);
+    this.pianoMidBandL  = this._fix("pianoMidBandL",  this.pianoMidBandL);
+    this.pianoMidLowR   = this._fix("pianoMidLowR",   this.pianoMidLowR);
+    this.pianoMidBandR  = this._fix("pianoMidBandR",  this.pianoMidBandR);
+    this.hsPianoL = this._fix("hsPianoL", this.hsPianoL);
+    this.hsPianoR = this._fix("hsPianoR", this.hsPianoR);
+  }
 
-    // FM feedback sample
-    this.fmModFbSample = fix("fmModFbSample", this.fmModFbSample);
+  _sanitizeFm() {
+    this.fmModFbSample = this._fix("fmModFbSample", this.fmModFbSample);
+  }
 
-    // Amp cabinet SVF + DC-block state + speaker feedback
-    this.ampBodyLowL  = fix("ampBodyLowL",  this.ampBodyLowL);
-    this.ampBodyBandL = fix("ampBodyBandL", this.ampBodyBandL);
-    this.ampBodyLowR  = fix("ampBodyLowR",  this.ampBodyLowR);
-    this.ampBodyBandR = fix("ampBodyBandR", this.ampBodyBandR);
-    this.ampPresLowL  = fix("ampPresLowL",  this.ampPresLowL);
-    this.ampPresBandL = fix("ampPresBandL", this.ampPresBandL);
-    this.ampPresLowR  = fix("ampPresLowR",  this.ampPresLowR);
-    this.ampPresBandR = fix("ampPresBandR", this.ampPresBandR);
-    this.ampCabL      = fix("ampCabL",      this.ampCabL);
-    this.ampCabR      = fix("ampCabR",      this.ampCabR);
-    this.ampDcPrevInL  = fix("ampDcPrevInL",  this.ampDcPrevInL);
-    this.ampDcPrevOutL = fix("ampDcPrevOutL", this.ampDcPrevOutL);
-    this.ampDcPrevInR  = fix("ampDcPrevInR",  this.ampDcPrevInR);
-    this.ampDcPrevOutR = fix("ampDcPrevOutR", this.ampDcPrevOutR);
-    this.ampSpkFbL = fix("ampSpkFbL", this.ampSpkFbL);
-    this.ampSpkFbR = fix("ampSpkFbR", this.ampSpkFbR);
+  _sanitizeAmp() {
+    this.ampBodyLowL  = this._fix("ampBodyLowL",  this.ampBodyLowL);
+    this.ampBodyBandL = this._fix("ampBodyBandL", this.ampBodyBandL);
+    this.ampBodyLowR  = this._fix("ampBodyLowR",  this.ampBodyLowR);
+    this.ampBodyBandR = this._fix("ampBodyBandR", this.ampBodyBandR);
+    this.ampPresLowL  = this._fix("ampPresLowL",  this.ampPresLowL);
+    this.ampPresBandL = this._fix("ampPresBandL", this.ampPresBandL);
+    this.ampPresLowR  = this._fix("ampPresLowR",  this.ampPresLowR);
+    this.ampPresBandR = this._fix("ampPresBandR", this.ampPresBandR);
+    this.ampCabL      = this._fix("ampCabL",      this.ampCabL);
+    this.ampCabR      = this._fix("ampCabR",      this.ampCabR);
+    this.ampDcPrevInL  = this._fix("ampDcPrevInL",  this.ampDcPrevInL);
+    this.ampDcPrevOutL = this._fix("ampDcPrevOutL", this.ampDcPrevOutL);
+    this.ampDcPrevInR  = this._fix("ampDcPrevInR",  this.ampDcPrevInR);
+    this.ampDcPrevOutR = this._fix("ampDcPrevOutR", this.ampDcPrevOutR);
+    this.ampSpkFbL = this._fix("ampSpkFbL", this.ampSpkFbL);
+    this.ampSpkFbR = this._fix("ampSpkFbR", this.ampSpkFbR);
+    if (this.ampHbL) this.ampHbL.sanitize();
+    if (this.ampHbR) this.ampHbR.sanitize();
+  }
 
-    // Halfband oversampler state — reset-on-NaN, cheap.
-    if (this.ampHbL)   this.ampHbL.sanitize();
-    if (this.ampHbR)   this.ampHbR.sanitize();
+  _sanitizeMetal() {
     if (this.metalHbL) this.metalHbL.sanitize();
     if (this.metalHbR) this.metalHbR.sanitize();
-    if (this.jawHbL) for (const hb of this.jawHbL) hb.sanitize();
-    if (this.jawHbR) for (const hb of this.jawHbR) hb.sanitize();
+  }
+
+  // NOISE has no feedback-rich state to sanitize.
+
+  sanitizeState() {
+    switch (this.voiceType) {
+      case "tanpura": this._sanitizeTanpura(); break;
+      case "reed":    this._sanitizeReed();    break;
+      case "air":     this._sanitizeAir();     break;
+      case "piano":   this._sanitizePiano();   break;
+      case "fm":      this._sanitizeFm();      break;
+      case "amp":     this._sanitizeAmp();     break;
+      case "metal":   this._sanitizeMetal();   break;
+      case "noise":   /* no feedback state */  break;
+    }
 
     // Periodic diag emit — every ~1s (375 blocks @ 48kHz/128). Only
     // posts when fires > 0, so silent voices stay silent on the port.
+    // After this fix the diag should be effectively silent in normal
+    // use; any fire is a real audio-processing NaN worth investigating.
     this._diagBlocks = (this._diagBlocks | 0) + 1;
     if (this._diagBlocks >= 375) {
       if (this._nanFires > 0) {
