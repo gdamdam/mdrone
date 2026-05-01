@@ -87,6 +87,39 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
   const [headerOctave, setHeaderOctave] = useState(2);
   const [headerHolding, setHeaderHolding] = useState(false);
+  // Screen wake lock while playing — prevents iPhone (and any other
+  // device that supports the Wake Lock API) from auto-locking during a
+  // long listen. The OS releases the sentinel when the tab is
+  // backgrounded, so re-acquire on visibilitychange whenever HOLD is
+  // still on. Mirrors the pattern already used in MeditateView.tsx.
+  // Post-cert finding #1 (partial — handles auto-lock; manual-lock
+  // suspend/resume is a separate change).
+  useEffect(() => {
+    if (!headerHolding) return;
+    type WakeLockNav = Navigator & {
+      wakeLock?: { request: (t: "screen") => Promise<WakeLockSentinel> };
+    };
+    const nav = navigator as WakeLockNav;
+    if (!nav.wakeLock?.request) return;
+    let sentinel: WakeLockSentinel | null = null;
+    const acquire = () => {
+      nav.wakeLock!
+        .request("screen")
+        .then((s) => { sentinel = s; })
+        .catch(() => { /* denied / unsupported — ok */ });
+    };
+    acquire();
+    const onVis = () => {
+      if (document.visibilityState === "visible" && !sentinel) acquire();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      sentinel?.release().catch(() => { /* ok */ });
+      sentinel = null;
+    };
+  }, [headerHolding]);
+
   // Engine state-convergence window. True for ~10s after HOLD turns on
   // so the HOLD button can pulse, signalling that delay lines + feedback
   // states are still settling. Post-cert finding #4 — pushing macros

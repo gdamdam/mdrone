@@ -2,6 +2,13 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.21 — 2026-05-02
+
+- ios: keep the screen awake while playing + handle audio session interruptions (post-cert finding #1, partial). Two complementary changes that together cover the most common iOS pain pattern (long listen with phone idle):
+  1. **Screen wake lock during HOLD.** When `headerHolding` is true the layout acquires a `navigator.wakeLock.request("screen")` sentinel and reacquires it on `visibilitychange` (the OS releases sentinels when the tab backgrounds). This prevents the iPhone from auto-locking mid-drone — the most common reported failure mode. Mirrors the pattern already used in `MeditateView.tsx`. Released cleanly on HOLD off and on unmount.
+  2. **Stronger AudioContext recovery.** The pre-existing `visibilitychange → resume` handler only fired on `state === "suspended"`. iOS Safari additionally uses an `"interrupted"` state for audio-session interruptions (lock screen, phone calls, AirPods disconnect), which the old check missed. Relaxed to "anything that isn't running," and added a `pageshow` listener for the iOS back-forward-cache case where `visibilitychange` doesn't fire. Calling `resume()` on a running context is a no-op so the change has zero blast radius for desktop. The user gesture on subsequent HOLD tap continues to provide the resume credential where iOS demands one.
+- Manual-lock suspend/resume voice-rebuild fallback (the heavier part of finding #1) is left for a follow-up — listening verification on this commit will tell us whether resume alone is sufficient or whether we need the rebuild path too.
+
 ## 1.20.20 — 2026-05-02
 
 - rename: "certified" → "tested" across the recent preset-quality-tag work. The author is the human listener, not a certifying authority — "tested" is the honest framing. `Preset.certifiedAt` → `testedAt`, `Preset.certHardware` → `testedHardware`. Tooltip "✓ Certified …" → "✓ Tested …". Picker badge class `preset-btn-cert` → `preset-btn-tested` (no CSS attached to the old name, so no style migration needed). The 6 preset entries from 1.20.14 updated atomically. The older `presetCertification.ts` listening-protocol devtool is unrelated and unchanged.

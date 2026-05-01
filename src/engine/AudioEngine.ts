@@ -170,11 +170,23 @@ export class AudioEngine {
     // when the device sleeps or the tab is backgrounded for too long.
     // No event fires on the context itself, so we listen for the page
     // becoming visible again and nudge the context back to "running".
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && this.ctx.state === "suspended") {
+    // iOS Safari uses an "interrupted" state in addition to "suspended"
+    // for audio session interruptions (lock screen, phone call, AirPods
+    // disconnect). Treat anything that isn't "running" as a candidate
+    // for resume() — calling resume on a running context is a no-op,
+    // calling it on interrupted/suspended will either succeed or
+    // require a user gesture (the HOLD tap then provides one). Also
+    // listen for `pageshow` because iOS sometimes fires that without
+    // visibilitychange when restoring from the back-forward cache.
+    const tryResume = () => {
+      if (this.ctx.state !== "running") {
         this.ctx.resume().catch(() => { /* user gesture may be needed */ });
       }
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") tryResume();
     });
+    window.addEventListener("pageshow", tryResume);
 
     if (typeof this.ctx.audioWorklet === "undefined") {
       // AudioWorklet shipped in Chrome 66 / Firefox 76 / Safari 14.1.
