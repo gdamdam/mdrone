@@ -1,0 +1,78 @@
+name: Stage hardening
+
+on:
+  workflow_dispatch:
+    inputs:
+      long_hold_ms:
+        description: "Long-hold duration per browser, in milliseconds"
+        required: false
+        default: "900000"
+  schedule:
+    # Daily at 08:00 UTC. This is deliberately separate from PR CI so
+    # browser-matrix burn-in does not slow normal development.
+    - cron: "0 8 * * *"
+
+jobs:
+  browser-matrix:
+    name: ${{ matrix.os }} / ${{ matrix.project }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            browser: chromium
+            project: chromium
+          - os: ubuntu-latest
+            browser: firefox
+            project: firefox
+          - os: macos-latest
+            browser: webkit
+            project: webkit
+          - os: windows-latest
+            browser: chromium
+            project: chromium
+          - os: windows-latest
+            browser: msedge
+            project: edge
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Playwright browser with Linux deps
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Install Playwright browser
+        if: runner.os != 'Linux'
+        run: npx playwright install ${{ matrix.browser }}
+
+      - name: Fast e2e on browser project
+        run: npm run test:e2e:all -- --project=${{ matrix.project }}
+
+      - name: Long-hold audio burn-in
+        env:
+          MDRONE_LONG_HOLD: "1"
+          LONG_HOLD_MS: ${{ github.event.inputs.long_hold_ms || '900000' }}
+          MDRONE_LONG_HOLD_PRESET: "High Shimmer"
+          MDRONE_LONG_HOLD_MAX_UNDERRUNS: "0"
+          MDRONE_LONG_HOLD_MAX_ADAPTIVE_STAGE: "1"
+          E2E_TEST_TIMEOUT_MS: "1200000"
+        run: npx playwright test e2e/audio-longhold.spec.ts --project=${{ matrix.project }}
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.os }}-${{ matrix.project }}
+          path: playwright-report/
+          retention-days: 14

@@ -19,7 +19,9 @@
     "preaudit:fingerprints": "tsc -p tsconfig.test.json && node scripts/fix-test-imports.mjs && node scripts/build-worklet.mjs",
     "audit:fingerprints": "node scripts/build-preset-fingerprints.mjs",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=chromium",
+    "test:e2e:all": "playwright test",
+    "test:e2e:long": "MDRONE_LONG_HOLD=1 playwright test e2e/audio-longhold.spec.ts",
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist --dotfiles -b gh-pages",
     "release": "node scripts/release.mjs"
