@@ -2,6 +2,16 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.9 — 2026-05-01
+
+- stage-hardening: relax CI underrun budget to 2, document schedule drift (836da05)
+- docs: stage-hardening — flake-vs-real triage and artifact-reading guide (718d5d5)
+- README: document stage hardening, segmented recording, preset cert (98f089a)
+- stage readiness: LIVE SAFE pill, cert listen-gate, segmented recording (4884460)
+- Add stage-hardening browser burn-in checks (b61389a)
+- about: rewrite around emergent melody concept (380e401)
+- worker: add README documenting routes, deploy, and diagnostics (a10932e)
+
 ## 1.20.8 — 2026-04-29
 
 - Revert "1.20.8 — intro tour: drop redundant WEATHER step" (1951bc1)
