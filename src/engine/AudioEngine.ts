@@ -311,9 +311,15 @@ export class AudioEngine {
       if (a > peak) peak = a;
     }
     const peakDb = peak > 0 ? 20 * Math.log10(peak) : -200;
+    // hasOutput is gated on ctx.state === "running" because the
+    // analyser's time-domain buffer keeps its last samples even
+    // when the context is suspended — without this gate, a stale
+    // pre-suspension buffer reads as "live" and produces misleading
+    // diagnostics. If ctx isn't running, audio cannot be live.
+    const ctxState = this.ctx.state;
     return {
-      ctxState: this.ctx.state,
-      hasOutput: peakDb > -60,
+      ctxState,
+      hasOutput: ctxState === "running" && peakDb > -60,
       peakDb,
     };
   }

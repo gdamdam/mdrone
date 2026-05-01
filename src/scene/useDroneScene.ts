@@ -425,6 +425,20 @@ export function useDroneScene({
     }
   }, [engine, freq, setPlaying, state.playing, intervals]);
 
+  /** Force-restart the drone by tearing down and re-spawning the
+   *  voice nodes with current scene parameters. No-op when not
+   *  playing. Used for iOS recovery: after the device returns from
+   *  lock screen, the AudioWorklet voices can end up in a zombie
+   *  state where the AudioContext reads "running" but no samples
+   *  reach the speakers; a stop+start at the engine level rebuilds
+   *  the voice graph. Doesn't toggle the playing flag — that stays
+   *  true throughout. Post-cert finding #1. */
+  const restartDrone = useCallback(() => {
+    if (!engine || !state.playing) return;
+    engine.stopDrone();
+    engine.startDrone(freq, intervals);
+  }, [engine, freq, intervals, state.playing]);
+
   const handlePreset = useCallback((presetId: string) => {
     const preset = PRESETS.find((p) => p.id === presetId);
     if (!preset) return;
@@ -757,6 +771,7 @@ export function useDroneScene({
     setClimate,
     toggleEffect,
     togglePlay,
+    restartDrone,
     handlePreset,
     getSnapshot,
     applySnapshot,

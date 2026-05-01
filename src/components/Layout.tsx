@@ -1015,9 +1015,26 @@ export function Layout({ engine, startupMode }: LayoutProps) {
    * second click acts" bug.
    */
   const handleUnlock = () => {
-    if (resumedRef.current) return;
-    resumedRef.current = true;
-    void engine.resume();
+    // First-touch unlock: ensures the AudioContext starts running on
+    // initial page load (browsers require a user gesture before
+    // audio plays). Idempotent — fires once.
+    if (!resumedRef.current) {
+      resumedRef.current = true;
+      void engine.resume();
+    }
+    // iOS suspend/resume recovery: if HOLD is on but the context
+    // isn't running (suspended/interrupted after lock screen or
+    // backgrounding), this pointerdown is the user gesture iOS
+    // requires to resume the audio session. Resume the context, then
+    // force-rebuild the voice graph since AudioWorklet voices can
+    // end up in a zombie state where the context is "running" but
+    // no samples reach the speakers. Post-cert finding #1 — see
+    // probeAudioPresence diagnostics in 1.20.23.
+    if (headerHolding && engine.ctx.state !== "running") {
+      void engine.resume().then(() => {
+        droneViewRef.current?.restartDrone();
+      });
+    }
   };
 
   return (

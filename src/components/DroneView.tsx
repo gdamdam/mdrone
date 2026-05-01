@@ -301,6 +301,10 @@ export interface DroneViewHandle {
    *  directly, which the scene reducer would overwrite on next sync). */
   setVoiceLevel(type: import("../engine/VoiceBuilder").VoiceType, level: number): void;
   togglePlay(): void;
+  /** Force-rebuild the voice graph in place (no playing-state toggle).
+   *  Used for iOS suspend/resume recovery after the AudioContext
+   *  returns from "interrupted/suspended" — voices may be zombie. */
+  restartDrone(): void;
   setRoot(root: PitchClass): void;
   /** User-originated tonic change (Header dropdown, MIDI note-on,
    *  QWERTY key). Identical to setRoot but advances the ARRIVE
@@ -360,6 +364,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     toggleEffect,
     displayEffects,
     togglePlay,
+    restartDrone,
     handlePreset,
     getSnapshot,
     applySnapshot,
@@ -917,6 +922,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     applyLivePatch,
     setVoiceLevel,
     togglePlay,
+    restartDrone,
     setRoot,
     setRootFromUser,
     setOctave,
@@ -938,6 +944,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setRootFromUser,
     startImmediate,
     togglePlay,
+    restartDrone,
     handlePreset,
     handleEffectReorder,
   ]);
