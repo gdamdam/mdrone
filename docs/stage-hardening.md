@@ -70,6 +70,49 @@ It exercises:
 Each job runs fast e2e for that browser project, then the long-hold audio
 burn-in. The workflow is intentionally separate from PR CI.
 
+### Keeping the nightly alive
+
+GitHub silently disables `schedule:` workflows on a repository after
+**60 days of inactivity** (no pushes, no manual workflow runs) on
+private repositories and forks. Public-repo behaviour is more
+forgiving but the same lever exists. If mdrone goes a quiet stretch,
+the daily stage-hardening run can stop without any notification —
+the CI badge stays green because there are simply no new runs to
+fail.
+
+How to check / mitigate:
+
+1. **Add the stage-hardening badge to README.md** so the lack of
+   recent runs is visible at a glance:
+   ```md
+   ![stage-hardening](https://github.com/<owner>/mdrone/actions/workflows/stage-hardening.yml/badge.svg)
+   ```
+   A disabled workflow shows the badge in a "no status" state on
+   GitHub, which is usefully different from "passing".
+2. **Verify the schedule is alive** before each release:
+   - Open the Actions tab → *Stage hardening* workflow.
+   - The "All workflows" sidebar shows a banner if the workflow
+     was auto-disabled.
+   - Check the most recent run timestamp — if older than 48h on a
+     repo that should be running daily, the schedule is stuck.
+3. **Re-enable** by either:
+   - Pushing any commit (a docs-only change is enough).
+   - Triggering a manual run via the *Run workflow* button — the
+     `workflow_dispatch:` event in `stage-hardening.yml` exists for
+     this. The manual run resets the inactivity counter for some
+     period.
+4. **Before a release**, manually dispatch the workflow with the
+   default `long_hold_ms: 900000` (or longer) and wait for the
+   matrix to come back green — don't trust "the badge looks fine"
+   if you can't tell whether nightly actually fired this week.
+
+If you find yourself fighting auto-disable repeatedly, that's a
+signal to either commit more often or switch to an external
+scheduler — but a no-op keepalive workflow is *not* recommended. It
+trades real signal (the workflow stopped) for nominal activity (a
+bot keeps it warm), and over time the keepalive becomes a thing you
+have to maintain too.
+
 ## Real Safari / iOS checklist
 
 Playwright WebKit is useful, but it is not the same as real Safari or iOS
@@ -122,11 +165,23 @@ nightly the same way:
    should still pass at zero.
 6. **Open the artifact** before you decide. See the next section.
 
-A reasonable rough budget for shared GitHub runners, calibrated from
-observed nightly data, is `MAX_UNDERRUNS ≤ 2 / 15 min`; treat 0 as
-the local-and-real-Safari target. We deliberately ship 0 in the
-defaults so the alert is loud — it's easier to relax a strict budget
-than to tighten a permissive one.
+The current calibration:
+
+- **Spec default** (`MDRONE_LONG_HOLD_MAX_UNDERRUNS=0`) — for local
+  burn-ins on a quiet machine and real-Safari manual checks. Any
+  underrun is a regression.
+- **CI workflow env** (`MDRONE_LONG_HOLD_MAX_UNDERRUNS=2`) — tolerated
+  budget on shared GitHub runners over the 15-minute hold. Two
+  underruns / 15 min absorbs typical hypervisor stalls and macOS
+  swap noise without hiding sustained problems. Set in
+  `.github/workflows/stage-hardening.yml`, not in the spec.
+
+The intent is "loud floor, calibrated CI ceiling" — it's easier to
+relax a strict budget than to tighten a permissive one, so the spec
+ships strict and the workflow relaxes per-environment with a comment.
+Revisit the CI budget after a few weeks of nightly data; if a single
+browser sustains > 2 underruns repeatedly, that's the build, not the
+runner.
 
 ## Reading the failure artifact
 

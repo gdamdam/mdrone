@@ -3,6 +3,7 @@
 <p align="center">
   <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/github/package-json/v/gdamdam/mdrone?color=blue&label=version" alt="Version"></a>
   <a href="https://github.com/gdamdam/mdrone/actions/workflows/ci.yml"><img src="https://github.com/gdamdam/mdrone/workflows/CI/badge.svg" alt="CI"></a>
+  <a href="https://github.com/gdamdam/mdrone/actions/workflows/stage-hardening.yml"><img src="https://github.com/gdamdam/mdrone/actions/workflows/stage-hardening.yml/badge.svg" alt="Stage hardening"></a>
   <a href="https://github.com/gdamdam/mdrone/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/Web%20Audio-API-FF6600" alt="Web Audio API">
   <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">

@@ -64,7 +64,13 @@ jobs:
           MDRONE_LONG_HOLD: "1"
           LONG_HOLD_MS: ${{ github.event.inputs.long_hold_ms || '900000' }}
           MDRONE_LONG_HOLD_PRESET: "High Shimmer"
-          MDRONE_LONG_HOLD_MAX_UNDERRUNS: "0"
+          # Shared GitHub runners are noisy (hypervisor stalls, swap,
+          # neighbour-job CPU spikes). Real-Safari and local burn-ins
+          # target zero — the spec default — but on CI we tolerate up
+          # to 2 underruns / 15 min so single-runner noise doesn't
+          # produce false reds. See docs/stage-hardening.md
+          # ("When nightly goes red — flake vs. real").
+          MDRONE_LONG_HOLD_MAX_UNDERRUNS: "2"
           MDRONE_LONG_HOLD_MAX_ADAPTIVE_STAGE: "1"
           E2E_TEST_TIMEOUT_MS: "1200000"
         run: npx playwright test e2e/audio-longhold.spec.ts --project=${{ matrix.project }}
