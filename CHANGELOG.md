@@ -2,6 +2,13 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.27 — 2026-05-02
+
+- ios: fix two issues from the 1.20.26 recovery flow on iPhone.
+  1. **StartGate Continue stuck on splash.** App's `onStart` was awaiting `engine.resume()` which can hang on iOS Safari in certain post-interruption states (a fresh AudioContext on a fresh page load is normally fine, but the user-facing tab can apparently retain a "no audio session available" lock from the previous interrupt). When `await` never resolves, `setStarted(true)` never fires and the user is stuck on StartGate. Both `StartGate` and `SharedSceneGate` `onStart` paths in `App.tsx` are now fire-and-forget — call `engine.resume().catch(...)` without awaiting, then `setStarted(true)` immediately. Layout's pointerdown handler retries resume on first tap, and the audioStuck overlay catches the case where it never works.
+  2. **Auto-resume HOLD fires on suspended ctx.** The 1.20.26 800 ms timeout that auto-presses HOLD post-recovery wasn't checking ctx state. If resume hadn't completed yet (or had silently failed), `togglePlay()` flipped the play state but no audio came out. Wrapped the togglePlay call in a `Promise.race([engine.resume(), 1500ms timeout])` so we wait for resume up to 1.5 s before firing, and proceed regardless after that — the audioStuck overlay still catches a permanently dead ctx.
+- ux: audioStuck overlay text dropped "by the lock screen" — backgrounding the app to check another one triggers the same recovery, the original wording was misleading.
+
 ## 1.20.26 — 2026-05-02
 
 - ios: cut audioStuck-overlay recovery from 3 taps to 2 by carrying the "we were playing" intent across the reload. The 1.20.25 reload-overlay landed the user back on the StartGate "Continue / New" splash (browser autoplay policy requires a fresh user gesture per page load — that's the unavoidable second tap), and from there they had to tap HOLD a third time to actually resume audio. Now: the overlay click writes `sessionStorage["mdrone-recover-resume"] = "1"` before `location.reload()`. Layout reads the flag once on mount, clears it, and schedules `droneViewRef.current?.togglePlay()` 800 ms later (delay gives `useDroneScene` time to restore the autosaved scene before HOLD fires, otherwise togglePlay would start with default scene). End-to-end recovery: tap overlay → tap StartGate Continue → audio resumes automatically. The autosaved scene is what was playing pre-interruption, so the user lands back on the same drone they had to abandon.

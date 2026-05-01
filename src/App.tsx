@@ -72,7 +72,12 @@ export function App() {
           onStart={async () => {
             trackEvent("share/loaded");
             const engine = getEngine();
-            await engine.resume();
+            // Fire-and-forget — `await` here can hang on iOS Safari in
+            // certain post-interruption states, leaving the user stuck
+            // on the gate. Layout's pointerdown handler retries
+            // resume() on first tap, and the audioStuck overlay
+            // catches the case where it never works.
+            engine.resume().catch(() => { /* ok, retried on tap */ });
             setStarted(true);
           }}
         />
@@ -84,7 +89,7 @@ export function App() {
         onStart={async (mode) => {
           setStartupMode(mode);
           const engine = getEngine();
-          await engine.resume();
+          engine.resume().catch(() => { /* ok, retried on tap */ });
           setStarted(true);
         }}
       />

@@ -129,19 +129,30 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // page, auto-trigger HOLD a moment after mount so the user lands
   // back in playing state with one tap (the StartGate "Continue"
   // they used to satisfy autoplay policy) instead of two. The flag
-  // is one-shot — read + cleared on first effect run. Delay gives
-  // useDroneScene time to apply the autosaved scene before HOLD
-  // fires; otherwise togglePlay would start with default scene.
+  // is one-shot — read + cleared on first effect run.
+  // Delay strategy:
+  //   - 800 ms gives useDroneScene time to apply the autosaved scene
+  //     before HOLD fires; otherwise togglePlay would start with the
+  //     default scene.
+  //   - Inside the timeout we await ctx.resume() with a 1500 ms cap
+  //     so we don't fire togglePlay against a suspended context (no
+  //     audio would actually play even though the play state flips).
+  //   - If resume never wins the race, togglePlay still fires and
+  //     handleUnlock + audioStuck will pick up the slack.
   useEffect(() => {
     let raw: string | null = null;
     try { raw = sessionStorage.getItem("mdrone-recover-resume"); } catch { /* ok */ }
     if (raw !== "1") return;
     try { sessionStorage.removeItem("mdrone-recover-resume"); } catch { /* ok */ }
-    const t = window.setTimeout(() => {
+    const t = window.setTimeout(async () => {
+      await Promise.race([
+        engine.resume().catch(() => undefined),
+        new Promise<void>((r) => window.setTimeout(r, 1500)),
+      ]);
       droneViewRef.current?.togglePlay();
     }, 800);
     return () => window.clearTimeout(t);
-  }, []);
+  }, [engine]);
 
   // iOS hard-recovery overlay. When the AudioContext is stuck in
   // a non-running state for >1 s while HOLD is on (typically after
@@ -1131,7 +1142,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           }}
         >
           <span style={{ fontSize: 48, lineHeight: 1, opacity: 0.85 }}>↻</span>
-          <span>Audio was interrupted by the lock screen.</span>
+          <span>Audio was interrupted.</span>
           <span style={{ opacity: 0.7, fontSize: 16 }}>
             Tap anywhere to restart — your scene will reload.
           </span>
