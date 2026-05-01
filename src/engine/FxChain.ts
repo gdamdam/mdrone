@@ -296,12 +296,16 @@ export class FxChain {
 
   private levels: Record<EffectId, number> = { ...ON_LEVELS };
   private delayFeedback = 0.58;
-  // Default lowered 0.68 → 0.55 (1.20.16) to give resonant peaks more
-  // headroom on harmonic-rich inputs. Combined with the feedback-path
-  // lowpass added in `wireComb`, this addresses the F3+shruti-box
-  // saturation pattern (post-cert finding #3) without removing COMB's
-  // resonant character entirely.
-  private combFeedback = 0.55;
+  // 1.20.17: lowered further 0.55 → 0.35 after offline measurement +
+  // listening confirmed the 1.20.16 fix (LP + 0.55) was insufficient.
+  // Comb peak amplification at the fundamental ≈ 1/(1-fb). At fb=0.55
+  // that's still +6.9 dB — enough for sustained drone input to build
+  // an audible whistle (Larsen-like) at higher pitches. At fb=0.35
+  // peak boost is +3.7 dB — character without self-resonance.
+  // Combined with the feedback-path 3 kHz lowpass (1.20.16), COMB is
+  // now a "color" effect on drones rather than a resonator. The user-
+  // facing max in setCombFeedback() is also capped at 0.50.
+  private combFeedback = 0.35;
   /** Audio-context time at which the most recent comb retune-flush
    *  is scheduled to finish ramping its feedback back up. Used by
    *  `setRootFreq` as a rapid-retune guard: while we're still inside
@@ -1523,11 +1527,13 @@ export class FxChain {
 
   // COMB
   setCombFeedback(fb: number): void {
-    // Cap at 0.92 (was 0.98). Root-tracked combs are particularly
-    // prone to ringing on retunes because the buffer keeps energy
-    // at the old root; 0.92 keeps the comb resonant without sitting
-    // right on the runaway edge.
-    this.combFeedback = Math.max(0, Math.min(0.92, fb));
+    // Cap at 0.50 (was 0.92). On sustained drone input the comb's
+    // self-resonance at the fundamental builds toward an audible
+    // whistle / Larsen tone above ~0.50; at 0.50 the fundamental
+    // peak amplification is +6 dB, the upper bound of "color" before
+    // it tips into "resonator." Below this, COMB is safe on any
+    // harmonic-rich sustained voice. Above, it will whistle.
+    this.combFeedback = Math.max(0, Math.min(0.50, fb));
     this.combFbGain.gain.setTargetAtTime(this.enabled.comb ? this.combFeedback : 0, this.ctx.currentTime, 0.1);
   }
   getCombFeedback(): number { return this.combFeedback; }
