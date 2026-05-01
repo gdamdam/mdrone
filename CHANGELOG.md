@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.23 — 2026-05-02
+
+- diagnostics: in-app iOS lifecycle probe (post-cert finding #1, instrumentation step). 1.20.21's wake-lock + interrupted-state handling didn't fix the iPhone case — locking the phone or backgrounding the app still kills audio on return, with the CPU sticker blinking from buffer starvation. Without console access on the phone we can't tell which failure mode we're in (ctx never reaches running, ctx running but voices silent, ctx running + voices producing but audio session lost). This commit instruments the visibility return so we can see the engine state from the device. Opt-in via `?ios-diag=1` URL param so it only runs during debug. When enabled and HOLD is on at visibility return, samples `ctx.state` immediately, calls the existing resume path, then 600 ms later samples again plus a master-bus peak read; surfaces the result as a notification toast: `iOS-diag: ctx ${pre}→${post} · out ${live|silent} (peak ${dB})`. Adds `engine.probeAudioPresence()` (cheap analyser read; no side effects). Result drives the next iteration: ctx-stuck → context rebuild; voices-silent → voice rebuild fallback; output-route-lost → tap-to-resume affordance.
+
 ## 1.20.22 — 2026-05-02
 
 - ci: rebaseline tests after the 1.20.13 / 1.20.15 / 1.20.17 voice + COMB changes. The deploy workflow runs lint + typecheck + node-test + vitest before publishing to gh-pages, and three CI gates have been silently failing since 1.20.13 — explaining why the published build still showed an older version. Three test fixes:

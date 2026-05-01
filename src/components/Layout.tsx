@@ -87,6 +87,44 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
   const [headerOctave, setHeaderOctave] = useState(2);
   const [headerHolding, setHeaderHolding] = useState(false);
+  // iOS lifecycle diagnostic — when the tab returns to visible while
+  // HOLD is on, sample the engine state before and after the resume
+  // attempt and surface it as an info toast. This is a debug aid for
+  // post-cert finding #1: without console access on the phone, this
+  // is how we figure out which case we're in (ctx never reaches
+  // running, ctx running but voices silent, etc.) so the next fix
+  // targets the real failure mode. Auto-disables itself once we know
+  // — toggle by adding `?ios-diag=1` to the URL.
+  const iosDiagEnabled = typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("ios-diag");
+  useEffect(() => {
+    if (!iosDiagEnabled) return;
+    let mounted = true;
+    const onVis = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!headerHolding) return;
+      const pre = engine.probeAudioPresence();
+      window.setTimeout(() => {
+        if (!mounted) return;
+        const post = engine.probeAudioPresence();
+        const msg =
+          `iOS-diag: ctx ${pre.ctxState}→${post.ctxState} · ` +
+          `out ${post.hasOutput ? "live" : "silent"} ` +
+          `(peak ${post.peakDb.toFixed(0)} dB)`;
+        // eslint-disable-next-line no-console
+        console.warn(`[mdrone:ios-diag] ${msg}`);
+        showNotification(msg, post.hasOutput ? "info" : "warning");
+      }, 600);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pageshow", onVis);
+    return () => {
+      mounted = false;
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", onVis);
+    };
+  }, [iosDiagEnabled, engine, headerHolding]);
+
   // Screen wake lock while playing — prevents iPhone (and any other
   // device that supports the Wake Lock API) from auto-locking during a
   // long listen. The OS releases the sentinel when the tab is

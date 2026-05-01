@@ -293,6 +293,31 @@ export class AudioEngine {
 
   isPlaying(): boolean { return this.voiceEngine.isPlaying(); }
 
+  /** Diagnostic snapshot for iOS suspend/resume debugging.
+   *  Returns the AudioContext's current lifecycle state and whether
+   *  the master bus is producing audible samples right now (peak
+   *  measured from the master analyser's time-domain buffer).
+   *  Used by Layout's visibilitychange handler to surface what
+   *  state the engine is in after returning from lock/background
+   *  on iOS — see post-cert finding #1.
+   *  Cheap, side-effect free; safe to call any time. */
+  probeAudioPresence(): { ctxState: string; hasOutput: boolean; peakDb: number } {
+    const analyser = this.masterBus.getAnalyser();
+    const buf = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(buf);
+    let peak = 0;
+    for (let i = 0; i < buf.length; i++) {
+      const a = Math.abs(buf[i]);
+      if (a > peak) peak = a;
+    }
+    const peakDb = peak > 0 ? 20 * Math.log10(peak) : -200;
+    return {
+      ctxState: this.ctx.state,
+      hasOutput: peakDb > -60,
+      peakDb,
+    };
+  }
+
   resume(): Promise<void> {
     if (this.ctx.state === "suspended") return this.ctx.resume();
     return Promise.resolve();
