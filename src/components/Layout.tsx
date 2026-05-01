@@ -87,6 +87,34 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
   const [headerOctave, setHeaderOctave] = useState(2);
   const [headerHolding, setHeaderHolding] = useState(false);
+  // Engine state-convergence window. True for ~10s after HOLD turns on
+  // so the HOLD button can pulse, signalling that delay lines + feedback
+  // states are still settling. Post-cert finding #4 — pushing macros
+  // fast inside this window produces audible artifacts; this is the
+  // UX side of "engine settling," not a DSP fix.
+  const [headerWarming, setHeaderWarming] = useState(false);
+  const warmingTimeoutRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (warmingTimeoutRef.current != null) {
+      window.clearTimeout(warmingTimeoutRef.current);
+      warmingTimeoutRef.current = null;
+    }
+    if (headerHolding) {
+      setHeaderWarming(true);
+      warmingTimeoutRef.current = window.setTimeout(() => {
+        setHeaderWarming(false);
+        warmingTimeoutRef.current = null;
+      }, 10_000);
+    } else {
+      setHeaderWarming(false);
+    }
+    return () => {
+      if (warmingTimeoutRef.current != null) {
+        window.clearTimeout(warmingTimeoutRef.current);
+        warmingTimeoutRef.current = null;
+      }
+    };
+  }, [headerHolding]);
   const [headerTuneHint, setHeaderTuneHint] = useState<string | null>(null);
   const [headerVolume, setHeaderVolume] = useState<number>(() => engine.getMasterVolume());
   const [shareOpen, setShareOpen] = useState(false);
@@ -942,6 +970,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onChangeOctave={(o) => droneViewRef.current?.setOctave(Math.max(1, Math.min(6, o)))}
         onToggleHold={handleToggleHold}
         holding={headerHolding}
+        warming={headerWarming}
         onOpenShare={() => setShareOpen(true)}
         onRandomScene={sceneManager.handleRandomScene}
         onOpenPresets={() => droneViewRef.current?.openPresets()}

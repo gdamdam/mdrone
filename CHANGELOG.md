@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.19 — 2026-05-02
+
+- ux: HOLD button breathes gently for ~10s after pressing play (post-cert finding #4). Drone DSP needs ~10s to settle delay lines, feedback states, and oversamplers; pushing macros fast inside that window produces audible "frr" artifacts that go away once the engine has converged. This isn't a DSP bug — it's intrinsic to feedback-rich audio — so the fix is communication, not engine work. Added a `header-hold-btn-warming` class with a 4×2.5s opacity pulse (1.0 → 0.72 → 1.0) that auto-clears after 10s. Tooltip changes during the window to "Engine warming up — let it settle for ~10s before pushing macros." Respects `prefers-reduced-motion`. Implementation: `headerWarming` state + cleanup timer in `Layout.tsx`, optional `warming` prop on `Header`, single CSS keyframe block. Triggers on HOLD on/off only — preset-switch settling can land in a follow-up if it turns out to need its own indicator.
+
 ## 1.20.18 — 2026-05-02
 
 - mix: per-preset gain compensation for voice-trim spillover (post-cert finding #6, plan 2). The 1.20.13 TANPURA −6 dB and 1.20.15 AMP −4 dB voice trims fixed real loudness imbalances at the voice level but dropped any preset using those voices proportionally — some by more than the trim itself depending on voice mix. Three presets had been authored at polite-middle loudness (−28 to −32 LUFS) and were inadvertently dropped to the quiet group: `hollow-drone` −32.1 → −36.1, `sitar-sympathy` −29.9 → −35.8, `coil-time-machines` −28.9 → −31.9. Compensated each via per-preset `gain` field bumps using the audit-measured drop: `hollow-drone` 0.34 → 0.54 (+4 dB), `coil-time-machines` 0.19 → 0.27 (+3 dB), `sitar-sympathy` 0.85 → 1.67 (+5.9 dB). Re-audit confirms each lands exactly on its pre-trim target. Plan 2 (selective): the three "authored quiet" presets (`doom-bloom`, `wiese-baraka`, `alice-coltrane-devotional`) are left alone — they were already in the quiet group and the additional 3–5 dB drop doesn't break their identity. `sunn-amp-drone` is also untouched — its 1.20.15 drop was the point of the AMP trim.

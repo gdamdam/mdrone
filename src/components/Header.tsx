@@ -49,6 +49,11 @@ interface HeaderProps {
   onChangeOctave: (octave: number) => void;
   onToggleHold: () => void;
   holding: boolean;
+  /** True while the engine is in its first ~10s after pressing HOLD —
+   *  delay lines, feedback states, and oversamplers are still settling.
+   *  Surface as a subtle pulse on the HOLD button so users know not to
+   *  push macros fast yet (post-cert finding #4). */
+  warming?: boolean;
   onOpenShare: () => void;
   onRandomScene: () => void;
   /** Tapping the scene marquee (preset name display) expands the
@@ -124,6 +129,7 @@ export function Header({
   octave,
   onToggleHold,
   holding,
+  warming = false,
   onOpenShare,
   onRandomScene,
   onOpenPresets,
@@ -469,9 +475,13 @@ export function Header({
         <button
           data-tutor="hold"
           data-midi-id="hold"
-          className={holding ? "header-hold-btn header-hold-btn-active" : "header-hold-btn"}
+          className={[
+            "header-hold-btn",
+            holding ? "header-hold-btn-active" : "",
+            warming && holding ? "header-hold-btn-warming" : "",
+          ].filter(Boolean).join(" ")}
           onClick={onToggleHold}
-          title={holding ? "Release the drone" : "Hold the current tonic"}
+          title={holding ? (warming ? "Engine warming up — let it settle for ~10s before pushing macros" : "Release the drone") : "Hold the current tonic"}
           aria-label={holding ? `Release drone (tonic ${tonic}${octave})` : `Hold drone (tonic ${tonic}${octave})`}
           aria-pressed={holding}
         >

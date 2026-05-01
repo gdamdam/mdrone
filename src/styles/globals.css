@@ -2575,6 +2575,21 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   border-color: color-mix(in srgb, var(--preview) 65%, var(--border));
 }
 
+/* State-convergence pulse — runs for ~10s after HOLD turns on so the
+   button breathes gently while the engine settles delay lines and
+   feedback states. Composes with -active: warming only happens while
+   holding=true. Post-cert finding #4. */
+@keyframes hold-warming-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.72; }
+}
+.header-hold-btn-warming {
+  animation: hold-warming-pulse 2.5s ease-in-out 4 forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .header-hold-btn-warming { animation: none; }
+}
+
 .header-hold-btn-active {
   /* Performance-armed state — vertical gradient + inner highlight
      give the button volumetric depth so it reads as physical
