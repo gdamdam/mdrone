@@ -3437,8 +3437,11 @@ export function applyPreset(engine: AudioEngine | null, preset: Preset, ui: Pres
     engine.setFmIndex?.(preset.fmIndex ?? 2.4);
     engine.setFmFeedback?.(preset.fmFeedback ?? 0);
     // Resonant-comb feedback — reset each preset so a hot previous
-    // scene doesn't leak. Default 0.68 matches FxChain's initial value.
-    engine.setCombFeedback?.(preset.combFeedback ?? 0.68);
+    // scene doesn't leak. Default 0.55 matches FxChain's lowered
+    // initial value (1.20.16: dropped 0.68 → 0.55 alongside a
+    // feedback-path lowpass to address F3+shruti-box harmonic-stack
+    // saturation per post-cert finding #3).
+    engine.setCombFeedback?.(preset.combFeedback ?? 0.55);
     // Parallel reverb send levels — reset every preset so stale sends
     // from a previous scene don't leak through.
     engine.setParallelSends(preset.parallelSends ?? {});

@@ -296,7 +296,12 @@ export class FxChain {
 
   private levels: Record<EffectId, number> = { ...ON_LEVELS };
   private delayFeedback = 0.58;
-  private combFeedback = 0.68;
+  // Default lowered 0.68 → 0.55 (1.20.16) to give resonant peaks more
+  // headroom on harmonic-rich inputs. Combined with the feedback-path
+  // lowpass added in `wireComb`, this addresses the F3+shruti-box
+  // saturation pattern (post-cert finding #3) without removing COMB's
+  // resonant character entirely.
+  private combFeedback = 0.55;
   /** Audio-context time at which the most recent comb retune-flush
    *  is scheduled to finish ramping its feedback back up. Used by
    *  `setRootFreq` as a rapid-retune guard: while we're still inside
@@ -639,6 +644,19 @@ export class FxChain {
     dcBlock.type = "highpass";
     dcBlock.frequency.value = 25;
 
+    // Feedback-path lowpass — attenuates higher harmonics on each
+    // iteration so the resonant peaks at 4×, 5×, 6× root don't pile up
+    // when input has broadband harmonic content. Without this, a
+    // harmonic-rich voice (reed at F3 in shruti-box) sees every
+    // harmonic land on a comb resonance peak and the cumulative
+    // amplification reads as audible saturation. 3 kHz cutoff, gentle
+    // Q ~0.7 — keeps the fundamental and first 2-3 harmonics resonant
+    // for COMB's musical character, dampens the survivors.
+    const fbLP = ctx.createBiquadFilter();
+    fbLP.type = "lowpass";
+    fbLP.frequency.value = 3000;
+    fbLP.Q.value = 0.7;
+
     // Soft clipper inside the feedback loop — prevents runaway energy
     // from re-entering the delay. Without this, the 0.85 fixed feedback
     // would let resonant peaks build exponentially until they clipped
@@ -655,6 +673,7 @@ export class FxChain {
     ins.insertIn.connect(this.combDelay);
     this.combDelay
       .connect(dcBlock)
+      .connect(fbLP)
       .connect(fbClip)
       .connect(this.combFbGain)
       .connect(this.combDelay);
