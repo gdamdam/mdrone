@@ -2,6 +2,16 @@
 // Prototype extensions on DroneVoiceProcessor; concatenated
 // after core.js by scripts/build-worklet.mjs.
 
+// Per-voice loudness trim. Applied at output write so all AMP-using
+// presets shift uniformly. AMP voice intrinsic gain was tuned for peak
+// headroom, not equal-loudness parity — `sunn-amp-drone` measured at
+// -23.1 LUFS (1.20.14 audit), the 4th-loudest preset, ~5-9 dB above
+// the polite -28 to -32 LUFS middle. -4 dB (x0.63) lands sunn-amp-drone
+// at the edge of polite range without overshooting AMP's harmonic
+// identity (less concentrated in 2-8 kHz than tanpura's jawari, so a
+// smaller trim than TANPURA_INTRINSIC_GAIN = 0.5).
+const AMP_INTRINSIC_GAIN = 0.63;
+
 DroneVoiceProcessor.prototype.initAmp = function() {
     this.ampN = 6;
     this.ampAmps      = new Float32Array([1.0, 0.55, 0.38, 0.22, 0.14, 0.08]);
@@ -147,7 +157,7 @@ DroneVoiceProcessor.prototype.ampProcess = function(L, R, n, freq, drift, amp) {
       // of the two-stage cascade.
       this.ampSpkFbL = this.ampCab2L;
       this.ampSpkFbR = this.ampCab2R;
-      L[i] = this.ampCab2L * amp;
-      R[i] = this.ampCab2R * amp;
+      L[i] = this.ampCab2L * amp * AMP_INTRINSIC_GAIN;
+      R[i] = this.ampCab2R * amp * AMP_INTRINSIC_GAIN;
     }
 };
