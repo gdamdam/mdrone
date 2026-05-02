@@ -2,6 +2,13 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.35 — 2026-05-02
+
+- identity: single-sentence product positioning landed in two places (post-cert "drone instrument, not content tool" framing, lightest possible identity move).
+  - **README top tagline** now reads: *"mdrone is a microtonally honest drone instrument."* + a follow-on line *"Eight hand-authored instruments combined into one sustained voice. Hold it for an hour on stage or in headphones, in any browser."* Replaces the previous three-verb mantra ("Hold a note. Shape the air. Save the atmosphere."). Commits to the category and the use case in one sentence — visitor's first read is now an instrument identity, not a feature menu.
+  - **DroneView voice-picker label** changed: *"Voice models — combine for texture"* → *"Instruments — combine eight voices into one drone."* Matches the README sentence so the UI text and the marketing copy say the same thing about what the voices are.
+- Skipped any voice-mixer reordering / hero-voice promotion (option C from this morning's identity scoring discussion). Capability and UI surface unchanged below the label.
+
 ## 1.20.34 — 2026-05-02
 
 - docs: refresh `public/about.html` claims to match codebase reality.

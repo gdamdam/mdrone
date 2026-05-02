@@ -1683,7 +1683,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             strip. ADVANCED tier (tuning + LFO) remains collapsible. */}
         <div className="timbre-fx-row">
           <div className="timbre-col">
-            <div className="panel-hint">Voice models — combine for texture</div>
+            <div className="panel-hint">Instruments — combine eight voices into one drone</div>
             <div className="timbre-grid timbre-grid-compact">
               {VOICES.map((v) => {
                 const active = state.voiceLayers[v.id];
