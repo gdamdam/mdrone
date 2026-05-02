@@ -2,6 +2,16 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.34 — 2026-05-02
+
+- docs: refresh `public/about.html` claims to match codebase reality.
+  - "Twenty-two tuning systems" → "Twenty-six" (in both the Tune quadrant and the Why-microtonal primer). Reality: 6 builtin + 20 authored = 26 (`microtuning.ts`).
+  - Glossary "22 systems" → "26 systems".
+  - "14-stage chain" → "15-stage chain": added `halo` to the FX list (`EffectId` in `FxChain.ts` includes 15 entries — the about copy was missing it).
+  - "56 scenes" → "61 scenes" (`grep -c 'id: "' src/engine/presets.ts` = 61). Added a sentence noting six are tested via the hands-and-ears protocol on Apple Silicon.
+  - "Keep & share" → "Keep & link"; description tightened to mention the auto-shorten via `s.mdrone.org` relay (matches the LINK button + 1.20.31 shortener gating + 1.20.33 README/HelpModal docs).
+  - "~46 CC targets" → "~52 CC targets" (`grep -c 'id: "' midiMapping.ts` = 52).
+
 ## 1.20.33 — 2026-05-02
 
 - docs: README + HelpModal updated to match the post-1.20.28 share model.
