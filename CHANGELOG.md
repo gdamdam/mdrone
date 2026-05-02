@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.31 — 2026-05-02
+
+- ux: ensure the LINK modal actually serves the short URL when the user copies. The shortener fetch was always firing, but `busy` only tracked the scene-build step, not the shortener — so users could click COPY in the gap between scene-build (busy=false) and shortener-resolve (no signal), getting the long URL on the clipboard. Added a separate `shortBusy` flag tied to the `shortenSceneUrl(url)` promise lifecycle: COPY LINK / SHARE… buttons stay disabled, the link-meta shows "shortening...", and the readout swaps to the short URL the moment it's in. If the relay is offline (or the request times out at 5 s) the long URL is the honest fallback and the buttons re-enable on shortener completion either way.
+
 ## 1.20.30 — 2026-05-02
 
 - header polish, follow-up to 1.20.29:

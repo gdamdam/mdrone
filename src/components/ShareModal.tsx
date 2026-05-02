@@ -26,6 +26,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
   const [showLongUrl, setShowLongUrl] = useState(false);
   const shortCacheRef = useRef<Map<string, { short: string; id: string }>>(new Map());
   const [busy, setBusy] = useState(true);
+  const [shortBusy, setShortBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -65,17 +66,22 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
   useEffect(() => {
     if (!url) {
       setShortInfo(null);
+      setShortBusy(false);
       return;
     }
     const cached = shortCacheRef.current.get(url);
     if (cached) {
       setShortInfo(cached);
+      setShortBusy(false);
       return;
     }
     setShortInfo(null);
+    setShortBusy(true);
     let cancelled = false;
     void shortenSceneUrl(url).then((result) => {
-      if (cancelled || !result) return;
+      if (cancelled) return;
+      setShortBusy(false);
+      if (!result) return;
       const entry = { short: result.short, id: result.id };
       shortCacheRef.current.set(url, entry);
       setShortInfo(entry);
@@ -204,7 +210,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
                   </button>
                 )}
                 <span className="fx-modal-param-value">
-                  {busy ? "building..." : copied ? "copied" : ""}
+                  {busy ? "building..." : shortBusy ? "shortening..." : copied ? "copied" : ""}
                 </span>
               </span>
             </span>
@@ -218,11 +224,11 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
         </div>
 
         <div className="fx-modal-actions">
-          <button className="header-btn" onClick={copyLink} disabled={busy || !url}>
+          <button className="header-btn" onClick={copyLink} disabled={busy || shortBusy || !url}>
             {copied ? "COPIED" : "COPY LINK"}
           </button>
           {canNativeShare && (
-            <button className="header-btn" onClick={nativeShare} disabled={busy || !url}>
+            <button className="header-btn" onClick={nativeShare} disabled={busy || shortBusy || !url}>
               SHARE…
             </button>
           )}
