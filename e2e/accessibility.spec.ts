@@ -57,7 +57,7 @@ test("Escape closes the Share modal and restores focus to opener", async ({ page
   await page.goto("/");
   await dismissStartGate(page);
 
-  const shareBtn = page.getByRole("button", { name: /share/i }).first();
+  const shareBtn = page.getByRole("button", { name: /copy scene link/i }).first();
   await shareBtn.click();
 
   const dialog = page.getByRole("dialog").first();

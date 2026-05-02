@@ -174,7 +174,7 @@ test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, br
   await page.locator(".tonic-key[aria-label='D']").first().click();
 
   // Open the share modal from the header action bar.
-  await page.getByRole("button", { name: /share/i }).first().click();
+  await page.getByRole("button", { name: /copy scene link/i }).first().click();
 
   // The share URL is computed async (CompressionStream), so the
   // readonly textarea starts empty and populates once encoding lands.

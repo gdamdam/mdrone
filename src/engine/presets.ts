@@ -3138,7 +3138,6 @@ export function mutateScene(
     lfoRate: jRange(current.lfoRate, 0.05, 8),
     lfoAmount: j01(current.lfoAmount),
     presetMorph: j01(current.presetMorph),
-    evolve: j01(current.evolve),
     pluckRate: jRange(current.pluckRate, 0.2, 4),
     // NOISE COLOR — jitter gently within the same color family so
     // mutated scenes don't jump from white to sub-rumble.

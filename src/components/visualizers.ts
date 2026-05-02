@@ -1311,13 +1311,13 @@ export function drawWaveformRing(
   a: AudioFrame,
   p: PhaseClock,
 ): void {
-  // Motion-blur fade — dt-scaled and aggressive enough that even a
-  // severely-throttled captureStream (pop-out fullscreen on a
-  // second monitor can push rAF down to ~1 Hz) clears accumulated
-  // strokes instead of piling them into a solid ring. At 60 fps
-  // (dtScale ≈ 1) ~45% erased per frame; at 30 fps ~70%; at 1 fps
-  // (dtScale clamped to 4.8) ~96% — effectively a full clear.
-  const BASE_FADE = 0.45;
+  // Motion-blur fade — slow trails matching WeatherPad's waveform
+  // ring (~8% erased per frame at 60 fps), so each frame's ring
+  // leaves a halo of decaying past rings. dt-scaled, so a heavily
+  // throttled captureStream (pop-out fullscreen → ~1 Hz rAF, with
+  // dtScale clamped near 4.8) still clears at ~33% per frame
+  // instead of accumulating into a solid disc.
+  const BASE_FADE = 0.08;
   const fade = Math.min(1, 1 - Math.pow(1 - BASE_FADE, p.dtScale ?? 1));
   ctx.globalCompositeOperation = "destination-out";
   ctx.globalAlpha = fade;
@@ -1329,42 +1329,40 @@ export function drawWaveformRing(
   const cy = h / 2;
   const rms = a.rms;
   const maxR = Math.min(w, h) * 0.38;
-  const baseR = maxR * Math.min(1, rms * 2.5); // radius proportional to volume
-  if (baseR < 3) return;
+  // Match WeatherPad's waveform ring: 6px floor so the ring stays
+  // legible at low volume, and a fixed-pixel additive deflection so
+  // wave detail reads at any RMS instead of collapsing into a dot.
+  const baseR = Math.min(maxR, 6 + rms * maxR * 0.9);
 
   const wave = a.waveform;
   if (!wave) return;
   const samples = wave.length;
-  const step = Math.max(1, Math.floor(samples / 180));
+  const step = Math.max(1, Math.floor(samples / 128));
 
   // Main waveform ring
   ctx.beginPath();
-  for (let i = 0; i < 180; i++) {
+  for (let i = 0; i < 128; i++) {
     const si = i * step;
     const v = (wave[si] - 128) / 128;
-    const angle = (i / 180) * Math.PI * 2 - Math.PI / 2;
-    const r = baseR + v * baseR * 0.35;
+    const angle = (i / 128) * Math.PI * 2 - Math.PI / 2;
+    const r = baseR + v * 25 * (1 + rms);
     const px = cx + Math.cos(angle) * r;
     const py = cy + Math.sin(angle) * r;
     if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   }
   ctx.closePath();
-  ctx.strokeStyle = `rgba(240, 205, 140, ${(0.6 + rms * 0.35).toFixed(3)})`;
-  ctx.lineWidth = 1.5 + rms;
+  // Match WeatherPad: warm-grey stroke at constant 1.5px, alpha
+  // tracks RMS so quiet passages stay readable without overpowering.
+  ctx.strokeStyle = `rgba(200, 200, 200, ${(0.4 + rms * 0.4).toFixed(3)})`;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Inner ghost ring — steady reference (parchment amber)
+  // Inner steady ring — white reference, matches WeatherPad
   ctx.beginPath();
-  ctx.arc(cx, cy, baseR * 0.4, 0, Math.PI * 2);
-  ctx.strokeStyle = `rgba(190, 160, 115, ${(0.12 + rms * 0.18).toFixed(3)})`;
-  ctx.lineWidth = 0.6;
+  ctx.arc(cx, cy, baseR * 0.3, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${(0.15 + rms * 0.2).toFixed(3)})`;
+  ctx.lineWidth = 0.8;
   ctx.stroke();
-
-  // Centre dot
-  ctx.beginPath();
-  ctx.arc(cx, cy, 1.5 + rms * 2, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(245, 215, 160, ${(0.35 + rms * 0.4).toFixed(3)})`;
-  ctx.fill();
 }
 
 

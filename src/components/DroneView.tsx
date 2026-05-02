@@ -530,9 +530,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
   const DISCLOSURE_KEY = "mdrone-disclosure";
-  type Section = "presets" | "tuning" | "detune";
+  type Section = "presets" | "tuning" | "detune" | "perform";
   const defaultDisclosure: Record<Section, boolean> = {
-    presets: false, tuning: false, detune: false,
+    presets: false, tuning: false, detune: false, perform: true,
   };
   const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
     try {
@@ -1333,6 +1333,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             />
           </Suspense>
         )}
+        <button
+          className="disclosure-toggle disclosure-toggle-wide"
+          onClick={() => toggle("perform")}
+          aria-expanded={disclosed.perform}
+        >
+          <span className="disclosure-arrow">{disclosed.perform ? "▾" : "▸"}</span>
+          PERFORM
+        </button>
+        {disclosed.perform && (
         <div className="weather-macro-row">
           <WeatherPad
             climateX={state.climateX}
@@ -1727,13 +1736,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 at the top of this view per layout pass (P2.3). */}
           </div>
         </div>
+        )}
 
         {/* ── TIMBRE + EFFECTS — always visible. Part of the MAIN
             tier (performance surface) alongside SHAPE and the preset
             strip. ADVANCED tier (tuning + LFO) remains collapsible. */}
         <div className="timbre-fx-row">
           <div className="timbre-col">
-            <div className="panel-hint">Instruments — combine eight voices into one drone</div>
+            <div className="panel-label">INSTRUMENTS</div>
             <div className="timbre-grid timbre-grid-compact">
               {VOICES.map((v) => {
                 const active = state.voiceLayers[v.id];

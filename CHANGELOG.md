@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.21.0 — 2026-05-02
+
+- ui: tune+relation label left of Hz in preset strip (5f08956)
+
 ## 1.20.37 — 2026-05-01
 
 - ui: preset strip readout now shows the active microtonal tune + relation to the left of the Hz number — e.g. `OTONAL · STACK · F#2 · 92.5 Hz`. Hidden when no tuning/relation is set, hidden on mobile (parent already display:none ≤720px). Same dim gray as the Hz value, uppercase + tracking. Per-id short-label maps (scoped to this readout only) keep long names from overflowing: `Otonal 16:32 (zero-beat reference)` → `OTONAL`, `Tonic + Fifth` → `5TH`, `Harmonic Stack` → `STACK`. Dropdowns and tutorial copy keep full labels.
