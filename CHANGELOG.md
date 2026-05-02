@@ -2,6 +2,11 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.37 — 2026-05-01
+
+- ui: preset strip readout now shows the active microtonal tune + relation to the left of the Hz number — e.g. `OTONAL · STACK · F#2 · 92.5 Hz`. Hidden when no tuning/relation is set, hidden on mobile (parent already display:none ≤720px). Same dim gray as the Hz value, uppercase + tracking. Per-id short-label maps (scoped to this readout only) keep long names from overflowing: `Otonal 16:32 (zero-beat reference)` → `OTONAL`, `Tonic + Fifth` → `5TH`, `Harmonic Stack` → `STACK`. Dropdowns and tutorial copy keep full labels.
+- tunings: renamed `mdrone Signature (just × 31-TET)` → `just × 31-TET`. Tutorial flow copy updated to match.
+
 ## 1.20.36 — 2026-05-02
 
 - copy: dropped "honest" from the README product sentence per user feedback — "microtonally honest" reads as self-promotional. Now reads simply *"mdrone is a microtonal drone instrument."* No other user-facing copy in README, about.html, or HelpModal used the word; engineering code comments (DSP intent) keep their internal "honest" usage.

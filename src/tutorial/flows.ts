@@ -81,7 +81,7 @@ const ADVANCED: Flow = {
       id: "tuning",
       selector: '[data-tutor="tuning-picker"]',
       title: "3 — Or pick a TUNING",
-      body: "In MICROTONAL mode: Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, mdrone Signature — each retunes every interval live. The relation picker on the right chooses which degrees sound.",
+      body: "In MICROTONAL mode: Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, just × 31-TET — each retunes every interval live. The relation picker on the right chooses which degrees sound.",
     },
     {
       id: "lfo",

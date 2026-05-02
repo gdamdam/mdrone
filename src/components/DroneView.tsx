@@ -1194,6 +1194,56 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             </button>
           </div>
           <span className="preset-strip-tonic">
+            {modeIsMicro && (() => {
+              const tuning = TUNINGS.find((t) => t.id === state.tuningId);
+              const relation = RELATIONS.find((r) => r.id === state.relationId);
+              if (!tuning || !relation) return null;
+              const tuningShort: Record<string, string> = {
+                equal: "12-TET",
+                just5: "Just 5",
+                meantone: "Meantone",
+                harmonics: "Harmonics",
+                "maqam-rast": "Rast",
+                slendro: "Slendro",
+                "custom:young-wtp": "Young WTP",
+                "custom:just7": "Just 7",
+                "custom:partch-11": "Partch 11",
+                "custom:15-tet": "15-TET",
+                "custom:pythagorean": "Pythagorean",
+                "custom:kirnberger-iii": "Kirnberger",
+                "custom:werckmeister-iii": "Werckmeister",
+                "custom:17-tet": "17-TET",
+                "custom:19-tet": "19-TET",
+                "custom:22-edo": "22-EDO",
+                "custom:31-tet": "31-TET",
+                "custom:yaman": "Yaman",
+                "custom:pelog": "Pelog",
+                "custom:bayati": "Bayati",
+                "custom:otonal-16-32": "Otonal",
+                "custom:spectral-primes": "Spectral",
+                "custom:skewed-pythagorean": "Skewed",
+                "custom:cluster-sruti": "Cluster",
+                "custom:hollow-fifth": "Hollow",
+                "custom:mdrone-signature": "Just×31-TET",
+              };
+              const relationShort: Record<string, string> = {
+                unison: "Unison",
+                "tonic-fifth": "5th",
+                "tonic-fourth": "4th",
+                "minor-triad": "Min triad",
+                "drone-triad": "Triad",
+                "harmonic-stack": "Stack",
+              };
+              const fallback = (s: string) => s.replace(/\s*\([^)]*\)\s*/g, "").trim();
+              const tLabel = tuningShort[tuning.id] ?? fallback(tuning.label);
+              const rLabel = relationShort[relation.id] ?? fallback(relation.label);
+              return (
+                <>
+                  <span className="preset-strip-tune">{tLabel} · {rLabel}</span>
+                  {" · "}
+                </>
+              );
+            })()}
             {state.root}{state.octave} · {(() => {
               const idx = PITCH_CLASSES.indexOf(state.root);
               const semi = idx - 9 + (state.octave - 4) * 12;

@@ -735,6 +735,11 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-left: auto;
 }
 
+.preset-strip-tune {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .preset-strip-morph {
   padding: 3px 8px;
   border-radius: 5px;

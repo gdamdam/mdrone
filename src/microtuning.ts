@@ -315,7 +315,7 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
   },
   {
     id: "custom:mdrone-signature" as CustomTuningId,
-    label: "mdrone Signature (just × 31-TET)",
+    label: "just × 31-TET",
     // House tuning, built for this app's relation system rather than
     // borrowed from a tradition. The six relations (unison,
     // tonic-fourth, tonic-fifth, minor-triad, drone-triad,
