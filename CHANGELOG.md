@@ -2,6 +2,13 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.33 — 2026-05-02
+
+- docs: README + HelpModal updated to match the post-1.20.28 share model.
+  - README "Saves + shares" line → "Saves + links": calls out the LINK button and the `s.mdrone.org` relay.
+  - "Sessions, Sharing, Recording" section → "Sessions, Links, Recording". The Share-URLs bullet rewritten as a Scene-links bullet that explains LINK as a personal bookmark + recipient handoff, and explicitly notes there is no preview card / social-share image — the link is a utility, not a content artifact.
+  - HelpModal LINK bullet expanded to describe location (next to MIDI), the short-URL relay + offline fallback, and the URL-as-bookmark framing.
+
 ## 1.20.32 — 2026-05-02
 
 - worker: strip OG card rendering. The 1.20.28 deletion of `src/shareCard/` left the Cloudflare Worker (`s.mdrone.org`) importing from a directory that no longer exists — its build was broken until this commit. Per the post-cert "drone instrument, not content tool" framing, the choice was to drop OG cards entirely rather than rebuild a simpler image pipeline. Worker is now a pure short-URL service:

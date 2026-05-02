@@ -30,7 +30,7 @@
 - **Tunes microtonally** — 6 built-in tuning tables, 20 curated authored tunings (Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, the house **mdrone Signature** hybrid…), 6 relation presets, a Scale Editor for your own 13-degree tables, per-interval ±25 ¢ fine detune, and a **GOOD DRONE** one-click guided-randomize.
 - **Visualises** — an inline live-visualizer tile and a fullscreen MEDITATE overlay with 25 authored visualizers (harmonic, landscape, ritual, void) sharing one warm parchment / ember palette.
 - **Mixes** — a master-bus drawer with HPF, EQ, mud trim, glue, drive, look-ahead limiter, parallel cathedral-IR room send, color saturation, M/S width, headphone-safe mode, and LUFS / peak metering.
-- **Saves + shares** — named local sessions, share-URL encoding of the full scene (plus optional gesture recording and custom tuning cents), 24-bit WAV master capture.
+- **Saves + links** — named local sessions, **LINK** button copies a self-contained scene URL (full scene + optional gesture recording + custom tuning cents; auto-shortened via the `s.mdrone.org` relay), 24-bit WAV master capture.
 - **Works offline + installs** — full service worker; once the page loads, you can hold a drone in airplane mode. "Add to home screen" on iOS / "Install" on desktop runs it as a standalone PWA.
 
 ---
@@ -172,10 +172,10 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
 
 ---
 
-## Sessions, Sharing, Recording
+## Sessions, Links, Recording
 
 - **Sessions** are named local saves in `localStorage` (Settings modal). They include scene, tuning + detune, voices, macros, climate, both LFOs, effect chain, mixer, evolve seed, journey, partner, and the optional motion recording.
-- **Share URLs** compress the full scene; older URLs load with sensible defaults for newer fields. Custom and authored tuning cents travel inside the URL.
+- **Scene links** — the **LINK** button (header, next to MIDI) copies a self-contained URL of the current scene to your clipboard. Auto-shortened by the `s.mdrone.org` relay; falls back to the long self-contained URL if the relay is offline. The recipient opens the link, presses Play, and lands in the same drone landscape on any device. Useful as a personal bookmark too — paste your own link anywhere to come back to a scene later. The link is a utility, not a content artifact: no preview card, no social-share image, just the URL.
 - **REC WAV** captures the post-limiter master to 24-bit stereo WAV via a parallel worklet tap (bit-identical, no codec). The button auto-starts HOLD if the drone isn't already playing, so you never get a silent file. Saves as `mdrone-<scene>-<YYYY-MM-DD-HHMM>.wav`, confirms with a `WAV saved — M:SS` toast, and prompts before close/reload while recording is active. The button tooltip surfaces live elapsed time and estimated in-memory size while recording — the browser is not a DAW, so for long sessions:
   - **Recommended max take length: 30 minutes.** Float32 stereo at 48 kHz grows ~44 MB per 10 min in memory until stop. Staged toast warnings fire at 10, 20, and 30 min so you can decide to stop and start a new take.
   - **Segmented recording** is supported by the engine: pass `segmentMinutes` to `startMasterRecording({ segmentMinutes, onSegment })` and the recorder finalizes a WAV every N minutes without dropping samples, naming files `mdrone-<scene>-<timestamp>-pt01.wav`, `pt02`, … so a long take stays bounded in memory per segment.

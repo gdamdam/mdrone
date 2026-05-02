@@ -230,7 +230,7 @@ function ReferenceTab() {
       <div className="fx-modal-divider" />
       <div className="fx-modal-section-label">SAVE &amp; RECORD</div>
       <ul className="help-list">
-        <li><strong>LINK</strong> — copies a self-contained URL of the scene. Open it on any device and you land in the same drone landscape.</li>
+        <li><strong>LINK</strong> — header button next to MIDI. Copies a self-contained URL of the current scene to your clipboard. Auto-shortened via the <code>s.mdrone.org</code> relay; if the relay is offline you get the full self-contained URL instead. Open it on any device and you land in the same drone landscape. Doubles as a personal bookmark — paste your own link anywhere to come back to a scene later.</li>
         <li><strong>● REC WAV</strong> — 24-bit stereo WAV of the master output via a parallel AudioWorklet tap (bit-identical, no codec). Auto-starts HOLD if the drone isn't playing. Filename is <code>mdrone-&lt;scene&gt;-&lt;date&gt;.wav</code>; you'll see a <em>WAV saved — M:SS</em> confirmation. Long takes (~15 min+) get a one-time memory nudge; the page warns before close while recording is active.</li>
         <li><strong>◌ LOOP</strong> — bounces a short seamless-loop WAV (10–60 s) with a linear crossfade at the seam and a RIFF <code>smpl</code> chunk so samplers auto-detect the loop region. Different from REC WAV: this is a sampler-ready loop, not a long-form take.</li>
         <li><strong>REC MOTION</strong> (opt-in in Settings → Advanced) — captures live gestures (60 s / 200 events) into the next share URL. <em>Not an audio file</em> — recipients hear the sweep you made by replaying the gestures over the synth.</li>
