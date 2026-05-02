@@ -2556,10 +2556,9 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
 .header-hold-btn {
   display: inline-flex;
   flex-direction: row;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
   gap: 6px;
-  min-width: 92px;
   min-height: 32px;
   padding: 5px 14px;
   border-radius: 6px;

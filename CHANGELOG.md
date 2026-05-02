@@ -2,6 +2,12 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.30 — 2026-05-02
+
+- header polish, follow-up to 1.20.29:
+  - **HOLD button centering:** dropped the 92px `min-width` that was creating extra slack inside the button (mixed-size labels made the slack read as off-center content). Now the button hugs its content; "▶ HOLD F#2" sits flush in its bounding box. Also switched `align-items` from `baseline` to `center` so the label and the smaller sub baseline differences don't shift visual weight.
+  - **MEDITATE color match:** added `header-btn-random` class to the MEDITATE button so it picks up the same amber gradient + border + glow as RND. Default `header-btn` was visually dimmer, which is why MEDITATE looked muted next to RND in the previous build.
+
 ## 1.20.29 — 2026-05-02
 
 - header polish, follow-up to 1.20.28:

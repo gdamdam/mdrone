@@ -484,7 +484,7 @@ export function Header({
         </button>
         <button
           type="button"
-          className="header-btn"
+          className="header-btn header-btn-random"
           onClick={onToggleMeditatePreview}
           title={meditatePreviewOn ? "Hide MEDITATE preview" : "Show MEDITATE preview"}
           aria-label="Toggle MEDITATE preview"
