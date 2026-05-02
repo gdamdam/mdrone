@@ -8,13 +8,6 @@ routes = [
   { pattern = "s.mdrone.org/*", zone_name = "mdrone.org" }
 ]
 
-# Bundle .wasm as CompiledWasm so @resvg/resvg-wasm/index_bg.wasm can be
-# imported directly as a WebAssembly.Module — wrangler binds it at build
-# time instead of needing a fetch() round-trip.
-rules = [
-  { type = "CompiledWasm", globs = ["**/*.wasm"], fallthrough = true }
-]
-
 # KV namespace for short-URL storage. `preview_id` reuses the production
 # namespace — create a separate one via `wrangler kv namespace create SHORT
 # --preview` and swap the id below if you need dev/prod isolation.

@@ -1,26 +1,33 @@
 # mdrone-share Worker
 
-Cloudflare Worker that powers `s.mdrone.org` — share-card OG tags, PNG render,
-short-URL service, and a small usage dashboard for mdrone scenes.
+Cloudflare Worker that powers `s.mdrone.org` — short-URL service for mdrone
+scene share links, plus a small usage dashboard.
+
+> **1.20.32 — OG card rendering removed.** The talisman / sigil / tarot /
+> tessera scene cards (and their `resvg-wasm` rasteriser) were stripped along
+> with the in-app share-card UI. Sharing is now a utility: short link in,
+> 302 redirect out, no per-scene preview image. Link unfurls in messengers
+> show no image; the recipient lands on the same drone landscape on the
+> app side regardless.
 
 - **Entry:** `worker.ts`
 - **Config:** `wrangler.toml` (name `mdrone-share`, route on `s.mdrone.org`)
 - **Bindings:** `SHORT` (KV) for short IDs and counters; `DASHBOARD_USER` /
-  `DASHBOARD_PASS` secrets for `/dashboard` basic-auth.
+  `DASHBOARD_PASS` secrets for `/mddashboard` basic-auth.
 
 ## Routes
 
 | Method | Path                | Purpose                                                        |
 | ------ | ------------------- | -------------------------------------------------------------- |
 | GET    | `/health`           | Liveness probe. Returns `{ ok: true, v: <pkg.version> }`.      |
-| GET    | `/?z=<payload>`     | OG HTML stub for a scene, meta-redirects to the app.           |
-| GET    | `/?b=<payload>`     | Same as `?z=` but plain-base64 fallback.                       |
-| GET    | `/img?z=<payload>`  | 800×800 PNG scene card (SVG → resvg-wasm).                     |
+| GET    | `/?z=<payload>`     | 302 to `https://mdrone.org/?z=<payload>` (long-form share link). |
+| GET    | `/?b=<payload>`     | Same, plain-base64 fallback.                                   |
 | GET    | `/`                 | 302 to `https://mdrone.org` when no payload.                   |
+| GET    | `/<id>`             | Resolve a 6-char short ID → 302 to its stored URL.             |
 | POST   | `/shorten`          | Create / dedupe a short ID for a scene URL.                    |
 | POST   | `/track`            | Bump `sc:{id}` (share count) from the client.                  |
-| GET    | `/dashboard`        | HTML table of per-id share/play counts (basic-auth).           |
-| GET    | `/stats`            | JSON view of the same counters.                                |
+| GET    | `/mddashboard`      | HTML table of per-id share/play counts (basic-auth).           |
+| GET    | `/stats`            | JSON view of the same counters (basic-auth).                   |
 
 ## How to deploy
 

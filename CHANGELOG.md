@@ -2,6 +2,14 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.32 — 2026-05-02
+
+- worker: strip OG card rendering. The 1.20.28 deletion of `src/shareCard/` left the Cloudflare Worker (`s.mdrone.org`) importing from a directory that no longer exists — its build was broken until this commit. Per the post-cert "drone instrument, not content tool" framing, the choice was to drop OG cards entirely rather than rebuild a simpler image pipeline. Worker is now a pure short-URL service:
+  - Removed: `/img?z=…` PNG endpoint (resvg-wasm rasteriser, talisman/sigil/tarot/tessera SVG generation), the OG meta-tag HTML stub on `/?z=…` / `/?b=…`, the `@resvg/resvg-wasm` import, the `..src/shareCard/svgBuilder` import, the `normalizeScene` + `decodePayload` helpers (only used by OG), `metaTitle` / `activeVoiceSummary` / `SCALE_LABELS` / `TUNING_LABELS` / `sanitiseStyleChoice` / `escJs` / `buildOgHtml`. `wrangler.toml` `CompiledWasm` rule dropped.
+  - Kept: `/health`, `/shorten`, `/track`, `/<id>` short-URL resolution + play/share counters, `/stats` JSON, `/mddashboard` HTML.
+  - `/?z=…` / `/?b=…` now 302 redirect straight to `https://mdrone.org/?z=…` / `?b=…` instead of serving an OG HTML stub. The recipient still lands in the same scene; messengers no longer get a per-scene preview image.
+- Build size: worker upload dropped to **15 KiB / 5 KiB gzipped** (was ~hundreds of KiB with the resvg wasm). README updated; deploy unchanged (`npx wrangler deploy`).
+
 ## 1.20.31 — 2026-05-02
 
 - ux: ensure the LINK modal actually serves the short URL when the user copies. The shortener fetch was always firing, but `busy` only tracked the scene-build step, not the shortener — so users could click COPY in the gap between scene-build (busy=false) and shortener-resolve (no signal), getting the long URL on the clipboard. Added a separate `shortBusy` flag tied to the `shortenSceneUrl(url)` promise lifecycle: COPY LINK / SHARE… buttons stay disabled, the link-meta shows "shortening...", and the readout swaps to the short URL the moment it's in. If the relay is offline (or the request times out at 5 s) the long URL is the honest fallback and the buttons re-enable on shortener completion either way.
