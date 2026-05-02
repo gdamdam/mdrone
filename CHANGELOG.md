@@ -2,6 +2,17 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.28 — 2026-05-02
+
+- ux: strip the talisman / scene-card system; keep URL-based scene sharing as a utility. Aligns with the post-cert "drone instrument, not content tool" framing — sharing is a bookmark feature, not a social loop. Recipient flow stays identical (open link, press Play, lands on the same drone), but no more visual card preview, no PNG download, no style picker.
+- Header: SHARE button renamed to **LINK** and demoted from its amber gradient to the default header-btn styling. Relocated from the prominent center-right cluster (next to HOLD) to the secondary admin cluster, immediately to the right of the MIDI dropdown.
+- Header: HOLD button made more prominent — `min-width` 62→78px, `min-height` 30→36px, label font-size 9→11px, tonic-sub 7→9px with bumped weight 700 + opacity 0.92. The most important on-stage control now reads as such.
+- Header: MEDITATE button now matches RND visually — dropped the bespoke gradient/glow active-state styling, label shortened from "◉ MEDITATE" to "MED" (with a leading "● " when active, mirroring LIVE SAFE's on-marker convention).
+- Header: LIVE SAFE pill collapsed to a single-character icon (`●` on / `◌` off) at all viewport sizes. Tooltip and aria-label still carry the full meaning. Drops the wide-mode "● LIVE SAFE" / "LIVE SAFE" text label entirely.
+- Tutorials: removed the SHARE flow (3-step share/save/wav walkthrough) from `tutorial/flows.ts`. Removed `"share"` from the `FlowId` type, with a one-shot legacy-key cleanup so existing users' `mdrone-tutorial-flow-done-v1:share` localStorage entry gets wiped on next reset. Layout's HOLD-time accumulator is preserved (future flows can still gate on it) but no longer calls `requestOfferFlow("share")`.
+- HelpModal: SAVE & SHARE section renamed SAVE & RECORD; the "⤴ SHARE" bullet replaced with a LINK bullet describing the URL-as-bookmark behavior.
+- Code: `ShareModal.tsx` and `SharedSceneGate.tsx` rewritten without any card rendering. `src/shareCard/` directory deleted (svgBuilder, rng, styles tree, index — all gone). CSS `.header-btn-share`, `.header-btn-meditate`, `.header-btn-meditate-active` rules removed.
+
 ## 1.20.27 — 2026-05-02
 
 - ios: fix two issues from the 1.20.26 recovery flow on iPhone.

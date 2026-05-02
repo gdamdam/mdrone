@@ -464,15 +464,6 @@ export function Header({
         ) : null}
         </span>
         <button
-          data-tutor="share-btn"
-          className="header-btn header-btn-share"
-          onClick={onOpenShare}
-          title="Share the current drone landscape as a link"
-        >
-          <span className="header-btn-label-full">SHARE</span>
-          <span className="header-btn-label-glyph" aria-hidden="true">SHARE</span>
-        </button>
-        <button
           data-tutor="hold"
           data-midi-id="hold"
           className={[
@@ -493,17 +484,13 @@ export function Header({
         </button>
         <button
           type="button"
-          className={
-            meditatePreviewOn
-              ? "header-btn header-btn-meditate header-btn-meditate-active"
-              : "header-btn header-btn-meditate"
-          }
+          className="header-btn"
           onClick={onToggleMeditatePreview}
           title={meditatePreviewOn ? "Hide MEDITATE preview" : "Show MEDITATE preview"}
           aria-label="Toggle MEDITATE preview"
           aria-pressed={meditatePreviewOn}
         >
-          <span className="header-btn-label-full">◉ MEDITATE</span>
+          <span className="header-btn-label-full">{meditatePreviewOn ? "● MED" : "MED"}</span>
           <span className="header-btn-label-glyph" aria-hidden="true">◉</span>
         </button>
         </div>
@@ -543,8 +530,7 @@ export function Header({
               : "LIVE SAFE — prioritize stable audio for stage / pro use. Caps voice density and bypasses heavy FX without touching your scene."
           }
         >
-          <span className="header-btn-label-full">{liveSafeMode ? "● LIVE SAFE" : "LIVE SAFE"}</span>
-          <span className="header-btn-label-glyph" aria-hidden="true">{liveSafeMode ? "●" : "◌"}</span>
+          <span aria-hidden="true">{liveSafeMode ? "●" : "◌"}</span>
         </button>
 
         {/* Admin cluster — VOL readout, help, settings. Quietest
@@ -631,6 +617,14 @@ export function Header({
             </div>
           )}
         </span>
+        <button
+          className="header-btn"
+          onClick={onOpenShare}
+          title="Copy a self-contained URL of this scene — opens to the same drone landscape on any device."
+          aria-label="Copy scene link"
+        >
+          LINK
+        </button>
         <button
           className="header-btn header-btn-help"
           onClick={() => setHelpOpen(true)}

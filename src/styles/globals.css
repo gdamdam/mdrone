@@ -881,9 +881,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-row-main .header-btn-menu      { order: 20; }
   .header-row-main .header-btn-volume    { order: 21; }
   .header-row-main .header-btn-mixer     { order: 22; }
-  .header-row-main .header-btn-meditate  { order: 23; }
   .header-row-main .header-rnd-wrap      { order: 24; }
-  .header-row-main .header-btn-share     { order: 25; }
   .header-row-main .header-hold-btn      { order: 26; }
   /* Tutorial/REC button (rare) keeps tail position when present. */
   .header-row-main .header-btn-record    { order: 27; }
@@ -2560,10 +2558,10 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  min-width: 62px;
-  min-height: 30px;
-  padding: 3px 8px;
+  gap: 2px;
+  min-width: 78px;
+  min-height: 36px;
+  padding: 5px 12px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--preview) 10%, var(--bg-cell));
   color: var(--text);
@@ -2610,15 +2608,16 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
 }
 
 .header-hold-label {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.8px;
 }
 
 .header-hold-sub {
-  font-size: 7px;
+  font-size: 9px;
+  font-weight: 700;
   letter-spacing: 0.6px;
-  opacity: 0.82;
+  opacity: 0.92;
 }
 
 /* HOLD button mobile single-char glyph. Hidden on desktop; the mobile
@@ -2654,35 +2653,6 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
    stock .header-btn rest state) with dimmed text + softened border
    so the button reads as visibly *off* before the active state
    lights it. Two-class selector to win specificity over .header-btn. */
-.header-btn.header-btn-meditate {
-  background: var(--bg-cell);
-  border-color: color-mix(in srgb, var(--border) 70%, transparent);
-  color: color-mix(in srgb, var(--text) 55%, var(--bg));
-  box-shadow: none;
-}
-.header-btn.header-btn-meditate:hover {
-  color: var(--text);
-  border-color: var(--border);
-}
-
-/* Active state for the MEDITATE toggle — same SHARE-button shape,
-   just a brighter amber gradient + soft outer glow so the toggle's
-   on/off state is clear without breaking the visual pairing with
-   SHARE next to it. */
-.header-btn.header-btn-meditate-active {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--preview) 38%, var(--bg-cell)),
-    color-mix(in srgb, var(--preview) 18%, var(--bg-cell))
-  );
-  border-color: color-mix(in srgb, var(--preview) 70%, var(--border));
-  color: var(--preview);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--preview) 45%, transparent);
-}
-.header-btn.header-btn-meditate-active:hover {
-  border-color: var(--preview);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--preview) 60%, transparent);
-}
 
 /* LIVE SAFE — explicit stage-readiness pill. Lives in the performance
    row. The active state uses the same red-orange the CPU warning
@@ -2780,17 +2750,6 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
     0 0 0 1px color-mix(in srgb, var(--preview) 24%, transparent),
     0 0 24px color-mix(in srgb, var(--preview) 34%, transparent);
   filter: brightness(1.06);
-}
-
-.header-btn-share {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--preview) 20%, var(--bg-cell)),
-    color-mix(in srgb, var(--preview) 8%, var(--bg-cell))
-  );
-  border-color: color-mix(in srgb, var(--preview) 46%, var(--border));
-  color: var(--preview);
-  min-width: 86px;
 }
 
 @keyframes pulse {

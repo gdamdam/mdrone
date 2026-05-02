@@ -104,32 +104,6 @@ const ADVANCED: Flow = {
   ],
 };
 
-const SHARE: Flow = {
-  id: "share",
-  offerLabel: "Learn SHARE · 3 steps",
-  offerAnchor: '[data-tutor="share-btn"]',
-  steps: [
-    {
-      id: "share-btn",
-      selector: '[data-tutor="share-btn"]',
-      title: "1 — SHARE the scene",
-      body: "Encodes the full drone landscape — tonic, voices, effects, tuning — into a link. Anyone who opens it hears the same atmosphere.",
-    },
-    {
-      id: "save-session",
-      selector: '[data-tutor="settings-btn"]',
-      title: "2 — Save a named session",
-      body: "Open settings (⚙) → SESSION to save a named copy in your browser. Local-only, survives reloads, and never leaves your device.",
-    },
-    {
-      id: "rec-wav",
-      selector: '[data-tutor="rec"]',
-      title: "3 — Record a WAV",
-      body: "Capture the master output as a WAV file. Use it for long-form drones, sampling, or sending someone a take.",
-    },
-  ],
-};
-
 const EFFECTS: Flow = {
   id: "effects",
   offerLabel: "Learn FX · 2 steps",
@@ -153,13 +127,11 @@ const EFFECTS: Flow = {
 export const FLOWS: Record<FlowId, Flow> = {
   intro: INTRO,
   advanced: ADVANCED,
-  share: SHARE,
   effects: EFFECTS,
 };
 
 export const FLOW_LABELS: Record<FlowId, string> = {
   intro: "First-run tour",
   advanced: "Advanced: tuning, LFO, ATTUNE",
-  share: "Share, save, and record",
   effects: "Effects chain",
 };

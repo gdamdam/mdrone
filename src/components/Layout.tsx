@@ -34,7 +34,7 @@ import { trackEvent } from "../analytics";
 import { buildWavFilename, formatDurationMs } from "../engine/recordingFilename";
 import { TutorialFlow } from "./TutorialFlow";
 import { TutorialOffer } from "./TutorialOffer";
-import { addHoldTime, isFlowDone, requestOfferFlow } from "../tutorial/state";
+import { addHoldTime } from "../tutorial/state";
 
 const ShareModal = lazy(() =>
   import("./ShareModal").then((m) => ({ default: m.ShareModal })),
@@ -392,25 +392,15 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     setMediaSessionPlaying(headerHolding);
   }, [headerHolding]);
 
-  // ── Tutorial trigger ─────────────────────────────────────────
-  // SHARE flow fires once the user has accumulated 2 minutes of
-  // HOLD-on time — the only engagement signal worth auto-triggering
-  // on. Gated on intro being done so it never stacks with first-run
-  // chrome.
-  const SHARE_HOLD_THRESHOLD_MS = 120_000;
+  // ── HOLD-time accumulator ────────────────────────────────────
+  // Tracks accumulated HOLD-on time in localStorage; future
+  // tutorials / pills can gate on it. The share-tour that used
+  // to live here was removed alongside the talisman-card cleanup.
   useEffect(() => {
     if (!headerHolding) return;
     const TICK_MS = 1000;
     const id = window.setInterval(() => {
-      const total = addHoldTime(TICK_MS);
-      if (
-        total >= SHARE_HOLD_THRESHOLD_MS &&
-        isFlowDone("intro") &&
-        !isFlowDone("share")
-      ) {
-        // Offer as a pill — user chooses whether to take the tour.
-        requestOfferFlow("share");
-      }
+      addHoldTime(TICK_MS);
     }, TICK_MS);
     return () => window.clearInterval(id);
   }, [headerHolding]);

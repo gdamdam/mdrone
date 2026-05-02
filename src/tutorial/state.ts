@@ -1,10 +1,10 @@
 /**
  * Tutorial state — one shared layer for every spotlight flow.
  *
- * Three flows exist, each with its own persisted "done" flag:
+ * Flows exist, each with its own persisted "done" flag:
  *   - "intro"    — 4-step first-run tour
  *   - "advanced" — 3-step walkthrough of the ADVANCED section
- *   - "share"    — 3-step walkthrough of share / save / WAV record
+ *   - "effects"  — 2-step FX chain walkthrough
  *
  * Eligibility signals:
  *   - session count (bumped once per load)
@@ -14,7 +14,12 @@
  * re-showing a tutorial to existing users.
  */
 
-export type FlowId = "intro" | "advanced" | "share" | "effects";
+export type FlowId = "intro" | "advanced" | "effects";
+
+/** Legacy flow id "share" is removed (the share-tour was scrapped
+ *  alongside the talisman-card removal). Its localStorage key is
+ *  cleaned up in resetAllFlows so reset wipes it from old installs. */
+const LEGACY_SHARE_FLOW_KEY = "mdrone-tutorial-flow-done-v1:share";
 
 const INTRO_STORAGE_KEY = "mdrone-tutorial-intro-v1";
 const FLOW_DONE_PREFIX = "mdrone-tutorial-flow-done-v1:";
@@ -60,12 +65,13 @@ export function resetFlow(id: FlowId): void {
 export function resetAllFlows(): void {
   resetFlow("intro");
   resetFlow("advanced");
-  resetFlow("share");
+  resetFlow("effects");
   // Also wipe legacy keys from previous iterations of the tutorial
   // system so people replaying flows don't have stale state.
   safeRemove(LEGACY_RND_COUNT_KEY);
   safeRemove(LEGACY_ADV_KEY);
   safeRemove(LEGACY_SESSION_COUNT_KEY);
+  safeRemove(LEGACY_SHARE_FLOW_KEY);
 }
 
 /* ─────────── HOLD-time accumulator ─────────── */

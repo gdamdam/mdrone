@@ -1,58 +1,39 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { PortableScene } from "../session";
-import {
-  SCENE_CARD_STYLE_LABELS,
-  type SceneCardStyle,
-  type SceneCardStyleChoice,
-  renderSceneCardPng,
-  renderSceneCardToCanvas,
-  resolveSceneCardStyle,
-  withSceneCardStyleParam,
-} from "../shareCard";
 import { shortenSceneUrl, trackShare } from "../shareRelay";
 import { trackEvent } from "../analytics";
 
 interface ShareModalProps {
   initialName: string;
-  onBuildShareData: (name: string, style: SceneCardStyle) => Promise<{ scene: PortableScene; url: string }>;
+  onBuildShareData: (name: string) => Promise<{ scene: PortableScene; url: string }>;
   onClose: () => void;
 }
 
-function downloadBlob(blob: Blob, filename: string): void {
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = filename;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-}
-
-function sanitizeFilename(input: string): string {
-  const clean = input.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  return clean || "mdrone-scene-card";
-}
-
+/**
+ * Scene link modal — utility, not a content tool.
+ *
+ * Generates a self-contained URL that encodes the full scene state.
+ * The recipient pastes the URL anywhere, opens it, and lands in the
+ * exact same drone landscape. No visual cards, no social-share
+ * artifact — link sharing exists because URL-as-bookmark is genuinely
+ * useful (re-opening a scene you liked, sending it to yourself across
+ * devices), not because mdrone is a content-creation tool.
+ */
 export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModalProps) {
   const [name, setName] = useState(initialName);
   const [url, setUrl] = useState("");
   const [shortInfo, setShortInfo] = useState<{ short: string; id: string } | null>(null);
   const [showLongUrl, setShowLongUrl] = useState(false);
   const shortCacheRef = useRef<Map<string, { short: string; id: string }>>(new Map());
-  const [scene, setScene] = useState<PortableScene | null>(null);
-  const [styleChoice, setStyleChoice] = useState<SceneCardStyleChoice>("auto");
   const [busy, setBusy] = useState(true);
-  const [downloadBusy, setDownloadBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [baseUrl, setBaseUrl] = useState("");
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const canNativeShare = useMemo(
     () => typeof navigator !== "undefined" && typeof navigator.share === "function",
     [],
   );
-  const resolvedStyle = scene ? resolveSceneCardStyle(styleChoice, scene) : "tessera";
 
   useEffect(() => {
     let cancelled = false;
@@ -60,38 +41,26 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
       setBusy(true);
       setError(null);
       try {
-        const next = await onBuildShareData(name.trim() || initialName, resolvedStyle);
+        const next = await onBuildShareData(name.trim() || initialName);
         if (!cancelled) {
           trackEvent("share/created");
-          setScene(next.scene);
-          setBaseUrl(next.url);
+          setUrl(next.url);
         }
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : "Could not build share link.";
           setError(message);
-          setScene(null);
-          setBaseUrl("");
           setUrl("");
         }
       } finally {
         if (!cancelled) setBusy(false);
       }
     }, 120);
-
     return () => {
       cancelled = true;
       window.clearTimeout(id);
     };
-  }, [initialName, name, onBuildShareData, resolvedStyle]);
-
-  useEffect(() => {
-    if (!baseUrl || !scene) {
-      if (!error) setUrl("");
-      return;
-    }
-    setUrl(withSceneCardStyleParam(baseUrl, resolvedStyle));
-  }, [baseUrl, error, resolvedStyle, scene]);
+  }, [initialName, name, onBuildShareData]);
 
   useEffect(() => {
     if (!url) {
@@ -111,9 +80,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
       shortCacheRef.current.set(url, entry);
       setShortInfo(entry);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [url]);
 
   const shortUrl = shortInfo?.short ?? null;
@@ -134,23 +101,6 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
       }
     };
   }, [onClose]);
-
-  useEffect(() => {
-    if (!scene || !canvasRef.current) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        if (canvasRef.current && !cancelled) {
-          await renderSceneCardToCanvas(canvasRef.current, scene, resolvedStyle);
-        }
-      } catch (err) {
-        console.error("mdrone: scene card render failed", err);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [resolvedStyle, scene]);
 
   const copyLink = async () => {
     if (!displayUrl) return;
@@ -188,38 +138,12 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
     }
   };
 
-  const downloadCard = async () => {
-    if (!scene || !canvasRef.current) return;
-    setDownloadBusy(true);
-    try {
-      try {
-        const bytes = await renderSceneCardPng(scene, resolvedStyle);
-        const safeBytes = new Uint8Array(bytes.byteLength);
-        safeBytes.set(bytes);
-        downloadBlob(new Blob([safeBytes], { type: "image/png" }), `${sanitizeFilename(name)}-${resolvedStyle}.png`);
-      } catch {
-        const fallback = await new Promise<Blob>((resolve, reject) => {
-          canvasRef.current?.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error("Canvas export failed."));
-          }, "image/png");
-        });
-        downloadBlob(fallback, `${sanitizeFilename(name)}-${resolvedStyle}.png`);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not export scene card.";
-      setError(message);
-    } finally {
-      setDownloadBusy(false);
-    }
-  };
-
   const nativeShare = async () => {
     if (!displayUrl || typeof navigator.share !== "function") return;
     try {
       await navigator.share({
         title: name.trim() || initialName,
-        text: "Open this mdrone landscape in the browser.",
+        text: "Open this mdrone scene in the browser.",
         url: displayUrl,
       });
       if (shortInfo?.id) trackShare(shortInfo.id);
@@ -238,15 +162,15 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
         onClick={(e) => e.stopPropagation()}
       >
         <div className="fx-modal-header">
-          <div className="fx-modal-title" id={titleId}>Share Scene</div>
+          <div className="fx-modal-title" id={titleId}>Scene Link</div>
           <button ref={closeRef} className="fx-modal-close" onClick={onClose} title="Close (Esc)" aria-label="Close">
             ×
           </button>
         </div>
 
         <p className="fx-modal-desc">
-          Share the full drone landscape as a self-contained link. The recipient opens it,
-          presses Start, and lands in the same scene.
+          Self-contained URL — the recipient opens it, presses Start, and
+          lands in this same scene. Useful as a personal bookmark too.
         </p>
 
         <div className="fx-modal-params">
@@ -260,35 +184,6 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
               maxLength={80}
             />
           </label>
-        </div>
-
-        <div className="share-card-preview">
-          <canvas
-            ref={canvasRef}
-            className="share-card-canvas"
-            aria-label={`Scene card preview in ${SCENE_CARD_STYLE_LABELS[resolvedStyle]} style`}
-          />
-          <div className="share-style-row" role="radiogroup" aria-label="Card style">
-            {(["sigil", "tarot", "tessera", "talisman"] as const).map((style) => (
-              <button
-                type="button"
-                key={style}
-                role="radio"
-                aria-checked={resolvedStyle === style}
-                className={
-                  resolvedStyle === style
-                    ? "share-style-btn share-style-btn-active"
-                    : "share-style-btn"
-                }
-                onClick={() => setStyleChoice(style)}
-              >
-                {SCENE_CARD_STYLE_LABELS[style]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="fx-modal-params">
 
           <label className="fx-modal-param">
             <span className="fx-modal-param-label share-modal-link-label">
@@ -323,11 +218,8 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
         </div>
 
         <div className="fx-modal-actions">
-          <button className="header-btn header-btn-share" onClick={copyLink} disabled={busy || !url}>
+          <button className="header-btn" onClick={copyLink} disabled={busy || !url}>
             {copied ? "COPIED" : "COPY LINK"}
-          </button>
-          <button className="header-btn" onClick={downloadCard} disabled={busy || !scene || downloadBusy}>
-            {downloadBusy ? "EXPORTING…" : "DOWNLOAD CARD"}
           </button>
           {canNativeShare && (
             <button className="header-btn" onClick={nativeShare} disabled={busy || !url}>
