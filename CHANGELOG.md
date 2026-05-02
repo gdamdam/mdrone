@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.36 — 2026-05-02
+
+- copy: dropped "honest" from the README product sentence per user feedback — "microtonally honest" reads as self-promotional. Now reads simply *"mdrone is a microtonal drone instrument."* No other user-facing copy in README, about.html, or HelpModal used the word; engineering code comments (DSP intent) keep their internal "honest" usage.
+
 ## 1.20.35 — 2026-05-02
 
 - identity: single-sentence product positioning landed in two places (post-cert "drone instrument, not content tool" framing, lightest possible identity move).

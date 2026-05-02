@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">
 </p>
 
-<p align="center"><strong>mdrone is a microtonally honest drone instrument.</strong><br><br>Eight hand-authored instruments combined into one sustained voice. Hold it for an hour on stage or in headphones, in any browser.<br>No install. No account. Free.</p>
+<p align="center"><strong>mdrone is a microtonal drone instrument.</strong><br><br>Eight hand-authored instruments combined into one sustained voice. Hold it for an hour on stage or in headphones, in any browser.<br>No install. No account. Free.</p>
 
 <p align="center">
   <a href="https://mdrone.org/">https://mdrone.org/</a>
