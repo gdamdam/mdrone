@@ -2555,13 +2555,13 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
 
 .header-hold-btn {
   display: inline-flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  align-items: baseline;
   justify-content: center;
-  gap: 2px;
-  min-width: 78px;
-  min-height: 36px;
-  padding: 5px 12px;
+  gap: 6px;
+  min-width: 92px;
+  min-height: 32px;
+  padding: 5px 14px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--preview) 10%, var(--bg-cell));
   color: var(--text);

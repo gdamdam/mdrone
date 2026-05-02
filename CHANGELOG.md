@@ -2,6 +2,12 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.20.29 — 2026-05-02
+
+- header polish, follow-up to 1.20.28:
+  - **HOLD button:** tonic readout moved from below the label to its right (`flex-direction: row`, `align-items: baseline`, `gap: 6px`). Reads as one line: "▶ HOLD  C2". Bumped width to 92px to fit; height back to 32px since the layout is no longer two-row.
+  - **MEDITATE button:** restored the original "◉ MEDITATE" / "◉" glyph label per user feedback (1.20.28's shortening to "MED" was a step too far). The button keeps the default `header-btn` color/shape from 1.20.28 — no bespoke amber gradient, no glow active-state — so it matches RND visually while preserving the familiar text.
+
 ## 1.20.28 — 2026-05-02
 
 - ux: strip the talisman / scene-card system; keep URL-based scene sharing as a utility. Aligns with the post-cert "drone instrument, not content tool" framing — sharing is a bookmark feature, not a social loop. Recipient flow stays identical (open link, press Play, lands on the same drone), but no more visual card preview, no PNG download, no style picker.

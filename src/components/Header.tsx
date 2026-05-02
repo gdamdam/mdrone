@@ -490,7 +490,7 @@ export function Header({
           aria-label="Toggle MEDITATE preview"
           aria-pressed={meditatePreviewOn}
         >
-          <span className="header-btn-label-full">{meditatePreviewOn ? "● MED" : "MED"}</span>
+          <span className="header-btn-label-full">◉ MEDITATE</span>
           <span className="header-btn-label-glyph" aria-hidden="true">◉</span>
         </button>
         </div>
