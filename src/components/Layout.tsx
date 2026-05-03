@@ -337,11 +337,11 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
   }, [isRec]);
 
-  // beforeunload guard — warn the user only while a master recording
-  // or loop bounce is in flight, so an accidental close/reload doesn't
-  // discard the take. Idle pages stay quiet (no warning).
+  // beforeunload guard — warn the user while any in-flight capture
+  // path holds unsaved audio: REC LIVE, BOUNCE LOOP, or TIMED REC.
+  // Idle pages stay quiet (no warning).
   useEffect(() => {
-    if (!isRec && !loopBusy) return;
+    if (!isRec && !loopBusy && !takeBusy) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       // Modern browsers ignore the custom string and show a generic
@@ -351,7 +351,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [isRec, loopBusy]);
+  }, [isRec, loopBusy, takeBusy]);
 
   // Check for a newer build every 5 minutes. vite.config.ts writes
   // public/version.json on build; if the fetched version doesn't match

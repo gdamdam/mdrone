@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.8 — 2026-05-03
+
+- fix: extend the beforeunload guard to TIMED REC. Previously only `isRec` (REC LIVE) and `loopBusy` (BOUNCE LOOP) triggered the unsaved-take warning; closing or reloading the page mid-take silently discarded the in-flight WAV. Now `takeBusy` also arms the guard, so all three capture paths share the same protection.
+
 ## 1.22.7 — 2026-05-03
 
 - ui: mobile header — VOL → `♪` glyph (matches the audio-icon convention; no collision with other header glyphs). Row 2 gap tightened from 6 px → 4 px and the admin/utility cluster (`♪ ▤ ⤴ ◆ ⤓ ⚙`) gets `padding: 4px 6px` so all 9 buttons fit on a 360 px viewport without ⚙ spilling to a third row.
