@@ -2,6 +2,29 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.11 — 2026-05-03
+
+Audit item 7 — recording filenames now self-describe. WAV files
+include the active tonic + octave (e.g. `a2`, `fs3`) and the active
+preset slug (suppressed when it would just duplicate the scene name).
+
+- engine: `buildWavFilename` and `buildTakeWavFilename` now accept
+  optional `tonicLabel` + `presetName` after `date`. Legacy callers
+  with two positional args keep the old `mdrone-<slug>-<ts>.wav`
+  shape unchanged.
+- engine: new `buildLoopWavFilename(rawName, lengthSec, date?, tonic?, preset?)`
+  produces `mdrone-<slug>-<tonic>-<preset>-loop-<N>s-<ts>.wav` —
+  parallels `buildTakeWavFilename`. Replaces the ad-hoc string
+  splice the loop bounce path used to build inside `Layout.tsx`.
+- engine: new `sanitizeTonicLabel("F#2") → "fs2"` helper so musical
+  symbols (`#`, `♯`, `♭`) survive the round-trip into a filesystem-
+  safe slug. Sharps become `s`, flats become `b`, lowercase ASCII.
+- scene: `useSceneManager` now exposes `currentPresetName` so the
+  recording paths can pass it through to the filename helpers.
+- tests: 12 new vitest cases covering the tonic + preset segments,
+  preset-name dedupe (no `mdrone-tidal-tape-a2-tidal-tape-…`),
+  loop-length clamping, and unicode tonic input.
+
 ## 1.22.10 — 2026-05-03
 
 Audit Slice B — master-bus headroom UI + share URL length warning.

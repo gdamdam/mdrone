@@ -698,6 +698,7 @@ export function useSceneManager({
     savedSessions,
     currentSessionId,
     currentSessionName,
+    currentPresetName,
     meditateVisualizer,
     setMeditateVisualizer,
     displayText,

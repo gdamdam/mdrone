@@ -29,7 +29,7 @@ const MeditateView = lazy(() =>
   import("./MeditateView").then((m) => ({ default: m.MeditateView })),
 );
 import { trackEvent } from "../analytics";
-import { buildWavFilename, buildTakeWavFilename, formatDurationMs } from "../engine/recordingFilename";
+import { buildWavFilename, buildTakeWavFilename, buildLoopWavFilename, formatDurationMs } from "../engine/recordingFilename";
 import { TutorialFlow } from "./TutorialFlow";
 import { TutorialOffer } from "./TutorialOffer";
 import { addHoldTime } from "../tutorial/state";
@@ -946,7 +946,12 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         recMemUnsubRef.current = null;
         setIsRec(false);
         if (result) {
-          const filename = buildWavFilename(sceneManager.shareInitialName);
+          const filename = buildWavFilename(
+            sceneManager.shareInitialName,
+            new Date(),
+            `${headerTonic}${headerOctave}`,
+            sceneManager.currentPresetName,
+          );
           const blob = new Blob([result.wav], { type: "audio/wav" });
           const a = document.createElement("a");
           a.href = URL.createObjectURL(blob);
@@ -992,10 +997,16 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       });
       trackEvent("recording/loop");
       const blob = new Blob([result.wav], { type: "audio/wav" });
-      const baseName = buildWavFilename(sceneManager.shareInitialName).replace(/\.wav$/, "");
+      const filename = buildLoopWavFilename(
+        sceneManager.shareInitialName,
+        loopLengthSec,
+        new Date(),
+        `${headerTonic}${headerOctave}`,
+        sceneManager.currentPresetName,
+      );
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${baseName}-loop-${loopLengthSec}s.wav`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1082,7 +1093,13 @@ export function Layout({ engine, startupMode }: LayoutProps) {
               return;
             }
             const sceneName = sceneManager.shareInitialName ?? "Drone Landscape";
-            const filename = buildTakeWavFilename(sceneName, durationLabel);
+            const filename = buildTakeWavFilename(
+              sceneName,
+              durationLabel,
+              new Date(),
+              `${headerTonic}${headerOctave}`,
+              sceneManager.currentPresetName,
+            );
             const blob = new Blob([result.wav], { type: "audio/wav" });
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
@@ -1115,7 +1132,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         setTakeProgress(null);
       }
     })();
-  }, [engine, isRec, loopBusy, recBusy, recordingSupport.supported, recordingSupport.reason, sceneManager.shareInitialName, takeBusy]);
+  }, [engine, isRec, loopBusy, recBusy, recordingSupport.supported, recordingSupport.reason, sceneManager.shareInitialName, sceneManager.currentPresetName, headerTonic, headerOctave, takeBusy]);
 
   const handleCancelExportTake = useCallback(() => {
     if (!takeBusy) return;

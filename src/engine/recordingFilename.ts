@@ -31,32 +31,80 @@ export function formatRecordingTimestamp(d: Date = new Date()): string {
   return `${yyyy}-${mm}-${dd}-${hh}${mi}`;
 }
 
-/** Compose `mdrone-<slug>-<ts>.wav` with `mdrone-<ts>.wav` fallback
- *  when the slug is empty. */
+/** Convert a tonic label like "F#2" or "A3" to a filesystem-safe
+ *  token: sharp becomes "s", flats become "b", everything lowercase
+ *  ASCII. "F#2" → "fs2", "Bb3" → "bb3", "A2" → "a2". Returns "" for
+ *  null/undefined/non-musical input. */
+export function sanitizeTonicLabel(input: string | null | undefined): string {
+  if (!input) return "";
+  return input
+    .replace(/♯/g, "#")
+    .replace(/♭/g, "b")
+    .replace(/#/g, "s")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 8);
+}
+
+/** Compose a filename like `mdrone-<slug>[-<tonic>][-<preset>]-<ts>.wav`.
+ *  All metadata fields are optional; when omitted the segment is
+ *  skipped so legacy callers (and tests) keep getting the simple
+ *  `mdrone-<slug>-<ts>.wav` shape. The preset slug is suppressed when
+ *  it would just duplicate `rawName` (the common case where no
+ *  session is named and the scene name *is* the preset name). */
 export function buildWavFilename(
   rawName: string | null | undefined,
   d: Date = new Date(),
+  tonicLabel?: string | null,
+  presetName?: string | null,
 ): string {
   const slug = sanitizeRecordingName(rawName);
+  const tonic = sanitizeTonicLabel(tonicLabel);
+  const presetSlug = sanitizeRecordingName(presetName);
+  const presetSegment = presetSlug && presetSlug !== slug ? presetSlug : "";
   const ts = formatRecordingTimestamp(d);
-  return slug ? `mdrone-${slug}-${ts}.wav` : `mdrone-${ts}.wav`;
+  const parts = ["mdrone", slug, tonic, presetSegment, ts].filter(Boolean);
+  return `${parts.join("-")}.wav`;
 }
 
-/** Compose `mdrone-<slug>-take-<label>-<ts>.wav` for the EXPORT TAKE
- *  workflow. The `label` is a short human-readable duration token
- *  (e.g. "30s", "1m", "10m") so files sort by name and the take
- *  length is obvious in a DAW import dialog. */
+/** Same as buildWavFilename but inserts a `-loop-<N>s-` segment so
+ *  BOUNCE LOOP files self-describe their loop length in a sampler /
+ *  DAW import dialog (`...-loop-30s-2026-04-29-1422.wav`). */
+export function buildLoopWavFilename(
+  rawName: string | null | undefined,
+  lengthSec: number,
+  d: Date = new Date(),
+  tonicLabel?: string | null,
+  presetName?: string | null,
+): string {
+  const slug = sanitizeRecordingName(rawName);
+  const tonic = sanitizeTonicLabel(tonicLabel);
+  const presetSlug = sanitizeRecordingName(presetName);
+  const presetSegment = presetSlug && presetSlug !== slug ? presetSlug : "";
+  const lengthSafe = Math.max(1, Math.floor(lengthSec));
+  const ts = formatRecordingTimestamp(d);
+  const parts = ["mdrone", slug, tonic, presetSegment, "loop", `${lengthSafe}s`, ts].filter(Boolean);
+  return `${parts.join("-")}.wav`;
+}
+
+/** Same as buildWavFilename but inserts a `-take-<label>-` segment so
+ *  TIMED REC files self-describe their fixed duration in a DAW import
+ *  dialog (`...-take-1m-2026-04-29-1422.wav`). */
 export function buildTakeWavFilename(
   rawName: string | null | undefined,
   durationLabel: string,
   d: Date = new Date(),
+  tonicLabel?: string | null,
+  presetName?: string | null,
 ): string {
   const slug = sanitizeRecordingName(rawName);
   const label = sanitizeRecordingName(durationLabel) || "take";
+  const tonic = sanitizeTonicLabel(tonicLabel);
+  const presetSlug = sanitizeRecordingName(presetName);
+  const presetSegment = presetSlug && presetSlug !== slug ? presetSlug : "";
   const ts = formatRecordingTimestamp(d);
-  return slug
-    ? `mdrone-${slug}-take-${label}-${ts}.wav`
-    : `mdrone-take-${label}-${ts}.wav`;
+  const parts = ["mdrone", slug, tonic, presetSegment, "take", label, ts].filter(Boolean);
+  return `${parts.join("-")}.wav`;
 }
 
 /** "M:SS" — used in the REC button readout and the save toast. */
