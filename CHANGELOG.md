@@ -2,6 +2,13 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.12 — 2026-05-03
+
+- fix: ATTUNE no longer triggers a CPU spike + crackle when fired during the engine's 10-second warming window or rapidly in succession. Two-tier guard:
+  - **warming gate** — disabled during the same 10s post-HOLD window the HOLD button already pulses for, with a tooltip explaining why. Prevents stacking a fresh voice rebuild on top of voices that haven't finished ramping in yet.
+  - **1.2s click cooldown** — covers the bloom-crossfade window so a rapid second click can't trigger a second rebuild on top of one still settling. Independent of warming.
+  - Root cause: ATTUNE's `sampleGoodDrone` often returns a tuning whose partial count differs from the active one, which sends `VoiceEngine.setIntervals()` down the `rebuildIntervals()` (full voice rebuild) path instead of the cheap retune-in-place path. With voices mid-ramp, that compounds.
+
 ## 1.22.11 — 2026-05-03
 
 Audit item 7 — recording filenames now self-describe. WAV files

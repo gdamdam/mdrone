@@ -256,6 +256,12 @@ interface DroneViewProps {
   weatherVisual?: import("../config").WeatherVisual;
   kbdActive: boolean;
   onToggleKbd: () => void;
+  /** True for the first ~10s after HOLD turns on. Voices are still
+   *  ramping in and FX feedback states are filling — actions that
+   *  rebuild the voice graph (notably ATTUNE, when the new tuning
+   *  changes the partial count) get gated to avoid CPU stress + clicks
+   *  on top of an unstable graph. */
+  warming?: boolean;
   // REC WAV / BOUNCE LOOP / TIMED REC live in the header's
   // ⤓ EXPORT AUDIO dropdown — DroneView no longer owns recorder
   // state. Inline buttons were removed to keep the perform row calm
@@ -326,7 +332,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, warming = false, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
   ref,
 ) {
   const {
@@ -551,6 +557,28 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // dropdown so users can author and save custom tuning tables
   // (degrees in cents above the root). See audit P2 — scale editor UI.
   const [scaleEditorOpen, setScaleEditorOpen] = useState(false);
+
+  // ATTUNE throttle — guards the voice-rebuild path that ATTUNE can
+  // trigger when the sampled tuning has a different partial count
+  // than the active one. Two gates compose:
+  //   1. `warming` (10s after HOLD) → button blocked entirely
+  //   2. 1.2s click cooldown → covers the bloom-crossfade window so
+  //      a rapid second click can't stack a fresh rebuild on top of
+  //      one that's still settling.
+  const ATTUNE_COOLDOWN_MS = 1200;
+  const [attuneCooldown, setAttuneCooldown] = useState(false);
+  const attuneCooldownTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (attuneCooldownTimerRef.current != null) {
+      window.clearTimeout(attuneCooldownTimerRef.current);
+    }
+  }, []);
+  const attuneDisabled = warming || attuneCooldown;
+  const attuneTitle = warming
+    ? "Engine warming up — wait ~10s before retuning so the voice rebuild doesn't stack on top of voices still settling"
+    : attuneCooldown
+      ? "ATTUNE just fired — wait a moment for the bloom crossfade to settle before retuning again"
+      : "ATTUNE — sample a curated microtonal tuning + subtle (±2–5¢) detune for the current preset. Touches only the tuning layer: voicing, FX, and motion are preserved. Click again for a different tuning.";
 
   // LFO ↔ Ableton Link tempo sync. When `lfoSyncMode` is non-free
   // AND the Link bridge reports `connected`, the LFO rate is driven
@@ -1016,14 +1044,28 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               type="button"
               data-tutor="good-drone"
               className="preset-mut-btn preset-strip-action"
+              disabled={attuneDisabled}
               onClick={() => {
+                if (attuneDisabled) return;
                 const g = sampleGoodDrone();
                 setTuning(g.tuningId);
                 setRelation(g.relationId);
                 setFineTuneOffsets(g.fineTuneOffsets);
+                // Throttle: block re-fire for the bloom-crossfade
+                // window. Independent of `warming` so the user can
+                // still ATTUNE quickly once the engine has settled.
+                setAttuneCooldown(true);
+                if (attuneCooldownTimerRef.current != null) {
+                  window.clearTimeout(attuneCooldownTimerRef.current);
+                }
+                attuneCooldownTimerRef.current = window.setTimeout(() => {
+                  setAttuneCooldown(false);
+                  attuneCooldownTimerRef.current = null;
+                }, ATTUNE_COOLDOWN_MS);
               }}
-              title="ATTUNE — sample a curated microtonal tuning + subtle (±2–5¢) detune for the current preset. Touches only the tuning layer: voicing, FX, and motion are preserved. Click again for a different tuning."
+              title={attuneTitle}
               aria-label="Attune — sample a curated microtonal tuning"
+              aria-disabled={attuneDisabled}
             >
               <span className="preset-mut-btn-label">ATTUNE</span>
               <span className="preset-mut-btn-icon" aria-hidden="true">✦</span>

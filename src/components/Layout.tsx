@@ -1369,6 +1369,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             weatherVisual={weatherVisual}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
+            warming={headerWarming}
             mutateIntensity={mutateIntensity}
             /* Recording controls (REC LIVE / BOUNCE LOOP / TIMED REC)
              * live in the header ⤓ dropdown — Layout passes the same
