@@ -2,6 +2,15 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.21.1 — 2026-05-03
+
+- chore: gate `__engine` / `__measureAllPresets` / `__auditArrival` / `__presetCert` behind `?debug` query param or `localStorage["mdrone-debug"]`; `__mdroneAudioReport` stays always-on.
+- chore: extract dev-globals registration from `Layout.tsx` into `useDevGlobals` hook (Layout shrinks ~100 lines).
+- chore: drop two stale `eslint-disable no-console` directives; lint now clean.
+- chore: refresh stale top-of-file comment in `presets.ts` (scale editor exists in DroneView).
+- docs: README — add Debug mode bullet under Going Deeper → Local dev.
+- tests: add focused unit coverage for `isDebugEnabled`.
+
 ## 1.21.0 — 2026-05-02
 
 - ui: tune+relation label left of Hz in preset strip (5f08956)

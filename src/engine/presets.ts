@@ -14,8 +14,9 @@
  * reflects the new state alongside the engine changes.
  *
  * Adding a preset: copy an existing entry, change the fields, give it
- * a unique id + name + hint. No scale editor in the UI yet — presets
- * suggest a mode but the user can pick any tonic.
+ * a unique id + name + hint. The scale picker + custom scale editor
+ * (DroneView.tsx) let the user override the suggested mode; presets
+ * never lock tonic — that stays the user's choice.
  */
 
 import type { AudioEngine } from "./AudioEngine";

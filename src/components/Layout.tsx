@@ -8,9 +8,7 @@ import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { NotificationTray } from "./NotificationTray";
 import { showNotification } from "../notifications";
-import { measureAllPresets } from "../devtools/measureLoudness";
-import { auditArrival } from "../devtools/auditArrival";
-import { createPresetCertController, captureBrowserEnv, type PresetCertHooks } from "../devtools/presetCertification";
+import { useDevGlobals } from "../devtools/useDevGlobals";
 import {
   buildAudioDiagnostics,
   copyToClipboard,
@@ -111,7 +109,6 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           `iOS-diag: ctx ${pre.ctxState}→${post.ctxState} · ` +
           `out ${post.hasOutput ? "live" : "silent"} ` +
           `(peak ${post.peakDb.toFixed(0)} dB)`;
-        // eslint-disable-next-line no-console
         console.warn(`[mdrone:ios-diag] ${msg}`);
         showNotification(msg, post.hasOutput ? "info" : "warning");
       }, 600);
@@ -437,101 +434,11 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     return report;
   }, [engine]);
 
-  // Dev tool — iterate every preset, sample the loudness worklet,
-  // emit a markdown audit table + download file. Exposed on window
-  // so the review can be triggered from the browser console:
-  //   await __measureAllPresets()
-  useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__measureAllPresets = () => measureAllPresets({
-      engine,
-      applyPresetById: (id) => droneViewRef.current?.applyPresetById(id),
-      ensurePlaying: () => {
-        if (!engine.isPlaying()) holdToggleRef.current?.();
-      },
-    });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__auditArrival = (dwellMs?: number) => auditArrival({
-      applyPresetById: (id) => droneViewRef.current?.applyPresetById(id),
-      ensurePlaying: () => {
-        if (!engine.isPlaying()) holdToggleRef.current?.();
-      },
-    }, dwellMs);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__auditArrival.stop = () => auditArrival.stop();
-    // Console handle for the engine — useful for ad-hoc debugging
-    // (e.g. `__engine.setRoomAmount(1)` to bypass the mixer slider
-    // and sanity-check the master room path). Stays in production
-    // because it's tiny and the audit hooks above already do the
-    // same trick.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__engine = engine;
-
-    // Preset certification — hands-and-ears auditioning with structured
-    // tags / scores / notes export. See src/devtools/presetCertification.ts
-    // and misc/2026-04-28-preset-certification.md.
-    const certHooks: PresetCertHooks = {
-      presets: ALL_PRESETS.map((p) => ({
-        id: p.id, name: p.name, group: p.group, hidden: p.hidden,
-      })),
-      applyPresetById: (id) => droneViewRef.current?.applyPresetById(id),
-      ensurePlaying: () => {
-        if (!engine.isPlaying()) holdToggleRef.current?.();
-      },
-      captureTechnical: () => {
-        const layers = engine.getVoiceLayers();
-        const userFx = engine.getUserEffectStates();
-        const adaptive = engine.getAdaptiveStabilityState();
-        const monitor = engine.getLoadMonitor().getState();
-        return {
-          voiceLayers: (Object.keys(layers) as Array<keyof typeof layers>)
-            .filter((k) => layers[k]) as string[],
-          effects: (Object.keys(userFx) as Array<keyof typeof userFx>)
-            .filter((k) => userFx[k]),
-          adaptiveStage: adaptive.stage,
-          underruns: monitor.underruns,
-          lufsShort: null,
-          peakDb: null,
-        };
-      },
-      captureEnv: () => captureBrowserEnv(engine.ctx ?? null),
-      download: (filename, body, mime) => {
-        try {
-          const blob = new Blob([body], { type: mime });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
-        } catch { /* browser may block consecutive downloads */ }
-      },
-    };
-    const cert = createPresetCertController(certHooks);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__presetCert = cert;
-
-    // Audio diagnostics console handle — delegates to the shared
-    // copyAudioReport callback so the UI button and window helper
-    // produce identical output.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__mdroneAudioReport = () => copyAudioReport();
-
-    return () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).__measureAllPresets;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).__auditArrival;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).__engine;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).__presetCert;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).__mdroneAudioReport;
-    };
-  }, [engine, copyAudioReport]);
+  // Dev tools (engine + preset audit + certification) live in
+  // useDevGlobals — registered on window only when the debug flag is
+  // on. The always-on `__mdroneAudioReport` helper for the in-UI
+  // audio diagnostics button is wired in the same hook.
+  useDevGlobals({ engine, droneViewRef, holdToggleRef, copyAudioReport });
 
   // MIDI input — external keyboard drives tonic + octave.
   const handleMidiNote = useCallback((note: number) => {

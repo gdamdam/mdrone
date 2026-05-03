@@ -114,7 +114,6 @@ export function buildVoice(
   node.port.onmessage = (e) => {
     const msg = e.data;
     if (!msg || msg.type !== "nan-diag") return;
-    // eslint-disable-next-line no-console
     console.warn(
       `[mdrone:nan-diag] voice=${msg.voiceType} fires=${msg.fires}`,
       msg.fields,
