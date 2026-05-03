@@ -2,6 +2,11 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.21.4 — 2026-05-03
+
+- tests: e2e — new `session-sheet.spec.ts` round-trips a session through ◆ sheet → EXPORT JSON → IMPORT JSON and asserts the session name survives.
+- tests: e2e — `recording.spec.ts` updated to target the new ⤓ EXPORT AUDIO header dropdown after the inline REC button was removed in 1.21.3.
+
 ## 1.21.3 — 2026-05-03
 
 - ui: ⤓ EXPORT AUDIO moved to a header dropdown left of ◆ — REC LIVE / BOUNCE LOOP / TIMED REC live there. Inline REC WAV + LOOP buttons removed from the perform row.
