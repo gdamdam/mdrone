@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.2 — 2026-05-03
+
+- ui: bump mobile LIVE SAFE-hide rule's specificity to `.header-btn.header-btn-livesafe` so it cleanly outranks the base styling (which uses the compound selector). The button now reliably disappears on ≤720px viewports.
+
 ## 1.22.1 — 2026-05-03
 
 - ui: mobile header — strict 2-row layout (Option A). Row 1: MDRONE · marquee · ◆ session · ⤓ export · ⚙. Row 2: VOL · ▤ MIX · ◉ MED · RND · LINK · HOLD (HOLD pinned right for thumb reach). LINK and the MEDITATE-preview toggle gained `header-btn-share` / `header-btn-meditate-preview` classes so mobile order rules can target them.

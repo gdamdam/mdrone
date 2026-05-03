@@ -855,10 +855,13 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
      becomes a direct flex child of `.header-row-main`, ordered by
      intent. A pseudo-element at order 10 forces the row break. */
   /* Hidden on mobile to keep the 2-row layout breathing.
-   * LIVE SAFE remains reachable from Settings → GENERAL. */
+   * LIVE SAFE remains reachable from Settings → GENERAL.
+   * The compound `.header-btn.header-btn-livesafe` selector matches
+   * the base styling specificity (0,2,0) so this `display: none`
+   * always wins regardless of source order. */
   .title-sigil,
   .header-btn-help,
-  .header-btn-livesafe { display: none; }
+  .header-btn.header-btn-livesafe { display: none; }
 
   .header-row-main { flex-wrap: wrap; gap: 6px; align-items: center; }
   .header-center,
