@@ -2,6 +2,12 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.1 — 2026-05-03
+
+- ui: mobile header — strict 2-row layout (Option A). Row 1: MDRONE · marquee · ◆ session · ⤓ export · ⚙. Row 2: VOL · ▤ MIX · ◉ MED · RND · LINK · HOLD (HOLD pinned right for thumb reach). LINK and the MEDITATE-preview toggle gained `header-btn-share` / `header-btn-meditate-preview` classes so mobile order rules can target them.
+- ui: hide LIVE SAFE pill on mobile — still reachable from Settings → GENERAL. The pill was claiming row-1 admin space without changing musical intent at the gesture scale a phone affords.
+- arch: consolidate the `@media (max-width: 620px)` block to size/padding tightening only. Order/wrap rules now live solely in the `@media (max-width: 720px)` block, eliminating the cascade conflict that had pushed buttons into a 3rd row on the smallest viewports.
+
 ## 1.22.0 — 2026-05-03
 
 - ui: Performance Surface — first screen now reads as an instrument, not a console. New EDIT disclosure (default closed) consolidates the entire mix block — INSTRUMENTS voice toggles · per-voice level sliders · NOISE COLOR · FX BAR — into one self-contained drawer one tap below the performance row.

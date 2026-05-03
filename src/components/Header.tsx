@@ -552,7 +552,7 @@ export function Header({
         </button>
         <button
           type="button"
-          className="header-btn header-btn-random"
+          className="header-btn header-btn-random header-btn-meditate-preview"
           onClick={onToggleMeditatePreview}
           title={meditatePreviewOn ? "Hide MEDITATE preview" : "Show MEDITATE preview"}
           aria-label="Toggle MEDITATE preview"
@@ -686,7 +686,7 @@ export function Header({
           )}
         </span>
         <button
-          className="header-btn"
+          className="header-btn header-btn-share"
           onClick={onOpenShare}
           title="Copy a self-contained URL of this scene — opens to the same drone landscape on any device."
           aria-label="Copy scene link"

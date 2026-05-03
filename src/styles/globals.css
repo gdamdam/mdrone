@@ -845,18 +845,20 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 @media (max-width: 720px) {
-  /* Mobile header — two rows by intent:
-       Row 1: MDRONE [BETA] · scene marquee
-       Row 2: ▶ HOLD · SHARE · RND · ◉ MED · ▤ MIX · VOL · ⚙
-     The brand badge stays visible (small enough). The decorative
-     sigil and the standalone "?" button are hidden — Help is still
-     reachable via the Settings modal. The action row collapses
-     `.header-center` and `.header-secondary` via `display: contents`
-     so all buttons become direct flex children of `.header-row-main`,
-     ordered by intent. A pseudo-element at order 10 forces the row
-     break between brand/marquee (rows < 10) and actions (rows ≥ 10). */
+  /* Mobile header — exactly two rows (Option A):
+       Row 1: MDRONE · marquee · LIVE SAFE pill · ◆ session · ⤓ export · ⚙
+       Row 2: VOL · ▤ MIX · ◉ MED · RND · LINK · HOLD (HOLD pinned right
+              for thumb reach)
+     The decorative sigil and the standalone "?" are hidden (Help is
+     still reachable via the Settings modal). `.header-center` and
+     `.header-secondary` use `display: contents` so every button
+     becomes a direct flex child of `.header-row-main`, ordered by
+     intent. A pseudo-element at order 10 forces the row break. */
+  /* Hidden on mobile to keep the 2-row layout breathing.
+   * LIVE SAFE remains reachable from Settings → GENERAL. */
   .title-sigil,
-  .header-btn-help { display: none; }
+  .header-btn-help,
+  .header-btn-livesafe { display: none; }
 
   .header-row-main { flex-wrap: wrap; gap: 6px; align-items: center; }
   .header-center,
@@ -868,7 +870,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     height: 0;
   }
 
-  /* Row 1 */
+  /* Row 1 — identity + admin cluster on the right. */
   .header-row-main .title { order: 0; flex: 0 0 auto; }
   .header-row-main .header-display {
     order: 1;
@@ -878,18 +880,19 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     max-width: none;
   }
   .header-row-main .header-display-track { text-align: right; }
+  .header-row-main .header-btn-session   { order: 6; margin-left: 0; }
+  .header-row-main .export-menu-anchor   { order: 7; margin-left: 0; }
+  .header-row-main .header-btn-menu      { order: 8; margin-left: 0; }
 
-  /* Row 2 — reversed for thumb reach. The most-tapped action (HOLD)
-     sits on the right where the thumb naturally lands when holding
-     the phone; rarely-tapped admin (Settings) lands far left. Reading
-     order: ⚙ · VOL · ▤ MIX · ◉ MED · RND · SHARE · ▶ HOLD. */
-  .header-row-main .header-btn-menu      { order: 20; }
-  .header-row-main .header-btn-volume    { order: 21; }
-  .header-row-main .header-btn-mixer     { order: 22; }
-  .header-row-main .header-rnd-wrap      { order: 24; }
-  .header-row-main .header-hold-btn      { order: 26; }
+  /* Row 2 — actions, HOLD pinned far-right via margin-left: auto. */
+  .header-row-main .header-btn-volume          { order: 11; }
+  .header-row-main .header-btn-mixer           { order: 12; }
+  .header-row-main .header-btn-meditate-preview { order: 13; }
+  .header-row-main .header-rnd-wrap            { order: 14; }
+  .header-row-main .header-btn-share           { order: 15; }
+  .header-row-main .header-hold-btn            { order: 19; margin-left: auto; }
   /* Tutorial/REC button (rare) keeps tail position when present. */
-  .header-row-main .header-btn-record    { order: 27; }
+  .header-row-main .header-btn-record          { order: 20; }
 
   /* Tighter padding on mobile so the strip doesn't eat a third of
      the viewport height with its own chrome. Grid collapses to a
@@ -2981,43 +2984,23 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
 }
 
 @media (max-width: 620px) {
-  /* Mobile header — 2 rows in header-row-main:
-   *   Row 1: DRONE | MEDITATE | MIXER   ▶HOLD   VOL ⚙
-   *   Row 2: [marquee]  RND  ↶  ●  SHARE
-   * Brand row above stays as-is (logo + version). */
+  /* Sub-mobile tightening only — order/wrap rules live in the
+   * @media (max-width: 720px) block above (Option A: identity row +
+   * action row). This block keeps tighter paddings/fonts so the
+   * 6-button action row fits below ~360px viewports without scroll. */
 
-  .header-row-main {
-    flex-wrap: wrap;
-    gap: 6px;
-    row-gap: 6px;
-    align-items: center;
-  }
+  .header-secondary { opacity: 1; }
 
-  .header-center { display: contents; }
-  .header-secondary { display: contents; opacity: 1; }
+  .header-btn-volume { min-width: auto; padding: 4px 6px; font-size: 10px; font-weight: 800; line-height: 1; }
+  .header-btn-menu   { min-width: auto; padding: 6px 8px; }
 
-  /* Line break between row 1 and row 2 */
-  .header-row-main::before {
-    content: "";
-    order: 10;
-    flex-basis: 100%;
-    height: 0;
-  }
-
-  /* Row 1: nav + marquee + vol + settings */
-  .view-toggle       { order: 1; }
-  .header-display    { order: 2; flex: 1 1 0; min-width: 40px; max-width: 30%; }
-  .header-btn-volume { order: 3; min-width: auto; padding: 4px 6px; font-size: 10px; font-weight: 800; line-height: 1; }
-  .header-btn-menu   { order: 4; min-width: auto; padding: 6px 8px; }
-
-  /* Row 2: hold + actions */
-  .header-hold-btn   { order: 11; min-width: 30px; padding: 4px 8px; font-size: 14px; line-height: 1; }
+  .header-hold-btn   { min-width: 30px; padding: 4px 8px; font-size: 14px; line-height: 1; }
   .header-hold-label,
   .header-hold-sub   { display: none; }
   .header-hold-glyph { display: inline; }
-  .header-btn-random { order: 12; min-width: auto; padding: 4px 8px; font-size: 14px; line-height: 1; margin-left: auto; }
-  .header-btn-record { order: 14; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
-  .header-btn-share  { order: 15; min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
+  .header-btn-random { min-width: auto; padding: 4px 8px; font-size: 14px; line-height: 1; }
+  .header-btn-record { min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
+  .header-btn-share  { min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
 
   /* Hz readout hidden on mobile */
   .header-freq { display: none; }
