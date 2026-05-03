@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.21.7 — 2026-05-03
+
+- tests: session-sheet e2e — target the `<strong>` in the "Current: " readout instead of plain text. The session name also appears inside the LOAD dropdown's selected label, which produced a Playwright strict-mode collision on the assertion.
+
 ## 1.21.6 — 2026-05-03
 
 - tests: fix session-sheet e2e — disambiguate the ◆ "Session" sheet from the "Save Session" prompt with `exact: true`. Playwright's default substring matching let the prompt impersonate the sheet during the post-SAVE transition, so `expect(sheet).toBeHidden()` saw a still-visible dialog and timed out.

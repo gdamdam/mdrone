@@ -65,7 +65,10 @@ test("◆ session sheet round-trips a session through EXPORT JSON / IMPORT JSON"
 
   // Re-open sheet and verify "Current: <name>" reflects the save.
   await openSessionSheet(page);
-  await expect(sheetDialog(page).getByText(sessionName, { exact: false })).toBeVisible();
+  // The name also lives inside the LOAD dropdown's selected label; the
+  // canonical "Current: " readout is a <strong> in the description
+  // paragraph, so target that directly to avoid a strict-mode collision.
+  await expect(sheetDialog(page).locator("strong", { hasText: sessionName })).toBeVisible();
 
   // EXPORT JSON — capture the download.
   const downloadPromise = page.waitForEvent("download");
@@ -103,5 +106,8 @@ test("◆ session sheet round-trips a session through EXPORT JSON / IMPORT JSON"
 
   // Re-open and confirm the session name was restored from the JSON.
   await openSessionSheet(page);
-  await expect(sheetDialog(page).getByText(sessionName, { exact: false })).toBeVisible();
+  // The name also lives inside the LOAD dropdown's selected label; the
+  // canonical "Current: " readout is a <strong> in the description
+  // paragraph, so target that directly to avoid a strict-mode collision.
+  await expect(sheetDialog(page).locator("strong", { hasText: sessionName })).toBeVisible();
 });
