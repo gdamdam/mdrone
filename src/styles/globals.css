@@ -845,21 +845,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 }
 
 @media (max-width: 720px) {
-  /* Mobile header — exactly two rows (Option A):
-       Row 1: MDRONE · marquee · LIVE SAFE pill · ◆ session · ⤓ export · ⚙
-       Row 2: VOL · ▤ MIX · ◉ MED · RND · LINK · HOLD (HOLD pinned right
-              for thumb reach)
-     The decorative sigil and the standalone "?" are hidden (Help is
-     still reachable via the Settings modal). `.header-center` and
+  /* Mobile header — exactly two rows:
+       Row 1: MDRONE · marquee · sigil
+       Row 2: RND · HOLD · ◉ MED · VOL · ▤ MIX · LINK · ◆ · ⤓ · ⚙
+     The standalone "?" and LIVE SAFE pill are hidden — both are
+     still reachable from the Settings modal. `.header-center` and
      `.header-secondary` use `display: contents` so every button
      becomes a direct flex child of `.header-row-main`, ordered by
      intent. A pseudo-element at order 10 forces the row break. */
-  /* Hidden on mobile to keep the 2-row layout breathing.
-   * LIVE SAFE remains reachable from Settings → GENERAL.
-   * The compound `.header-btn.header-btn-livesafe` selector matches
-   * the base styling specificity (0,2,0) so this `display: none`
-   * always wins regardless of source order. */
-  .title-sigil,
   .header-btn-help,
   .header-btn.header-btn-livesafe { display: none; }
 
@@ -873,7 +866,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     height: 0;
   }
 
-  /* Row 1 — identity + admin cluster on the right. */
+  /* Row 1 — identity only. */
   .header-row-main .title { order: 0; flex: 0 0 auto; }
   .header-row-main .header-display {
     order: 1;
@@ -883,17 +876,19 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
     max-width: none;
   }
   .header-row-main .header-display-track { text-align: right; }
-  .header-row-main .header-btn-session   { order: 6; margin-left: 0; }
-  .header-row-main .export-menu-anchor   { order: 7; margin-left: 0; }
-  .header-row-main .header-btn-menu      { order: 8; margin-left: 0; }
+  .header-row-main .title-sigil { order: 2; flex: 0 0 auto; }
 
-  /* Row 2 — actions, HOLD pinned far-right via margin-left: auto. */
-  .header-row-main .header-btn-volume          { order: 11; }
-  .header-row-main .header-btn-mixer           { order: 12; }
-  .header-row-main .header-btn-meditate-preview { order: 13; }
-  .header-row-main .header-rnd-wrap            { order: 14; }
-  .header-row-main .header-btn-share           { order: 15; }
-  .header-row-main .header-hold-btn            { order: 19; margin-left: auto; }
+  /* Row 2 — actions in left-to-right reading order:
+       RND · HOLD · ◉ MED · VOL · ▤ MIX · LINK · ◆ · ⤓ · ⚙ */
+  .header-row-main .header-rnd-wrap            { order: 11; margin-left: 0; }
+  .header-row-main .header-hold-btn            { order: 12; margin-left: 0; }
+  .header-row-main .header-btn-meditate-preview { order: 13; margin-left: 0; }
+  .header-row-main .header-btn-volume          { order: 14; margin-left: 0; }
+  .header-row-main .header-btn-mixer           { order: 15; margin-left: 0; }
+  .header-row-main .header-btn-share           { order: 16; margin-left: 0; }
+  .header-row-main .header-btn-session         { order: 17; margin-left: 0; }
+  .header-row-main .export-menu-anchor         { order: 18; margin-left: 0; }
+  .header-row-main .header-btn-menu            { order: 19; margin-left: 0; }
   /* Tutorial/REC button (rare) keeps tail position when present. */
   .header-row-main .header-btn-record          { order: 20; }
 

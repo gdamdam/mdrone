@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.3 — 2026-05-03
+
+- ui: mobile header — re-flow per request. Row 1 now carries identity only (MDRONE · marquee · sigil); row 2 lines up actions in left-to-right reading order: RND · HOLD · ◉ MED · VOL · ▤ MIX · LINK · ◆ · ⤓ · ⚙. Sigil un-hidden on mobile (32 px). HOLD no longer pinned right with margin-left: auto — it lives at order 12 where the user requested it.
+
 ## 1.22.2 — 2026-05-03
 
 - ui: bump mobile LIVE SAFE-hide rule's specificity to `.header-btn.header-btn-livesafe` so it cleanly outranks the base styling (which uses the compound selector). The button now reliably disappears on ≤720px viewports.
