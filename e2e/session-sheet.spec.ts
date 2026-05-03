@@ -19,26 +19,37 @@ const dismissStartGate = async (page: Page) => {
   await btn.click();
 };
 
+const sheetDialog = (page: Page) => page.getByRole("dialog", { name: "Session" });
+const savePromptDialog = (page: Page) => page.getByRole("dialog", { name: /Save Session/i });
+
 const openSessionSheet = async (page: Page) => {
   await page.getByRole("button", { name: "Open session sheet" }).click();
-  await expect(page.getByRole("dialog", { name: "Session" })).toBeVisible();
+  await expect(sheetDialog(page)).toBeVisible();
+};
+
+const closeSheetIfOpen = async (page: Page) => {
+  const sheet = sheetDialog(page);
+  if (await sheet.isVisible().catch(() => false)) {
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  }
 };
 
 const saveCurrentSessionAs = async (page: Page, name: string) => {
   await openSessionSheet(page);
-  await page.getByRole("button", { name: /^SAVE$/ }).click();
-  // DialogModal opens with prefilled default — replace it.
-  const input = page.locator(".dialog-input");
-  await expect(input).toBeVisible();
-  await input.fill(name);
-  await page.getByRole("button", { name: /^SAVE$/ }).click();
-  // Sheet may auto-close; if not, close it explicitly so the next
-  // openSessionSheet() doesn't double-open.
-  const dialog = page.getByRole("dialog", { name: "Session" });
-  if (await dialog.isVisible().catch(() => false)) {
-    await page.keyboard.press("Escape");
-  }
-  await expect(dialog).toBeHidden();
+  // SAVE button inside the SHEET (not the prompt — the prompt isn't
+  // open yet). Scope by dialog name to avoid the prompt's identical
+  // SAVE button after the click.
+  await sheetDialog(page).getByRole("button", { name: /^SAVE$/ }).click();
+
+  // Sheet closes; Save Session prompt opens.
+  await expect(sheetDialog(page)).toBeHidden();
+  const prompt = savePromptDialog(page);
+  await expect(prompt).toBeVisible();
+
+  await prompt.locator(".dialog-input").fill(name);
+  await prompt.getByRole("button", { name: /^SAVE$/ }).click();
+  await expect(prompt).toBeHidden();
 };
 
 test("◆ session sheet round-trips a session through EXPORT JSON / IMPORT JSON", async ({ page }, testInfo) => {
@@ -48,49 +59,45 @@ test("◆ session sheet round-trips a session through EXPORT JSON / IMPORT JSON"
   const sessionName = `e2e-roundtrip-${testInfo.workerIndex}-${Date.now()}`;
   await saveCurrentSessionAs(page, sessionName);
 
-  // Re-open the sheet and verify "Current: <name>" reflects the save.
+  // Re-open sheet and verify "Current: <name>" reflects the save.
   await openSessionSheet(page);
-  await expect(page.getByRole("dialog", { name: "Session" }).getByText(sessionName)).toBeVisible();
+  await expect(sheetDialog(page).getByText(sessionName, { exact: false })).toBeVisible();
 
   // EXPORT JSON — capture the download.
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: /EXPORT JSON/ }).click();
+  await sheetDialog(page).getByRole("button", { name: /EXPORT JSON/ }).click();
   const download = await downloadPromise;
   const filename = download.suggestedFilename();
   expect(filename).toMatch(/^mdrone-.+\.json$/);
   const filePath = await download.path();
   expect(filePath).toBeTruthy();
   const exportedJson = await readFile(filePath!, "utf8");
-  // Sanity: the payload is JSON and embeds the session name.
+  // Sanity: JSON parses and embeds the session name.
   const parsed = JSON.parse(exportedJson);
   expect(typeof parsed).toBe("object");
   expect(parsed?.name).toBe(sessionName);
 
-  // Mutate the loaded session so the IMPORT step has something to
-  // overwrite — pick a different preset, then import and assert the
-  // session name is restored.
-  // (Closing + re-opening the sheet keeps the sheet's own state clean.)
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Session" })).toBeHidden();
+  // Mutate the loaded session so IMPORT has something to overwrite.
+  await closeSheetIfOpen(page);
   await page.locator(".preset-strip-chevron").first().click();
   const presets = page.locator(".preset-btn");
-  await expect(presets.first()).toBeVisible({ timeout: 5000 });
+  await expect(presets.first()).toBeVisible({ timeout: 5_000 });
   await presets.first().click();
 
-  // IMPORT JSON — feed the exported file back through the hidden file
-  // input. Set the file BEFORE clicking the trigger button so the
-  // change handler fires deterministically.
+  // IMPORT JSON — feed the captured payload into the hidden file
+  // input. The handler succeeds → sets sessionName and auto-closes.
   await openSessionSheet(page);
-  const importInput = page.locator('input[type="file"][accept*="json"]');
+  const importInput = sheetDialog(page).locator('input[type="file"][accept*="json"]');
   await importInput.setInputFiles({
     name: filename,
     mimeType: "application/json",
     buffer: Buffer.from(exportedJson, "utf8"),
   });
 
-  // Sheet auto-closes on successful import. Re-open and confirm the
-  // session name was restored from the JSON.
-  await expect(page.getByRole("dialog", { name: "Session" })).toBeHidden({ timeout: 5_000 });
+  // Sheet auto-closes on successful import.
+  await expect(sheetDialog(page)).toBeHidden({ timeout: 5_000 });
+
+  // Re-open and confirm the session name was restored from the JSON.
   await openSessionSheet(page);
-  await expect(page.getByRole("dialog", { name: "Session" }).getByText(sessionName)).toBeVisible();
+  await expect(sheetDialog(page).getByText(sessionName, { exact: false })).toBeVisible();
 });

@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.21.5 — 2026-05-03
+
+- tests: harden e2e/session-sheet.spec.ts — scope SAVE button selectors per dialog (sheet vs. prompt), explicitly wait for sheet→prompt and prompt→sheet transitions, use `exact: false` text matching to traverse the `<p>Current: <strong>name</strong></p>` structure, add a helper to close the sheet between phases.
+
 ## 1.21.4 — 2026-05-03
 
 - tests: e2e — new `session-sheet.spec.ts` round-trips a session through ◆ sheet → EXPORT JSON → IMPORT JSON and asserts the session name survives.
