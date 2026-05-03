@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.7 — 2026-05-03
+
+- ui: mobile header — VOL → `♪` glyph (matches the audio-icon convention; no collision with other header glyphs). Row 2 gap tightened from 6 px → 4 px and the admin/utility cluster (`♪ ▤ ⤴ ◆ ⤓ ⚙`) gets `padding: 4px 6px` so all 9 buttons fit on a 360 px viewport without ⚙ spilling to a third row.
+
 ## 1.22.6 — 2026-05-03
 
 - ui: mobile header — reorder row 2 to `VOL · ▤ · RND · HOLD · ◉ · ⤴ · ◆ · ⤓ · ⚙`. Volume + mixer now lead the row; transport (RND / HOLD / MED) sits in the middle; share/session/export/settings cluster trails.

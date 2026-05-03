@@ -856,7 +856,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-btn-help,
   .header-btn.header-btn-livesafe { display: none; }
 
-  .header-row-main { flex-wrap: wrap; gap: 6px; align-items: center; }
+  .header-row-main { flex-wrap: wrap; gap: 4px; align-items: center; }
   /* Specificity 0,2,0 to beat the global `.header-center { display:
    * flex }` at globals.css:1225 and `.header-secondary` at :578.
    * Without this bump, those wrappers stay as flex containers and
@@ -906,9 +906,25 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   /* Glyph labels everywhere on mobile — buttons that ship a
    * `.header-btn-label-full` + `.header-btn-label-glyph` pair swap
    * here so the row-2 stack stays compact (e.g. LINK → ⤴, MEDITATE
-   * → ◉, RND → RND glyph). */
+   * → ◉, VOL → ♪, RND → RND glyph). */
   .header-btn-label-full  { display: none; }
   .header-btn-label-glyph { display: inline; }
+
+  /* Row 2 packing — 9 glyph buttons need to fit on a ~360 px viewport
+   * without a third row spilling. Trim per-button horizontal padding;
+   * keep the touch target tall enough for thumbs. */
+  .header-row-main .header-btn { padding-left: 6px; padding-right: 6px; }
+  .header-row-main .header-btn-volume,
+  .header-row-main .header-btn-mixer,
+  .header-row-main .header-btn-share,
+  .header-row-main .header-btn-session,
+  .header-row-main .header-btn-menu,
+  .header-row-main .header-btn-export {
+    min-width: 28px;
+    padding: 4px 6px;
+    font-size: 14px;
+    line-height: 1;
+  }
 
   /* Tighter padding on mobile so the strip doesn't eat a third of
      the viewport height with its own chrome. Grid collapses to a

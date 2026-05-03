@@ -611,7 +611,7 @@ export function Header({
           data-midi-id="volume"
         >
           <span className="header-btn-label-full">VOL {volPct}</span>
-          <span className="header-btn-label-glyph" aria-hidden="true">VOL</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">♪</span>
         </button>
         <span className="midi-menu-anchor">
           <button
