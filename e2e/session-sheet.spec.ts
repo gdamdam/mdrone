@@ -19,7 +19,11 @@ const dismissStartGate = async (page: Page) => {
   await btn.click();
 };
 
-const sheetDialog = (page: Page) => page.getByRole("dialog", { name: "Session" });
+// Note: Playwright's `name` option does substring matching by default,
+// so `name: "Session"` would also match the "Save Session" prompt that
+// opens after the SAVE click. `exact: true` keeps the two dialogs
+// disambiguated even when both are momentarily in the DOM.
+const sheetDialog = (page: Page) => page.getByRole("dialog", { name: "Session", exact: true });
 const savePromptDialog = (page: Page) => page.getByRole("dialog", { name: /Save Session/i });
 
 const openSessionSheet = async (page: Page) => {

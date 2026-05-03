@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.21.6 — 2026-05-03
+
+- tests: fix session-sheet e2e — disambiguate the ◆ "Session" sheet from the "Save Session" prompt with `exact: true`. Playwright's default substring matching let the prompt impersonate the sheet during the post-SAVE transition, so `expect(sheet).toBeHidden()` saw a still-visible dialog and timed out.
+
 ## 1.21.5 — 2026-05-03
 
 - tests: harden e2e/session-sheet.spec.ts — scope SAVE button selectors per dialog (sheet vs. prompt), explicitly wait for sheet→prompt and prompt→sheet transitions, use `exact: false` text matching to traverse the `<p>Current: <strong>name</strong></p>` structure, add a helper to close the sheet between phases.
