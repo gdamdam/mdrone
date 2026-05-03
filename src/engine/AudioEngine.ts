@@ -821,7 +821,11 @@ export class AudioEngine {
     this.startMasterFade(0, half);
     this.morphTimeout = setTimeout(() => {
       this.morphTimeout = null;
-      try { apply(); } catch (err) { console.error("mdrone: morph apply failed", err); }
+      // Morph apply errors are caught + swallowed because the
+      // duck-and-fade path will recover on the next preset change;
+      // surface as console.debug so they don't read as engine
+      // corruption in production DevTools.
+      try { apply(); } catch (err) { console.debug("[mdrone] morph apply failed", err); }
       // Choose the fade-in target:
       //   - if apply() set a new output volume (applyMixerSnapshot
       //     writes trim.value = mixer.volume), use that as the new

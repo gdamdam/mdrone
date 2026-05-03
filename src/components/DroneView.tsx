@@ -64,6 +64,7 @@ import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from 
 import {
   isFlowDone,
   onExpandAdvancedRequested,
+  onExpandEditRequested,
   requestOfferFlow,
 } from "../tutorial/state";
 
@@ -742,6 +743,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   useEffect(() => {
     return onExpandAdvancedRequested(() => {
       setDisclosed((prev) => prev.tuning ? prev : { ...prev, tuning: true });
+    });
+  }, []);
+
+  // Effects tour anchors on `[data-tutor="fx-bar"]` which lives
+  // inside the EDIT disclosure (default closed). Same pattern as
+  // ADVANCED above — open EDIT before the spotlight tries to land.
+  useEffect(() => {
+    return onExpandEditRequested(() => {
+      setDisclosed((prev) => prev.edit ? prev : { ...prev, edit: true });
     });
   }, []);
 

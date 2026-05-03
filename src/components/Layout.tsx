@@ -433,8 +433,14 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     };
     const report = buildAudioDiagnostics(hooks);
     const md = renderAudioDiagnosticsMarkdown(report);
-    console.log(md);
     const ok = await copyToClipboard(md);
+    if (!ok) {
+      // Clipboard unavailable — fall back to console so the user can
+      // still grab the report manually. On success we stay quiet to
+      // avoid flooding DevTools with the markdown payload on every
+      // click.
+      console.log(md);
+    }
     showNotification(
       ok ? "Audio report copied to clipboard." : "Audio report logged to console (clipboard unavailable).",
       "info",

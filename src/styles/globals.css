@@ -5879,6 +5879,18 @@ input.share-modal-url:focus {
   border-color: color-mix(in srgb, tomato 45%, var(--border));
 }
 
+.scale-editor-warning {
+  margin: 14px 0 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, #ff7a3a 50%, var(--border));
+  border-radius: 4px;
+  background: color-mix(in srgb, #ff7a3a 10%, transparent);
+  color: color-mix(in srgb, #ff7a3a 70%, var(--text));
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
 .scale-editor-actions {
   margin-top: 18px;
   display: flex;

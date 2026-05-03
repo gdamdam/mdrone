@@ -151,3 +151,16 @@ export function onExpandAdvancedRequested(cb: Cb): () => void {
   expandAdvancedListeners.add(cb);
   return () => { expandAdvancedListeners.delete(cb); };
 }
+
+/* The "effects" flow anchors on `[data-tutor="fx-bar"]` which lives
+ * inside DroneView's EDIT disclosure (default closed). Mirrors the
+ * advanced-expand bus so HelpModal replays / tour starts can open
+ * EDIT before the spotlight tries to land. */
+const expandEditListeners = new Set<Cb>();
+export function requestExpandEdit(): void {
+  for (const fn of expandEditListeners) { try { fn(); } catch { /* noop */ } }
+}
+export function onExpandEditRequested(cb: Cb): () => void {
+  expandEditListeners.add(cb);
+  return () => { expandEditListeners.delete(cb); };
+}

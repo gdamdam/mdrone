@@ -17,6 +17,7 @@ import {
   type FlowId,
   requestCloseSettings,
   requestExpandAdvanced,
+  requestExpandEdit,
   requestFlow,
   resetAllFlows,
   resetFlow,
@@ -72,6 +73,7 @@ export function HelpModal({ onClose, onBeforeTutorialReveal }: HelpModalProps) {
     onBeforeTutorialReveal?.();
     requestCloseSettings();
     if (id === "advanced") requestExpandAdvanced();
+    if (id === "effects") requestExpandEdit();
     window.setTimeout(() => requestFlow(id), 80);
   };
 

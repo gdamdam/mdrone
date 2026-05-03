@@ -471,10 +471,18 @@ export function saveCustomTuningAtId(
 /** Save or replace a custom tuning. The supplied `name` becomes both
  *  the display label and (after slugification) the ID suffix. Returns
  *  the stored table. */
-export function saveCustomTuning(name: string, degrees: readonly number[]): TuningTable {
+/** Compute the custom-tuning id a given user-facing name will be
+ *  saved under. Pure — does not touch storage. Exposed so editor UI
+ *  can warn about collisions before the user hits SAVE. */
+export function customTuningIdForName(name: string): CustomTuningId {
   const label = name.trim() || "Untitled";
   const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "untitled";
-  const id = `custom:${slug}` as CustomTuningId;
+  return `custom:${slug}` as CustomTuningId;
+}
+
+export function saveCustomTuning(name: string, degrees: readonly number[]): TuningTable {
+  const label = name.trim() || "Untitled";
+  const id = customTuningIdForName(label);
   const padded = degrees.slice(0, 13);
   while (padded.length < 13) padded.push(0);
   const table: TuningTable = { id, label, degrees: padded };

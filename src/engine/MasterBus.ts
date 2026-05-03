@@ -655,7 +655,10 @@ export class MasterBus {
         try { oldConv.disconnect(this.preLimMixer); } catch { /* ok */ }
       })
       .catch((err) => {
-        try { console.warn("[mdrone] cathedral IR fetch/decode failed; using synth fallback:", err); } catch { /* ok */ }
+        // Synth fallback already wired — this path is informational,
+        // not a failure. Use console.debug so it doesn't surface as a
+        // warning in production DevTools.
+        try { console.debug("[mdrone] cathedral IR fetch/decode failed; using synth fallback:", err); } catch { /* ok */ }
       });
   }
 

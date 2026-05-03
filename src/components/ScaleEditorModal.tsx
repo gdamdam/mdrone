@@ -18,6 +18,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   BUILTIN_TUNINGS,
   DEGREE_LABELS,
+  customTuningIdForName,
   deleteCustomTuning,
   getAllTunings,
   getCustomTunings,
@@ -25,6 +26,7 @@ import {
   type TuningId,
   type TuningTable,
 } from "../microtuning";
+import { loadSessions } from "../session";
 
 interface ScaleEditorModalProps {
   /** Currently active tuning id — shown pre-selected in "COPY FROM".
@@ -105,7 +107,23 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
     });
   };
 
+  const customs = getCustomTunings();
+
+  // Collision detection — the slug derived from `name` becomes the
+  // tuning id. If a different existing custom tuning already owns
+  // that slug, saving would silently overwrite it. Block the save and
+  // surface the conflict so the user picks a fresh name. Saving on
+  // top of the *same* tuning the editor was opened on is fine — that
+  // is "edit in place" and the expected update flow.
+  const wouldBeId = customTuningIdForName(name);
+  const collidingTuning = customs.find(
+    (t) => t.id === wouldBeId && t.id !== currentTuningId,
+  );
+  const hasCollision = Boolean(collidingTuning);
+  const saveDisabled = hasCollision;
+
   const handleSaveAndApply = () => {
+    if (saveDisabled) return;
     const table = saveCustomTuning(name || "Untitled", degrees);
     refreshRegistry();
     onApply(table);
@@ -113,6 +131,30 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
   };
 
   const handleDelete = (id: TuningId) => {
+    // Cascade check — if any saved session or the current scene
+    // references this tuning, deletion would silently break those
+    // round-trips (load falls back to equal temperament). Surface a
+    // confirm with the count so the user can back out.
+    const sessionRefs = loadSessions().filter(
+      (s) => s.scene.drone.tuningId === id,
+    );
+    const usedByCurrent = currentTuningId === id;
+    const refCount = sessionRefs.length + (usedByCurrent ? 1 : 0);
+    if (refCount > 0) {
+      const sessionLabels = sessionRefs.slice(0, 3).map((s) => `“${s.name}”`).join(", ");
+      const more = sessionRefs.length > 3 ? ` and ${sessionRefs.length - 3} more` : "";
+      const lines = [
+        `This tuning is in use by ${refCount} place${refCount === 1 ? "" : "s"}.`,
+        usedByCurrent ? "• the current scene" : null,
+        sessionRefs.length > 0 ? `• saved session${sessionRefs.length === 1 ? "" : "s"}: ${sessionLabels}${more}` : null,
+        "",
+        "Deleting will fall those scenes back to equal temperament when reloaded.",
+        "",
+        "Delete anyway?",
+      ].filter(Boolean).join("\n");
+      const ok = window.confirm(lines);
+      if (!ok) return;
+    }
     deleteCustomTuning(id);
     refreshRegistry();
   };
@@ -122,8 +164,6 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
     setName(t.label);
     setDegrees([...t.degrees]);
   };
-
-  const customs = getCustomTunings();
 
   return (
     <div className="fx-modal-backdrop" onClick={onClose}>
@@ -221,12 +261,25 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
           </>
         )}
 
+        {hasCollision && (
+          <p className="scale-editor-warning" role="alert">
+            A custom tuning called{" "}
+            <strong>{collidingTuning?.label ?? "this name"}</strong>{" "}
+            already exists. Pick a different name to avoid overwriting it.
+          </p>
+        )}
         <div className="scale-editor-actions">
           <button
             className="scale-editor-primary-btn"
             onClick={handleSaveAndApply}
-            disabled={!name.trim()}
-            title={!name.trim() ? "Name required" : "Save to localStorage and apply as active tuning"}
+            disabled={!name.trim() || saveDisabled}
+            title={
+              !name.trim()
+                ? "Name required"
+                : hasCollision
+                  ? "Name collides with an existing custom tuning — rename to save"
+                  : "Save to localStorage and apply as active tuning"
+            }
           >
             SAVE &amp; APPLY
           </button>

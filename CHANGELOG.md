@@ -2,6 +2,16 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.9 — 2026-05-03
+
+Audit Slice A — close all P0/P1 from the 1.22.8 audit.
+
+- fix: custom tuning name collision now blocks save with an inline warning instead of silently overwriting an existing tuning. New `customTuningIdForName(name)` helper exported from `microtuning.ts` so the editor can predict the id before save. Saving on top of the same tuning the editor was opened on still works (edit-in-place flow).
+- fix: deleting a custom tuning that's referenced by saved sessions or the current scene now shows a confirm with the count + names of affected sessions, so the user can back out before silently breaking those round-trips. Reads `loadSessions()` to detect references.
+- chore: gate engine console noise — `MasterBus.ts:658` (cathedral IR fallback) and `AudioEngine.ts:824` (morph apply error swallow) downgraded to `console.debug`. The genuine "worklet failed to load" path at `AudioEngine.ts:217` stays as `console.error` because it's a real engine failure with a user-facing notification.
+- fix: tutorial — when the effects flow is replayed from Help, auto-expand the EDIT disclosure so the spotlight has its `[data-tutor="fx-bar"]` anchor. New `requestExpandEdit` / `onExpandEditRequested` bus mirrors the existing advanced-expand pattern.
+- chore: `Layout.tsx` audio diagnostics — `console.log(md)` only fires when clipboard fails. On success the report goes to clipboard quietly; the user toast already announces it.
+
 ## 1.22.8 — 2026-05-03
 
 - fix: extend the beforeunload guard to TIMED REC. Previously only `isRec` (REC LIVE) and `loopBusy` (BOUNCE LOOP) triggered the unsaved-take warning; closing or reloading the page mid-take silently discarded the in-flight WAV. Now `takeBusy` also arms the guard, so all three capture paths share the same protection.
