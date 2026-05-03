@@ -29,9 +29,6 @@ import { EntrainPanel } from "./EntrainPanel";
 const VisualizerPreview = lazy(() =>
   import("./VisualizerPreview").then((m) => ({ default: m.VisualizerPreview })),
 );
-const ExportAudioModal = lazy(() =>
-  import("./ExportAudioModal").then((m) => ({ default: m.ExportAudioModal })),
-);
 import type { Visualizer } from "./visualizers";
 
 const PRESET_GROUPS: PresetGroup[] = [
@@ -258,31 +255,14 @@ interface DroneViewProps {
   weatherVisual?: import("../config").WeatherVisual;
   kbdActive: boolean;
   onToggleKbd: () => void;
-  /** Master-output WAV recording state + toggle. Hoisted from the
-   *  header into the scene-actions row so recording sits next to
-   *  scene-level controls (MUTATE, JOURNEY, REC MOTION). */
-  isRec?: boolean;
-  onToggleRec?: () => void;
-  recTimeMs?: number;
-  recordingSupported?: boolean;
-  recordingBusy?: boolean;
-  recordingTitle?: string;
-  /** Seamless-loop bounce — short fixed-length WAV with a crossfade
-   *  seam and RIFF smpl loop points for samplers. Sits next to REC
-   *  as a sibling export action. */
-  loopLengthSec?: number;
-  onLoopLengthChange?: (sec: number) => void;
-  onBounceLoop?: () => void;
-  onCancelBounceLoop?: () => void;
-  loopBusy?: boolean;
-  loopProgress?: { elapsedSec: number; totalSec: number } | null;
-  /** Fixed-duration realtime export — starts the recorder, stops
-   *  automatically at `durationMs`, downloads the WAV. Reuses the
-   *  same MasterRecorder path as REC LIVE. */
-  onExportTake?: (durationMs: number) => void;
-  onCancelExportTake?: () => void;
-  takeBusy?: boolean;
-  takeProgress?: { elapsedMs: number; totalMs: number } | null;
+  // REC WAV / BOUNCE LOOP / TIMED REC live in the header's
+  // ⤓ EXPORT AUDIO dropdown — DroneView no longer owns recorder
+  // state. Inline buttons were removed to keep the perform row calm
+  // and instrument-like.
+  /** MUTATE intensity (0..1). Hoisted from internal state so the
+   *  Settings → GENERAL slider and the MUTATE button read the same
+   *  source of truth. Persisted in Layout. */
+  mutateIntensity?: number;
   /** Currently selected MEDITATE visualizer — used by the inline
    *  preview so DRONE shows what MEDITATE would expand into. */
   meditateVisualizer?: Visualizer;
@@ -345,7 +325,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, isRec, onToggleRec, recTimeMs, recordingSupported, recordingBusy, recordingTitle, loopLengthSec, onLoopLengthChange, onBounceLoop, onCancelBounceLoop, loopBusy, loopProgress, onExportTake, onCancelExportTake, takeBusy, takeProgress, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
   ref,
 ) {
   const {
@@ -560,16 +540,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
   // MUTATE intensity — local state, not persisted across reloads.
   // 0.25 is an audible but coherent default for typical drones.
-  const [mutateIntensity, setMutateIntensity] = useState(0.25);
+  // Source of truth lives in Layout (Settings → GENERAL slider). The
+  // local alias keeps the callsites at MUTATE click + tooltip terse.
+  const mutateIntensity = mutateIntensityProp ?? 0.25;
   // Scale-editor modal — opens from the ✎ button beside the tuning
   // dropdown so users can author and save custom tuning tables
   // (degrees in cents above the root). See audit P2 — scale editor UI.
   const [scaleEditorOpen, setScaleEditorOpen] = useState(false);
-  // Export Audio popover — single access point for REC LIVE, BOUNCE
-  // LOOP, and the new fixed-duration EXPORT TAKE flow. The inline REC
-  // and LOOP buttons in the perform row stay (existing muscle memory);
-  // this panel is the consolidated, professional surface.
-  const [exportAudioOpen, setExportAudioOpen] = useState(false);
 
   // LFO ↔ Ableton Link tempo sync. When `lfoSyncMode` is non-free
   // AND the Link bridge reports `connected`, the LFO rate is driven
@@ -1656,23 +1633,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             <div className="scene-actions-row">
               {/* PARTNER, JOURNEY, PRESET XFADE, GOOD DRONE, MUTATE
                   all moved to the always-visible preset-strip-identity
-                  row. Only the MUTATE intensity slider and the capture
-                  group (MOTION / REC / LOOP) remain here. */}
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={mutateIntensity}
-                onChange={(e) => setMutateIntensity(parseFloat(e.target.value))}
-                className="preset-mut-intensity"
-                style={{ ["--fill" as string]: `${mutateIntensity * 100}%` } as React.CSSProperties}
-                title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
-                aria-label="Mutation intensity"
-              />
-              <span className="preset-mut-value" aria-hidden="true">
-                {Math.round(mutateIntensity * 100)}%
-              </span>
+                  row. MUTATE intensity slider lives in Settings →
+                  GENERAL. Capture controls (REC / LOOP / TIMED REC)
+                  live in the header ⤓ EXPORT AUDIO dropdown. Only
+                  REC MOTION remains inline. */}
               {motionRecEnabled && (
                 <button
                   type="button"
@@ -1685,80 +1649,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   {isRecordingMotion ? "● MOTION" : "MOTION"}
                 </button>
               )}
-              {/* Master-output WAV recording — moved here from the
-                  header (too crowded up there). Sits with the other
-                  capture/recording controls (MOTION) for semantic
-                  consistency. Wrap break above puts it on its own
-                  row so the big red REC doesn't crowd MOTION. */}
-              <span className="scene-actions-break" aria-hidden="true" />
-              {onToggleRec && (
-                <button
-                  type="button"
-                  data-tutor="rec"
-                  className={isRec ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
-                  onClick={onToggleRec}
-                  disabled={!recordingSupported || recordingBusy || loopBusy}
-                  title={recordingTitle ?? "Record master output to WAV"}
-                >
-                  {!recordingSupported
-                    ? "WAV N/A"
-                    : recordingBusy
-                      ? "REC WAV…"
-                      : isRec
-                        ? `■ ${Math.floor((recTimeMs ?? 0) / 60000)}:${String(Math.floor(((recTimeMs ?? 0) / 1000) % 60)).padStart(2, "0")}`
-                        : "● REC WAV"}
-                </button>
-              )}
-              {/* Seamless-loop bounce — short fixed-length WAV that
-                  loops end-to-head with a crossfade seam and carries
-                  a RIFF `smpl` chunk so samplers auto-detect the
-                  loop region. Drones are the ideal case: no
-                  transients, so a short crossfade is inaudible. */}
-              {onBounceLoop && (
-                <span className="loop-bounce-group">
-                  <select
-                    className="preset-mut-select loop-bounce-length"
-                    value={loopLengthSec ?? 30}
-                    onChange={(e) => onLoopLengthChange?.(parseInt(e.target.value, 10))}
-                    disabled={loopBusy || isRec || recordingBusy}
-                    title="Loop length — the output WAV's duration"
-                    aria-label="Loop length in seconds"
-                  >
-                    <option value={15}>15s</option>
-                    <option value={30}>30s</option>
-                    <option value={60}>60s</option>
-                  </select>
-                  <button
-                    type="button"
-                    className={loopBusy ? "preset-mut-btn preset-mut-btn-loop" : "preset-mut-btn"}
-                    onClick={loopBusy ? onCancelBounceLoop : onBounceLoop}
-                    disabled={loopBusy ? !onCancelBounceLoop : (isRec || recordingBusy || !recordingSupported || takeBusy)}
-                    title={
-                      loopBusy
-                        ? "Stop — cancel the loop bounce (no WAV is saved)"
-                        : "◌ LOOP — bounce a seamless loop at the selected length (WAV with sampler loop points)"
-                    }
-                  >
-                    {loopBusy && loopProgress
-                      ? `■ STOP ${Math.min(loopProgress.totalSec, Math.floor(loopProgress.elapsedSec))}/${Math.ceil(loopProgress.totalSec)}s`
-                      : "◌ LOOP"}
-                  </button>
-                </span>
-              )}
-              {onExportTake && (
-                <button
-                  type="button"
-                  className={takeBusy ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn preset-mut-btn-glyph"}
-                  onClick={() => setExportAudioOpen(true)}
-                  disabled={!recordingSupported}
-                  aria-label="Export audio"
-                  title="Export audio — REC LIVE / BOUNCE LOOP / fixed-duration EXPORT TAKE"
-                >
-                  {takeBusy && takeProgress
-                    ? `⤓ ${Math.floor(takeProgress.elapsedMs / 60000)}:${String(Math.floor((takeProgress.elapsedMs / 1000) % 60)).padStart(2, "0")}`
-                    : "⤓"}
-                </button>
-              )}
+              {/* Master-output WAV / loop bounce / timed REC moved to
+                  the ⤓ EXPORT AUDIO dropdown in the header. The
+                  perform row keeps only the gesture controls
+                  (MOTION). */}
             </div>
 
             {/* Piano keyboard + octave — moved into the preset-strip
@@ -2106,29 +2000,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           currentTuningId={state.tuningId ?? null}
           onApply={(table) => setTuning(table.id)}
           onClose={() => setScaleEditorOpen(false)}
-        />
-      </Suspense>
-    )}
-    {exportAudioOpen && onExportTake && (
-      <Suspense fallback={null}>
-        <ExportAudioModal
-          onClose={() => setExportAudioOpen(false)}
-          isRec={isRec ?? false}
-          recordingBusy={recordingBusy ?? false}
-          recordingSupported={recordingSupported ?? false}
-          recordingTitle={recordingTitle}
-          recTimeMs={recTimeMs ?? 0}
-          onToggleRec={() => onToggleRec?.()}
-          loopLengthSec={loopLengthSec ?? 30}
-          onLoopLengthChange={(s) => onLoopLengthChange?.(s)}
-          loopBusy={loopBusy ?? false}
-          loopProgress={loopProgress ?? null}
-          onBounceLoop={() => onBounceLoop?.()}
-          onCancelBounceLoop={onCancelBounceLoop}
-          takeBusy={takeBusy ?? false}
-          takeProgress={takeProgress ?? null}
-          onExportTake={onExportTake}
-          onCancelExportTake={onCancelExportTake}
         />
       </Suspense>
     )}

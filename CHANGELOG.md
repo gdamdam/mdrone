@@ -2,6 +2,14 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.21.3 — 2026-05-03
+
+- ui: ⤓ EXPORT AUDIO moved to a header dropdown left of ◆ — REC LIVE / BOUNCE LOOP / TIMED REC live there. Inline REC WAV + LOOP buttons removed from the perform row.
+- ui: rename EXPORT TAKE → TIMED REC for clarity (pairs cleanly with REC LIVE: open-ended vs. closed).
+- ui: MUTATE intensity slider moved out of the perform row into Settings → GENERAL. Persisted in localStorage (`mdrone-mutate-intensity`).
+- arch: Layout owns recorder/loop/take state; Header consumes via props. DroneView only keeps REC MOTION inline.
+- a11y: header export button surfaces live status (`⤓ REC m:ss ▾` while recording, `⤓ m:ss ▾` while a TIMED REC is in progress).
+
 ## 1.21.2 — 2026-05-03
 
 - ui: header — new ◆ session button (left of ?) opens a dedicated SAVE / LOAD / RENAME / EXPORT JSON / IMPORT JSON sheet. Settings tab no longer carries session controls; renamed to GENERAL.

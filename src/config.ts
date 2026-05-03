@@ -41,6 +41,10 @@ export const STORAGE_KEYS = {
    *  voice cap, suppresses heavy FX, engages low-power visuals. Off
    *  by default. */
   liveSafeMode: "mdrone-live-safe",
+  /** Mutation intensity (0..1) — controls how much MUTATE perturbs
+   *  the current scene per click. Was an inline slider in the perform
+   *  row; lives in Settings → GENERAL now. Default 0.25. */
+  mutateIntensity: "mdrone-mutate-intensity",
 } as const;
 
 export type WeatherVisual = "waveform" | "flow" | "minimal";

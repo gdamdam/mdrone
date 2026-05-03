@@ -789,6 +789,22 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     try { localStorage.setItem(STORAGE_KEYS.liveSafeMode, on ? "1" : "0"); }
     catch { /* noop */ }
   }, []);
+  // MUTATE intensity (0..1). Was an inline slider in the perform row;
+  // moved to Settings → GENERAL so the surface stays calm. Persisted
+  // so the user's preferred amount survives reloads.
+  const [mutateIntensity, setMutateIntensityState] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.mutateIntensity);
+      const v = raw == null ? NaN : parseFloat(raw);
+      return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.25;
+    } catch { return 0.25; }
+  });
+  const setMutateIntensity = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    setMutateIntensityState(clamped);
+    try { localStorage.setItem(STORAGE_KEYS.mutateIntensity, clamped.toFixed(3)); }
+    catch { /* noop */ }
+  }, []);
   // Surface the engine's suppressed-FX count to the header pill so the
   // tooltip can read at a glance how much LIVE SAFE is doing.
   const [liveSafeSuppressedFxCount, setLiveSafeSuppressedFxCount] = useState(0);
@@ -1023,7 +1039,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         if (!engine.isPlaying()) holdToggleRef.current?.();
         await engine.startMasterRecording();
         started = true;
-        trackEvent(`recording/take-${durationLabel}`);
+        trackEvent(`recording/timed-${durationLabel}`);
         const t0 = performance.now();
         takeTickRef.current = window.setInterval(() => {
           const elapsed = Math.min(total, Math.floor(performance.now() - t0));
@@ -1181,6 +1197,22 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onExportSessionJson={sceneManager.handleExportSessionJson}
         onImportSessionJson={sceneManager.handleImportSessionJson}
         getDefaultSessionName={sceneManager.getDefaultSessionName}
+        isRec={isRec}
+        recordingBusy={recBusy}
+        recordingSupported={recordingSupport.supported}
+        recordingTitle={recordingTitle}
+        recTimeMs={recTimeMs}
+        onToggleRec={handleToggleRec}
+        loopLengthSec={loopLengthSec}
+        onLoopLengthChange={setLoopLengthSec}
+        loopBusy={loopBusy}
+        loopProgress={loopProgress}
+        onBounceLoop={handleBounceLoop}
+        onCancelBounceLoop={handleCancelBounceLoop}
+        takeBusy={takeBusy}
+        takeProgress={takeProgress}
+        onExportTake={handleExportTake}
+        onCancelExportTake={handleCancelExportTake}
         displayText={sceneManager.displayText}
         isArrivalPreset={sceneManager.isArrivalPreset}
         rndArrivalRemaining={sceneManager.rndArrivalRemaining}
@@ -1227,6 +1259,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleLowPower={setLowPowerMode}
         liveSafeMode={liveSafeMode}
         onToggleLiveSafeMode={setLiveSafeMode}
+        mutateIntensity={mutateIntensity}
+        onChangeMutateIntensity={setMutateIntensity}
         liveSafeSuppressedFxCount={liveSafeSuppressedFxCount}
         meditatePreviewOn={visualPreviewOn}
         onToggleMeditatePreview={toggleVisualPreview}
@@ -1293,22 +1327,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             weatherVisual={weatherVisual}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
-            isRec={isRec}
-            onToggleRec={handleToggleRec}
-            recTimeMs={recTimeMs}
-            recordingSupported={recordingSupport.supported}
-            recordingTitle={recordingTitle}
-            recordingBusy={recBusy}
-            loopLengthSec={loopLengthSec}
-            onLoopLengthChange={setLoopLengthSec}
-            onBounceLoop={handleBounceLoop}
-            onCancelBounceLoop={handleCancelBounceLoop}
-            loopBusy={loopBusy}
-            loopProgress={loopProgress}
-            onExportTake={handleExportTake}
-            onCancelExportTake={handleCancelExportTake}
-            takeBusy={takeBusy}
-            takeProgress={takeProgress}
+            mutateIntensity={mutateIntensity}
+            /* Recording controls (REC LIVE / BOUNCE LOOP / TIMED REC)
+             * live in the header ⤓ dropdown — Layout passes the same
+             * handlers to <Header> below. */
             meditateVisualizer={sceneManager.meditateVisualizer}
             onChangeMeditateVisualizer={(v) => {
               trackEvent(`visualizer/${v}`);

@@ -25,6 +25,9 @@ import { onCloseSettingsRequested } from "../tutorial/state";
 const HelpModal = lazy(() =>
   import("./HelpModal").then((m) => ({ default: m.HelpModal })),
 );
+const ExportAudioMenu = lazy(() =>
+  import("./ExportAudioModal").then((m) => ({ default: m.ExportAudioModal })),
+);
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 
@@ -95,6 +98,11 @@ interface HeaderProps {
   onToggleLowPower: (on: boolean) => void;
   liveSafeMode: boolean;
   onToggleLiveSafeMode: (on: boolean) => void;
+  /** MUTATE intensity (0..1). Used to live as a slider in the perform
+   *  row; surfaced in Settings → GENERAL now so the surface stays
+   *  calm. Persisted in localStorage by the parent. */
+  mutateIntensity: number;
+  onChangeMutateIntensity: (v: number) => void;
   /** Count of heavy FX currently bypassed by LIVE SAFE — surfaced in
    *  the header pill's tooltip so performers can read at a glance how
    *  much the mode is doing. 0 when LIVE SAFE is off. */
@@ -112,6 +120,25 @@ interface HeaderProps {
    *  performance row owns transport + visualizer in one place. */
   meditatePreviewOn: boolean;
   onToggleMeditatePreview: () => void;
+  /** Export-audio dropdown — REC LIVE / BOUNCE LOOP / EXPORT TAKE.
+   *  Same recorder/bouncer plumbing as the inline perform-row buttons;
+   *  the header dropdown is the consolidated access point. */
+  isRec: boolean;
+  recordingBusy: boolean;
+  recordingSupported: boolean;
+  recordingTitle?: string;
+  recTimeMs: number;
+  onToggleRec: () => void;
+  loopLengthSec: number;
+  onLoopLengthChange: (sec: number) => void;
+  loopBusy: boolean;
+  loopProgress: { elapsedSec: number; totalSec: number } | null;
+  onBounceLoop: () => void;
+  onCancelBounceLoop?: () => void;
+  takeBusy: boolean;
+  takeProgress: { elapsedMs: number; totalMs: number } | null;
+  onExportTake: (durationMs: number) => void;
+  onCancelExportTake?: () => void;
 }
 
 /**
@@ -164,6 +191,8 @@ export function Header({
   onToggleLowPower,
   liveSafeMode,
   onToggleLiveSafeMode,
+  mutateIntensity,
+  onChangeMutateIntensity,
   liveSafeSuppressedFxCount = 0,
   analyser,
   loadMonitor,
@@ -171,6 +200,22 @@ export function Header({
   onCopyAudioReport,
   meditatePreviewOn,
   onToggleMeditatePreview,
+  isRec,
+  recordingBusy,
+  recordingSupported,
+  recordingTitle,
+  recTimeMs,
+  onToggleRec,
+  loopLengthSec,
+  onLoopLengthChange,
+  loopBusy,
+  loopProgress,
+  onBounceLoop,
+  onCancelBounceLoop,
+  takeBusy,
+  takeProgress,
+  onExportTake,
+  onCancelExportTake,
 }: HeaderProps) {
   // Brand animation — rAF loop reads the master analyser's RMS and
   // writes a tiny translate transform plus a brightness filter onto
@@ -305,6 +350,10 @@ export function Header({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sessionSheetOpen]);
+  // Export-audio dropdown (⤓ button). Outside-click + Esc handled
+  // inside the menu component itself; we just own open/close state.
+  const [exportAudioOpen, setExportAudioOpen] = useState(false);
+  const exportAudioBtnRef = useRef<HTMLButtonElement>(null);
 
   // Marquee click arbitration: single-click opens the preset list,
   // double-click opens the rename dialog. The click fires twice on a
@@ -644,6 +693,55 @@ export function Header({
         >
           LINK
         </button>
+        <span className="export-menu-anchor">
+          <button
+            ref={exportAudioBtnRef}
+            data-tutor="export-audio-btn"
+            className={
+              takeBusy || isRec || loopBusy
+                ? "header-btn header-btn-export header-btn-export-on"
+                : "header-btn header-btn-export"
+            }
+            onClick={() => setExportAudioOpen((o) => !o)}
+            disabled={!recordingSupported}
+            title={!recordingSupported
+              ? "WAV recording is unavailable in this browser"
+              : "Export audio — REC LIVE / BOUNCE LOOP / TIMED REC"}
+            aria-haspopup="menu"
+            aria-expanded={exportAudioOpen}
+            aria-label="Export audio"
+          >
+            {takeBusy && takeProgress
+              ? `⤓ ${Math.floor(takeProgress.elapsedMs / 60000)}:${String(Math.floor((takeProgress.elapsedMs / 1000) % 60)).padStart(2, "0")} ▾`
+              : isRec
+                ? `⤓ REC ${Math.floor((recTimeMs ?? 0) / 60000)}:${String(Math.floor(((recTimeMs ?? 0) / 1000) % 60)).padStart(2, "0")} ▾`
+                : "⤓ ▾"}
+          </button>
+          {exportAudioOpen && (
+            <Suspense fallback={null}>
+              <ExportAudioMenu
+                anchorRef={exportAudioBtnRef}
+                onClose={() => setExportAudioOpen(false)}
+                isRec={isRec}
+                recordingBusy={recordingBusy}
+                recordingSupported={recordingSupported}
+                recordingTitle={recordingTitle}
+                recTimeMs={recTimeMs}
+                onToggleRec={onToggleRec}
+                loopLengthSec={loopLengthSec}
+                onLoopLengthChange={onLoopLengthChange}
+                loopBusy={loopBusy}
+                loopProgress={loopProgress}
+                onBounceLoop={onBounceLoop}
+                onCancelBounceLoop={onCancelBounceLoop}
+                takeBusy={takeBusy}
+                takeProgress={takeProgress}
+                onExportTake={onExportTake}
+                onCancelExportTake={onCancelExportTake}
+              />
+            </Suspense>
+          )}
+        </span>
         <button
           data-tutor="session-btn"
           className="header-btn header-btn-session"
@@ -801,6 +899,30 @@ export function Header({
                 rest of the device-wide preferences.
               </p>
 
+              <div className="fx-modal-section-label">MUTATE INTENSITY</div>
+              <p className="fx-modal-desc">
+                How much each MUTATE click perturbs the current scene
+                \u2014 voice mix, macros, and effect levels. 25% is an
+                audible-but-coherent default; push higher for bigger
+                drift per click.
+              </p>
+              <label className="fx-modal-param">
+                <span className="fx-modal-param-label">AMOUNT</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={mutateIntensity}
+                  onChange={(e) => onChangeMutateIntensity(parseFloat(e.target.value))}
+                  className="macro-slider"
+                  aria-label="Mutation intensity"
+                  title={`Mutation intensity: ${Math.round(mutateIntensity * 100)}%`}
+                />
+                <span className="fx-modal-param-value">{Math.round(mutateIntensity * 100)}%</span>
+              </label>
+
+              <div className="fx-modal-divider" />
               <div className="fx-modal-section-label">MOTION RECORDING</div>
               <p className="fx-modal-desc">
                 Capture meaningful gesture events (60 s / 200 max) into

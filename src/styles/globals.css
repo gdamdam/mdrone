@@ -1634,14 +1634,43 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-left: 4px;
 }
 
-/* Admin glyph cluster — ◆ session, ? help, ⚙ settings.
- * Only the leftmost glyph (◆) anchors to the right via margin-left:
- * auto; the next two follow with a small fixed gap so the cluster
- * reads as a single group rather than three buttons fighting for
- * space. */
+/* Admin glyph cluster — ⤓ export, ◆ session, ? help, ⚙ settings.
+ * Only the leftmost element (the export-menu-anchor span) anchors to
+ * the right via margin-left: auto; the rest follow with a small fixed
+ * gap so the cluster reads as a single group rather than four
+ * controls fighting for space. */
+.export-menu-anchor { margin-left: auto; }
+.export-menu-anchor + .header-btn-session,
+.export-menu-anchor + .header-btn-session + .header-btn-help,
+.export-menu-anchor + .header-btn-session + .header-btn-help + .header-btn-menu,
 .header-btn-session + .header-btn-help,
 .header-btn-session + .header-btn-help + .header-btn-menu {
   margin-left: 4px;
+}
+
+.header-btn-export {
+  /* Compact export-audio chip — sits inside the admin glyph cluster
+   * but reads as an action (carries a ▾ caret). Borderless at rest
+   * to match the surrounding ◆ / ? / ⚙ glyphs. */
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  min-width: 24px;
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--text-dim);
+  border-color: transparent;
+  letter-spacing: 0.04em;
+}
+.header-btn-export:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 50%, transparent);
+}
+.header-btn-export:disabled { opacity: 0.4; cursor: not-allowed; }
+.header-btn-export-on {
+  color: #ff5a4f;
+  border-color: color-mix(in srgb, #ff5a4f 60%, transparent);
 }
 
 .header-btn-session,
@@ -1820,6 +1849,108 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* Wider modal for the mapping table — the standard fx-modal width
  * gets cramped with three table columns + chips. */
 .fx-modal-wide { max-width: 640px; }
+
+/* Export-audio dropdown — anchored under the ⤓ header button. Same
+ * outside-click + Esc behaviour as .midi-menu, but wider because the
+ * panel carries section labels, action buttons, and a duration picker
+ * for the EXPORT TAKE flow. */
+.export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  width: 240px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.export-menu-section { display: flex; flex-direction: column; gap: 4px; }
+.export-menu-section-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.export-menu-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.export-menu-action {
+  flex: 1 1 auto;
+  min-height: 30px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font: 600 12px / 1 inherit;
+  letter-spacing: 0.04em;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.export-menu-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--preview) 18%, transparent);
+}
+.export-menu-action:disabled { opacity: 0.4; cursor: not-allowed; }
+.export-menu-action-rec {
+  color: #ff5a4f;
+  border-color: color-mix(in srgb, #ff5a4f 60%, transparent);
+}
+.export-menu-action-loop {
+  color: var(--preview);
+  border-color: color-mix(in srgb, var(--preview) 60%, transparent);
+}
+.export-menu-select {
+  flex: 0 0 auto;
+  min-width: 56px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.export-menu-pill {
+  flex: 1 1 0;
+  padding: 5px 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font: 600 11px / 1 inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.export-menu-pill:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--preview) 14%, transparent);
+}
+.export-menu-pill-active {
+  color: var(--preview);
+  border-color: color-mix(in srgb, var(--preview) 70%, transparent);
+  background: color-mix(in srgb, var(--preview) 12%, transparent);
+}
+.export-menu-pill:disabled { opacity: 0.4; cursor: not-allowed; }
+.export-menu-divider {
+  height: 1px;
+  margin: 4px 4px;
+  background: var(--border);
+}
+.export-menu-hint {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+.export-menu-anchor {
+  position: relative;
+  display: inline-block;
+}
 
 /* Mobile — no MIDI in the header. Web MIDI is desktop-only in
  * practice, and the header is already crowded on small screens. */

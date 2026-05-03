@@ -1,21 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * ExportAudioModal — single popover that consolidates the three audio
+ * ExportAudioMenu — header dropdown that consolidates the three audio
  * export workflows: live REC, seamless loop bounce, and a fixed-
- * duration auto-stop "EXPORT TAKE". Reuses the existing recorder /
- * loop-bouncer plumbing — nothing here renders audio offline.
+ * duration auto-stop TIMED REC. Anchored under the ⤓ header button
+ * (matches the MIDI dropdown's outside-click + Esc behaviour).
+ *
+ * Reuses the existing recorder / loop-bouncer plumbing — nothing here
+ * renders audio offline.
  */
 export interface ExportAudioModalProps {
+  /** Position-anchor element — used so click-outside ignores its own
+   *  trigger button. The dropdown still renders inside this anchor. */
+  anchorRef?: React.RefObject<HTMLElement | null>;
   onClose: () => void;
-  // REC LIVE — mirrors the inline REC WAV button.
+  // REC LIVE — mirrors the existing REC WAV button.
   isRec: boolean;
   recordingBusy: boolean;
   recordingSupported: boolean;
   recordingTitle?: string;
   recTimeMs: number;
   onToggleRec: () => void;
-  // BOUNCE LOOP — mirrors the inline LOOP control + length picker.
+  // BOUNCE LOOP — mirrors the existing LOOP control + length picker.
   loopLengthSec: number;
   onLoopLengthChange: (sec: number) => void;
   loopBusy: boolean;
@@ -42,18 +48,31 @@ function fmtMmSs(ms: number): string {
 }
 
 export function ExportAudioModal({
+  anchorRef,
   onClose,
   isRec, recordingBusy, recordingSupported, recordingTitle, recTimeMs, onToggleRec,
   loopLengthSec, onLoopLengthChange, loopBusy, loopProgress, onBounceLoop, onCancelBounceLoop,
   takeBusy, takeProgress, onExportTake, onCancelExportTake,
 }: ExportAudioModalProps) {
   const [takeMs, setTakeMs] = useState<number>(60_000);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (menuRef.current?.contains(t)) return;
+      if (anchorRef?.current?.contains(t)) return;
+      onClose();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    document.addEventListener("mousedown", onDoc);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDoc);
+    };
+  }, [onClose, anchorRef]);
 
   const recDisabled = !recordingSupported || recordingBusy || loopBusy || takeBusy;
   const loopDisabled = loopBusy
@@ -62,137 +81,98 @@ export function ExportAudioModal({
   const takeDisabled = !recordingSupported || isRec || recordingBusy || loopBusy;
 
   return (
-    <div className="fx-modal-backdrop" onClick={onClose}>
-      <div
-        className="fx-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Export audio"
-      >
-        <div className="fx-modal-header">
-          <div className="fx-modal-title">EXPORT AUDIO</div>
-          <div className="fx-modal-actions">
-            <button
-              type="button"
-              className="header-btn"
-              onClick={onClose}
-              title="Close (Esc)"
-            >
-              ×
-            </button>
-          </div>
+    <div ref={menuRef} className="export-menu" role="menu" aria-label="Export audio">
+      {/* REC LIVE */}
+      <div className="export-menu-section">
+        <div className="export-menu-section-label">REC LIVE</div>
+        <button
+          type="button"
+          className={isRec ? "export-menu-action export-menu-action-rec" : "export-menu-action"}
+          onClick={onToggleRec}
+          disabled={recDisabled && !isRec}
+          title={recordingTitle ?? "Record master output to WAV"}
+        >
+          {!recordingSupported
+            ? "WAV N/A"
+            : recordingBusy
+              ? "REC WAV…"
+              : isRec
+                ? `■ ${fmtMmSs(recTimeMs)}`
+                : "● REC WAV"}
+        </button>
+      </div>
+
+      <div className="export-menu-divider" />
+
+      {/* BOUNCE LOOP */}
+      <div className="export-menu-section">
+        <div className="export-menu-section-label">BOUNCE LOOP</div>
+        <div className="export-menu-row">
+          <select
+            className="preset-mut-select export-menu-select"
+            value={loopLengthSec}
+            onChange={(e) => onLoopLengthChange(parseInt(e.target.value, 10))}
+            disabled={loopBusy || isRec || recordingBusy || takeBusy}
+            aria-label="Loop length in seconds"
+            title="Loop length — the output WAV's duration"
+          >
+            <option value={15}>15s</option>
+            <option value={30}>30s</option>
+            <option value={60}>60s</option>
+          </select>
+          <button
+            type="button"
+            className={loopBusy ? "export-menu-action export-menu-action-loop" : "export-menu-action"}
+            onClick={loopBusy ? onCancelBounceLoop : onBounceLoop}
+            disabled={loopDisabled}
+            title={loopBusy
+              ? "Stop — cancel the loop bounce (no WAV is saved)"
+              : "Bounce a seamless loop at the selected length"}
+          >
+            {loopBusy && loopProgress
+              ? `■ STOP ${Math.min(loopProgress.totalSec, Math.floor(loopProgress.elapsedSec))}/${Math.ceil(loopProgress.totalSec)}s`
+              : "◌ LOOP"}
+          </button>
         </div>
-        <p className="fx-modal-desc">
-          All three workflows are realtime captures of the live master
-          output — there is no offline render. Long takes consume browser
-          memory; recommended max ≈ 30 min.
+      </div>
+
+      <div className="export-menu-divider" />
+
+      {/* TIMED REC — fixed duration, auto-stop, downloads on completion. */}
+      <div className="export-menu-section">
+        <div className="export-menu-section-label">TIMED REC</div>
+        <div className="export-menu-row" role="radiogroup" aria-label="Timed REC duration">
+          {TAKE_DURATIONS.map((opt) => (
+            <button
+              key={opt.ms}
+              type="button"
+              role="radio"
+              aria-checked={takeMs === opt.ms}
+              className={takeMs === opt.ms ? "export-menu-pill export-menu-pill-active" : "export-menu-pill"}
+              onClick={() => setTakeMs(opt.ms)}
+              disabled={takeBusy}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className={takeBusy ? "export-menu-action export-menu-action-rec" : "export-menu-action"}
+          onClick={takeBusy ? onCancelExportTake : () => onExportTake(takeMs)}
+          disabled={takeBusy ? !onCancelExportTake : takeDisabled}
+          title={takeBusy
+            ? "Stop and discard the in-progress timed REC"
+            : `Record exactly ${fmtMmSs(takeMs)} of master output, then download as WAV`}
+        >
+          {takeBusy && takeProgress
+            ? `■ STOP ${fmtMmSs(takeProgress.elapsedMs)} / ${fmtMmSs(takeProgress.totalMs)}`
+            : `● REC ${fmtMmSs(takeMs)} ▸`}
+        </button>
+        <p className="export-menu-hint">
+          Realtime — recorder runs for the full duration, then stops
+          and downloads. Auto-starts HOLD.
         </p>
-
-        <div className="fx-modal-params">
-
-          {/* REC LIVE */}
-          <div className="fx-modal-section-label">REC LIVE</div>
-          <p className="fx-modal-desc">
-            Capture the live performance — every gesture you make while
-            recording lands in the WAV. Auto-starts HOLD if it isn't already on.
-          </p>
-          <div className="fx-modal-actions">
-            <button
-              type="button"
-              className={isRec ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
-              onClick={onToggleRec}
-              disabled={recDisabled && !isRec}
-              title={recordingTitle ?? "Record master output to WAV"}
-            >
-              {!recordingSupported
-                ? "WAV N/A"
-                : recordingBusy
-                  ? "REC WAV…"
-                  : isRec
-                    ? `■ ${fmtMmSs(recTimeMs)}`
-                    : "● REC WAV"}
-            </button>
-          </div>
-
-          <div className="fx-modal-divider" />
-
-          {/* BOUNCE LOOP */}
-          <div className="fx-modal-section-label">BOUNCE LOOP</div>
-          <p className="fx-modal-desc">
-            Sampler / DAW-ready loop WAV — fixed length with a
-            crossfade seam and RIFF <code>smpl</code> loop points so
-            samplers auto-detect the loop region.
-          </p>
-          <div className="fx-modal-actions">
-            <select
-              className="preset-mut-select loop-bounce-length"
-              value={loopLengthSec}
-              onChange={(e) => onLoopLengthChange(parseInt(e.target.value, 10))}
-              disabled={loopBusy || isRec || recordingBusy || takeBusy}
-              aria-label="Loop length in seconds"
-              title="Loop length — the output WAV's duration"
-            >
-              <option value={15}>15s</option>
-              <option value={30}>30s</option>
-              <option value={60}>60s</option>
-            </select>
-            <button
-              type="button"
-              className={loopBusy ? "preset-mut-btn preset-mut-btn-loop" : "preset-mut-btn"}
-              onClick={loopBusy ? onCancelBounceLoop : onBounceLoop}
-              disabled={loopDisabled}
-              title={loopBusy
-                ? "Stop — cancel the loop bounce (no WAV is saved)"
-                : "Bounce a seamless loop at the selected length"}
-            >
-              {loopBusy && loopProgress
-                ? `■ STOP ${Math.min(loopProgress.totalSec, Math.floor(loopProgress.elapsedSec))}/${Math.ceil(loopProgress.totalSec)}s`
-                : "◌ LOOP"}
-            </button>
-          </div>
-
-          <div className="fx-modal-divider" />
-
-          {/* EXPORT TAKE */}
-          <div className="fx-modal-section-label">EXPORT TAKE</div>
-          <p className="fx-modal-desc">
-            Pick a duration — recording starts immediately, stops
-            automatically, and downloads. Realtime capture (not offline
-            render). Auto-starts HOLD.
-          </p>
-          <div className="share-style-row" role="radiogroup" aria-label="Take duration">
-            {TAKE_DURATIONS.map((opt) => (
-              <button
-                key={opt.ms}
-                type="button"
-                role="radio"
-                aria-checked={takeMs === opt.ms}
-                className={takeMs === opt.ms ? "share-style-btn share-style-btn-active" : "share-style-btn"}
-                onClick={() => setTakeMs(opt.ms)}
-                disabled={takeBusy}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <div className="fx-modal-actions">
-            <button
-              type="button"
-              className={takeBusy ? "preset-mut-btn preset-mut-btn-rec" : "preset-mut-btn"}
-              onClick={takeBusy ? onCancelExportTake : () => onExportTake(takeMs)}
-              disabled={takeBusy ? !onCancelExportTake : takeDisabled}
-              title={takeBusy
-                ? "Stop and discard the in-progress take"
-                : `Record exactly ${fmtMmSs(takeMs)} of master output, then download as WAV`}
-            >
-              {takeBusy && takeProgress
-                ? `■ STOP ${fmtMmSs(takeProgress.elapsedMs)} / ${fmtMmSs(takeProgress.totalMs)}`
-                : `⤓ EXPORT ${fmtMmSs(takeMs)} TAKE`}
-            </button>
-          </div>
-
-        </div>
       </div>
     </div>
   );
