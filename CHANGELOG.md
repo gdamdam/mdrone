@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.6 — 2026-05-03
+
+- ui: mobile header — reorder row 2 to `VOL · ▤ · RND · HOLD · ◉ · ⤴ · ◆ · ⤓ · ⚙`. Volume + mixer now lead the row; transport (RND / HOLD / MED) sits in the middle; share/session/export/settings cluster trails.
+
 ## 1.22.5 — 2026-05-03
 
 - ui: mobile header — bump specificity of the `display: contents` override on `.header-center` / `.header-secondary` so it beats the global `display: flex` defined at `globals.css:1225` / `:578`. Without this, those wrappers stayed as flex containers and their children never became direct flex items of `.header-row-main`, so the `order` rules below silently no-op'd and RND / HOLD / MED packed onto row 1 in source order.

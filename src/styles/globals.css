@@ -890,12 +890,12 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-row-main .title-sigil { order: 2; flex: 0 0 auto; margin-left: 0; }
 
   /* Row 2 — actions in left-to-right reading order:
-       RND · HOLD · ◉ MED · VOL · ▤ MIX · LINK · ◆ · ⤓ · ⚙ */
-  .header-row-main .header-rnd-wrap            { order: 11; margin-left: 0; }
-  .header-row-main .header-hold-btn            { order: 12; margin-left: 0; }
-  .header-row-main .header-btn-meditate-preview { order: 13; margin-left: 0; }
-  .header-row-main .header-btn-volume          { order: 14; margin-left: 0; }
-  .header-row-main .header-btn-mixer           { order: 15; margin-left: 0; }
+       VOL · ▤ MIX · RND · HOLD · ◉ MED · LINK · ◆ · ⤓ · ⚙ */
+  .header-row-main .header-btn-volume          { order: 11; margin-left: 0; }
+  .header-row-main .header-btn-mixer           { order: 12; margin-left: 0; }
+  .header-row-main .header-rnd-wrap            { order: 13; margin-left: 0; }
+  .header-row-main .header-hold-btn            { order: 14; margin-left: 0; }
+  .header-row-main .header-btn-meditate-preview { order: 15; margin-left: 0; }
   .header-row-main .header-btn-share           { order: 16; margin-left: 0; }
   .header-row-main .header-btn-session         { order: 17; margin-left: 0; }
   .header-row-main .export-menu-anchor         { order: 18; margin-left: 0; }
