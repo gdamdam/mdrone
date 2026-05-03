@@ -811,6 +811,24 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     try { localStorage.setItem(STORAGE_KEYS.mutateIntensity, clamped.toFixed(3)); }
     catch { /* noop */ }
   }, []);
+  // Headphone-safe — clamps the master output to ~50% so a misjudged
+  // volume tap doesn't peak straight into headphones. Hoisted from
+  // MixerView so the Header's VOL button can surface a "HP" badge
+  // (otherwise the user adjusts volume from the header without ever
+  // realising the cap is on). Persisted to localStorage; restored at
+  // mount before the engine read so initial state is consistent.
+  const [headphoneSafe, setHeadphoneSafeState] = useState<boolean>(() => {
+    try { return localStorage.getItem(STORAGE_KEYS.headphoneSafe) === "1"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    engine?.setHeadphoneSafe?.(headphoneSafe);
+  }, [engine, headphoneSafe]);
+  const setHeadphoneSafe = useCallback((on: boolean) => {
+    setHeadphoneSafeState(on);
+    try { localStorage.setItem(STORAGE_KEYS.headphoneSafe, on ? "1" : "0"); }
+    catch { /* noop */ }
+  }, []);
   // Surface the engine's suppressed-FX count to the header pill so the
   // tooltip can read at a glance how much LIVE SAFE is doing.
   const [liveSafeSuppressedFxCount, setLiveSafeSuppressedFxCount] = useState(0);
@@ -1265,6 +1283,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleLowPower={setLowPowerMode}
         liveSafeMode={liveSafeMode}
         onToggleLiveSafeMode={setLiveSafeMode}
+        headphoneSafe={headphoneSafe}
         mutateIntensity={mutateIntensity}
         onChangeMutateIntensity={setMutateIntensity}
         liveSafeSuppressedFxCount={liveSafeSuppressedFxCount}
@@ -1400,6 +1419,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
               setHeaderVolume(v);
               engine.setMasterVolume(v);
             }}
+            headphoneSafe={headphoneSafe}
+            onHeadphoneSafeChange={setHeadphoneSafe}
           />
         </section>
       </main>

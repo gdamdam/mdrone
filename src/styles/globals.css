@@ -2834,6 +2834,21 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
    so the button reads as visibly *off* before the active state
    lights it. Two-class selector to win specificity over .header-btn. */
 
+/* HP-SAFE indicator — when headphone-safe is on, the master volume
+ * is clamped to ~50% inside MasterBus. Surface that on the VOL
+ * button so the user knows the cap is active without opening the
+ * Mixer view. Same warm orange as the LIVE SAFE pill so the two
+ * "user-engaged safety mode" states read as a family. */
+.header-btn.header-btn-volume-hp {
+  border-color: color-mix(in srgb, #d94a2b 50%, var(--border));
+  color: color-mix(in srgb, #d94a2b 80%, var(--text));
+  background: color-mix(in srgb, #d94a2b 12%, transparent);
+}
+.header-btn.header-btn-volume-hp:hover {
+  border-color: color-mix(in srgb, #d94a2b 75%, var(--border));
+  color: #d94a2b;
+}
+
 /* LIVE SAFE — explicit stage-readiness pill. Lives in the performance
    row. The active state uses the same red-orange the CPU warning
    uses, but steady (no blink) so it reads as a deliberate user
@@ -4894,6 +4909,18 @@ input.share-modal-url {
 input.share-modal-url:focus {
   outline: 1px solid var(--accent, currentColor);
   outline-offset: -1px;
+}
+
+.share-modal-warning {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, #ff7a3a 50%, var(--border));
+  border-radius: 4px;
+  background: color-mix(in srgb, #ff7a3a 8%, transparent);
+  color: color-mix(in srgb, #ff7a3a 70%, var(--text));
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
 }
 
 .share-modal-link-label {

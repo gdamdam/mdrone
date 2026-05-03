@@ -2,6 +2,15 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.10 — 2026-05-03
+
+Audit Slice B — master-bus headroom UI + share URL length warning.
+
+- ui: header VOL button surfaces a `· HP` badge (orange tint) when headphone-safe is on, so the user can see the master-output cap without opening the Mixer view. Tooltip and mobile glyph (`♪ᴴᴾ`) follow.
+- arch: hoist `headphoneSafe` from MixerView into Layout. State is now persisted to localStorage (`mdrone-headphone-safe`) — the storage key existed but was never written; reloads no longer reset the safety toggle. MixerView falls back to its internal mirror when used without props (storybook / snapshot tests).
+- ui: Mixer CEIL slider widened from `-6..0 dB` → `-12..0 dB` so headroom-conscious mixers / stage rigs with downstream gain can set a deeper ceiling. Tooltip explains the typical 3-6 dB margin.
+- ui: ShareModal — when the displayed URL exceeds 1900 chars, surface an inline warning explaining that some platforms (Twitter, Telegram, certain chat apps) truncate around 2000 and recommending the short link or a shorter scene name.
+
 ## 1.22.9 — 2026-05-03
 
 Audit Slice A — close all P0/P1 from the 1.22.8 audit.

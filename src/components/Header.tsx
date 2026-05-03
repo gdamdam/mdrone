@@ -98,6 +98,10 @@ interface HeaderProps {
   onToggleLowPower: (on: boolean) => void;
   liveSafeMode: boolean;
   onToggleLiveSafeMode: (on: boolean) => void;
+  /** Headphone-safe state — when on, master volume is clamped to
+   *  ~50%. Surfaced as a small badge on the VOL button so the user
+   *  can see the cap without opening the Mixer view. */
+  headphoneSafe?: boolean;
   /** MUTATE intensity (0..1). Used to live as a slider in the perform
    *  row; surfaced in Settings → GENERAL now so the surface stays
    *  calm. Persisted in localStorage by the parent. */
@@ -191,6 +195,7 @@ export function Header({
   onToggleLowPower,
   liveSafeMode,
   onToggleLiveSafeMode,
+  headphoneSafe = false,
   mutateIntensity,
   onChangeMutateIntensity,
   liveSafeSuppressedFxCount = 0,
@@ -605,13 +610,25 @@ export function Header({
             tier; dimmed via .header-secondary opacity until hover. */}
         <div className="header-secondary">
         <button
-          className="header-btn header-btn-volume"
+          className={
+            headphoneSafe
+              ? "header-btn header-btn-volume header-btn-volume-hp"
+              : "header-btn header-btn-volume"
+          }
           onClick={() => setVolumeOpen(true)}
-          title={`Master volume: ${volPct}% — click to adjust`}
+          title={
+            headphoneSafe
+              ? `Master volume: ${volPct}% — HP-SAFE on, output capped at 50%. Click to adjust.`
+              : `Master volume: ${volPct}% — click to adjust`
+          }
           data-midi-id="volume"
         >
-          <span className="header-btn-label-full">VOL {volPct}</span>
-          <span className="header-btn-label-glyph" aria-hidden="true">♪</span>
+          <span className="header-btn-label-full">
+            VOL {volPct}{headphoneSafe ? " · HP" : ""}
+          </span>
+          <span className="header-btn-label-glyph" aria-hidden="true">
+            {headphoneSafe ? "♪ᴴᴾ" : "♪"}
+          </span>
         </button>
         <span className="midi-menu-anchor">
           <button

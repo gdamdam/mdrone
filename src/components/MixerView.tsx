@@ -14,6 +14,11 @@ interface MixerViewProps {
   /** Controlled master volume — shared with the Header volume modal. */
   volume?: number;
   onVolumeChange?: (v: number) => void;
+  /** Controlled headphone-safe state — hoisted to Layout so the
+   *  Header VOL button can surface a "HP" badge. Optional for
+   *  callers that haven't migrated; falls back to engine state. */
+  headphoneSafe?: boolean;
+  onHeadphoneSafeChange?: (on: boolean) => void;
 }
 
 interface StripProps {
@@ -61,7 +66,7 @@ function Strip({ label, value, min, max, step, unit, onChange, centre, title, mi
 const HPF_STEPS = [10, 20, 30, 40] as const;
 const hpfLabel = (hz: number) => (hz <= 10 ? "OFF" : `${hz}`);
 
-export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerViewProps) {
+export function MixerView({ engine, volume: volumeProp, onVolumeChange, headphoneSafe: headphoneSafeProp, onHeadphoneSafeChange }: MixerViewProps) {
   const [hpfHz, setHpfHz] = useState(() => engine?.getHpfFreq() ?? 10);
   const [low, setLow] = useState(() => engine?.getEqLow().gain.value ?? 0);
   const [mid, setMid] = useState(() => engine?.getEqMid().gain.value ?? 0);
@@ -72,7 +77,20 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
   const [ceiling, setCeiling] = useState(() => engine?.getLimiterCeiling() ?? -1);
   const [volumeInternal, setVolumeInternal] = useState(() => engine?.getOutputTrim().gain.value ?? 1);
   const volume = volumeProp ?? volumeInternal;
-  const [headphoneSafe, setHeadphoneSafe] = useState(() => engine?.isHeadphoneSafe() ?? false);
+  const [headphoneSafeInternal, setHeadphoneSafeInternal] = useState(() => engine?.isHeadphoneSafe() ?? false);
+  // When Layout owns this state, headphoneSafeProp is the source of
+  // truth and Layout's useEffect handles engine sync. Otherwise fall
+  // back to the local mirror + direct engine call so MixerView still
+  // works in isolation (storybook, snapshot tests).
+  const headphoneSafe = headphoneSafeProp ?? headphoneSafeInternal;
+  const setHeadphoneSafe = (on: boolean) => {
+    if (onHeadphoneSafeChange) {
+      onHeadphoneSafeChange(on);
+    } else {
+      setHeadphoneSafeInternal(on);
+      if (engine) engine.setHeadphoneSafe(on);
+    }
+  };
   const [width, setWidth] = useState(() => engine?.getWidth() ?? 1);
   const [room, setRoom] = useState(() => engine?.getRoomAmount() ?? 0);
   const [color, setColor] = useState(() => engine?.getColorAmount() ?? 0);
@@ -285,8 +303,8 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
           <div className="mixer-strip-value">{mudTrim ? "−3.5" : "—"}</div>
         </div>
 
-        <Strip label="CEIL" value={ceiling} min={-6} max={0} step={0.1} unit="dB" onChange={onCeiling}
-          title="Limiter output ceiling — maximum peak level" midiId="ceiling" />
+        <Strip label="CEIL" value={ceiling} min={-12} max={0} step={0.1} unit="dB" onChange={onCeiling}
+          title="Limiter output ceiling — maximum peak level. Headroom-conscious mixers leave 3-6 dB; a stage rig with downstream gain may want more." midiId="ceiling" />
 
         <div className="mixer-divider" />
 
@@ -340,11 +358,7 @@ export function MixerView({ engine, volume: volumeProp, onVolumeChange }: MixerV
           <div className="mixer-strip-label">SAFE</div>
           <button
             type="button"
-            onClick={() => {
-              const next = !headphoneSafe;
-              setHeadphoneSafe(next);
-              if (engine) engine.setHeadphoneSafe(next);
-            }}
+            onClick={() => setHeadphoneSafe(!headphoneSafe)}
             className="mixer-limiter-btn"
             style={{
               background: headphoneSafe ? "var(--preview)" : "var(--bg)",

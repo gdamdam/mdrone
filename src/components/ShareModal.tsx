@@ -92,6 +92,14 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
   const shortUrl = shortInfo?.short ?? null;
   const isShortened = shortUrl !== null && shortUrl !== url;
   const displayUrl = showLongUrl || !shortUrl ? url : shortUrl;
+  // Some platforms truncate URLs around 2000 characters (Twitter,
+  // Telegram, certain chat apps). Warn the user when the displayed
+  // URL crosses a conservative threshold so they can switch to the
+  // short link if available, or shorten the scene name. The relay
+  // shortener stays the primary recommended path; this is a fallback
+  // signal when the user is looking at the full self-contained URL.
+  const URL_LENGTH_WARN = 1900;
+  const showLengthWarning = !error && !busy && displayUrl.length > URL_LENGTH_WARN;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -220,6 +228,15 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
               value={error ? error : displayUrl}
               onFocus={(e) => e.currentTarget.select()}
             />
+            {showLengthWarning && (
+              <p className="share-modal-warning" role="status">
+                URL is {displayUrl.length} chars — some platforms (Twitter,
+                Telegram, some chat apps) truncate links around 2000.
+                {isShortened
+                  ? " Switch back to the short link above to share safely."
+                  : " Try a shorter scene name, or wait for the shortener to come back online."}
+              </p>
+            )}
           </label>
         </div>
 
