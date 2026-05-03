@@ -2,6 +2,16 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.13 — 2026-05-03
+
+Docs pass — bring user-facing copy in line with the 1.22.x reality.
+
+- README — Layout section now describes the three-tier Performance / EDIT / ADVANCED hierarchy plus the new ◆ session sheet, ⤓ EXPORT AUDIO dropdown, and HP-safe badge on the VOL pill. Sessions / Links / Recording rewritten around the four capture concepts (REC LIVE · BOUNCE LOOP · TIMED REC · REC MOTION). Filename pattern updated to `mdrone-<scene>-<tonic>-<preset>-<ts>.wav`. Renamed GOOD DRONE → ATTUNE; added warming-gate + cooldown note. Settings → SESSION → GENERAL renames throughout. Added scale-editor collision/cascade-warn note + share-URL length warning.
+- HelpModal — 30-Second Start mentions ⤓ + ◆. SURFACES describes the three-tier hierarchy. SAVE & RECORD restructured around the ⤓ dropdown + nested REC LIVE / BOUNCE LOOP / TIMED REC bullets. ATTUNE description includes the warming gate. Settings → SESSION → GENERAL renames.
+- about.html — "Keep & link" line updated to mention JSON session export/import + the three audio capture paths.
+
+No code changes (HelpModal touched but only inside JSX text content).
+
 ## 1.22.12 — 2026-05-03
 
 - fix: ATTUNE no longer triggers a CPU spike + crackle when fired during the engine's 10-second warming window or rapidly in succession. Two-tier guard:

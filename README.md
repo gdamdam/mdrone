@@ -30,7 +30,7 @@
 - **Tunes microtonally** — 6 built-in tuning tables, 20 curated authored tunings (Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, the house **mdrone Signature** hybrid…), 6 relation presets, a Scale Editor for your own 13-degree tables, per-interval ±25 ¢ fine detune, and a **GOOD DRONE** one-click guided-randomize.
 - **Visualises** — an inline live-visualizer tile and a fullscreen MEDITATE overlay with 25 authored visualizers (harmonic, landscape, ritual, void) sharing one warm parchment / ember palette.
 - **Mixes** — a master-bus drawer with HPF, EQ, mud trim, glue, drive, look-ahead limiter, parallel cathedral-IR room send, color saturation, M/S width, headphone-safe mode, and LUFS / peak metering.
-- **Saves + links** — named local sessions, **LINK** button copies a self-contained scene URL (full scene + optional gesture recording + custom tuning cents; auto-shortened via the `s.mdrone.org` relay), 24-bit WAV master capture.
+- **Saves + links + export** — named local sessions on the **◆** header button (save / load / rename / EXPORT JSON / IMPORT JSON), **LINK** button copies a self-contained scene URL (full scene + optional gesture recording + custom tuning cents; auto-shortened via the `s.mdrone.org` relay), and the **⤓** EXPORT AUDIO dropdown bundles **REC LIVE** (open-ended 24-bit WAV), **BOUNCE LOOP** (sampler-ready loop), and **TIMED REC** (auto-stop at 30 s · 1 m · 3 m · 10 m).
 - **Works offline + installs** — full service worker; once the page loads, you can hold a drone in airplane mode. "Add to home screen" on iOS / "Install" on desktop runs it as a standalone PWA.
 
 ---
@@ -60,9 +60,17 @@
 mdrone is one screen — the **DRONE** instrument — with two surfaces that slide in on demand:
 
 - The header **◉ MEDITATE** toggle reveals an inline 16:9 live visualizer above the WEATHER pad. Tap it to expand fullscreen.
-- The header **MIXER** button (next to VOL) slides up the master-bus drawer.
+- The header **▤ MIXER** button (next to VOL) slides up the master-bus drawer.
 
-Everything else — header transport, preset library, voice stack, macros, breathing LFO, climate XY pad, effect chain, undo / redo + A/B snapshots, SCALE editor, GESTURES panel — lives in the main DRONE column.
+The header carries a small admin cluster on the right: **⤓** EXPORT AUDIO (REC LIVE / BOUNCE LOOP / TIMED REC), **◆** SESSION (save / load / rename / EXPORT JSON / IMPORT JSON), **?** help, and **⚙** settings. The **VOL** pill shows a **· HP** badge when headphone-safe is on so the master-output cap is visible without opening the mixer.
+
+The DRONE surface itself is a three-tier hierarchy:
+
+- **Performance** (always visible) — preset identity strip, HOLD / tonic / octave, WeatherPad, six macros.
+- **EDIT** (one tap, default closed) — INSTRUMENTS voice toggles, per-voice level sliders, FX BAR.
+- **ADVANCED** (one tap, default closed) — tuning + scale editor, LFO, fine-detune, entrain.
+
+On mobile the header collapses to two rows (identity + actions) and hides the standalone help / LIVE SAFE pill — both stay reachable from Settings.
 
 ---
 
@@ -132,8 +140,8 @@ Eight authored models with per-voice physicality (jawari nonlinearity, soundboar
 - **20 curated authored tunings** — historical (Pythagorean, Kirnberger III, Werckmeister III, Young 7-limit, Just 7-limit, Partch 11-limit), xenharmonic EDOs (15-TET, 17-TET, 19-TET, 22-EDO, 31-TET), world (Yaman, Pelog, Bayati), concept (Otonal 16:32, Spectral Primes, Skewed Pythagorean, Cluster 22-Sruti, Hollow open-fifth), and the house **mdrone Signature** just × 31-TET hybrid.
 - **6 relation presets** — unison, tonic-fifth, tonic-fourth, minor triad, drone triad, harmonic stack.
 - **±25 ¢ fine detune per interval**, retunes voices live.
-- **GOOD DRONE** — one-click guided randomize that picks a drone-friendly tuning + relation and adds gentle ±2–5 ¢ detune.
-- **Scale Editor** — author your own 13-degree table in cents and save it locally; shared URLs bundle the full cents array so recipients reproduce authored microtonality exactly.
+- **ATTUNE** — one-click guided randomize that picks a drone-friendly tuning + relation and adds gentle ±2–5 ¢ detune. Disabled during the 10 s engine-warming window after HOLD, plus a 1.2 s click cooldown after each fire, so retunes can't stack a fresh voice rebuild on top of voices that haven't finished settling.
+- **Scale Editor** — author your own 13-degree table in cents and save it locally; the editor blocks save when a name collides with an existing custom tuning (no silent overwrite) and warns before deleting a tuning referenced by saved sessions or the current scene. Shared URLs bundle the full cents array so recipients reproduce authored microtonality exactly.
 
 ---
 
@@ -174,13 +182,13 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
 
 ## Sessions, Links, Recording
 
-- **Sessions** are named local saves in `localStorage` (Settings modal). They include scene, tuning + detune, voices, macros, climate, both LFOs, effect chain, mixer, evolve seed, journey, partner, and the optional motion recording.
-- **Scene links** — the **LINK** button (header, next to MIDI) copies a self-contained URL of the current scene to your clipboard. Auto-shortened by the `s.mdrone.org` relay; falls back to the long self-contained URL if the relay is offline. The recipient opens the link, presses Play, and lands in the same drone landscape on any device. Useful as a personal bookmark too — paste your own link anywhere to come back to a scene later. The link is a utility, not a content artifact: no preview card, no social-share image, just the URL.
-- **REC WAV** captures the post-limiter master to 24-bit stereo WAV via a parallel worklet tap (bit-identical, no codec). The button auto-starts HOLD if the drone isn't already playing, so you never get a silent file. Saves as `mdrone-<scene>-<YYYY-MM-DD-HHMM>.wav`, confirms with a `WAV saved — M:SS` toast, and prompts before close/reload while recording is active. The button tooltip surfaces live elapsed time and estimated in-memory size while recording — the browser is not a DAW, so for long sessions:
-  - **Recommended max take length: 30 minutes.** Float32 stereo at 48 kHz grows ~44 MB per 10 min in memory until stop. Staged toast warnings fire at 10, 20, and 30 min so you can decide to stop and start a new take.
-  - **Segmented recording** is supported by the engine: pass `segmentMinutes` to `startMasterRecording({ segmentMinutes, onSegment })` and the recorder finalizes a WAV every N minutes without dropping samples, naming files `mdrone-<scene>-<timestamp>-pt01.wav`, `pt02`, … so a long take stays bounded in memory per segment.
-- **LOOP** bounces a short seamless-loop WAV at the selected length with a linear crossfade at the seam and a RIFF `smpl` chunk so samplers auto-detect the loop region.
-- **REC MOTION** is a separate, opt-in capture of your live gestures (60 s / 200 events) that travels inside the share URL — not an audio file. Three captures, three concepts: **REC WAV** = audio file · **LOOP** = sampler-ready loop WAV · **REC MOTION** = gesture replay encoded into a share link.
+- **Sessions** are named local saves in `localStorage`, reached from the **◆** SESSION button in the header (save / load / rename) plus **EXPORT JSON** / **IMPORT JSON** for portable scene files. They include scene, tuning + detune, voices, macros, climate, both LFOs, effect chain, mixer, evolve seed, journey, partner, and the optional motion recording.
+- **Scene links** — the **LINK** button (header) copies a self-contained URL of the current scene to your clipboard. Auto-shortened by the `s.mdrone.org` relay; falls back to the long self-contained URL if the relay is offline. The recipient opens the link, presses Play, and lands in the same drone landscape on any device. Useful as a personal bookmark too — paste your own link anywhere to come back to a scene later. The Share modal warns when a scene's URL exceeds ~1900 characters (some platforms truncate around 2000) and recommends sticking with the short link or shortening the scene name. No preview card, no social-share image, just the URL.
+- **⤓ EXPORT AUDIO** — header dropdown that consolidates the three capture workflows. Each captures the post-limiter master to 24-bit stereo WAV via a parallel worklet tap (bit-identical, no codec). All three auto-start HOLD if the drone isn't already playing, prompt before close/reload while a take is in flight, and produce filenames carrying the scene name, tonic + octave (`a2`, `fs3`), and active preset slug (`mdrone-tidal-tape-a2-2026-04-29-1422.wav`):
+  - **REC LIVE** — open-ended take. Toast announces `WAV saved — M:SS` on stop. **Recommended max take length: 30 minutes.** Float32 stereo at 48 kHz grows ~44 MB per 10 min in memory until stop. Staged toast warnings fire as memory grows. Segmented recording is supported by the engine: pass `segmentMinutes` to `startMasterRecording({ segmentMinutes, onSegment })` and the recorder finalizes a WAV every N minutes without dropping samples, naming files `…-pt01.wav`, `pt02`, … so a long take stays bounded in memory per segment.
+  - **BOUNCE LOOP** — short seamless-loop WAV at the selected length (15 s / 30 s / 60 s), linear crossfade at the seam, RIFF `smpl` chunk so samplers auto-detect the loop region. Filename includes the loop length: `…-loop-30s-<ts>.wav`.
+  - **TIMED REC** — fixed-duration realtime capture (30 s · 1 m · 3 m · 10 m). Recorder runs for the full duration, then auto-stops and downloads. Filename includes the take length: `…-take-1m-<ts>.wav`. Realtime, not offline render.
+- **REC MOTION** is a separate, opt-in capture of your live gestures (60 s / 200 events) that travels inside the share URL — not an audio file. Four captures, four concepts: **REC LIVE** = open-ended audio · **BOUNCE LOOP** = sampler-ready loop · **TIMED REC** = fixed-duration audio · **REC MOTION** = gesture replay encoded into a share link.
 
 ---
 
@@ -188,7 +196,7 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
 
 **Keyboard** — `A W S E D F T G Y H U J` for tonic, `Z` / `X` for octave, `Space` for HOLD, `Cmd/Ctrl+Z` / `Shift+Z` for undo / redo, `<` / `>` for previous / next preset.
 
-**MIDI** — Web MIDI note-in retunes tonic + octave. The header **MIDI ▾** dropdown holds INPUT toggle, an Ableton-style **LEARN MODE** (click any control, wiggle a CC to bind), and a **MAPPING…** modal with templates and JSON import / export. ~52 assignable targets across macros, weather, mixer, voices, effects, triggers, and preset stepping. Multiple CCs per target are supported. Defaults: CC1 → WEATHER Y, CC2 → WEATHER X, CC7 → VOL, CC64 → HOLD, CC71–76 → DRIFT, AIR, TIME, BLOOM, GLIDE, SUB.
+**MIDI** — Web MIDI note-in retunes tonic + octave. The header **MIDI ▾** dropdown (desktop only — Web MIDI is desktop-grade in practice, hidden on mobile) holds INPUT toggle, an Ableton-style **LEARN MODE** (click any control, wiggle a CC to bind), and a **MAPPING…** modal with templates and JSON import / export. ~52 assignable targets across macros, weather, mixer, voices, effects, triggers, and preset stepping. Multiple CCs per target are supported. Defaults: CC1 → WEATHER Y, CC2 → WEATHER X, CC7 → VOL, CC64 → HOLD, CC71–76 → DRIFT, AIR, TIME, BLOOM, GLIDE, SUB.
 
 **Ableton Link** — the breathing LFO RATE syncs to Link tempo via a small chip (FREE / 1/1 / 1/2 / 1/4 / 1/8 / 1/16). mdrone reuses mpump's [Link Bridge](https://github.com/gdamdam/mpump/releases) — a tiny cross-platform companion that bridges Link (UDP multicast) ↔ browser (localhost WebSocket). Run the bridge, enable Link in Settings, and any Link-enabled app syncs automatically. Nothing leaves your machine.
 
@@ -200,7 +208,7 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
 - **Screen-reader labels** on every icon button and canvas (MEDITATE visualizer, WEATHER pad, VU meter).
 - **44 × 44 touch targets** on touch devices — the compact mouse UI is preserved on desktop.
 - **Top-level error boundary** so a render exception in one panel doesn't blank the whole app.
-- **Low-Power Mode** (Settings → SESSION → LOW-POWER MODE, off by default) — for older laptops, low-end Windows machines, and weak tablets. Clamps the MEDITATE visualizer to 15 fps, throttles the loudness meter to 5 Hz, and skips the master-bus preset-change duck.
+- **Low-Power Mode** (Settings → GENERAL → LOW-POWER MODE, off by default) — for older laptops, low-end Windows machines, and weak tablets. Clamps the MEDITATE visualizer to 15 fps, throttles the loudness meter to 5 Hz, and skips the master-bus preset-change duck.
 
 ## Privacy
 
@@ -213,7 +221,8 @@ mdrone has no accounts, no cookies, no ads, no fingerprinting, no third-party tr
 Three layered systems exist for keeping audio stable and debugging it when something slips.
 
 - **Adaptive stability** — described under [Audio Engine](#audio-engine). Reactive: the engine itself responds to sustained struggle by dropping visuals → heavy FX → voice density and restoring conservatively after a stable window.
-- **LIVE SAFE** — explicit user-initiated mode, surfaced as a **LIVE SAFE pill in the header** (next to MIXER) and also reachable from *Settings → LIVE SAFE*. Trades richness for reliability before stepping on stage: clamps the voice cap to 4, suppresses the heaviest FX (halo / granular / graincloud / shimmer / freeze / cistern), engages low-power visuals. The pill goes steady red-orange when active — distinct from the auto CPU-warning blink — so the stage state is impossible to miss during a set, and the tooltip shows how many heavy FX are currently bypassed. Conservative revert: if you change something while LIVE SAFE is on, your change wins on disable. Saved scenes and share URLs are not modified. A derived `stageRiskOf(preset)` helper classifies presets `low | medium | high` from voice density × heavy-FX intersection, with an optional per-preset `stageRiskOverride` escape hatch for the rare measures-heavy-but-fine case.
+- **LIVE SAFE** — explicit user-initiated mode, surfaced as a **LIVE SAFE pill in the header** on desktop (hidden on mobile to keep the 2-row header breathing) and reachable from *Settings → GENERAL → LIVE SAFE*. Trades richness for reliability before stepping on stage: clamps the voice cap to 4, suppresses the heaviest FX (halo / granular / graincloud / shimmer / freeze / cistern), engages low-power visuals. The pill goes steady red-orange when active — distinct from the auto CPU-warning blink — so the stage state is impossible to miss during a set, and the tooltip shows how many heavy FX are currently bypassed. Conservative revert: if you change something while LIVE SAFE is on, your change wins on disable. Saved scenes and share URLs are not modified. A derived `stageRiskOf(preset)` helper classifies presets `low | medium | high` from voice density × heavy-FX intersection, with an optional per-preset `stageRiskOverride` escape hatch for the rare measures-heavy-but-fine case.
+- **Headphone-safe** — *Settings → GENERAL → HEADPHONE-SAFE* (or the **SAFE** strip in the Mixer drawer) clamps the master output to ~50% so a misjudged volume tap can't peak straight into headphones. When on, the header **VOL** button surfaces a **· HP** badge (orange tint) so the cap is visible without opening the mixer. Persisted across reloads.
 - **Preset certification** — hands-and-ears auditioning devtool installed on `window.__presetCert` (see `src/devtools/presetCertification.ts`). `await __presetCert.start({ auditionMs, requireAudition })` steps through every visible preset; `requireAudition: true` rejects `mark()` until the listening window has elapsed, so the semi-automated flow can enforce a real audition. Each entry captures voice layers, user-intended FX, adaptive stage, underrun count, and an environment snapshot (UA, AudioContext sampleRate / baseLatency / outputLatency / state / audioWorklet) alongside human tag / scores / verdict / notes. Export as Markdown or JSON. The offline `npm run audit:presets` (LUFS, peak, RMS, DC, band energy, L/R correlation per preset) and a runtime cert export merge into one report via `npm run audit:certify` → `tmp/preset-certification.md`.
 - **Copy Audio Report** — when the *CPU* warning indicator appears, tapping it opens a detail modal with a **COPY AUDIO REPORT** button. Produces a structured Markdown payload (browser/device, AudioContext, load monitor, adaptive + LIVE SAFE state, voice cap, user-intended vs effective FX, mixer state, audio-debug flags, optional trace ring). The same report is available in the console as `await __mdroneAudioReport()`. URLs are reduced to origin + path so share-encoded scene data is never included; localStorage / session names / custom tuning arrays are not read.
 
