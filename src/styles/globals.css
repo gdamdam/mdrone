@@ -859,24 +859,28 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-row-main { flex-wrap: wrap; gap: 6px; align-items: center; }
   .header-center,
   .header-secondary { display: contents; }
+  /* Forced row break between identity (orders < 10) and actions
+   * (orders ≥ 11). flex-shrink: 0 prevents the browser from
+   * collapsing the pseudo to fit row 1 with the actions packed in. */
   .header-row-main::before {
     content: "";
     order: 10;
-    flex-basis: 100%;
+    flex: 0 0 100%;
     height: 0;
   }
 
-  /* Row 1 — identity only. */
+  /* Row 1 — identity only. Marquee gets a min-width so it stays
+   * visible even when actions on row 2 want extra room. */
   .header-row-main .title { order: 0; flex: 0 0 auto; }
   .header-row-main .header-display {
     order: 1;
     flex: 1 1 0;
     width: auto;
-    min-width: 0;
+    min-width: 80px;
     max-width: none;
   }
   .header-row-main .header-display-track { text-align: right; }
-  .header-row-main .title-sigil { order: 2; flex: 0 0 auto; }
+  .header-row-main .title-sigil { order: 2; flex: 0 0 auto; margin-left: 0; }
 
   /* Row 2 — actions in left-to-right reading order:
        RND · HOLD · ◉ MED · VOL · ▤ MIX · LINK · ◆ · ⤓ · ⚙ */
@@ -891,6 +895,13 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-row-main .header-btn-menu            { order: 19; margin-left: 0; }
   /* Tutorial/REC button (rare) keeps tail position when present. */
   .header-row-main .header-btn-record          { order: 20; }
+
+  /* Glyph labels everywhere on mobile — buttons that ship a
+   * `.header-btn-label-full` + `.header-btn-label-glyph` pair swap
+   * here so the row-2 stack stays compact (e.g. LINK → ⤴, MEDITATE
+   * → ◉, RND → RND glyph). */
+  .header-btn-label-full  { display: none; }
+  .header-btn-label-glyph { display: inline; }
 
   /* Tighter padding on mobile so the strip doesn't eat a third of
      the viewport height with its own chrome. Grid collapses to a

@@ -2,6 +2,11 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.4 — 2026-05-03
+
+- ui: mobile header — fix wrap. Marquee was being shrunk to width 0 and the pseudo-break was being collapsed by the browser, so all action buttons packed onto row 1 alongside MDRONE and the sigil. Two-line fix: marquee gains `min-width: 80px`, the pseudo-break gains `flex: 0 0 100%` (was `flex-basis: 100%`, which the browser is allowed to shrink). Row 1 now reliably carries identity only; row 2 carries actions.
+- ui: LINK button — `⤴` glyph on mobile (mirror of `⤓` export). Label-full/glyph swap now applies across the whole `≤720 px` mobile range, not just `≤620 px`. Title-sigil's `margin-left: auto` overridden on mobile so the marquee's `flex-grow: 1` is what positions the sigil on the right.
+
 ## 1.22.3 — 2026-05-03
 
 - ui: mobile header — re-flow per request. Row 1 now carries identity only (MDRONE · marquee · sigil); row 2 lines up actions in left-to-right reading order: RND · HOLD · ◉ MED · VOL · ▤ MIX · LINK · ◆ · ⤓ · ⚙. Sigil un-hidden on mobile (32 px). HOLD no longer pinned right with margin-left: auto — it lives at order 12 where the user requested it.

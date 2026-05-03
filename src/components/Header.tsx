@@ -691,7 +691,8 @@ export function Header({
           title="Copy a self-contained URL of this scene — opens to the same drone landscape on any device."
           aria-label="Copy scene link"
         >
-          LINK
+          <span className="header-btn-label-full">LINK</span>
+          <span className="header-btn-label-glyph" aria-hidden="true">⤴</span>
         </button>
         <span className="export-menu-anchor">
           <button
