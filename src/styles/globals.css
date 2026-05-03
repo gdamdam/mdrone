@@ -857,8 +857,15 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-btn.header-btn-livesafe { display: none; }
 
   .header-row-main { flex-wrap: wrap; gap: 6px; align-items: center; }
-  .header-center,
-  .header-secondary { display: contents; }
+  /* Specificity 0,2,0 to beat the global `.header-center { display:
+   * flex }` at globals.css:1225 and `.header-secondary` at :578.
+   * Without this bump, those wrappers stay as flex containers and
+   * their children (RND/HOLD/MED/MIX/VOL/MIDI/EXPORT/◆/⚙) never
+   * become direct flex children of `.header-row-main`, so the row
+   * `order` rules below silently no-op and items pack in source
+   * order onto row 1. */
+  .header-row-main .header-center,
+  .header-row-main .header-secondary { display: contents; }
   /* Forced row break between identity (orders < 10) and actions
    * (orders ≥ 11). flex-shrink: 0 prevents the browser from
    * collapsing the pseudo to fit row 1 with the actions packed in. */

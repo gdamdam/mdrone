@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.5 — 2026-05-03
+
+- ui: mobile header — bump specificity of the `display: contents` override on `.header-center` / `.header-secondary` so it beats the global `display: flex` defined at `globals.css:1225` / `:578`. Without this, those wrappers stayed as flex containers and their children never became direct flex items of `.header-row-main`, so the `order` rules below silently no-op'd and RND / HOLD / MED packed onto row 1 in source order.
+
 ## 1.22.4 — 2026-05-03
 
 - ui: mobile header — fix wrap. Marquee was being shrunk to width 0 and the pseudo-break was being collapsed by the browser, so all action buttons packed onto row 1 alongside MDRONE and the sigil. Two-line fix: marquee gains `min-width: 80px`, the pseudo-break gains `flex: 0 0 100%` (was `flex-basis: 100%`, which the browser is allowed to shrink). Row 1 now reliably carries identity only; row 2 carries actions.
