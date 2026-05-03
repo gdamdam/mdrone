@@ -2,6 +2,14 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.21.2 — 2026-05-03
+
+- ui: header — new ◆ session button (left of ?) opens a dedicated SAVE / LOAD / RENAME / EXPORT JSON / IMPORT JSON sheet. Settings tab no longer carries session controls; renamed to GENERAL.
+- ui: perform row — new ⤓ EXPORT AUDIO button opens a popover consolidating REC LIVE, BOUNCE LOOP, and a fixed-duration EXPORT TAKE (30s · 1m · 3m · 10m). Realtime capture, not offline render. Inline REC WAV + LOOP buttons unchanged.
+- engine: scene JSON export/import — `handleExportSessionJson` returns the same portable payload used in share URLs; import round-trips through `normalizePortableScene` and lands as a fresh untitled session.
+- engine: new `buildTakeWavFilename(name, label, date)` produces `mdrone-<slug>-take-<label>-<ts>.wav` so EXPORT TAKE files self-describe.
+- tests: add 4 focused tests covering `buildTakeWavFilename`.
+
 ## 1.21.1 — 2026-05-03
 
 - chore: gate `__engine` / `__measureAllPresets` / `__auditArrival` / `__presetCert` behind `?debug` query param or `localStorage["mdrone-debug"]`; `__mdroneAudioReport` stays always-on.

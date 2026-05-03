@@ -1634,6 +1634,16 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   margin-left: 4px;
 }
 
+/* Admin glyph cluster — ◆ session, ? help, ⚙ settings.
+ * Only the leftmost glyph (◆) anchors to the right via margin-left:
+ * auto; the next two follow with a small fixed gap so the cluster
+ * reads as a single group rather than three buttons fighting for
+ * space. */
+.header-btn-session + .header-btn-help,
+.header-btn-session + .header-btn-help + .header-btn-menu {
+  margin-left: 4px;
+}
+
 .header-btn-session,
 .header-btn-menu {
   /* Settings cog — icon-forward, no chrome at rest. Matches the

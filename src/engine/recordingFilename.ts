@@ -42,6 +42,23 @@ export function buildWavFilename(
   return slug ? `mdrone-${slug}-${ts}.wav` : `mdrone-${ts}.wav`;
 }
 
+/** Compose `mdrone-<slug>-take-<label>-<ts>.wav` for the EXPORT TAKE
+ *  workflow. The `label` is a short human-readable duration token
+ *  (e.g. "30s", "1m", "10m") so files sort by name and the take
+ *  length is obvious in a DAW import dialog. */
+export function buildTakeWavFilename(
+  rawName: string | null | undefined,
+  durationLabel: string,
+  d: Date = new Date(),
+): string {
+  const slug = sanitizeRecordingName(rawName);
+  const label = sanitizeRecordingName(durationLabel) || "take";
+  const ts = formatRecordingTimestamp(d);
+  return slug
+    ? `mdrone-${slug}-take-${label}-${ts}.wav`
+    : `mdrone-take-${label}-${ts}.wav`;
+}
+
 /** "M:SS" — used in the REC button readout and the save toast. */
 export function formatDurationMs(ms: number): string {
   const safe = Math.max(0, ms | 0);

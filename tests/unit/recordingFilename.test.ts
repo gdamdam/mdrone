@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildTakeWavFilename,
   buildWavFilename,
   formatDurationMs,
   formatRecordingTimestamp,
@@ -63,6 +64,33 @@ describe("buildWavFilename", () => {
   it("produces a filesystem-safe name (no slashes, colons, asterisks, ?, |, <, >)", () => {
     const name = buildWavFilename('Bad/Name:With*Many?Chars|<like>this', fixed);
     expect(name).not.toMatch(/[\\/:*?"<>|]/);
+  });
+});
+
+describe("buildTakeWavFilename", () => {
+  const fixed = new Date(2026, 3, 29, 14, 22, 0);
+
+  it("includes the take label and slug", () => {
+    expect(buildTakeWavFilename("Welcome Drone", "1m", fixed)).toBe(
+      "mdrone-welcome-drone-take-1m-2026-04-29-1422.wav",
+    );
+  });
+
+  it("falls back to mdrone-take-<label>-<ts>.wav with no scene name", () => {
+    expect(buildTakeWavFilename("", "30s", fixed)).toBe("mdrone-take-30s-2026-04-29-1422.wav");
+    expect(buildTakeWavFilename(null, "10m", fixed)).toBe("mdrone-take-10m-2026-04-29-1422.wav");
+  });
+
+  it("sanitizes the duration label", () => {
+    expect(buildTakeWavFilename("Drone", "1 / m", fixed)).toBe(
+      "mdrone-drone-take-1-m-2026-04-29-1422.wav",
+    );
+  });
+
+  it("falls back to 'take' when the label sanitizes to empty", () => {
+    expect(buildTakeWavFilename("Drone", "???", fixed)).toBe(
+      "mdrone-drone-take-take-2026-04-29-1422.wav",
+    );
   });
 });
 

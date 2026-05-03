@@ -39,6 +39,12 @@ interface HeaderProps {
   onLoadSession: (id: string) => void;
   onSaveSession: (name: string) => void;
   onRenameSession: (name: string) => void;
+  /** Serialize the current scene as JSON for download. Returns null
+   *  if the engine isn't ready to capture (no DroneView mounted yet). */
+  onExportSessionJson: () => { json: string; filename: string } | null;
+  /** Apply a JSON-encoded portable scene from a user-selected file.
+   *  Returns true on success, false on parse / validation failure. */
+  onImportSessionJson: (text: string) => boolean;
   getDefaultSessionName: () => string;
   displayText: string;
   isArrivalPreset?: boolean;
@@ -121,6 +127,8 @@ export function Header({
   onLoadSession,
   onSaveSession,
   onRenameSession,
+  onExportSessionJson,
+  onImportSessionJson,
   getDefaultSessionName,
   displayText,
   isArrivalPreset,
@@ -286,6 +294,17 @@ export function Header({
   const [midiTemplateName, setMidiTemplateName] = useState("");
   const midiImportRef = useRef<HTMLInputElement>(null);
   const [dialogMode, setDialogMode] = useState<"save" | "rename" | "reset" | null>(null);
+  // Dedicated session sheet (◆ button) — popover for save / load /
+  // rename / export-import JSON. Lives apart from the ⚙ settings sheet
+  // so the most common pro workflow is one tap from the header.
+  const [sessionSheetOpen, setSessionSheetOpen] = useState(false);
+  const sessionImportInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!sessionSheetOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSessionSheetOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sessionSheetOpen]);
 
   // Marquee click arbitration: single-click opens the preset list,
   // double-click opens the rename dialog. The click fires twice on a
@@ -626,6 +645,15 @@ export function Header({
           LINK
         </button>
         <button
+          data-tutor="session-btn"
+          className="header-btn header-btn-session"
+          onClick={() => setSessionSheetOpen(true)}
+          title="Session — save, load, rename, export / import JSON"
+          aria-label="Open session sheet"
+        >
+          ◆
+        </button>
+        <button
           className="header-btn header-btn-help"
           onClick={() => setHelpOpen(true)}
           title="Help — reference card + replay any tutorial"
@@ -637,7 +665,7 @@ export function Header({
           data-tutor="settings-btn"
           className="header-btn header-btn-menu"
           onClick={() => setSessionOpen(true)}
-          title={`Settings — sessions, MIDI, panic, reset`}
+          title={`Settings — MIDI, motion-rec, low-power, LIVE SAFE, reset`}
           aria-label="Open settings"
         >
           ⚙
@@ -749,7 +777,7 @@ export function Header({
             <div className="fx-modal-params">
               <div className="settings-tabs" role="tablist" aria-label="Settings sections">
                 {([
-                  ["session", "SESSION"],
+                  ["session", "GENERAL"],
                   ["appearance", "APPEARANCE"],
                   ["tempo", "TEMPO"],
                 ] as const).map(([id, label]) => (
@@ -767,43 +795,12 @@ export function Header({
               </div>
 
               {settingsTab === "session" && (<>
-              <div className="fx-modal-section-label">SESSION</div>
-              <label className="fx-modal-param">
-                <span className="fx-modal-param-label">LOAD</span>
-                <DropdownSelect
-                  value={currentSessionId ?? ""}
-                  options={[
-                    { value: "", label: sessions.length === 0 ? "No sessions" : "Select\u2026" },
-                    ...sessions.map((s) => ({ value: s.id, label: s.name })),
-                  ]}
-                  onChange={(v) => {
-                    if (v) {
-                      onLoadSession(v);
-                      setSessionOpen(false);
-                    }
-                  }}
-                  className="header-select"
-                  disabled={sessions.length === 0}
-                />
-              </label>
-              <div className="fx-modal-actions">
-                <button
-                  className="header-btn"
-                  onClick={() => { setSessionOpen(false); setDialogMode("save"); }}
-                  title="Save the current session"
-                >
-                  SAVE
-                </button>
-                <button
-                  className="header-btn"
-                  onClick={() => { setSessionOpen(false); setDialogMode("rename"); }}
-                  title="Rename the current session"
-                >
-                  RENAME
-                </button>
-              </div>
+              <p className="fx-modal-desc">
+                Save, load, and rename sessions live on the <strong>\u25c6</strong> button
+                in the header \u2014 left of the help (?) button. This panel keeps the
+                rest of the device-wide preferences.
+              </p>
 
-              <div className="fx-modal-divider" />
               <div className="fx-modal-section-label">MOTION RECORDING</div>
               <p className="fx-modal-desc">
                 Capture meaningful gesture events (60 s / 200 max) into
@@ -1231,6 +1228,140 @@ export function Header({
             onBeforeTutorialReveal={() => setSessionOpen(false)}
           />
         </Suspense>
+      )}
+
+      {sessionSheetOpen && (
+        <div className="fx-modal-backdrop" onClick={() => setSessionSheetOpen(false)}>
+          <div
+            className="fx-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Session"
+          >
+            <div className="fx-modal-header">
+              <div className="fx-modal-title">SESSION</div>
+              <div className="fx-modal-actions">
+                <button
+                  type="button"
+                  className="header-btn"
+                  onClick={() => setSessionSheetOpen(false)}
+                  title="Close (Esc)"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <p className="fx-modal-desc">
+              Current: <strong>{currentSessionName}</strong>
+            </p>
+            <div className="fx-modal-params">
+              <label className="fx-modal-param">
+                <span className="fx-modal-param-label">LOAD</span>
+                <DropdownSelect
+                  value={currentSessionId ?? ""}
+                  options={[
+                    { value: "", label: sessions.length === 0 ? "No sessions" : "Select…" },
+                    ...sessions.map((s) => ({ value: s.id, label: s.name })),
+                  ]}
+                  onChange={(v) => {
+                    if (v) {
+                      onLoadSession(v);
+                      setSessionSheetOpen(false);
+                    }
+                  }}
+                  className="header-select"
+                  disabled={sessions.length === 0}
+                />
+              </label>
+              <div className="fx-modal-actions">
+                <button
+                  className="header-btn"
+                  onClick={() => { setSessionSheetOpen(false); setDialogMode("save"); }}
+                  title="Save the current session"
+                >
+                  SAVE
+                </button>
+                <button
+                  className="header-btn"
+                  onClick={() => { setSessionSheetOpen(false); setDialogMode("rename"); }}
+                  title="Rename the current session"
+                >
+                  RENAME
+                </button>
+              </div>
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">JSON</div>
+              <p className="fx-modal-desc">
+                Export the current scene to a portable JSON file, or
+                load one back. Same payload as a share URL — voices,
+                FX, microtuning, mixer, visuals.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className="header-btn"
+                  onClick={() => {
+                    const out = onExportSessionJson();
+                    if (!out) {
+                      showNotification("Could not capture the current scene.", "error");
+                      return;
+                    }
+                    try {
+                      const blob = new Blob([out.json], { type: "application/json" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = out.filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                      showNotification(`Exported — ${out.filename}`, "info");
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : "Unknown error";
+                      showNotification(`Export failed — ${msg}`, "error");
+                    }
+                  }}
+                  title="Download the current scene as JSON"
+                >
+                  EXPORT JSON
+                </button>
+                <button
+                  className="header-btn"
+                  onClick={() => sessionImportInputRef.current?.click()}
+                  title="Load a scene from a JSON file"
+                >
+                  IMPORT JSON
+                </button>
+                <input
+                  ref={sessionImportInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  style={{ display: "none" }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      const ok = onImportSessionJson(text);
+                      if (ok) {
+                        showNotification(`Loaded — ${file.name}`, "info");
+                        setSessionSheetOpen(false);
+                      } else {
+                        showNotification("Import failed — file is not a valid mdrone scene.", "error");
+                      }
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : "Unknown error";
+                      showNotification(`Import failed — ${msg}`, "error");
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {dialogMode === "save" && (

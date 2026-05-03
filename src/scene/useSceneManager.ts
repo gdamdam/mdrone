@@ -77,6 +77,7 @@ import {
   loadCurrentSessionId,
   loadSessions,
   makeSessionId,
+  normalizePortableScene,
   saveAutosavedScene,
   saveCurrentSessionId,
   saveSessions,
@@ -448,6 +449,51 @@ export function useSceneManager({
     applyPortableScene(session.scene, { sessionId: session.id });
   }, [applyPortableScene, savedSessions]);
 
+  /**
+   * Serialize the current scene as a portable JSON payload + a default
+   * filename for downloads. Returns null when the engine cannot capture
+   * a scene yet (no DroneView ref, etc.). The payload is the same
+   * `PortableScene` carried inside saved sessions and share URLs, so a
+   * re-import round-trips losslessly.
+   */
+  const handleExportSessionJson = useCallback(
+    (): { json: string; filename: string } | null => {
+      const name = currentSessionName?.trim() || "Drone Landscape";
+      const scene = captureCurrentScene(name);
+      if (!scene) return null;
+      const slug = name.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "scene";
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
+      return {
+        json: JSON.stringify(scene, null, 2),
+        filename: `mdrone-${slug}-${ts}.json`,
+      };
+    },
+    [captureCurrentScene, currentSessionName],
+  );
+
+  /**
+   * Apply a JSON-encoded portable scene from disk. Reuses
+   * `normalizePortableScene` so malformed payloads are rejected the
+   * same way share URLs are. The imported scene becomes a new session
+   * (fresh id) so it doesn't clobber whatever was loaded before.
+   * Returns true on success, false on any parse / validation error.
+   */
+  const handleImportSessionJson = useCallback((text: string): boolean => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return false;
+    }
+    const scene = normalizePortableScene(parsed);
+    if (!scene) return false;
+    applyPortableScene(scene);
+    setCurrentSessionId(null);
+    setCurrentSessionName(scene.name?.trim() || DEFAULT_SESSION_NAME);
+    saveCurrentSessionId(null);
+    return true;
+  }, [applyPortableScene]);
+
   const handleRandomScene = useCallback(() => {
     // Throttle — discard clicks that arrive inside the min-gap
     // window. Drone presets take hundreds of ms to ramp in and
@@ -662,6 +708,8 @@ export function useSceneManager({
     handleRenameSession,
     getDefaultSessionName,
     handleLoadSession,
+    handleExportSessionJson,
+    handleImportSessionJson,
     handleRandomScene,
     handleMutateScene,
     handleToggleMotionRecord,

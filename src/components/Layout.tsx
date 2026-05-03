@@ -29,7 +29,7 @@ const MeditateView = lazy(() =>
   import("./MeditateView").then((m) => ({ default: m.MeditateView })),
 );
 import { trackEvent } from "../analytics";
-import { buildWavFilename, formatDurationMs } from "../engine/recordingFilename";
+import { buildWavFilename, buildTakeWavFilename, formatDurationMs } from "../engine/recordingFilename";
 import { TutorialFlow } from "./TutorialFlow";
 import { TutorialOffer } from "./TutorialOffer";
 import { addHoldTime } from "../tutorial/state";
@@ -81,6 +81,14 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [loopLengthSec, setLoopLengthSec] = useState(30);
   const [loopBusy, setLoopBusy] = useState(false);
   const [loopProgress, setLoopProgress] = useState<{ elapsedSec: number; totalSec: number } | null>(null);
+  // EXPORT TAKE — fixed-duration realtime capture. Wraps the same
+  // MasterRecorder path as REC LIVE; the auto-stop timer fires from
+  // setTimeout, the progress UI ticks on a separate setInterval.
+  const [takeBusy, setTakeBusy] = useState(false);
+  const [takeProgress, setTakeProgress] = useState<{ elapsedMs: number; totalMs: number } | null>(null);
+  const takeTimerRef = useRef<number | null>(null);
+  const takeTickRef = useRef<number | null>(null);
+  const takeAbortedRef = useRef<boolean>(false);
   const [mixerSyncToken, setMixerSyncToken] = useState(0);
   const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
   const [headerOctave, setHeaderOctave] = useState(2);
@@ -972,6 +980,122 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   };
 
   /**
+   * EXPORT TAKE — fixed-duration realtime capture. Identical recorder
+   * path as REC LIVE, but a setTimeout owns the stop trigger so the
+   * file is exactly the chosen length. Realtime, not offline render.
+   *
+   * Cancellation: the "Stop" button sets `takeAbortedRef` and stops
+   * the recorder without downloading. The recorder still resolves so
+   * the audio thread doesn't leak.
+   */
+  const clearTakeTimers = () => {
+    if (takeTimerRef.current !== null) {
+      window.clearTimeout(takeTimerRef.current);
+      takeTimerRef.current = null;
+    }
+    if (takeTickRef.current !== null) {
+      window.clearInterval(takeTickRef.current);
+      takeTickRef.current = null;
+    }
+  };
+
+  const handleExportTake = useCallback((durationMs: number) => {
+    if (takeBusy || isRec || recBusy || loopBusy) return;
+    if (!recordingSupport.supported) {
+      showNotification(
+        recordingSupport.reason ?? "WAV recording is unavailable in this browser.",
+        "error",
+      );
+      return;
+    }
+    const total = Math.max(1000, Math.floor(durationMs));
+    const durationLabel = total >= 60_000
+      ? `${Math.round(total / 60_000)}m`
+      : `${Math.round(total / 1000)}s`;
+    takeAbortedRef.current = false;
+    setTakeBusy(true);
+    setTakeProgress({ elapsedMs: 0, totalMs: total });
+
+    let started = false;
+    (async () => {
+      try {
+        await engine.resume();
+        if (!engine.isPlaying()) holdToggleRef.current?.();
+        await engine.startMasterRecording();
+        started = true;
+        trackEvent(`recording/take-${durationLabel}`);
+        const t0 = performance.now();
+        takeTickRef.current = window.setInterval(() => {
+          const elapsed = Math.min(total, Math.floor(performance.now() - t0));
+          setTakeProgress({ elapsedMs: elapsed, totalMs: total });
+        }, 250);
+        takeTimerRef.current = window.setTimeout(async () => {
+          clearTakeTimers();
+          try {
+            const result = await engine.stopMasterRecording();
+            if (takeAbortedRef.current) {
+              showNotification("Take cancelled — no WAV saved.", "info");
+              return;
+            }
+            if (!result) {
+              showNotification("Take produced no audio.", "warning");
+              return;
+            }
+            const sceneName = sceneManager.shareInitialName ?? "Drone Landscape";
+            const filename = buildTakeWavFilename(sceneName, durationLabel);
+            const blob = new Blob([result.wav], { type: "audio/wav" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            const sr = engine.ctx?.sampleRate ?? 0;
+            showNotification(
+              `WAV saved — ${formatDurationMs(result.durationMs)} · ${sr ? `${Math.round(sr)} Hz / 24-bit` : "24-bit"}`,
+              "info",
+            );
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "Unknown recording error.";
+            showNotification(`Take failed — ${msg}`, "error");
+          } finally {
+            setTakeBusy(false);
+            setTakeProgress(null);
+          }
+        }, total);
+      } catch (err) {
+        clearTakeTimers();
+        if (started) {
+          try { await engine.stopMasterRecording(); } catch { /* swallow */ }
+        }
+        const msg = err instanceof Error ? err.message : "Unknown recording error.";
+        showNotification(`Take failed — ${msg}`, "error");
+        setTakeBusy(false);
+        setTakeProgress(null);
+      }
+    })();
+  }, [engine, isRec, loopBusy, recBusy, recordingSupport.supported, recordingSupport.reason, sceneManager.shareInitialName, takeBusy]);
+
+  const handleCancelExportTake = useCallback(() => {
+    if (!takeBusy) return;
+    takeAbortedRef.current = true;
+    clearTakeTimers();
+    // Force the timeout's stop path to run now so the recorder is
+    // released cleanly. Mirrors the regular auto-stop, but keys off
+    // takeAbortedRef so no file is downloaded.
+    (async () => {
+      try { await engine.stopMasterRecording(); } catch { /* swallow */ }
+      showNotification("Take cancelled — no WAV saved.", "info");
+      setTakeBusy(false);
+      setTakeProgress(null);
+    })();
+  }, [engine, takeBusy]);
+
+  // Cancel any in-progress take if the layout unmounts.
+  useEffect(() => () => clearTakeTimers(), []);
+
+  /**
    * First pointerdown anywhere in the layout resumes the AudioContext.
    * Because the engine is always non-null now, descendant click
    * handlers on the SAME interaction (e.g. HOLD button click after
@@ -1054,6 +1178,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onLoadSession={sceneManager.handleLoadSession}
         onSaveSession={sceneManager.handleSaveSession}
         onRenameSession={sceneManager.handleRenameSession}
+        onExportSessionJson={sceneManager.handleExportSessionJson}
+        onImportSessionJson={sceneManager.handleImportSessionJson}
         getDefaultSessionName={sceneManager.getDefaultSessionName}
         displayText={sceneManager.displayText}
         isArrivalPreset={sceneManager.isArrivalPreset}
@@ -1179,6 +1305,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             onCancelBounceLoop={handleCancelBounceLoop}
             loopBusy={loopBusy}
             loopProgress={loopProgress}
+            onExportTake={handleExportTake}
+            onCancelExportTake={handleCancelExportTake}
+            takeBusy={takeBusy}
+            takeProgress={takeProgress}
             meditateVisualizer={sceneManager.meditateVisualizer}
             onChangeMeditateVisualizer={(v) => {
               trackEvent(`visualizer/${v}`);
