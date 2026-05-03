@@ -897,7 +897,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .header-row-main .header-hold-btn            { order: 14; margin-left: 0; }
   .header-row-main .header-btn-meditate-preview { order: 15; margin-left: 0; }
   .header-row-main .header-btn-share           { order: 16; margin-left: 0; }
-  .header-row-main .header-btn-session         { order: 17; margin-left: 0; }
+  .header-row-main .session-menu-anchor        { order: 17; margin-left: 0; }
   .header-row-main .export-menu-anchor         { order: 18; margin-left: 0; }
   .header-row-main .header-btn-menu            { order: 19; margin-left: 0; }
   /* Tutorial/REC button (rare) keeps tail position when present. */
@@ -1673,13 +1673,14 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
  * Only the leftmost element (the export-menu-anchor span) anchors to
  * the right via margin-left: auto; the rest follow with a small fixed
  * gap so the cluster reads as a single group rather than four
- * controls fighting for space. */
+ * controls fighting for space. Both ⤓ and ◆ are now wrapped in
+ * `*-menu-anchor` spans (each owns its dropdown). */
 .export-menu-anchor { margin-left: auto; }
-.export-menu-anchor + .header-btn-session,
-.export-menu-anchor + .header-btn-session + .header-btn-help,
-.export-menu-anchor + .header-btn-session + .header-btn-help + .header-btn-menu,
-.header-btn-session + .header-btn-help,
-.header-btn-session + .header-btn-help + .header-btn-menu {
+.export-menu-anchor + .session-menu-anchor,
+.export-menu-anchor + .session-menu-anchor + .header-btn-help,
+.export-menu-anchor + .session-menu-anchor + .header-btn-help + .header-btn-menu,
+.session-menu-anchor + .header-btn-help,
+.session-menu-anchor + .header-btn-help + .header-btn-menu {
   margin-left: 4px;
 }
 
@@ -1888,8 +1889,10 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* Export-audio dropdown — anchored under the ⤓ header button. Same
  * outside-click + Esc behaviour as .midi-menu, but wider because the
  * panel carries section labels, action buttons, and a duration picker
- * for the EXPORT TAKE flow. */
-.export-menu {
+ * for the EXPORT TAKE flow. The session ◆ dropdown reuses these
+ * styles via .session-menu / .session-menu-anchor aliases below. */
+.export-menu,
+.session-menu {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -1982,7 +1985,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   color: var(--text-dim);
   letter-spacing: 0.02em;
 }
-.export-menu-anchor {
+.export-menu-anchor,
+.session-menu-anchor {
   position: relative;
   display: inline-block;
 }

@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.14 — 2026-05-03
+
+- ui: ◆ session button now opens an anchored dropdown instead of a full-screen modal — same outside-click + Esc UX as the ⤓ EXPORT AUDIO menu. Same content (LOAD picker, SAVE / RENAME, EXPORT JSON / IMPORT JSON), just lighter on the surface. Reuses the `.export-menu` styles via shared selectors. Mobile order rules updated to target `.session-menu-anchor` (the wrapping span) so row-2 layout stays correct.
+
 ## 1.22.13 — 2026-05-03
 
 Docs pass — bring user-facing copy in line with the 1.22.x reality.
