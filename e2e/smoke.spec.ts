@@ -126,8 +126,9 @@ test("4. FX bar DOM order matches engine EFFECT_ORDER", async ({ page }) => {
   await page.goto("/");
   await dismissStartGate(page);
 
-  // FxBar sits in the always-visible TIMBRE + EFFECTS row — no
-  // disclosure to click in the current layout.
+  // FxBar moved into the EDIT disclosure as part of the Performance
+  // Surface refactor — expand it before reading the bar order.
+  await page.locator('[data-tutor="edit-toggle"]').click();
 
   // Engine EFFECT_ORDER — kept in sync with src/engine/FxChain.ts. If
   // FxBar.tsx ever hand-rolls its own order, this assertion catches it.

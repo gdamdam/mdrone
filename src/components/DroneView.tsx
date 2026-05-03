@@ -519,10 +519,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
   // Progressive disclosure — collapsible sections. Default: collapsed.
   // Persisted to localStorage so the user's layout survives reloads.
+  // Backwards-compat: missing keys (e.g. older saves with no `edit`)
+  // fall back to defaultDisclosure so users coming from a previous
+  // build land on the new Performance Surface defaults.
   const DISCLOSURE_KEY = "mdrone-disclosure";
-  type Section = "presets" | "tuning" | "detune" | "perform";
+  type Section = "presets" | "tuning" | "detune" | "perform" | "edit";
   const defaultDisclosure: Record<Section, boolean> = {
-    presets: false, tuning: false, detune: false, perform: true,
+    presets: false, tuning: false, detune: false, perform: true, edit: false,
   };
   const [disclosed, setDisclosed] = useState<Record<Section, boolean>>(() => {
     try {
@@ -1661,89 +1664,102 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         </div>
         )}
 
-        {/* ── TIMBRE + EFFECTS — always visible. Part of the MAIN
-            tier (performance surface) alongside SHAPE and the preset
-            strip. ADVANCED tier (tuning + LFO) remains collapsible. */}
-        <div className="timbre-fx-row">
-          <div className="timbre-col">
-            <div className="panel-label">INSTRUMENTS</div>
-            <div className="timbre-grid timbre-grid-compact">
-              {VOICES.map((v) => {
-                const active = state.voiceLayers[v.id];
-                const level = active ? Math.round(state.voiceLevels[v.id] * 100) : 0;
-                return (
-                  <button
-                    key={v.id}
-                    onClick={() => toggleVoiceLayer(v.id)}
-                    className={active ? "timbre-btn timbre-btn-active" : "timbre-btn"}
-                    title={v.hint}
-                  >
-                    <span className="timbre-btn-icon">{v.icon}</span>
-                    <span className="timbre-btn-label">{v.label}</span>
-                    {active && <span className="timbre-btn-level">{level}</span>}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Inline level sliders for active voices */}
-            {VOICES.map((v) => state.voiceLayers[v.id] && (
-              <Fragment key={v.id}>
-                <div className="layer-level-row" data-midi-id={v.id !== "noise" ? `voice.${v.id}` : undefined}>
-                  <span className="layer-level-label">{v.label}</span>
-                  <input
-                    type="range" min={0} max={1} step={0.01}
-                    value={state.voiceLevels[v.id]}
-                    onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
-                    className="macro-slider"
-                    title={`${v.label} mix level`}
-                  />
-                  <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
-                </div>
-                {/* NOISE — second row for the COLOR shape param.
-                    Only rendered for the noise voice; tonic-independent,
-                    picks the bed's spectral tilt (white → sub-rumble). */}
-                {v.id === "noise" && (
-                  <div className="layer-level-row layer-level-row-sub">
-                    <span className="layer-level-label layer-level-label-sub">COLOR</span>
+        {/* ── EDIT — collapsible drawer for mix-grade controls:
+            INSTRUMENTS voice toggles · per-voice level sliders · FX BAR.
+            Default closed so the first screen reads as an instrument,
+            not a console. Performance surface above stays focused on
+            HOLD / tonic / preset / macros / WeatherPad. */}
+        <button
+          data-tutor="edit-toggle"
+          className="disclosure-toggle disclosure-toggle-wide"
+          onClick={() => toggle("edit")}
+          aria-expanded={disclosed.edit}
+        >
+          <span className="disclosure-arrow">{disclosed.edit ? "▾" : "▸"}</span>
+          EDIT
+        </button>
+        {disclosed.edit && (
+          <div className="timbre-fx-row">
+            <div className="timbre-col">
+              <div className="panel-label">INSTRUMENTS</div>
+              <div className="timbre-grid timbre-grid-compact">
+                {VOICES.map((v) => {
+                  const active = state.voiceLayers[v.id];
+                  const level = active ? Math.round(state.voiceLevels[v.id] * 100) : 0;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => toggleVoiceLayer(v.id)}
+                      className={active ? "timbre-btn timbre-btn-active" : "timbre-btn"}
+                      title={v.hint}
+                    >
+                      <span className="timbre-btn-icon">{v.icon}</span>
+                      <span className="timbre-btn-label">{v.label}</span>
+                      {active && <span className="timbre-btn-level">{level}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Per-voice level sliders for currently-active voices,
+                  rendered directly under the INSTRUMENTS grid. */}
+              {VOICES.map((v) => state.voiceLayers[v.id] && (
+                <Fragment key={v.id}>
+                  <div className="layer-level-row" data-midi-id={v.id !== "noise" ? `voice.${v.id}` : undefined}>
+                    <span className="layer-level-label">{v.label}</span>
                     <input
                       type="range" min={0} max={1} step={0.01}
-                      value={state.noiseColor}
-                      onChange={(e) => setNoiseColor(parseFloat(e.target.value))}
+                      value={state.voiceLevels[v.id]}
+                      onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
                       className="macro-slider"
-                      title="NOISE COLOR — 0 white, 0.3 pink, 0.6 brown, 1 sub-rumble"
+                      title={`${v.label} mix level`}
                     />
-                    <span className="layer-level-value">{Math.round(state.noiseColor * 100)}</span>
+                    <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
                   </div>
-                )}
-              </Fragment>
-            ))}
+                  {/* NOISE — second row for the COLOR shape param.
+                      Only rendered for the noise voice; tonic-independent,
+                      picks the bed's spectral tilt (white → sub-rumble). */}
+                  {v.id === "noise" && (
+                    <div className="layer-level-row layer-level-row-sub">
+                      <span className="layer-level-label layer-level-label-sub">COLOR</span>
+                      <input
+                        type="range" min={0} max={1} step={0.01}
+                        value={state.noiseColor}
+                        onChange={(e) => setNoiseColor(parseFloat(e.target.value))}
+                        className="macro-slider"
+                        title="NOISE COLOR — 0 white, 0.3 pink, 0.6 brown, 1 sub-rumble"
+                      />
+                      <span className="layer-level-value">{Math.round(state.noiseColor * 100)}</span>
+                    </div>
+                  )}
+                </Fragment>
+              ))}
+            </div>
+            <div
+              className="fx-col"
+              data-tutor="fx-bar"
+              onPointerDownCapture={() => {
+                // First interaction with the FX strip surfaces the
+                // effects tour as a pill. Subsequent clicks no-op via
+                // the flow-done flag.
+                if (!isFlowDone("effects")) requestOfferFlow("effects");
+              }}
+            >
+              <FxBar
+                engine={engine}
+                states={displayEffects}
+                onToggle={toggleEffect}
+                order={effectOrder}
+                onReorder={handleEffectReorder}
+                suppressed={suppressedFx}
+              />
+            </div>
           </div>
-          <div
-            className="fx-col"
-            data-tutor="fx-bar"
-            onPointerDownCapture={() => {
-              // First interaction with the FX strip surfaces the
-              // effects tour as a pill. Subsequent clicks no-op via
-              // the flow-done flag.
-              if (!isFlowDone("effects")) requestOfferFlow("effects");
-            }}
-          >
-            <FxBar
-              engine={engine}
-              states={displayEffects}
-              onToggle={toggleEffect}
-              order={effectOrder}
-              onReorder={handleEffectReorder}
-              suppressed={suppressedFx}
-            />
-          </div>
-        </div>
+        )}
 
         {/* ── ADVANCED — collapsible drawer holding tuning + LFO.
-            This is the one "programming" disclosure; everything else
-            above (preset, SHAPE, timbre, FX) is always-visible
-            performance surface. Matches hardware-synth separation of
-            performance from programming. */}
+            Matches hardware-synth separation of performance from
+            programming: identity + macros + voice toggles stay on
+            top; EDIT carries mix; ADVANCED carries deep systems. */}
         <button
           data-tutor="advanced-toggle"
           className="disclosure-toggle disclosure-toggle-wide"

@@ -72,6 +72,8 @@ test("FX buttons expose aria-pressed", async ({ page }) => {
   await page.goto("/");
   await dismissStartGate(page);
 
+  // FX BAR lives inside the EDIT disclosure now — expand it first.
+  await page.locator('[data-tutor="edit-toggle"]').click();
   const firstFx = page.locator(".fx-btn").first();
   await expect(firstFx).toBeVisible();
   // aria-pressed is always present (true or false) — never missing.

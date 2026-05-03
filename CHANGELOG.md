@@ -2,6 +2,19 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.0 — 2026-05-03
+
+- ui: Performance Surface — first screen now reads as an instrument, not a console. New EDIT disclosure (default closed) consolidates the entire mix block — INSTRUMENTS voice toggles · per-voice level sliders · NOISE COLOR · FX BAR — into one self-contained drawer one tap below the performance row.
+- arch: extend the `mdrone-disclosure` localStorage state with an `edit: false` key. Backwards-compatible — older saves merge with the new default; users coming from a previous build land on the cleaner Performance Surface.
+- tests: e2e — `smoke.spec.ts` (FX bar order) and `accessibility.spec.ts` (FX aria-pressed) now expand the EDIT disclosure before asserting.
+
+Hierarchy after this slice:
+- **Performance** (always visible): identity strip · presets disclosure · PERFORM (HOLD/tonic/octave/MOTION/macros/WeatherPad)
+- **EDIT** (one tap, default closed): INSTRUMENTS voice toggles + per-voice level sliders + NOISE COLOR + FX BAR
+- **ADVANCED** (one tap): tuning · scale editor entry · LFO · fine-detune · entrain
+- **Settings** (⚙): MIDI mapping, motion-rec toggle, low-power, LIVE SAFE, mutate intensity, palette, weather visual, tempo, reset
+- **Header** (always visible): ⤓ export-audio dropdown, ◆ session sheet, ?, ⚙
+
 ## 1.21.7 — 2026-05-03
 
 - tests: session-sheet e2e — target the `<strong>` in the "Current: " readout instead of plain text. The session name also appears inside the LOAD dropdown's selected label, which produced a Playwright strict-mode collision on the assertion.
