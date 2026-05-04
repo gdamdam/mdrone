@@ -187,6 +187,11 @@ export class AudioEngine {
       if (document.visibilityState === "visible") tryResume();
     });
     window.addEventListener("pageshow", tryResume);
+    // Some browsers (Firefox during long idle holds, iOS during audio
+    // session interruptions) flip the context to suspended/interrupted
+    // without a corresponding visibility change. Listen for the lifecycle
+    // event itself so we don't depend on the page being re-shown.
+    this.ctx.addEventListener("statechange", tryResume);
 
     if (typeof this.ctx.audioWorklet === "undefined") {
       // AudioWorklet shipped in Chrome 66 / Firefox 76 / Safari 14.1.
