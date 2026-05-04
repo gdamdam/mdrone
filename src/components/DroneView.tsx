@@ -1858,101 +1858,132 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           <div className="timbre-fx-row">
             <div className="timbre-col">
               <div className="panel-label">INSTRUMENTS</div>
-              <div className="timbre-grid timbre-grid-compact">
-                {VOICES.map((v) => {
-                  const active = state.voiceLayers[v.id];
-                  const muted = mutedVoices.has(v.id);
-                  const level = active ? Math.round(state.voiceLevels[v.id] * 100) : 0;
-                  // Halo reads the user's *intended* level — when muted,
-                  // the engine is at 0 but the stash holds the true value
-                  // so the halo doesn't deceptively collapse.
-                  const haloLevel =
-                    active
-                      ? muted
-                        ? stashedLevelsRef.current[v.id] ?? state.voiceLevels[v.id]
-                        : state.voiceLevels[v.id]
-                      : 0;
+              {/* Each block is one tile-row of 4 voices, optionally
+                  followed by a level row and a "secondary params" row.
+                  Both subordinate rows live in the same 4-column grid
+                  as the tiles, so each slider sits directly under its
+                  tile. Empty cells preserve column alignment. The
+                  secondary row is the generic home for voice-specific
+                  extras (today only NOISE COLOR uses it). */}
+              <div className="timbre-stack">
+                {([[0, 4], [4, 8]] as const).map(([from, to]) => {
+                  const block = VOICES.slice(from, to);
+                  const anyActive = block.some((v) => state.voiceLayers[v.id]);
+                  const anySecondary = block.some(
+                    (v) => state.voiceLayers[v.id] && v.id === "noise",
+                  );
                   return (
-                    <button
-                      key={v.id}
-                      onClick={() => toggleVoiceLayer(v.id)}
-                      className={
-                        "timbre-btn" +
-                        (active ? " timbre-btn-active" : "") +
-                        (muted ? " timbre-btn-muted" : "")
-                      }
-                      title={v.hint}
-                    >
-                      <span className="timbre-btn-icon-wrap">
-                        {active && <LevelHalo level={haloLevel} />}
-                        <span className="timbre-btn-icon">{v.icon}</span>
-                      </span>
-                      <span className="timbre-btn-label">{v.label}</span>
-                      {active && <span className="timbre-btn-level">{level}</span>}
-                      {active && (
-                        // Hover-reveal mute chip. Span (not nested
-                        // <button>) so the parent <button> stays valid;
-                        // stopPropagation prevents the chip click from
-                        // toggling the voice layer.
-                        <span
-                          className={
-                            "timbre-btn-mute" + (muted ? " timbre-btn-mute-on" : "")
-                          }
-                          role="button"
-                          tabIndex={0}
-                          aria-label={muted ? `Unmute ${v.label}` : `Mute ${v.label}`}
-                          aria-pressed={muted}
-                          title={muted ? "Unmute" : "Mute"}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); toggleMute(v.id); }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              toggleMute(v.id);
-                            }
-                          }}
-                        >
-                          M
-                        </span>
+                    <Fragment key={`block-${from}`}>
+                      <div className="timbre-row timbre-row-tiles">
+                        {block.map((v) => {
+                          const active = state.voiceLayers[v.id];
+                          const muted = mutedVoices.has(v.id);
+                          const level = active ? Math.round(state.voiceLevels[v.id] * 100) : 0;
+                          const haloLevel =
+                            active
+                              ? muted
+                                ? stashedLevelsRef.current[v.id] ?? state.voiceLevels[v.id]
+                                : state.voiceLevels[v.id]
+                              : 0;
+                          return (
+                            <button
+                              key={v.id}
+                              onClick={() => toggleVoiceLayer(v.id)}
+                              className={
+                                "timbre-btn" +
+                                (active ? " timbre-btn-active" : "") +
+                                (muted ? " timbre-btn-muted" : "")
+                              }
+                              title={v.hint}
+                            >
+                              <span className="timbre-btn-icon-wrap">
+                                {active && <LevelHalo level={haloLevel} />}
+                                <span className="timbre-btn-icon">{v.icon}</span>
+                              </span>
+                              <span className="timbre-btn-label">{v.label}</span>
+                              {active && <span className="timbre-btn-level">{level}</span>}
+                              {active && (
+                                <span
+                                  className={
+                                    "timbre-btn-mute" + (muted ? " timbre-btn-mute-on" : "")
+                                  }
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-label={muted ? `Unmute ${v.label}` : `Mute ${v.label}`}
+                                  aria-pressed={muted}
+                                  title={muted ? "Unmute" : "Mute"}
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => { e.stopPropagation(); toggleMute(v.id); }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      toggleMute(v.id);
+                                    }
+                                  }}
+                                >
+                                  M
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {anyActive && (
+                        <div className="timbre-row timbre-row-levels">
+                          {block.map((v) =>
+                            state.voiceLayers[v.id] ? (
+                              <div
+                                key={`l-${v.id}`}
+                                className="timbre-level-cell"
+                                data-midi-id={v.id !== "noise" ? `voice.${v.id}` : undefined}
+                              >
+                                <input
+                                  type="range" min={0} max={1} step={0.01}
+                                  value={state.voiceLevels[v.id]}
+                                  onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
+                                  className="timbre-level-slider"
+                                  title={`${v.label} mix level`}
+                                  aria-label={`${v.label} mix level`}
+                                />
+                                <span className="timbre-level-cell-value">
+                                  {Math.round(state.voiceLevels[v.id] * 100)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div key={`l-${v.id}`} className="timbre-level-cell-empty" aria-hidden="true" />
+                            ),
+                          )}
+                        </div>
                       )}
-                    </button>
+                      {anySecondary && (
+                        <div className="timbre-row timbre-row-secondary">
+                          {block.map((v) =>
+                            state.voiceLayers[v.id] && v.id === "noise" ? (
+                              <div key={`s-${v.id}`} className="timbre-level-cell timbre-level-cell-secondary">
+                                <span className="timbre-level-cell-sublabel">COLOR</span>
+                                <input
+                                  type="range" min={0} max={1} step={0.01}
+                                  value={state.noiseColor}
+                                  onChange={(e) => setNoiseColor(parseFloat(e.target.value))}
+                                  className="timbre-level-slider"
+                                  title="NOISE COLOR — 0 white, 0.3 pink, 0.6 brown, 1 sub-rumble"
+                                  aria-label="NOISE color"
+                                />
+                                <span className="timbre-level-cell-value">
+                                  {Math.round(state.noiseColor * 100)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div key={`s-${v.id}`} className="timbre-level-cell-empty" aria-hidden="true" />
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </Fragment>
                   );
                 })}
               </div>
-              {/* Per-voice level sliders for currently-active voices,
-                  rendered directly under the INSTRUMENTS grid. */}
-              {VOICES.map((v) => state.voiceLayers[v.id] && (
-                <Fragment key={v.id}>
-                  <div className="layer-level-row" data-midi-id={v.id !== "noise" ? `voice.${v.id}` : undefined}>
-                    <span className="layer-level-label">{v.label}</span>
-                    <input
-                      type="range" min={0} max={1} step={0.01}
-                      value={state.voiceLevels[v.id]}
-                      onChange={(e) => setVoiceLevel(v.id, parseFloat(e.target.value))}
-                      className="macro-slider"
-                      title={`${v.label} mix level`}
-                    />
-                    <span className="layer-level-value">{Math.round(state.voiceLevels[v.id] * 100)}</span>
-                  </div>
-                  {/* NOISE — second row for the COLOR shape param.
-                      Only rendered for the noise voice; tonic-independent,
-                      picks the bed's spectral tilt (white → sub-rumble). */}
-                  {v.id === "noise" && (
-                    <div className="layer-level-row layer-level-row-sub">
-                      <span className="layer-level-label layer-level-label-sub">COLOR</span>
-                      <input
-                        type="range" min={0} max={1} step={0.01}
-                        value={state.noiseColor}
-                        onChange={(e) => setNoiseColor(parseFloat(e.target.value))}
-                        className="macro-slider"
-                        title="NOISE COLOR — 0 white, 0.3 pink, 0.6 brown, 1 sub-rumble"
-                      />
-                      <span className="layer-level-value">{Math.round(state.noiseColor * 100)}</span>
-                    </div>
-                  )}
-                </Fragment>
-              ))}
             </div>
             <div
               className="fx-col"

@@ -3868,6 +3868,80 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   border-color: #d65a4d;
 }
 
+/* Variant C prototype — column-anchored level + secondary-params
+   layout. Each block (4 voices) is rendered as a tile row, optionally
+   followed by a level row and a secondary row. All three rows share
+   the same 4-column grid, so a slider always sits in the same column
+   as the tile it belongs to. Subordinate rows are conditionally
+   rendered, so empty space doesn't accumulate when nothing is active. */
+.timbre-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.timbre-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.timbre-row-levels,
+.timbre-row-secondary {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+.timbre-level-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  min-width: 0;
+}
+.timbre-level-cell-empty {
+  /* placeholder — keeps column alignment in 4-col grid */
+  min-height: 0;
+}
+.timbre-level-cell-sublabel {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.timbre-level-slider {
+  flex: 1;
+  height: 4px;
+  min-width: 0;
+  background: var(--bg-cell);
+  border-radius: 3px;
+  outline: none;
+}
+.timbre-level-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--preview);
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--preview) 75%, #000);
+}
+.timbre-level-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--preview);
+  border: 1px solid color-mix(in srgb, var(--preview) 75%, #000);
+  cursor: pointer;
+}
+.timbre-level-cell-value {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--preview);
+  min-width: 22px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 .timbre-btn-label {
   font-size: 9px;
   font-weight: 800;
