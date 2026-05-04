@@ -3182,10 +3182,17 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   text-align: center;
   color: var(--preview);
   opacity: 0.7;
-  /* Pointer-transparent so clicks fall through to the parent
-     <button>. Without this, a click whose target resolves to the
-     arrow glyph (vs. the surrounding button padding) was reaching
-     the span and not propagating in the same way users expected. */
+  /* Pointer-transparent — the parent <button> owns the click target.
+     Belt-and-braces with the disclosure-toggle * rule below. */
+  pointer-events: none;
+}
+/* Defensive: any descendant of a disclosure toggle (arrow span,
+   inner text node wrapper, etc.) is pointer-transparent, so the
+   click always lands on the <button> itself regardless of where in
+   the header the pointer hits. Without this, a glyph that happens
+   to render slightly outside its inline box can swallow clicks in
+   unexpected ways. */
+.disclosure-toggle * {
   pointer-events: none;
 }
 
