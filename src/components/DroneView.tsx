@@ -468,8 +468,41 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // restores the stashed value. If the user nudges the slider while
   // muted, the stash is the *pre-mute* value — un-mute returns there.
   const [mutedVoices, setMutedVoices] = useState<ReadonlySet<VoiceType>>(() => new Set());
+  const [soloVoice, setSoloVoice] = useState<VoiceType | null>(null);
+  // Mute and solo each stash the levels they zero out, so toggling
+  // off restores the user's intended values rather than leaving the
+  // bus dead. Solo/mute are mutually exclusive — engaging one clears
+  // the other to keep the state machine simple.
   const stashedLevelsRef = useRef<Partial<Record<VoiceType, number>>>({});
+  const soloStashRef = useRef<Partial<Record<VoiceType, number>>>({});
+
+  const restoreFromSoloStash = useCallback(() => {
+    Object.keys(soloStashRef.current).forEach((k) => {
+      const id = k as VoiceType;
+      const stashed = soloStashRef.current[id];
+      if (typeof stashed === "number") {
+        setVoiceLevel(id, stashed);
+      }
+      delete soloStashRef.current[id];
+    });
+  }, [setVoiceLevel]);
+
+  const restoreFromMuteStash = useCallback(() => {
+    Object.keys(stashedLevelsRef.current).forEach((k) => {
+      const id = k as VoiceType;
+      const stashed = stashedLevelsRef.current[id];
+      if (typeof stashed === "number") {
+        setVoiceLevel(id, stashed);
+      }
+      delete stashedLevelsRef.current[id];
+    });
+  }, [setVoiceLevel]);
+
   const toggleMute = useCallback((id: VoiceType) => {
+    if (soloVoice !== null) {
+      restoreFromSoloStash();
+      setSoloVoice(null);
+    }
     setMutedVoices((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -486,7 +519,32 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       }
       return next;
     });
-  }, [setVoiceLevel, state.voiceLevels]);
+  }, [setVoiceLevel, state.voiceLevels, soloVoice, restoreFromSoloStash]);
+
+  const toggleSolo = useCallback((id: VoiceType) => {
+    if (mutedVoices.size > 0) {
+      restoreFromMuteStash();
+      setMutedVoices(new Set());
+    }
+    if (soloVoice === id) {
+      restoreFromSoloStash();
+      setSoloVoice(null);
+      return;
+    }
+    if (soloVoice !== null) restoreFromSoloStash();
+    VOICES.forEach((v) => {
+      if (v.id === id) return;
+      if (!state.voiceLayers[v.id]) return;
+      if (state.voiceLevels[v.id] > 0) {
+        soloStashRef.current[v.id] = state.voiceLevels[v.id];
+        setVoiceLevel(v.id, 0);
+      }
+    });
+    setSoloVoice(id);
+  }, [
+    setVoiceLevel, state.voiceLayers, state.voiceLevels,
+    mutedVoices, soloVoice, restoreFromMuteStash, restoreFromSoloStash,
+  ]);
 
   const [shapeCollapsed, setShapeCollapsed] = useState<boolean>(() => {
     try {
@@ -1878,13 +1936,20 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                         {block.map((v) => {
                           const active = state.voiceLayers[v.id];
                           const muted = mutedVoices.has(v.id);
+                          const soloed = soloVoice === v.id;
+                          const soloedOut = soloVoice !== null && soloVoice !== v.id && active;
                           const level = active ? Math.round(state.voiceLevels[v.id] * 100) : 0;
-                          const haloLevel =
-                            active
-                              ? muted
-                                ? stashedLevelsRef.current[v.id] ?? state.voiceLevels[v.id]
-                                : state.voiceLevels[v.id]
-                              : 0;
+                          // Halo reflects the user's *intended* level, not the
+                          // engine value — when muted or soloed-out, the bus is
+                          // at 0 but the relevant stash holds the true value
+                          // so the gauge doesn't deceptively collapse.
+                          const haloLevel = !active
+                            ? 0
+                            : muted
+                              ? stashedLevelsRef.current[v.id] ?? state.voiceLevels[v.id]
+                              : soloedOut
+                                ? soloStashRef.current[v.id] ?? state.voiceLevels[v.id]
+                                : state.voiceLevels[v.id];
                           return (
                             <button
                               key={v.id}
@@ -1892,7 +1957,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                               className={
                                 "timbre-btn" +
                                 (active ? " timbre-btn-active" : "") +
-                                (muted ? " timbre-btn-muted" : "")
+                                (muted ? " timbre-btn-muted" : "") +
+                                (soloed ? " timbre-btn-soloed" : "") +
+                                (soloedOut ? " timbre-btn-soloed-out" : "")
                               }
                               title={v.hint}
                             >
@@ -1903,26 +1970,51 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                               <span className="timbre-btn-label">{v.label}</span>
                               {active && <span className="timbre-btn-level">{level}</span>}
                               {active && (
-                                <span
-                                  className={
-                                    "timbre-btn-mute" + (muted ? " timbre-btn-mute-on" : "")
-                                  }
-                                  role="button"
-                                  tabIndex={0}
-                                  aria-label={muted ? `Unmute ${v.label}` : `Mute ${v.label}`}
-                                  aria-pressed={muted}
-                                  title={muted ? "Unmute" : "Mute"}
-                                  onPointerDown={(e) => e.stopPropagation()}
-                                  onClick={(e) => { e.stopPropagation(); toggleMute(v.id); }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" || e.key === " ") {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      toggleMute(v.id);
+                                <span className="timbre-btn-chips">
+                                  <span
+                                    className={
+                                      "timbre-btn-chip timbre-btn-mute" +
+                                      (muted ? " timbre-btn-chip-on" : "")
                                     }
-                                  }}
-                                >
-                                  M
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={muted ? `Unmute ${v.label}` : `Mute ${v.label}`}
+                                    aria-pressed={muted}
+                                    title={muted ? "Unmute" : "Mute"}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => { e.stopPropagation(); toggleMute(v.id); }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleMute(v.id);
+                                      }
+                                    }}
+                                  >
+                                    M
+                                  </span>
+                                  <span
+                                    className={
+                                      "timbre-btn-chip timbre-btn-solo" +
+                                      (soloed ? " timbre-btn-chip-on timbre-btn-solo-on" : "")
+                                    }
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={soloed ? `Clear solo on ${v.label}` : `Solo ${v.label}`}
+                                    aria-pressed={soloed}
+                                    title={soloed ? "Unsolo" : "Solo"}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => { e.stopPropagation(); toggleSolo(v.id); }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSolo(v.id);
+                                      }
+                                    }}
+                                  >
+                                    S
+                                  </span>
                                 </span>
                               )}
                             </button>

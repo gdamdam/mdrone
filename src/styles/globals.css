@@ -3829,13 +3829,19 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   filter: none;
 }
 
-/* Hover-reveal mute chip — sits in the top-left corner so it doesn't
-   collide with the existing level number in the bottom-right. Hidden
-   until hover/focus on the parent tile, or always visible when muted. */
-.timbre-btn-mute {
+/* Hover-reveal M / S chips — top-left corner of active tiles so they
+   don't collide with the level number in the bottom-right. Hidden
+   until hover/focus on the parent tile, or always visible when an
+   on-state (muted / soloed) is engaged. On touch devices (no hover)
+   the @media (pointer: coarse) override below keeps them visible. */
+.timbre-btn-chips {
   position: absolute;
   top: 3px;
   left: 3px;
+  display: inline-flex;
+  gap: 2px;
+}
+.timbre-btn-chip {
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -3852,20 +3858,48 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   opacity: 0;
   transition: opacity 0.12s, background 0.12s, color 0.12s, border-color 0.12s;
 }
-.timbre-btn:hover .timbre-btn-mute,
-.timbre-btn:focus-within .timbre-btn-mute {
+.timbre-btn:hover .timbre-btn-chip,
+.timbre-btn:focus-within .timbre-btn-chip {
   opacity: 1;
 }
-.timbre-btn-mute:hover {
+.timbre-btn-chip:hover {
   color: #160c06;
   background: var(--text);
   border-color: var(--text);
 }
-.timbre-btn-mute-on {
+.timbre-btn-chip-on {
   opacity: 1;
+}
+/* Mute chip "on" — warning red. Reads as silenced. */
+.timbre-btn-mute.timbre-btn-chip-on {
   color: #160c06;
   background: #d65a4d;
   border-color: #d65a4d;
+}
+/* Solo chip "on" — warm yellow, distinct from mute red and from
+   the tile's orange active state so all three chips read at a
+   glance without overlapping the palette. */
+.timbre-btn-solo.timbre-btn-chip-on {
+  color: #160c06;
+  background: #f3c14d;
+  border-color: #f3c14d;
+}
+/* Touch / coarse-pointer fallback — keep chips visible since :hover
+   doesn't fire on touch and there's no replacement gesture wired. */
+@media (pointer: coarse) {
+  .timbre-btn-chip {
+    opacity: 1;
+  }
+}
+
+/* Soloed-out — tile is active but silenced because another voice is
+   soloed. Dim so the user can see what's "on but not playing"
+   without confusing it with an inactive voice. */
+.timbre-btn-soloed-out {
+  opacity: 0.55;
+}
+.timbre-btn-soloed-out:hover {
+  opacity: 0.85;
 }
 
 /* Variant C prototype — column-anchored level + secondary-params
@@ -3946,40 +3980,6 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 1px;
-}
-
-/* Per-layer level sliders below the TIMBRE grid */
-.layer-levels {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 10px;
-}
-
-.layer-level-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-}
-
-.layer-level-label {
-  flex-shrink: 0;
-  min-width: 52px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: var(--preview);
-  text-transform: uppercase;
-}
-
-.layer-level-value {
-  flex-shrink: 0;
-  min-width: 26px;
-  text-align: right;
-  font-family: monospace;
-  font-size: 9px;
-  color: var(--text-dim);
 }
 
 /* Preset genre tabs — horizontal row of small group buttons */
@@ -6590,19 +6590,6 @@ input.share-modal-url:focus {
 @keyframes loop-bounce-pulse {
   0%   { box-shadow: 0 0 0 color-mix(in srgb, var(--preview) 0%, transparent); }
   100% { box-shadow: 0 0 12px color-mix(in srgb, var(--preview) 35%, transparent); }
-}
-
-/* NOISE voice secondary row — the COLOR slider under the level
- * slider. Visually quieter so users read it as a shape-of-this-voice
- * control, not a sibling of the primary level. */
-.layer-level-row-sub {
-  opacity: 0.82;
-  margin-top: -4px;
-}
-.layer-level-label-sub {
-  opacity: 0.7;
-  font-weight: 700;
-  letter-spacing: 0.08em;
 }
 
 /* ─────────────────────────────────────────────────────────────────
