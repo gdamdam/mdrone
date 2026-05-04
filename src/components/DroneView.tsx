@@ -411,6 +411,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // body + voices + gestures + scale + A/B + LFO2) swamps the XY
   // pad. Default to collapsed on narrow viewports; a header tap
   // toggles it. Desktop never reads this (CSS no-ops the class).
+  // TILT and WIDTH are master-bus macros with no scene-state field
+  // yet; the engine owns the truth. UI keeps a 0..1 mirror so the
+  // slider position is React-managed; the engine call maps:
+  //   TILT  : 0..1 → -1..+1   (0.5 = flat, ±6 dB shelves)
+  //   WIDTH : 0..1 → 0.4..1.6 (0.5 = unchanged unity stereo)
+  // Default 0.5 = neutral; matches engine defaults (tilt=0, width=1).
+  const [tiltUi, setTiltUi] = useState<number>(0.5);
+  const [widthUi, setWidthUi] = useState<number>(0.5);
+
   const [shapeCollapsed, setShapeCollapsed] = useState<boolean>(() => {
     try {
       const saved = window.localStorage?.getItem("mdrone.shapeCollapsed");
@@ -1409,6 +1418,22 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               ) : null
             }
           />
+          {/* TIME — rate of weather motion. Lives under the WEATHER pad
+              because it scales the same Y-axis movement (LFO sweeping
+              the filter) the user can also dial via the pad's vertical
+              drag. Was previously in SHAPE/MOTION; relocating here
+              tightens the cause-and-effect mental model. */}
+          <div className="weather-time-row">
+            <Macro
+              label="TIME"
+              value={state.time}
+              onChange={setTime}
+              icon={<IconTime />}
+              title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
+              hint="rate of weather motion"
+              midiId="time"
+            />
+          </div>
 
           {/* Mobile tonic + octave — lives between the XY pad and the
               SHAPE column on narrow viewports, so the performance
@@ -1520,47 +1545,21 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 body="Move AIR, BLOOM, or SUB"
               />
             )}
-            <div className="shape-tier-label">MOTION</div>
+            {/* TONE — what the instrument *sounds like*. Static
+                timbre + spatial macros. SUB adds weight, AIR sends
+                into the reverb bus, TILT is a single-knob brightness
+                shelf pair (master-bus, ±6 dB), WIDTH is the M/S
+                stereo image (also master-bus). */}
+            <div className="shape-tier-label">TONE</div>
             <div className="macro-primary-col">
               <Macro
-                label="MORPH"
-                value={state.presetMorph}
-                onChange={(v) => { setPresetMorph(v); engine?.setPresetMorph(v); }}
-                icon={<IconBloom />}
-                title="MORPH (seconds) — time the drone takes to cross-fade when you load another preset. 0 = snap, 1 = ~20 s glacial fade."
-                hint="preset-change crossfade"
-                midiId="morph"
-              />
-              <Macro
-                label="EVOLVE"
-                value={state.evolve}
-                onChange={(v) => { setPresetEvolve(v); engine?.setEvolve(v); }}
-                icon={<IconDrift />}
-                title="EVOLVE (minutes) — how much the drone drifts on its own while a preset is held. 0 = dead-still, 1 = continuous slow change."
-                hint="autonomous slow drift"
-                midiId="evolve"
-              />
-              <Macro
-                label="TIME"
-                value={state.time}
-                onChange={setTime}
-                icon={<IconTime />}
-                title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
-                hint="rate of weather motion"
-                midiId="time"
-              />
-            </div>
-
-            <div className="shape-tier-label">BODY</div>
-            <div className="shape-morph-row">
-              <Macro
-                label="DRIFT"
-                value={state.drift}
-                onChange={setDrift}
-                icon={<IconDrift />}
-                title="Drift — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
-                hint="partials wander in pitch"
-                midiId="drift"
+                label="SUB"
+                value={state.sub}
+                onChange={setSub}
+                icon={<IconSub />}
+                title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
+                hint="sub-octave triangle layer"
+                midiId="sub"
               />
               <Macro
                 label="AIR"
@@ -1572,23 +1571,77 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 midiId="air"
               />
               <Macro
-                label="SUB"
-                value={state.sub}
-                onChange={setSub}
-                icon={<IconSub />}
-                title="Sub — adds a triangle voice one octave below the root. Weight without brightness"
-                hint="sub-octave triangle layer"
-                midiId="sub"
+                label="TILT"
+                value={tiltUi}
+                onChange={(v) => { setTiltUi(v); engine?.setTilt((v - 0.5) * 2); }}
+                icon={<IconRate />}
+                title="Tilt — single-knob brightness on the master bus. 0 = dark, 0.5 = flat, 1 = bright. ±6 dB low/high shelves."
+                hint="brightness tilt"
+                midiId="tilt"
               />
               <Macro
-                label="BLOOM"
+                label="WIDTH"
+                value={widthUi}
+                onChange={(v) => { setWidthUi(v); engine?.setWidth(0.4 + v * 1.2); }}
+                icon={<IconDepth />}
+                title="Width — stereo image. 0 = mono, 0.5 = unchanged, 1 = wide M/S spread."
+                hint="stereo width"
+                midiId="width"
+              />
+            </div>
+
+            {/* LIFE — autonomous, ongoing motion the drone makes on
+                its own. DETUNE = per-partial pitch wander (micro);
+                EVOLVE = preset-level autonomous drift (macro). TIME
+                lives under the WEATHER pad now, since it controls
+                the rate of weather motion specifically. */}
+            <div className="shape-tier-label">LIFE</div>
+            <div className="macro-primary-col">
+              <Macro
+                label="DETUNE"
+                value={state.drift}
+                onChange={setDrift}
+                icon={<IconDrift />}
+                title="Detune — how much the partials wander in pitch. 0 = crystalline, 1 = floating"
+                hint="partials wander in pitch"
+                midiId="drift"
+              />
+              <Macro
+                label="EVOLVE"
+                value={state.evolve}
+                onChange={(v) => { setPresetEvolve(v); engine?.setEvolve(v); }}
+                icon={<IconDrift />}
+                title="EVOLVE (minutes) — how much the drone drifts on its own while a preset is held. 0 = dead-still, 1 = continuous slow change."
+                hint="autonomous slow drift"
+                midiId="evolve"
+              />
+            </div>
+
+            {/* TRANSITION — input-triggered envelopes. ATTACK shapes
+                the silence→drone HOLD attack; CROSSFADE shapes the
+                preset/scale rebuild fade; GLIDE shapes the per-note
+                retune. ATTACK and CROSSFADE are now decoupled —
+                CROSSFADE alone determines the rebuild fade time. */}
+            <div className="shape-tier-label">TRANSITION</div>
+            <div className="shape-morph-row">
+              <Macro
+                label="ATTACK"
                 value={state.bloom}
                 onChange={setBloom}
                 icon={<IconBloom />}
                 displayValue={`${(0.3 + state.bloom * 9.7).toFixed(1)}s`}
-                title="Bloom — attack time on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
+                title="Attack — voice attack on the next HOLD. 0.3 s = immediate, 10 s = slow rise from silence"
                 hint="voice attack on next HOLD"
                 midiId="bloom"
+              />
+              <Macro
+                label="CROSSFADE"
+                value={state.presetMorph}
+                onChange={(v) => { setPresetMorph(v); engine?.setPresetMorph(v); }}
+                icon={<IconBloom />}
+                title="Crossfade — preset / scale rebuild fade time. 0 = quick (~0.3 s), 1 = slow (~1.8 s)."
+                hint="preset-change fade"
+                midiId="morph"
               />
               <Macro
                 label="GLIDE"

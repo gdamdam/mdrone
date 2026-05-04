@@ -2,6 +2,22 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.16 — 2026-05-03
+
+SHAPE panel — hierarchy + parameter cleanup. The old MOTION/BODY split mixed event envelopes with autonomous motion and called both pitch-wandering knobs "drift". This release reorganises SHAPE around what each macro actually *does*.
+
+- ui: SHAPE panel reorganised into three honest tiers — **TONE** (SUB, AIR, TILT, WIDTH), **LIFE** (DETUNE, EVOLVE), **TRANSITION** (ATTACK, CROSSFADE, GLIDE). Mental model: what it sounds like / how it breathes / what happens on a change.
+- ui: TIME relocated from SHAPE/MOTION to under the WEATHER pad — TIME is the rate of weather motion, so it now lives next to the thing it scales.
+- ui: macro renames (UI labels only — internal state keys, preset JSON, share URLs, MIDI ids unchanged for back-compat). DRIFT → **DETUNE** (avoids name collision with EVOLVE's autonomous drift). BLOOM → **ATTACK** (it shapes the silence→drone HOLD attack). MORPH → **CROSSFADE** (it shapes the preset/scale rebuild fade).
+- fix: ATTACK and CROSSFADE are now **decoupled**. Previously the rebuild crossfade time was `bloomAttackTime() × morphMul`, so both knobs affected preset transitions and the result was unpredictable (often pinned to the [0.3 s, 1.8 s] clamp ceiling). Now CROSSFADE alone drives the rebuild fade, mapping linearly across the clamped range. ATTACK is reserved for the HOLD attack and nothing else.
+- fix: macro smoothing time-constant no longer scales with CROSSFADE — it's pinned to a constant. Previously raising MORPH made every other macro respond more slowly; now CROSSFADE is purely a preset-transition knob.
+- feat: master-bus **TILT** macro (single-knob brightness, ±6 dB low/high shelf pair @ 200 Hz / 4 kHz, dedicated nodes so it doesn't fight the MIXER's 3-band EQ).
+- feat: master-bus **WIDTH** macro added to SHAPE/TONE — wraps the existing M/S width matrix that previously only lived in MIXER. UI 0..1 maps to engine 0.4..1.6 (mono → exaggerated stereo).
+- midi: new continuous targets `tilt` and `width`. Existing CCs and macro labels for `bloom`, `morph`, `drift`, `time` keep their ids; only the human-readable labels track the UI rename (BLOOM→ATTACK, MORPH→CROSSFADE, DRIFT→DETUNE; TIME stays TIME).
+
+Inherited from earlier work on the branch:
+- fix: REED bellows noise no longer shelf-boosted / reverb-smeared (ec388b4).
+
 ## 1.22.15 — 2026-05-03
 
 - fix: REED voice no longer adds a steady high-frequency hiss that was being amplified by the presence shelf and smeared into a centered tail by reverb / tape. The bellows breath noise is now lowpassed (~1.5 kHz one-pole, dark "whoosh" character), L/R decorrelated, and injected *after* the +2.3 dB presence shelf so its highs aren't shelf-boosted. Level reduced to ~40% of the previous broadband RMS. Most audible improvement on bright presets, sine shape, and any chain with hall + tape.

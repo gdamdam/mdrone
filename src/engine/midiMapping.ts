@@ -58,15 +58,17 @@ export const FORMANT_VOWEL_LABELS = ["AH", "EE", "OH", "OO", "EH"] as const;
  *  the Layout dispatch switch (see components/Layout.tsx). */
 export const MIDI_TARGETS: readonly MidiTarget[] = [
   // ── Macros ───────────────────────────────────────────────────────
-  { id: "drift",    label: "DRIFT",    group: "Macros",   kind: "continuous" },
+  { id: "drift",    label: "DETUNE",   group: "Macros",   kind: "continuous" },
   { id: "air",      label: "AIR",      group: "Macros",   kind: "continuous" },
   { id: "time",     label: "TIME",     group: "Macros",   kind: "continuous" },
   { id: "sub",      label: "SUB",      group: "Macros",   kind: "continuous" },
-  { id: "bloom",    label: "BLOOM",    group: "Macros",   kind: "continuous" },
+  { id: "bloom",    label: "ATTACK",   group: "Macros",   kind: "continuous" },
   { id: "glide",    label: "GLIDE",    group: "Macros",   kind: "continuous" },
-  { id: "morph",    label: "MORPH",    group: "Macros",   kind: "continuous" },
+  { id: "morph",    label: "CROSSFADE", group: "Macros",  kind: "continuous" },
   { id: "evolve",   label: "EVOLVE",   group: "Macros",   kind: "continuous" },
   { id: "pluck",    label: "PLUCK",    group: "Macros",   kind: "continuous" },
+  { id: "tilt",     label: "TILT",     group: "Macros",   kind: "continuous" },
+  { id: "width",    label: "WIDTH",    group: "Macros",   kind: "continuous" },
 
   // ── Weather + LFO ────────────────────────────────────────────────
   { id: "weatherX",  label: "WEATHER X",  group: "Weather", kind: "continuous" },

@@ -719,6 +719,9 @@ export class AudioEngine {
   setWidth(w: number): void { this.masterBus.setWidth(w); }
   getWidth(): number { return this.masterBus.getWidth(); }
 
+  setTilt(t: number): void { this.masterBus.setTilt(t); }
+  getTilt(): number { return this.masterBus.getTilt(); }
+
   setMudTrimEnabled(on: boolean): void { this.masterBus.setMudTrimEnabled(on); }
   isMudTrimEnabled(): boolean { return this.masterBus.isMudTrimEnabled(); }
 

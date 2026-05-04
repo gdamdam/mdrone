@@ -529,7 +529,11 @@ export class VoiceEngine {
 
 
   private get MACRO_TC(): number {
-    return this.baseMacroTC * (0.3 + this.morphAmount * 5.7);
+    // Pinned to baseMacroTC. Previously scaled by morphAmount, but
+    // CROSSFADE (formerly MORPH) is now strictly the preset/scale
+    // rebuild crossfade time — see rebuildIntervals() — so macro
+    // smoothings are independent and predictable.
+    return this.baseMacroTC;
   }
 
   private bloomAttackTime(): number {
@@ -565,14 +569,15 @@ export class VoiceEngine {
     // whole bloom tail window and overload the audio thread.
     this.killPendingRetire(now);
 
-    const morphMul = 0.4 + this.morphAmount * 3.6;
-    const bloom = Math.min(
-      VoiceEngine.MAX_REBUILD_XFADE_SEC,
-      Math.max(
-        VoiceEngine.MIN_REBUILD_XFADE_SEC,
-        this.bloomAttackTime() * morphMul,
-      ),
-    );
+    // CROSSFADE (morphAmount) is now the *only* input to the rebuild
+    // crossfade time — ATTACK (bloomAmount) is reserved for the
+    // silence→drone HOLD attack, see startDrone(). Linear map across
+    // the clamped [MIN, MAX] range so 0 = quick (0.3 s) and
+    // 1 = glacial (1.8 s); the knob is now predictable end-to-end.
+    const bloom =
+      VoiceEngine.MIN_REBUILD_XFADE_SEC +
+      this.morphAmount *
+        (VoiceEngine.MAX_REBUILD_XFADE_SEC - VoiceEngine.MIN_REBUILD_XFADE_SEC);
 
     const intervals = this.debugIntervals();
     const targetIntervalCount = intervals.length;

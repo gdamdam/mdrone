@@ -85,6 +85,20 @@ export class MasterBus {
   private readonly widthRR: GainNode;
   private widthValue = 1;
 
+  /** TILT — single-knob brightness/darkness on the master bus.
+   *  Two complementary shelves: low @ 200 Hz and high @ 4 kHz, gains
+   *  tied opposite-sign so the knob behaves as a Pultec-style tilt:
+   *    tilt = -1  → +6 dB low / -6 dB high   (dark)
+   *    tilt =  0  → flat
+   *    tilt = +1  → -6 dB low / +6 dB high   (bright)
+   *  Independent of the existing 3-band EQ (which the MIXER panel
+   *  drives) so the SHAPE TILT macro and any user EQ tweaks do not
+   *  fight each other. */
+  private readonly tiltLow: BiquadFilterNode;
+  private readonly tiltHigh: BiquadFilterNode;
+  private tiltValue = 0;
+  private static readonly TILT_DB_RANGE = 6;
+
   /** Session-level loudness trim — applied post-width matrix, pre-
    *  analyser. Used by the loudness-aware RND leveler to nudge the
    *  perceived level of each new preset toward a target LUFS so a
@@ -268,6 +282,16 @@ export class MasterBus {
     this.widthLL.gain.value = 1;
     this.widthRR.gain.value = 1;
     this.widthLR.gain.value = 0;
+
+    // TILT — dedicated low+high shelf pair, neutral at 0 dB.
+    this.tiltLow = this.ctx.createBiquadFilter();
+    this.tiltLow.type = "lowshelf";
+    this.tiltLow.frequency.value = 200;
+    this.tiltLow.gain.value = 0;
+    this.tiltHigh = this.ctx.createBiquadFilter();
+    this.tiltHigh.type = "highshelf";
+    this.tiltHigh.frequency.value = 4000;
+    this.tiltHigh.gain.value = 0;
     this.widthRL.gain.value = 0;
 
     // Bass-mono fold — Linkwitz-Riley-ish 24 dB/oct via two cascaded
@@ -434,7 +458,9 @@ export class MasterBus {
     this.widthLR.connect(this.widthMerger, 0, 0);
     this.widthRL.connect(this.widthMerger, 0, 1);
     this.widthRR.connect(this.widthMerger, 0, 1);
-    this.widthMerger.connect(this.loudnessTrim);
+    this.widthMerger.connect(this.tiltLow);
+    this.tiltLow.connect(this.tiltHigh);
+    this.tiltHigh.connect(this.loudnessTrim);
     this.loudnessTrim.connect(this.analyser);
     this.analyser.connect(this.presetDuck);
     this.presetDuck.connect(this.ctx.destination);
@@ -918,6 +944,21 @@ export class MasterBus {
   }
 
   getWidth(): number { return this.widthValue; }
+
+  /** TILT — single knob brightness, range -1..+1.
+   *  -1 = dark (low boost / high cut), +1 = bright (low cut / high
+   *  boost), 0 = flat. Maps linearly to ±TILT_DB_RANGE on each shelf
+   *  with opposite signs. */
+  setTilt(t: number): void {
+    const clamped = Math.max(-1, Math.min(1, t));
+    this.tiltValue = clamped;
+    const db = clamped * MasterBus.TILT_DB_RANGE;
+    const now = this.ctx.currentTime;
+    this.tiltLow.gain.setTargetAtTime(-db, now, 0.05);
+    this.tiltHigh.gain.setTargetAtTime(db, now, 0.05);
+  }
+
+  getTilt(): number { return this.tiltValue; }
 
   setHpfFreq(hz: number): void {
     this.hpf.frequency.value = Math.max(10, hz);

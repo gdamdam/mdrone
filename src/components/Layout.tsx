@@ -671,6 +671,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       case "morph":  dv?.applyLivePatch?.({ presetMorph: norm }, { record: true }); break;
       case "evolve": dv?.applyLivePatch?.({ evolve: norm }, { record: true }); break;
       case "pluck":  dv?.applyLivePatch?.({ pluckRate: norm * 2 }, { record: true }); break;
+      case "tilt":   eng?.setTilt?.((norm - 0.5) * 2); break;          // -1..+1
+      case "width":  eng?.setWidth?.(0.4 + norm * 1.2); break;          // 0.4..1.6
 
       // Weather + LFO
       case "weatherX":  dv?.applyLivePatch?.({ climateX: norm }, { record: true }); break;
