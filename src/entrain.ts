@@ -49,13 +49,14 @@ export const ENTRAIN_DICHOTIC_MAX_CENTS = 40;
  *  other gain. */
 export const ENTRAIN_AM_DEPTH_MIN = 0;
 export const ENTRAIN_AM_DEPTH_MAX = 1.5;
+export const DEFAULT_ENTRAIN_AM_DEPTH = 1;
 
 export const DEFAULT_ENTRAIN: EntrainState = {
   enabled: false,
   rateHz: 8,
   mode: "am",
   dichoticCents: 8,
-  amDepth: 1,
+  amDepth: DEFAULT_ENTRAIN_AM_DEPTH,
 };
 
 export function clampEntrainRate(hz: number): number {
@@ -72,7 +73,7 @@ export function clampDichoticCents(cents: number): number {
 }
 
 export function clampEntrainAmDepth(d: number): number {
-  if (!Number.isFinite(d)) return DEFAULT_ENTRAIN.amDepth;
+  if (!Number.isFinite(d)) return DEFAULT_ENTRAIN_AM_DEPTH;
   return Math.max(ENTRAIN_AM_DEPTH_MIN, Math.min(ENTRAIN_AM_DEPTH_MAX, d));
 }
 

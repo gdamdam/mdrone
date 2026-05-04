@@ -16,6 +16,7 @@ import {
   clampEntrainRate,
   DEFAULT_ENTRAIN,
   describeEntrain,
+  DEFAULT_ENTRAIN_AM_DEPTH,
   ENTRAIN_AM_DEPTH_MAX,
   ENTRAIN_AM_DEPTH_MIN,
   ENTRAIN_DICHOTIC_MAX_CENTS,
@@ -81,7 +82,7 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
   // cents. Grey out the slider so the UI is honest about what's live.
   const rateActive = state.mode !== "dichotic";
   const amActive = state.mode === "am" || state.mode === "both";
-  const amDepth = state.amDepth ?? DEFAULT_ENTRAIN.amDepth;
+  const amDepth = state.amDepth ?? DEFAULT_ENTRAIN_AM_DEPTH;
   const trackColor = zoneColorForHz(state.rateHz);
 
   return (
