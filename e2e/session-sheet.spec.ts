@@ -74,14 +74,23 @@ test("◆ session sheet round-trips a session through EXPORT JSON / IMPORT JSON"
   // moved the button label from "EXPORT JSON" to just "EXPORT" under
   // a "JSON" section heading. We scope to sheetDialog (role="menu",
   // name="Session") so this won't collide with the ⤓ audio export.
-  // noWaitAfter on the click: the handler creates a programmatic
-  // <a download> and calls a.click() (Header.tsx). WebKit treats the
-  // synthetic anchor's blob navigation as still-pending and the
-  // outer click() never resolves, hitting the 30 s test timeout.
-  // Chromium / Firefox don't see the synthetic anchor as navigation.
+  //
+  // dispatchEvent("click") instead of .click(): the React onClick
+  // handler creates a programmatic <a download> and calls a.click()
+  // (Header.tsx). WebKit on shared GitHub macOS runners marks the
+  // synthetic anchor's blob navigation as still-loading for tens of
+  // seconds, so Playwright's .click() — which waits for the page to
+  // settle after the action — hits the 30 s timeout under load.
+  // (Locally on a fast Mac it resolves in ~1 s and the test passes;
+  // it's a runner-load race, not a code bug.) The deprecated
+  // noWaitAfter option is a no-op in Playwright 1.50+.
+  // dispatchEvent fires the DOM click event directly; React's
+  // onClick still runs, the download still triggers, but Playwright
+  // returns immediately and lets waitForEvent("download") catch the
+  // download as before.
   const downloadPromise = page.waitForEvent("download");
   await sheetDialog(page).getByRole("button", { name: /^EXPORT$/ })
-    .click({ noWaitAfter: true });
+    .dispatchEvent("click");
   const download = await downloadPromise;
   const filename = download.suggestedFilename();
   expect(filename).toMatch(/^mdrone-.+\.json$/);
