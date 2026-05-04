@@ -3170,6 +3170,12 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
 .disclosure-toggle:hover {
   color: var(--preview);
 }
+.disclosure-toggle:active {
+  /* The global button press scale pulls full-width headers inward from
+     their center. A pointer started on the left caret can fall outside
+     the transformed button before mouseup, cancelling the click. */
+  transform: none;
+}
 .disclosure-toggle-wide {
   width: 100%;
   margin-top: 6px;

@@ -2187,6 +2187,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         <button
           data-tutor="advanced-toggle"
           className="disclosure-toggle disclosure-toggle-wide"
+          aria-expanded={disclosed.tuning}
           onClick={() => {
             const willOpen = !disclosed.tuning;
             toggle("tuning");
@@ -2310,6 +2311,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                       className="disclosure-toggle"
                       onClick={() => toggle("detune")}
                       title="Fine-detune the resolved interval cents"
+                      aria-expanded={disclosed.detune}
                     >
                       <span className="disclosure-arrow">{disclosed.detune ? "▾" : "▸"}</span>
                       DETUNE · active intervals in cents
