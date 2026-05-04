@@ -35,6 +35,12 @@ const trackErrors = (page: Page): ErrorBucket => {
     const text = msg.text();
     if (/\[vite\]/i.test(text)) return;
     if (/favicon\.ico/i.test(text)) return;
+    // Ableton Link bridge auto-discovery — Firefox surfaces the
+    // refused ws://127.0.0.1:19876 connection as an unsuppressable
+    // JavaScript Error; Chromium/WebKit silence it. The bridge is
+    // never running in CI and the app's auto-mode promises silent
+    // failure. Same filter as e2e/smoke.spec.ts.
+    if (/ws:\/\/(127\.0\.0\.1|\[::1\]|localhost):19876/.test(text)) return;
     errors.push(`console: ${text}`);
   });
   return errors;
