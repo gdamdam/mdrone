@@ -96,6 +96,7 @@ test("keyboard SHAPE input advances to WEATHER callout (after linger)", async ({
 
 test("keyboard WEATHER slider advances to TONIC callout (after linger)", async ({ page }) => {
   await startFreshNew(page);
+  await expect(callout(page)).toHaveAttribute("data-arrive-step", "shape");
 
   const macro = page.locator('[data-tutor="shape"] input[type="range"]').first();
   await macro.focus();
