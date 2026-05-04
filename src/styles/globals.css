@@ -6119,6 +6119,27 @@ input.share-modal-url:focus {
 }
 .entrain-cents-slider {
   flex: 1;
+  height: 6px;
+  background: var(--bg-cell);
+  border-radius: 3px;
+  outline: none;
+}
+.entrain-cents-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--preview);
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--preview) 75%, #000);
+}
+.entrain-cents-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--preview);
+  border: 1px solid color-mix(in srgb, var(--preview) 75%, #000);
+  cursor: pointer;
 }
 .entrain-cents-readout {
   min-width: 64px;
