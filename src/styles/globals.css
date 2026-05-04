@@ -3784,6 +3784,81 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   height: 18px;
 }
 
+/* Variant C prototype — halo gauge wrapping the voice icon. The wrap
+   is 24x24 so the halo (radius 10) sits ~3 px outside the 18x18 icon.
+   The icon stays centered; the halo SVG floats absolutely on top so
+   it doesn't push the icon off-axis and can't widen the tile. */
+.timbre-btn-icon-wrap {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.timbre-btn-halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.timbre-btn-halo-track {
+  fill: none;
+  stroke: color-mix(in srgb, currentColor 18%, transparent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.timbre-btn-halo-fill {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.18s ease;
+}
+/* Muted halo dims to the track colour so the level reads as
+   "intended but silenced" rather than collapsing to zero. */
+.timbre-btn-muted .timbre-btn-halo-fill {
+  stroke: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+/* Hover-reveal mute chip — sits in the top-left corner so it doesn't
+   collide with the existing level number in the bottom-right. Hidden
+   until hover/focus on the parent tile, or always visible when muted. */
+.timbre-btn-mute {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-cell) 88%, #000);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s, border-color 0.12s;
+}
+.timbre-btn:hover .timbre-btn-mute,
+.timbre-btn:focus-within .timbre-btn-mute {
+  opacity: 1;
+}
+.timbre-btn-mute:hover {
+  color: #160c06;
+  background: var(--text);
+  border-color: var(--text);
+}
+.timbre-btn-mute-on {
+  opacity: 1;
+  color: #160c06;
+  background: #d65a4d;
+  border-color: #d65a4d;
+}
+
 .timbre-btn-label {
   font-size: 9px;
   font-weight: 800;

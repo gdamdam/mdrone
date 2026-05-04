@@ -116,6 +116,44 @@ const V_SVG = {
   strokeLinejoin: "round" as const,
 };
 
+// Variant C prototype — a 270° arc gauge sitting around the voice
+// icon. Fill arc length is proportional to level (0..1); empty gap
+// at the bottom reads as a "C" so the affordance is unambiguous.
+// Inline (not lazy / not extracted) to keep tree-shake + Fast Refresh
+// behaviour identical to the rest of this file's icon helpers.
+function LevelHalo({ level }: { level: number }) {
+  const r = 10;
+  const C = 2 * Math.PI * r;
+  const arcLen = C * 0.75;
+  const fill = arcLen * Math.max(0, Math.min(1, level));
+  return (
+    <svg
+      className="timbre-btn-halo"
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <g transform="rotate(-135 12 12)">
+        <circle
+          cx={12}
+          cy={12}
+          r={r}
+          className="timbre-btn-halo-track"
+          strokeDasharray={`${arcLen} ${C}`}
+        />
+        <circle
+          cx={12}
+          cy={12}
+          r={r}
+          className="timbre-btn-halo-fill"
+          strokeDasharray={`${fill} ${C}`}
+        />
+      </g>
+    </svg>
+  );
+}
+
 /**
  * Four authored voices — each is a physical / spectral model running
  * in the DroneVoiceProcessor AudioWorklet. Not generic waveform options;
@@ -419,6 +457,33 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Default 0.5 = neutral; matches engine defaults (tilt=0, width=1).
   const [tiltUi, setTiltUi] = useState<number>(0.5);
   const [widthUi, setWidthUi] = useState<number>(0.5);
+
+  // Variant C prototype — per-voice mute. Lives in component-local
+  // state (not the scene snapshot) so presets / share URLs / MIDI
+  // recordings aren't polluted while we evaluate the design. Toggling
+  // mute stashes the current level and pushes 0 to the engine; un-mute
+  // restores the stashed value. If the user nudges the slider while
+  // muted, the stash is the *pre-mute* value — un-mute returns there.
+  const [mutedVoices, setMutedVoices] = useState<ReadonlySet<VoiceType>>(() => new Set());
+  const stashedLevelsRef = useRef<Partial<Record<VoiceType, number>>>({});
+  const toggleMute = useCallback((id: VoiceType) => {
+    setMutedVoices((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        const restored = stashedLevelsRef.current[id];
+        if (typeof restored === "number") {
+          setVoiceLevel(id, restored);
+          delete stashedLevelsRef.current[id];
+        }
+      } else {
+        stashedLevelsRef.current[id] = state.voiceLevels[id];
+        setVoiceLevel(id, 0);
+        next.add(id);
+      }
+      return next;
+    });
+  }, [setVoiceLevel, state.voiceLevels]);
 
   const [shapeCollapsed, setShapeCollapsed] = useState<boolean>(() => {
     try {
@@ -1793,17 +1858,61 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               <div className="timbre-grid timbre-grid-compact">
                 {VOICES.map((v) => {
                   const active = state.voiceLayers[v.id];
+                  const muted = mutedVoices.has(v.id);
                   const level = active ? Math.round(state.voiceLevels[v.id] * 100) : 0;
+                  // Halo reads the user's *intended* level — when muted,
+                  // the engine is at 0 but the stash holds the true value
+                  // so the halo doesn't deceptively collapse.
+                  const haloLevel =
+                    active
+                      ? muted
+                        ? stashedLevelsRef.current[v.id] ?? state.voiceLevels[v.id]
+                        : state.voiceLevels[v.id]
+                      : 0;
                   return (
                     <button
                       key={v.id}
                       onClick={() => toggleVoiceLayer(v.id)}
-                      className={active ? "timbre-btn timbre-btn-active" : "timbre-btn"}
+                      className={
+                        "timbre-btn" +
+                        (active ? " timbre-btn-active" : "") +
+                        (muted ? " timbre-btn-muted" : "")
+                      }
                       title={v.hint}
                     >
-                      <span className="timbre-btn-icon">{v.icon}</span>
+                      <span className="timbre-btn-icon-wrap">
+                        {active && <LevelHalo level={haloLevel} />}
+                        <span className="timbre-btn-icon">{v.icon}</span>
+                      </span>
                       <span className="timbre-btn-label">{v.label}</span>
                       {active && <span className="timbre-btn-level">{level}</span>}
+                      {active && (
+                        // Hover-reveal mute chip. Span (not nested
+                        // <button>) so the parent <button> stays valid;
+                        // stopPropagation prevents the chip click from
+                        // toggling the voice layer.
+                        <span
+                          className={
+                            "timbre-btn-mute" + (muted ? " timbre-btn-mute-on" : "")
+                          }
+                          role="button"
+                          tabIndex={0}
+                          aria-label={muted ? `Unmute ${v.label}` : `Mute ${v.label}`}
+                          aria-pressed={muted}
+                          title={muted ? "Unmute" : "Mute"}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); toggleMute(v.id); }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              toggleMute(v.id);
+                            }
+                          }}
+                        >
+                          M
+                        </span>
+                      )}
                     </button>
                   );
                 })}
