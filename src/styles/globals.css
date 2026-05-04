@@ -3902,6 +3902,36 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   opacity: 0.85;
 }
 
+/* Variant C prototype — RMS meter strip across the bottom edge of
+   each active voice tile. The fill width is updated imperatively on
+   rAF so it can run at frame rate without churning React state. */
+.timbre-btn-meter {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, #160c06 30%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+}
+.timbre-btn-meter-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: #160c06;
+  border-radius: 1px;
+  transition: width 0.06s linear;
+}
+/* Dim the meter when the tile is muted or soloed-out — the strip is
+   still rendered but visually parked so the "on but silenced" read
+   matches the halo's dimmed-fill behaviour. */
+.timbre-btn-muted .timbre-btn-meter,
+.timbre-btn-soloed-out .timbre-btn-meter {
+  opacity: 0.35;
+}
+
 /* Variant C prototype — column-anchored level + secondary-params
    layout. Each block (4 voices) is rendered as a tile row, optionally
    followed by a level row and a secondary row. All three rows share

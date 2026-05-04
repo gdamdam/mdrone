@@ -157,6 +157,63 @@ function LevelHalo({ level }: { level: number }) {
   );
 }
 
+// Variant C prototype — per-voice RMS meter strip rendered along the
+// bottom of an active tile. Reads time-domain samples from the
+// engine's per-voice analyser tap on rAF; writes the resulting RMS
+// directly to a DOM ref (no React state) so the meter updates at
+// frame rate without re-rendering the parent. Throttled to ~30 fps
+// since meters look fine that fast and we don't need 60 setStates
+// per voice per second.
+function VoiceMeter({
+  engine,
+  voiceId,
+  active,
+}: {
+  engine: AudioEngine | null;
+  voiceId: VoiceType;
+  active: boolean;
+}) {
+  const fillRef = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    if (!engine || !active) return;
+    let running = true;
+    let raf = 0;
+    let lastT = 0;
+    const buf = new Uint8Array(256);
+    const tick = (t: number) => {
+      if (!running) return;
+      raf = requestAnimationFrame(tick);
+      if (t - lastT < 33) return;
+      lastT = t;
+      const an = engine.getVoiceAnalyser(voiceId);
+      if (!an || !fillRef.current) return;
+      an.getByteTimeDomainData(buf);
+      let sumSq = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const s = (buf[i] - 128) / 128;
+        sumSq += s * s;
+      }
+      const rms = Math.sqrt(sumSq / buf.length);
+      // Drone signals are quiet; map RMS 0..0.35 onto the full strip
+      // so even subtle voices show meaningful movement.
+      const w = Math.min(1, rms * 2.85);
+      fillRef.current.style.width = `${(w * 100).toFixed(1)}%`;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      if (fillRef.current) fillRef.current.style.width = "0%";
+    };
+  }, [engine, voiceId, active]);
+  if (!active) return null;
+  return (
+    <span className="timbre-btn-meter" aria-hidden="true">
+      <span className="timbre-btn-meter-fill" ref={fillRef} />
+    </span>
+  );
+}
+
 /**
  * Four authored voices — each is a physical / spectral model running
  * in the DroneVoiceProcessor AudioWorklet. Not generic waveform options;
@@ -1969,6 +2026,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                               </span>
                               <span className="timbre-btn-label">{v.label}</span>
                               {active && <span className="timbre-btn-level">{level}</span>}
+                              <VoiceMeter engine={engine} voiceId={v.id} active={active} />
                               {active && (
                                 <span className="timbre-btn-chips">
                                   <span

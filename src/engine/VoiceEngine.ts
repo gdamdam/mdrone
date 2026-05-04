@@ -28,6 +28,11 @@ export class VoiceEngine {
 
   private droneVoicesByLayer: Map<VoiceType, Voice[]> = new Map();
   private layerGains: Map<VoiceType, GainNode> = new Map();
+  // Per-voice analyser taps for UI metering. Created lazily alongside
+  // each layerGain. Connecting an AnalyserNode is a passthrough probe;
+  // it doesn't sink the audio path (gain still flows through to
+  // droneVoiceGain), it just lets JS read time-domain samples.
+  private layerAnalysers: Map<VoiceType, AnalyserNode> = new Map();
   // Retiring voices from a previous rebuild whose tail hasn't finished.
   // Tracked on the instance (not in a local inside rebuildIntervals) so
   // a fresh rebuild can fast-kill them and avoid voice stacking under
@@ -690,8 +695,19 @@ export class VoiceEngine {
       gain.gain.value = this.effectiveLayerLevel(type);
       gain.connect(this.droneVoiceGain);
       this.layerGains.set(type, gain);
+      // Attach the analyser tap once per voice. fftSize=256 gives a
+      // 256-sample window — plenty for an RMS readout, cheap to scan
+      // every frame. Smoothing is irrelevant for time-domain reads.
+      const an = this.ctx.createAnalyser();
+      an.fftSize = 256;
+      gain.connect(an);
+      this.layerAnalysers.set(type, an);
     }
     return gain;
+  }
+
+  getVoiceAnalyser(type: VoiceType): AnalyserNode | null {
+    return this.layerAnalysers.get(type) ?? null;
   }
 
   private glideOscPair(

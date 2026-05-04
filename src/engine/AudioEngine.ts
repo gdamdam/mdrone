@@ -383,6 +383,13 @@ export class AudioEngine {
 
   getVoiceLevel(type: VoiceType): number { return this.voiceEngine.getVoiceLevel(type); }
 
+  /** Per-voice analyser tap for UI metering. Returns null if the
+   *  voice's gain bus hasn't been built yet (e.g. before first
+   *  rebuildIntervals). */
+  getVoiceAnalyser(type: VoiceType): AnalyserNode | null {
+    return this.voiceEngine.getVoiceAnalyser(type);
+  }
+
   applyVoiceState(
     layers: Record<VoiceType, boolean>,
     levels: Record<VoiceType, number>,
