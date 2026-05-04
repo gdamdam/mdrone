@@ -19,15 +19,15 @@ const dismissStartGate = async (page: Page) => {
   await btn.click();
 };
 
-// Note: Playwright's `name` option does substring matching by default,
-// so `name: "Session"` would also match the "Save Session" prompt that
-// opens after the SAVE click. `exact: true` keeps the two dialogs
-// disambiguated even when both are momentarily in the DOM.
-const sheetDialog = (page: Page) => page.getByRole("dialog", { name: "Session", exact: true });
+// Note: 1.22.14 turned the ◆ session sheet into an anchored dropdown
+// (role="menu", aria-label="Session"); the Save Session prompt is
+// still a real dialog. The two roles disambiguate without needing
+// `exact: true` on the menu's name.
+const sheetDialog = (page: Page) => page.getByRole("menu", { name: "Session", exact: true });
 const savePromptDialog = (page: Page) => page.getByRole("dialog", { name: /Save Session/i });
 
 const openSessionSheet = async (page: Page) => {
-  await page.getByRole("button", { name: "Open session sheet" }).click();
+  await page.getByRole("button", { name: "Open session menu" }).click();
   await expect(sheetDialog(page)).toBeVisible();
 };
 
@@ -70,9 +70,12 @@ test("◆ session sheet round-trips a session through EXPORT JSON / IMPORT JSON"
   // paragraph, so target that directly to avoid a strict-mode collision.
   await expect(sheetDialog(page).locator("strong", { hasText: sessionName })).toBeVisible();
 
-  // EXPORT JSON — capture the download.
+  // EXPORT JSON — capture the download. 1.22.14's ◆ menu rename
+  // moved the button label from "EXPORT JSON" to just "EXPORT" under
+  // a "JSON" section heading. We scope to sheetDialog (role="menu",
+  // name="Session") so this won't collide with the ⤓ audio export.
   const downloadPromise = page.waitForEvent("download");
-  await sheetDialog(page).getByRole("button", { name: /EXPORT JSON/ }).click();
+  await sheetDialog(page).getByRole("button", { name: /^EXPORT$/ }).click();
   const download = await downloadPromise;
   const filename = download.suggestedFilename();
   expect(filename).toMatch(/^mdrone-.+\.json$/);

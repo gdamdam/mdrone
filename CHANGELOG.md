@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.18 — 2026-05-03
+
+- fix: e2e session-sheet selectors track the 1.22.14 ◆ menu rename — `aria-label` "Open session sheet" → "Open session menu", popup role `dialog` → `menu`, and `EXPORT JSON` button label → `EXPORT` under a JSON section heading. The session-sheet round-trip spec was silently broken since 1.22.14; no production code change.
+
 ## 1.22.17 — 2026-05-03
 
 - fix: SHAPE panel kept in column 2 of the WEATHER+SHAPE grid. 1.22.16 added TIME as a third sibling in `.weather-macro-row` (a 2-col grid), which pushed SHAPE down to row 2. Wrap WEATHER pad + TIME row in a `.weather-column` flex stack so the pair occupies a single grid cell and SHAPE keeps the right column.
