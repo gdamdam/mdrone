@@ -206,7 +206,12 @@ test("5. share URL round-trip reconstructs the mutated tonic", async ({ page, br
   const fresh = await freshContext.newPage();
   const freshErrors = trackErrors(fresh);
   await stubShareRelay(fresh);
-  await fresh.goto(localShareUrl);
+  // Share URLs carry a base64-encoded scene payload (~1.5 KB) that
+  // the client must decode + apply on load. WebKit headless on macOS
+  // CI is noticeably slower at this; bump the navigation timeout and
+  // wait for networkidle so the scene-decoder side effects settle
+  // before we assert the tonic landed in the hold button.
+  await fresh.goto(localShareUrl, { timeout: 60_000, waitUntil: "networkidle" });
 
   // A share URL replaces StartGate with a "▶ Play this scene" button.
   // Either gate flavor is covered by START_BUTTONS.

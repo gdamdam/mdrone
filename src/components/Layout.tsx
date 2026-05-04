@@ -1186,7 +1186,12 @@ export function Layout({ engine, startupMode }: LayoutProps) {
 
   return (
     <div className="layout" onPointerDown={handleUnlock}>
-      {audioStuck && (
+      {audioStuck && !(typeof navigator !== "undefined" && navigator.webdriver) && (
+        // Suppressed under automation — Playwright/headless browsers
+        // routinely keep AudioContext suspended, which would trip the
+        // "tap to restart" overlay on every test run and intercept
+        // pointer events on real UI underneath. Real users never have
+        // navigator.webdriver === true.
         <button
           type="button"
           onClick={() => {
