@@ -23,6 +23,16 @@ const trackErrors = (page: Page): ErrorBucket => {
     // Filter dev-server noise that has nothing to do with app behavior.
     if (/\[vite\]/i.test(text)) return;
     if (/favicon\.ico/i.test(text)) return;
+    // Filter the Ableton Link bridge auto-discovery WS attempt. The
+    // bridge runs at ws://127.0.0.1:19876 (and ::1 / localhost
+    // fallbacks) when the user has the mpump companion app running;
+    // it's never running in CI. Chromium/WebKit silence the failed
+    // connection; Firefox surfaces it as an unsuppressable
+    // JavaScript Error console message ("can't establish a
+    // connection" + "interrupted while the page was loading"). The
+    // app's auto-mode promises silent failure when no bridge is
+    // present, so the test should treat these as benign.
+    if (/ws:\/\/(127\.0\.0\.1|\[::1\]|localhost):19876/.test(text)) return;
     errors.push(`console: ${text}`);
   });
   return errors;

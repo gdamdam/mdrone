@@ -68,9 +68,20 @@ test("dragging WEATHER advances to a visible TONIC callout (after linger)", asyn
   const pad = page.locator('[data-tutor="weather"] .weather-xy').first();
   const box = await pad.boundingBox();
   if (!box) throw new Error("weather pad not visible");
-  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.5);
+  // WeatherPad uses Pointer Events with setPointerCapture; Firefox's
+  // pointer dispatch can drop a single coalesced mousemove between
+  // down and up, leaving the React handler with no observed climate
+  // change. `pad.hover` ensures the pointer target is the pad element
+  // before the press, then two intermediate moves force several
+  // pointermove events to fire while the button is held.
+  const srcX = box.x + box.width * 0.25;
+  const srcY = box.y + box.height * 0.5;
+  const dstX = box.x + box.width * 0.6;
+  const dstY = box.y + box.height * 0.4;
+  await pad.hover({ position: { x: box.width * 0.25, y: box.height * 0.5 } });
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.4, { steps: 6 });
+  await page.mouse.move((srcX + dstX) / 2, (srcY + dstY) / 2, { steps: 4 });
+  await page.mouse.move(dstX, dstY, { steps: 4 });
   await page.mouse.up();
 
   // WEATHER→TONIC linger: callout briefly empty.
