@@ -4185,6 +4185,20 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   align-items: start;
 }
 
+/* Column 1 of .weather-macro-row — vertical stack of the WEATHER
+   pad and the TIME macro that sits directly under it. Keeps the
+   pad+TIME bound as a single grid item so SHAPE retains column 2. */
+.weather-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.weather-column .weather-time-row {
+  width: 100%;
+}
+
 @media (max-width: 720px) {
   .weather-macro-row {
     grid-template-columns: 1fr;

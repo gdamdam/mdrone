@@ -1399,40 +1399,42 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         </button>
         {disclosed.perform && (
         <div className="weather-macro-row">
-          <WeatherPad
-            climateX={state.climateX}
-            climateY={state.climateY}
-            onChange={setClimate}
-            intro={weatherIntro}
-            onDismissIntro={dismissWeatherIntro}
-            analyser={engine?.getAnalyser() ?? null}
-            visual={weatherVisual ?? "flow"}
-            arriveActive={arriveStep === "weather" && arriveVisible}
-            arriveCallout={
-              arriveStep === "weather" && arriveVisible ? (
-                <ArriveCallout
-                  step="weather"
-                  title="Move the room"
-                  body="Drag WEATHER"
-                />
-              ) : null
-            }
-          />
-          {/* TIME — rate of weather motion. Lives under the WEATHER pad
-              because it scales the same Y-axis movement (LFO sweeping
-              the filter) the user can also dial via the pad's vertical
-              drag. Was previously in SHAPE/MOTION; relocating here
-              tightens the cause-and-effect mental model. */}
-          <div className="weather-time-row">
-            <Macro
-              label="TIME"
-              value={state.time}
-              onChange={setTime}
-              icon={<IconTime />}
-              title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
-              hint="rate of weather motion"
-              midiId="time"
+          {/* Column 1 — WEATHER pad with TIME stacked directly below.
+              Wrapped together so the parent .weather-macro-row grid
+              keeps its 2-col split intact (column 2 is SHAPE). TIME
+              lives here because it scales the WEATHER Y-axis motion
+              rate; cause and effect sit next to each other. */}
+          <div className="weather-column">
+            <WeatherPad
+              climateX={state.climateX}
+              climateY={state.climateY}
+              onChange={setClimate}
+              intro={weatherIntro}
+              onDismissIntro={dismissWeatherIntro}
+              analyser={engine?.getAnalyser() ?? null}
+              visual={weatherVisual ?? "flow"}
+              arriveActive={arriveStep === "weather" && arriveVisible}
+              arriveCallout={
+                arriveStep === "weather" && arriveVisible ? (
+                  <ArriveCallout
+                    step="weather"
+                    title="Move the room"
+                    body="Drag WEATHER"
+                  />
+                ) : null
+              }
             />
+            <div className="weather-time-row">
+              <Macro
+                label="TIME"
+                value={state.time}
+                onChange={setTime}
+                icon={<IconTime />}
+                title="Time — the rate of weather movement (LFO sweeping the filter). 0 = glacial, 1 = restless"
+                hint="rate of weather motion"
+                midiId="time"
+              />
+            </div>
           </div>
 
           {/* Mobile tonic + octave — lives between the XY pad and the
