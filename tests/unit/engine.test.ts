@@ -16,6 +16,7 @@ describe("EFFECT_ORDER (serial chain topology)", () => {
     "sub",
     "comb",
     "ringmod",
+    "halo",
     "formant",
     "delay",
     "plate",
@@ -25,7 +26,6 @@ describe("EFFECT_ORDER (serial chain topology)", () => {
     "cistern",
     "granular",
     "graincloud",
-    "halo",
   ];
 
   it("contains exactly 15 effects", () => {
@@ -43,8 +43,12 @@ describe("EFFECT_ORDER (serial chain topology)", () => {
   it("places foundation effects before spatial/tail effects", () => {
     // Guards against e.g. putting reverb before tape saturation, which
     // would produce topologically wrong chains even if every node exists.
-    const foundation = ["tape", "wow", "sub", "comb", "ringmod", "formant", "delay"] as const;
-    const spatial = ["plate", "hall", "shimmer", "freeze", "cistern", "granular", "graincloud", "halo"] as const;
+    // HALO is grouped with foundation here because it is a spectral
+    // *generator* (additive partial bloom) — placing it before the
+    // reverbs lets PLATE/HALL/SHIMMER smear the new partials into the
+    // bed, which is the Radigue/Éliane drone idiom.
+    const foundation = ["tape", "wow", "sub", "comb", "ringmod", "halo", "formant", "delay"] as const;
+    const spatial = ["plate", "hall", "shimmer", "freeze", "cistern", "granular", "graincloud"] as const;
     const maxFoundation = Math.max(...foundation.map((id) => EFFECT_ORDER.indexOf(id)));
     const minSpatial = Math.min(...spatial.map((id) => EFFECT_ORDER.indexOf(id)));
     expect(maxFoundation).toBeLessThan(minSpatial);

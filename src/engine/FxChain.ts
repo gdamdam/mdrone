@@ -5,8 +5,14 @@
  * definition; the chain is wired directly from that array so this
  * comment can never drift):
  *
- *   input → TAPE → WOW → SUB → COMB → RINGMOD → FORMANT → DELAY
- *         → PLATE → HALL → SHIMMER → FREEZE → CISTERN → GRANULAR → dryOut
+ *   input → TAPE → WOW → SUB → COMB → RINGMOD → HALO → FORMANT → DELAY
+ *         → PLATE → HALL → SHIMMER → FREEZE → CISTERN → GRANULAR → GRAINCLOUD → dryOut
+ *
+ * HALO sits before the reverbs deliberately: its spectral partial
+ * bloom is a generator, and Radigue/Éliane-style drone practice
+ * wants the bloom to *enter* the room rather than sit on top of
+ * the wet — so PLATE / HALL / SHIMMER / CISTERN smear the new
+ * partials into the bed.
  *
  * Every effect is wrapped in a "wet/bypass crossfade insert": when it
  * is off, its `bypassGain` is 1 and `wetGain` is 0, so the block passes
@@ -58,8 +64,8 @@ export type EffectId =
  * it from here.
  */
 export const EFFECT_ORDER: readonly EffectId[] = [
-  "tape", "wow", "sub", "comb", "ringmod", "formant", "delay",
-  "plate", "hall", "shimmer", "freeze", "cistern", "granular", "graincloud", "halo",
+  "tape", "wow", "sub", "comb", "ringmod", "halo", "formant", "delay",
+  "plate", "hall", "shimmer", "freeze", "cistern", "granular", "graincloud",
 ] as const;
 
 /**
