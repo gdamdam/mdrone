@@ -607,6 +607,15 @@ export class VoiceEngine {
         oldGain.gain.setValueAtTime(cur, now);
         oldGain.gain.linearRampToValueAtTime(0.0001, now + bloom);
         this.layerGains.delete(type);
+        // Tear down the analyser tap too — the gain it was probing is
+        // about to be retired/disconnected, so the tap would otherwise
+        // linger as a stale entry pointing at a dead bus and the UI
+        // meter would freeze at 0 once a fresh bus comes up.
+        const oldAn = this.layerAnalysers.get(type);
+        if (oldAn) {
+          try { oldAn.disconnect(); } catch { /* ok */ }
+          this.layerAnalysers.delete(type);
+        }
         this.scheduleRetire(oldGain, voices, bloom);
       }
       this.droneVoicesByLayer.delete(type);
@@ -623,6 +632,14 @@ export class VoiceEngine {
       layerGain.gain.setValueAtTime(0, now);
       layerGain.gain.linearRampToValueAtTime(this.effectiveLayerLevel(type), now + bloom);
       this.layerGains.set(type, layerGain);
+      // Re-attach the analyser tap to this freshly built bus so the
+      // UI meter resumes after a layer rebuild. This path runs in
+      // parallel with ensureLayerGain (which has its own tap setup);
+      // both share the same teardown above.
+      const an = this.ctx.createAnalyser();
+      an.fftSize = 256;
+      layerGain.connect(an);
+      this.layerAnalysers.set(type, an);
 
       const voices: Voice[] = [];
       for (let i = 0; i < intervals.length; i++) {
