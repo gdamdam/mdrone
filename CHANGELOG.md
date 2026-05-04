@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.22.15 — 2026-05-03
+
+- fix: REED voice no longer adds a steady high-frequency hiss that was being amplified by the presence shelf and smeared into a centered tail by reverb / tape. The bellows breath noise is now lowpassed (~1.5 kHz one-pole, dark "whoosh" character), L/R decorrelated, and injected *after* the +2.3 dB presence shelf so its highs aren't shelf-boosted. Level reduced to ~40% of the previous broadband RMS. Most audible improvement on bright presets, sine shape, and any chain with hall + tape.
+
 ## 1.22.14 — 2026-05-03
 
 - ui: ◆ session button now opens an anchored dropdown instead of a full-screen modal — same outside-click + Esc UX as the ⤓ EXPORT AUDIO menu. Same content (LOAD picker, SAVE / RENAME, EXPORT JSON / IMPORT JSON), just lighter on the surface. Reuses the `.export-menu` styles via shared selectors. Mobile order rules updated to target `.session-menu-anchor` (the wrapping span) so row-2 layout stays correct.

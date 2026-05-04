@@ -893,6 +893,14 @@ DroneVoiceProcessor.prototype.initReed = function() {
     // limiting. Matches the technique used in airProcess().
     this.hsReedL = 0;
     this.hsReedR = 0;
+    // Bellows breath noise LP state — one-pole per channel. Real
+    // bellows leakage is a dark whoosh, not white hash; lowpassing
+    // (~1.5 kHz) and decorrelating L/R prevents the noise from
+    // smearing into a centered hiss under reverb/tape, and keeps
+    // the presence shelf from amplifying its highs (the noise is
+    // injected *after* the shelf below).
+    this.breathLpL = 0;
+    this.breathLpR = 0;
     // 2× halfband oversamplers around the source-level tanh — without
     // these, the saturation harmonics of a 12-partial "even" stack or
     // a PolyBLEP saw alias back into the audible band, audible as a
@@ -971,13 +979,6 @@ DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) 
         r *= 0.22;
       }
 
-      // Bellows breath noise — real harmoniums have audible air
-      // leakage modulated by bellows pressure. Adds physical breath
-      // character that pure additive/saw lacks.
-      const breathNoise = (this.rng() * 2 - 1) * 0.008 * bellows;
-      l += breathNoise;
-      r += breathNoise * 0.92; // slight stereo decorrelation
-
       // Formant bank — parallel bandpass peaks add body resonance.
       // Each SVF advances one sample on the *clean* scaled stack;
       // its band output is summed into the dry. See initReed() for
@@ -1020,6 +1021,21 @@ DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) 
       this.hsReedR = this.hsReedR * 0.6 + r * 0.4;
       l += (l - this.hsReedL) * 0.3;
       r += (r - this.hsReedR) * 0.3;
+
+      // Bellows breath noise — injected here (post-shelf) so the
+      // +2.3 dB high shelf does not amplify the hiss. Per-channel
+      // one-pole LP at ~1.5 kHz (a=0.82) → dark "whoosh", and
+      // independent rng() per channel so reverb/tape don't pile the
+      // noise into a centered hiss tail. Level reduced from 0.008
+      // raw white to ~0.010 LP'd (≈ 40% of original RMS energy,
+      // concentrated below 1.5 kHz where it reads as breath, not hash).
+      const nL = (this.rng() * 2 - 1);
+      const nR = (this.rng() * 2 - 1);
+      this.breathLpL = this.breathLpL * 0.82 + nL * 0.18;
+      this.breathLpR = this.breathLpR * 0.82 + nR * 0.18;
+      const breathGain = 0.010 * bellows;
+      l += this.breathLpL * breathGain;
+      r += this.breathLpR * breathGain;
 
       L[i] = l * amp;
       R[i] = r * amp;
