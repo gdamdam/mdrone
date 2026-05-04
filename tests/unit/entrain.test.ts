@@ -119,6 +119,7 @@ describe("entrain: normalizeEntrain", () => {
       rateHz: 10,
       mode: DEFAULT_ENTRAIN.mode,
       dichoticCents: DEFAULT_ENTRAIN.dichoticCents,
+      amDepth: DEFAULT_ENTRAIN.amDepth,
     });
   });
 

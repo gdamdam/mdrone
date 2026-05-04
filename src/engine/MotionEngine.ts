@@ -358,7 +358,12 @@ export class MotionEngine {
       this.entrainState.enabled &&
       (this.entrainState.mode === "am" || this.entrainState.mode === "both");
     const depthScale = Math.min(1, Math.max(0, hz / 8));
-    const depth = amActive ? this.entrainBaseDepth * depthScale : 0;
+    // User multiplier on top of the slow-rate-safe curve. Final depth
+    // is hard-clamped to 0..0.4 so >1 multipliers can't stack with
+    // other gain into clipping territory.
+    const userMult = Math.max(0, this.entrainState.amDepth ?? 1);
+    const raw = amActive ? this.entrainBaseDepth * depthScale * userMult : 0;
+    const depth = Math.min(0.4, raw);
     this.entrainLfoDepth.gain.setTargetAtTime(depth, now, tc);
   }
 

@@ -26,6 +26,14 @@ export interface EntrainState {
   /** L/R detune spread for DICHOTIC mode, in cents. Total spread is
    *  2× this value (±half on each ear). */
   dichoticCents: number;
+  /** AM depth multiplier on the engine's built-in base depth. 1.0 =
+   *  preset baseline (matches legacy behaviour), <1 attenuates,
+   *  >1 pushes past the engine's slow-rate-safe baseline. The engine
+   *  still applies its own slow-rate scaling on top, so this knob
+   *  scales the curve rather than replacing it. Optional for
+   *  backward-compat with older preset / share-URL payloads — engine
+   *  treats absent as 1.0. */
+  amDepth?: number;
 }
 
 export const ENTRAIN_MIN_HZ = 0.5;
@@ -36,11 +44,18 @@ export const ENTRAIN_MAX_HZ = 45;
 export const ENTRAIN_DICHOTIC_MIN_CENTS = 0;
 export const ENTRAIN_DICHOTIC_MAX_CENTS = 40;
 
+/** AM depth multiplier range. 1.0 is the legacy baseline; the upper
+ *  cap leaves headroom without inviting distortion when stacked with
+ *  other gain. */
+export const ENTRAIN_AM_DEPTH_MIN = 0;
+export const ENTRAIN_AM_DEPTH_MAX = 1.5;
+
 export const DEFAULT_ENTRAIN: EntrainState = {
   enabled: false,
   rateHz: 8,
   mode: "am",
   dichoticCents: 8,
+  amDepth: 1,
 };
 
 export function clampEntrainRate(hz: number): number {
@@ -54,6 +69,11 @@ export function clampDichoticCents(cents: number): number {
     ENTRAIN_DICHOTIC_MIN_CENTS,
     Math.min(ENTRAIN_DICHOTIC_MAX_CENTS, cents),
   );
+}
+
+export function clampEntrainAmDepth(d: number): number {
+  if (!Number.isFinite(d)) return DEFAULT_ENTRAIN.amDepth;
+  return Math.max(ENTRAIN_AM_DEPTH_MIN, Math.min(ENTRAIN_AM_DEPTH_MAX, d));
 }
 
 /** Zone color for a given Hz. Discrete bands, matte palette to
@@ -189,5 +209,9 @@ export function normalizeEntrain(value: unknown): EntrainState {
     typeof v.dichoticCents === "number"
       ? clampDichoticCents(v.dichoticCents)
       : DEFAULT_ENTRAIN.dichoticCents;
-  return { enabled, rateHz: rate, mode, dichoticCents: cents };
+  const amDepth =
+    typeof v.amDepth === "number"
+      ? clampEntrainAmDepth(v.amDepth)
+      : DEFAULT_ENTRAIN.amDepth;
+  return { enabled, rateHz: rate, mode, dichoticCents: cents, amDepth };
 }

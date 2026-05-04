@@ -589,11 +589,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       ? "ATTUNE just fired — wait a moment for the bloom crossfade to settle before retuning again"
       : "ATTUNE — sample a curated microtonal tuning + subtle (±2–5¢) detune for the current preset. Touches only the tuning layer: voicing, FX, and motion are preserved. Click again for a different tuning.";
 
-  // LFO ↔ Ableton Link tempo sync. When `lfoSyncMode` is non-free
-  // AND the Link bridge reports `connected`, the LFO rate is driven
-  // by tempo × division and the user's manual macro becomes a
-  // read-only display. Persisted to localStorage so the mode
-  // survives reloads.
+  // LFO ↔ tempo sync. When `lfoSyncMode` is non-free the LFO rate is
+  // driven by tempo × division and the user's manual macro becomes a
+  // read-only display. Tempo source is the Link bridge when connected,
+  // otherwise the bridge's default 120 BPM fallback so the chip still
+  // functions offline. Persisted to localStorage so the mode survives
+  // reloads.
   const [lfoSyncMode, setLfoSyncMode] = useState<LfoSyncMode>(() => loadLfoSyncMode());
   const [linkState, setLinkState] = useState<LinkState>(() => getLinkState());
   useEffect(() => {
@@ -612,11 +613,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // macro's 0.05..8 Hz range so fast divisions at high BPM don't
   // overdrive the LFO.
   useEffect(() => {
-    if (lfoSyncMode === "free" || !linkState.connected) return;
+    if (lfoSyncMode === "free") return;
     const hz = Math.max(0.05, Math.min(8, lfoSyncedHz(lfoSyncMode, linkState.tempo)));
     setLfoRate(hz);
-  }, [lfoSyncMode, linkState.tempo, linkState.connected, setLfoRate]);
-  const lfoSyncActive = lfoSyncMode !== "free" && linkState.connected;
+  }, [lfoSyncMode, linkState.tempo, setLfoRate]);
+  const lfoSyncActive = lfoSyncMode !== "free";
   const cycleLfoSyncMode = useCallback(() => {
     setLfoSyncMode((cur) => LFO_SYNC_MODES[(LFO_SYNC_MODES.indexOf(cur) + 1) % LFO_SYNC_MODES.length]);
   }, []);
@@ -2058,8 +2059,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 }
                 title={
                   lfoSyncActive
-                    ? `Locked to Ableton Link: ${linkState.tempo.toFixed(1)} BPM × ${lfoSyncMode} note`
-                    : "LFO rate — 0.05 Hz (very slow) to 8 Hz (fluttering). Click SYNC to lock to Ableton Link tempo."
+                    ? `Locked to ${linkState.connected ? "Ableton Link" : "tempo (Link offline — 120 BPM fallback)"}: ${linkState.tempo.toFixed(1)} BPM × ${lfoSyncMode} note`
+                    : "LFO rate — 0.05 Hz (very slow) to 8 Hz (fluttering). Click SYNC to lock to tempo."
                 }
                 midiId="lfoRate"
               />
@@ -2073,10 +2074,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 onClick={cycleLfoSyncMode}
                 title={
                   lfoSyncMode === "free"
-                    ? "FREE — manual rate. Click to cycle through Link-synced note values."
+                    ? "FREE — manual rate. Click to cycle through tempo-synced note values."
                     : linkState.connected
                       ? `Locked to Link tempo (${linkState.tempo.toFixed(1)} BPM). Click to cycle.`
-                      : "Armed for Link sync. Waiting for Link Bridge — enable Ableton Link in Settings or run the companion app."
+                      : `Locked to ${linkState.tempo.toFixed(1)} BPM (Link offline — fallback tempo). Click to cycle.`
                 }
               >
                 {lfoSyncMode === "free" ? "FREE" : lfoSyncMode}

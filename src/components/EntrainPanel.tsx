@@ -12,9 +12,12 @@
 import { useCallback } from "react";
 import {
   clampDichoticCents,
+  clampEntrainAmDepth,
   clampEntrainRate,
   DEFAULT_ENTRAIN,
   describeEntrain,
+  ENTRAIN_AM_DEPTH_MAX,
+  ENTRAIN_AM_DEPTH_MIN,
   ENTRAIN_DICHOTIC_MAX_CENTS,
   ENTRAIN_LANDMARKS,
   ENTRAIN_MAX_HZ,
@@ -61,6 +64,10 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
     onChange({ ...state, dichoticCents: clampDichoticCents(cents) });
   }, [state, onChange]);
 
+  const setAmDepth = useCallback((d: number) => {
+    onChange({ ...state, amDepth: clampEntrainAmDepth(d) });
+  }, [state, onChange]);
+
   const lock = phaseLockedRate(breathingHz, state.rateHz);
   // Whether dichotic is *playing* (lights the HEADPHONES badge).
   // Gated on power so users don't see an "on" indicator when silent.
@@ -73,6 +80,8 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
   // BOTH modes — dichotic-only is controlled entirely by the SPREAD
   // cents. Grey out the slider so the UI is honest about what's live.
   const rateActive = state.mode !== "dichotic";
+  const amActive = state.mode === "am" || state.mode === "both";
+  const amDepth = state.amDepth ?? DEFAULT_ENTRAIN.amDepth;
   const trackColor = zoneColorForHz(state.rateHz);
 
   return (
@@ -193,6 +202,25 @@ export function EntrainPanel({ entrain, onChange, breathingHz }: EntrainPanelPro
             aria-label="Dichotic spread in cents"
           />
           <span className="entrain-cents-readout">±{(state.dichoticCents / 2).toFixed(1)} ¢</span>
+        </div>
+      )}
+
+      {amActive && (
+        <div className="entrain-cents-row">
+          <label className="entrain-cents-label" htmlFor="entrain-amdepth">DEPTH</label>
+          <input
+            id="entrain-amdepth"
+            type="range"
+            className="entrain-cents-slider"
+            min={ENTRAIN_AM_DEPTH_MIN}
+            max={ENTRAIN_AM_DEPTH_MAX}
+            step={0.05}
+            value={amDepth}
+            onChange={(e) => setAmDepth(Number(e.currentTarget.value))}
+            title={`AM depth multiplier: ${amDepth.toFixed(2)}× preset baseline (1.00 = preset, lower = subtler, higher = pushes past safe baseline)`}
+            aria-label="AM depth multiplier"
+          />
+          <span className="entrain-cents-readout">{amDepth.toFixed(2)}×</span>
         </div>
       )}
 
