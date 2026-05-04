@@ -81,10 +81,7 @@ function ModifiedPill({
 }) {
   const [shown, setShown] = useState(false);
   useEffect(() => {
-    if (!engine || !active) {
-      setShown(false);
-      return;
-    }
+    if (!engine || !active) return;
     const fx = engine.getFxChain();
     const check = () => {
       const cur = fx.getEffectLevel(id);
@@ -96,7 +93,7 @@ function ModifiedPill({
     const t = window.setInterval(check, 200);
     return () => window.clearInterval(t);
   }, [engine, id, active]);
-  if (!active || !shown) return null;
+  if (!engine || !active || !shown) return null;
   return (
     <span
       className="fx-btn-modified"

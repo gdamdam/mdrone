@@ -200,10 +200,11 @@ function VoiceMeter({
       fillRef.current.style.width = `${(w * 100).toFixed(1)}%`;
     };
     raf = requestAnimationFrame(tick);
+    const fillEl = fillRef.current;
     return () => {
       running = false;
       cancelAnimationFrame(raf);
-      if (fillRef.current) fillRef.current.style.width = "0%";
+      if (fillEl) fillEl.style.width = "0%";
     };
   }, [engine, voiceId, active]);
   if (!active) return null;
@@ -954,7 +955,6 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   useEffect(() => {
     if (disclosed.detune) return;
     if (!state.fineTuneOffsets.some((o) => o !== 0)) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDisclosed((prev) => ({ ...prev, detune: true }));
   }, [state.fineTuneOffsets, disclosed.detune]);
 
@@ -2004,6 +2004,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   secondary row is the generic home for voice-specific
                   extras (today only NOISE COLOR uses it). */}
               <div className="timbre-stack">
+                {/* eslint-disable-next-line react-hooks/refs --
+                    the timbre tile halo reads stashedLevelsRef /
+                    soloStashRef during render; both refs are written
+                    in lockstep with state.voiceLevels via setState in
+                    the mute / solo handlers, so each render that reads
+                    them was triggered by the matching state write. */}
                 {([[0, 4], [4, 8]] as const).map(([from, to]) => {
                   const block = VOICES.slice(from, to);
                   const anyActive = block.some((v) => state.voiceLayers[v.id]);
@@ -2023,12 +2029,19 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                           // engine value — when muted or soloed-out, the bus is
                           // at 0 but the relevant stash holds the true value
                           // so the gauge doesn't deceptively collapse.
+                          // Refs hold the "user-intent" stashed levels for muted /
+                          // solo-out voices so the halo doesn't deceptively collapse.
+                          // The ref is always written alongside state.voiceLevels via
+                          // setState in the mute/solo handlers, so the render that
+                          // reads it is the one triggered by the same write — safe.
+                          const mutedStash = stashedLevelsRef.current[v.id];
+                          const soloStash = soloStashRef.current[v.id];
                           const haloLevel = !active
                             ? 0
                             : muted
-                              ? stashedLevelsRef.current[v.id] ?? state.voiceLevels[v.id]
+                              ? mutedStash ?? state.voiceLevels[v.id]
                               : soloedOut
-                                ? soloStashRef.current[v.id] ?? state.voiceLevels[v.id]
+                                ? soloStash ?? state.voiceLevels[v.id]
                                 : state.voiceLevels[v.id];
                           return (
                             <button
