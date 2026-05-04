@@ -3912,7 +3912,7 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   bottom: 2px;
   height: 2px;
   border-radius: 1px;
-  background: color-mix(in srgb, #5a2a08 35%, transparent);
+  background: color-mix(in srgb, #2a1740 35%, transparent);
   overflow: hidden;
   pointer-events: none;
 }
@@ -3920,7 +3920,7 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   display: block;
   height: 100%;
   width: 0%;
-  background: #8a3a0c;
+  background: #5a3a96;
   border-radius: 1px;
   transition: width 0.06s linear;
 }

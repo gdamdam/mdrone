@@ -67,7 +67,7 @@ The header carries a small admin cluster on the right: **⤓** EXPORT AUDIO (REC
 The DRONE surface itself is a three-tier hierarchy:
 
 - **Performance** (always visible) — preset identity strip, HOLD / tonic / octave, WeatherPad, six macros.
-- **EDIT** (one tap, default closed) — INSTRUMENTS voice toggles, per-voice level sliders, FX BAR.
+- **EDIT** (one tap, default closed) — INSTRUMENTS voice toggles, per-voice level sliders, FX BAR. Each active voice tile shows a cream halo gauge wrapping the icon (= the voice's level), a thin purple RMS strip across the bottom (real signal), and hover-reveal **M / S** chips for mute and solo (mutually exclusive; touch devices keep the chips visible). The level slider for each active voice sits column-anchored directly under its tile. NOISE keeps its COLOR shape param in a generic "secondary params" row beneath the level row. Effect tiles mirror the voice halo for the AMOUNT level and grow a small dot indicator when AMOUNT has been dragged away from the engine default.
 - **ADVANCED** (one tap, default closed) — tuning + scale editor, LFO, fine-detune, entrain.
 
 On mobile the header collapses to two rows (identity + actions) and hides the standalone help / LIVE SAFE pill — both stay reachable from Settings.
