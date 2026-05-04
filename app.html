@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1a0f08" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="mdrone" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)</title>
+    <meta name="description" content="Free open-source browser drone instrument for iPhone, iPad, Android, and desktop. Layer voices, shape atmosphere, save scenes as links. No install, no account." />
+    <link rel="canonical" href="https://mdrone.org/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="mdrone" />
+    <meta property="og:title" content="mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)" />
+    <meta property="og:description" content="Free browser drone instrument. Hold a note. Shape the air. Save the atmosphere. No install, no account." />
+    <meta property="og:url" content="https://mdrone.org/" />
+    <meta property="og:image" content="https://mdrone.org/mdrone_screenshot.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)" />
+    <meta name="twitter:description" content="Free browser drone instrument. No install, no account." />
+    <meta name="twitter:image" content="https://mdrone.org/mdrone_screenshot.png" />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "mdrone",
+      "description": "Free open-source browser drone instrument for iPhone, iPad, Android, and desktop. Layer voices, shape atmosphere, save scenes as links.",
+      "url": "https://mdrone.org/",
+      "applicationCategory": "MusicApplication",
+      "operatingSystem": "iOS, iPadOS, Android, Windows, macOS, Linux",
+      "browserRequirements": "Requires JavaScript and Web Audio support",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "image": "https://mdrone.org/mdrone_screenshot.png",
+      "author": { "@type": "Person", "name": "gdamdam", "url": "https://github.com/gdamdam" }
+    }
+    </script>
+    <script type="module" crossorigin src="./assets/index-DwRnsWzS.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/rolldown-runtime-B4mDN-ph.js">
+    <link rel="modulepreload" crossorigin href="./assets/meditate-BPi1KFif.js">
+    <link rel="modulepreload" crossorigin href="./assets/DropdownSelect-D4S8ugr6.js">
+    <link rel="modulepreload" crossorigin href="./assets/analytics-CJEjZ69s.js">
+    <link rel="modulepreload" crossorigin href="./assets/TouchSlider-Ydy1hj7W.js">
+    <link rel="modulepreload" crossorigin href="./assets/presets-DObAh4aH.js">
+    <link rel="modulepreload" crossorigin href="./assets/session-DAC7hroN.js">
+    <link rel="modulepreload" crossorigin href="./assets/flows-DJmGE8Ff.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-ABWgV5MB.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Load goatcounter off the critical boot path and only in real
+      // production contexts: skip localhost / 127.0.0.1 / file://
+      // (no dev noise, no self-counts) and skip when offline (no
+      // failed-request noise in devtools). Inject after the 'load'
+      // event so boot isn't paying for analytics. Any failure is
+      // silent — analytics must never break the app.
+      (function () {
+        try {
+          var h = location.hostname;
+          if (
+            h === "localhost" ||
+            h === "127.0.0.1" ||
+            h === "0.0.0.0" ||
+            location.protocol === "file:" ||
+            navigator.onLine === false
+          ) return;
+          var inject = function () {
+            var s = document.createElement("script");
+            s.async = true;
+            s.src = "//gc.zgo.at/count.js";
+            s.setAttribute(
+              "data-goatcounter",
+              "https://mdrone.goatcounter.com/count"
+            );
+            s.onerror = function () { /* silent */ };
+            document.body.appendChild(s);
+          };
+          if (document.readyState === "complete") inject();
+          else window.addEventListener("load", inject, { once: true });
+        } catch (_e) { /* silent */ }
+      })();
+    </script>
+  </body>
+</html>
