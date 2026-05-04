@@ -14,9 +14,97 @@
  * plain on/off with sensible defaults.
  */
 
-import { Suspense, lazy, useCallback, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import { EFFECT_ORDER, type EffectId } from "../engine/FxChain";
+
+// Variant C prototype — halo gauge wrapping each active effect's
+// icon, fill = current AMOUNT level (0..1) from the FxChain. Polls
+// every 200 ms via interval (levels change rarely — only when the
+// user drags AMOUNT in the modal or via MIDI), writes directly to
+// the SVG dasharray attribute via ref so the parent doesn't
+// re-render on every read.
+function EffectHalo({
+  engine,
+  id,
+  active,
+}: {
+  engine: AudioEngine | null;
+  id: EffectId;
+  active: boolean;
+}) {
+  const fillRef = useRef<SVGCircleElement | null>(null);
+  useEffect(() => {
+    if (!engine || !active) return;
+    const fx = engine.getFxChain();
+    const r = 12;
+    const C = 2 * Math.PI * r;
+    const arcLen = C * 0.75;
+    const apply = () => {
+      if (!fillRef.current) return;
+      const lvl = fx.getEffectLevel(id);
+      const fill = arcLen * Math.max(0, Math.min(1, lvl));
+      fillRef.current.setAttribute("stroke-dasharray", `${fill} ${C}`);
+    };
+    apply();
+    const t = window.setInterval(apply, 200);
+    return () => window.clearInterval(t);
+  }, [engine, id, active]);
+  if (!active) return null;
+  const r = 12;
+  const C = 2 * Math.PI * r;
+  const arcLen = C * 0.75;
+  return (
+    <svg className="fx-btn-halo" width={28} height={28} viewBox="0 0 28 28" aria-hidden="true">
+      <g transform="rotate(-135 14 14)">
+        <circle cx={14} cy={14} r={r} className="fx-btn-halo-track" strokeDasharray={`${arcLen} ${C}`} />
+        <circle cx={14} cy={14} r={r} className="fx-btn-halo-fill" ref={fillRef} strokeDasharray={`0 ${C}`} />
+      </g>
+    </svg>
+  );
+}
+
+// Variant C prototype — "modified" indicator on active effect tiles
+// when the AMOUNT has been dragged away from the engine default. The
+// flag is computed against ON_LEVELS (FxChain.getDefaultEffectLevel),
+// not against any preset-level snapshot — none of the current presets
+// override fx levels, so engine-default and preset-default coincide.
+// Polled at the same cadence as the halo.
+function ModifiedPill({
+  engine,
+  id,
+  active,
+}: {
+  engine: AudioEngine | null;
+  id: EffectId;
+  active: boolean;
+}) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!engine || !active) {
+      setShown(false);
+      return;
+    }
+    const fx = engine.getFxChain();
+    const check = () => {
+      const cur = fx.getEffectLevel(id);
+      const def = fx.getDefaultEffectLevel(id);
+      const diff = Math.abs(cur - def) > 0.01;
+      setShown((prev) => (prev !== diff ? diff : prev));
+    };
+    check();
+    const t = window.setInterval(check, 200);
+    return () => window.clearInterval(t);
+  }, [engine, id, active]);
+  if (!active || !shown) return null;
+  return (
+    <span
+      className="fx-btn-modified"
+      title="AMOUNT modified from default — long-press to open settings"
+      aria-label="AMOUNT modified from default"
+    />
+  );
+}
 
 const FxModal = lazy(() =>
   import("./FxModal").then((m) => ({ default: m.FxModal })),
@@ -284,8 +372,12 @@ export function FxBar({ engine, states, onToggle, order, onReorder, suppressed }
               }
             >
               <span className="fx-btn-num" aria-hidden="true">{pos ?? ""}</span>
-              <span className="fx-btn-icon">{fx.icon}</span>
+              <span className="fx-btn-icon-wrap">
+                <EffectHalo engine={engine} id={id} active={states[id]} />
+                <span className="fx-btn-icon">{fx.icon}</span>
+              </span>
               <span className="fx-btn-label">{fx.label}</span>
+              <ModifiedPill engine={engine} id={id} active={states[id]} />
             </button>
           );
         })}

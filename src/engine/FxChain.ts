@@ -1770,6 +1770,15 @@ export class FxChain {
     return this.levels[id];
   }
 
+  /** Engine-default wet level for an effect — the value the user
+   *  experiences when an effect is freshly enabled (or when a preset
+   *  enables it without overriding the level). UI uses this as the
+   *  "neutral" baseline so it can flag effects whose AMOUNT has been
+   *  dragged away from default. */
+  getDefaultEffectLevel(id: EffectId): number {
+    return ON_LEVELS[id];
+  }
+
   releaseTails(releaseSec = 0.6): void {
     const now = this.ctx.currentTime;
     this.delayFbGain.gain.setTargetAtTime(0, now, 0.08);

@@ -4831,6 +4831,53 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   height: 18px;
 }
 
+/* Variant C prototype — halo gauge around each active effect icon.
+   Mirror of the instrument tile halo: 28×28 wrap, radius 12, cream
+   fill on the orange active tile so it reads as a lit gauge ring.
+   Inactive tiles render no halo. */
+.fx-btn-icon-wrap {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.fx-btn-halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.fx-btn-halo-track {
+  fill: none;
+  stroke: color-mix(in srgb, #160c06 35%, transparent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.fx-btn-halo-fill {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1.5px color-mix(in srgb, var(--text) 70%, transparent));
+  transition: stroke-dasharray 0.2s ease;
+}
+
+/* "Modified from default" pill — top-right of an active effect
+   tile when AMOUNT has been dragged away from the engine baseline.
+   Tiny (6×6) so it reads as an indicator dot, not a button. */
+.fx-btn-modified {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--text) 60%, transparent);
+  pointer-events: none;
+}
+
 .fx-btn-label {
   font-size: 9px;
   font-weight: 800;
