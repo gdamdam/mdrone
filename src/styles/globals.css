@@ -1009,13 +1009,21 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   .layout { padding-bottom: 64px; }
 }
 
-/* TIMBRE + EFFECTS two-column layout */
+/* TIMBRE + EFFECTS two-column layout. align-items:stretch so both
+   panels share the height of the taller one — combined with a
+   flex-direction:column on each col and a 1fr on the tile area, the
+   shorter panel pads itself naturally rather than leaving an
+   asymmetric void. */
 .timbre-fx-row {
   display: grid;
   grid-template-columns: minmax(200px, 1fr) minmax(240px, 1fr);
   gap: 16px;
   margin-top: 8px;
-  align-items: start;
+  align-items: stretch;
+}
+.timbre-col, .fx-col {
+  display: flex;
+  flex-direction: column;
 }
 
 @media (max-width: 720px) {
@@ -3757,9 +3765,10 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding: 10px 4px;
-  border-radius: 6px;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border-radius: 8px;
   background: var(--bg-cell);
   color: var(--text-dim);
   border: 1px solid var(--border);
@@ -3938,15 +3947,40 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
    the same 4-column grid, so a slider always sits in the same column
    as the tile it belongs to. Subordinate rows are conditionally
    rendered, so empty space doesn't accumulate when nothing is active. */
+/* Active-voices summary line — mirrors .fx-chain-flow above the
+   EFFECTS grid so both panels carry an equivalent "what is currently
+   sounding" header, and their first tile rows start at the same Y. */
+.timbre-active-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: var(--preview);
+  padding: 4px 2px 10px;
+}
+.timbre-active-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.timbre-active-sep {
+  margin: 0 2px;
+  color: color-mix(in srgb, var(--preview) 55%, var(--text-dim));
+  opacity: 0.85;
+}
+
 .timbre-stack {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 .timbre-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
+  gap: 6px;
 }
 .timbre-row-levels,
 .timbre-row-secondary {

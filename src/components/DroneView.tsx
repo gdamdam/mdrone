@@ -1972,7 +1972,30 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
         {disclosed.edit && (
           <div className="timbre-fx-row">
             <div className="timbre-col">
-              <div className="panel-label">INSTRUMENTS</div>
+              <div className="panel-label">INSTRUMENTS · click = toggle · hover = mute / solo</div>
+              {/* Active-voices summary line — visually parallels the
+                  EFFECTS chain-flow preview so both columns carry an
+                  equivalent header and their first tile rows align. */}
+              {(() => {
+                const activeVoices = VOICES.filter((v) => state.voiceLayers[v.id]);
+                if (activeVoices.length === 0) {
+                  return (
+                    <div className="panel-hint">
+                      No instruments active — tap a tile to bring one in
+                    </div>
+                  );
+                }
+                return (
+                  <div className="timbre-active-flow" title="Voices currently sounding">
+                    {activeVoices.map((v, i) => (
+                      <span key={v.id} className="timbre-active-step">
+                        {i > 0 && <span className="timbre-active-sep">+</span>}
+                        {v.label}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
               {/* Each block is one tile-row of 4 voices, optionally
                   followed by a level row and a "secondary params" row.
                   Both subordinate rows live in the same 4-column grid
