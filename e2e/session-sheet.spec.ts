@@ -74,8 +74,14 @@ test("◆ session sheet round-trips a session through EXPORT JSON / IMPORT JSON"
   // moved the button label from "EXPORT JSON" to just "EXPORT" under
   // a "JSON" section heading. We scope to sheetDialog (role="menu",
   // name="Session") so this won't collide with the ⤓ audio export.
+  // noWaitAfter on the click: the handler creates a programmatic
+  // <a download> and calls a.click() (Header.tsx). WebKit treats the
+  // synthetic anchor's blob navigation as still-pending and the
+  // outer click() never resolves, hitting the 30 s test timeout.
+  // Chromium / Firefox don't see the synthetic anchor as navigation.
   const downloadPromise = page.waitForEvent("download");
-  await sheetDialog(page).getByRole("button", { name: /^EXPORT$/ }).click();
+  await sheetDialog(page).getByRole("button", { name: /^EXPORT$/ })
+    .click({ noWaitAfter: true });
   const download = await downloadPromise;
   const filename = download.suggestedFilename();
   expect(filename).toMatch(/^mdrone-.+\.json$/);
