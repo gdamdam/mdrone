@@ -180,6 +180,22 @@ The current calibration:
   as build, not flake. Set in `.github/workflows/stage-hardening.yml`,
   not in the spec.
 
+The long-hold step is **gated to Chromium-family browsers only**
+(Ubuntu Chromium, Windows Chromium, Windows Edge). Firefox and
+WebKit on shared GitHub runners produce sustained underrun bursts
+that have nothing to do with mdrone — every failure mode observed
+on those two cells across multiple weeks of nightlies has been the
+runner fleet's audio-thread isolation, not the build. Cross-browser
+smoke for Firefox / WebKit is still covered by the fast e2e step
+that runs on every cell. Real-browser stability is verified by the
+manual checklist in this document before a release.
+
+If you want to flip Firefox or WebKit back on for the burn-in, drop
+the `if: matrix.project != ...` guard in the workflow and expect
+re-runs to be the norm, not the exception. A self-hosted quiet
+runner (mac mini, dedicated Linux box) is the right answer if
+nightly cross-browser burn-in becomes load-bearing.
+
 The intent is "loud floor, calibrated CI ceiling" — it's easier to
 relax a strict budget than to tighten a permissive one, so the spec
 ships strict and the workflow relaxes per-environment with a comment.
