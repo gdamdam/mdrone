@@ -122,29 +122,32 @@ const V_SVG = {
 // Inline (not lazy / not extracted) to keep tree-shake + Fast Refresh
 // behaviour identical to the rest of this file's icon helpers.
 function LevelHalo({ level }: { level: number }) {
-  const r = 10;
+  // 28-px viewbox with halo at r=12 leaves ~3 px of breathing room
+  // between the 18-px icon and the gauge ring, so the halo reads as
+  // a separate object rather than icon ornamentation.
+  const r = 12;
   const C = 2 * Math.PI * r;
   const arcLen = C * 0.75;
   const fill = arcLen * Math.max(0, Math.min(1, level));
   return (
     <svg
       className="timbre-btn-halo"
-      width={24}
-      height={24}
-      viewBox="0 0 24 24"
+      width={28}
+      height={28}
+      viewBox="0 0 28 28"
       aria-hidden="true"
     >
-      <g transform="rotate(-135 12 12)">
+      <g transform="rotate(-135 14 14)">
         <circle
-          cx={12}
-          cy={12}
+          cx={14}
+          cy={14}
           r={r}
           className="timbre-btn-halo-track"
           strokeDasharray={`${arcLen} ${C}`}
         />
         <circle
-          cx={12}
-          cy={12}
+          cx={14}
+          cy={14}
           r={r}
           className="timbre-btn-halo-fill"
           strokeDasharray={`${fill} ${C}`}
