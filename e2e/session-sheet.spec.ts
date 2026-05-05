@@ -57,6 +57,14 @@ const saveCurrentSessionAs = async (page: Page, name: string) => {
 };
 
 test("◆ session sheet round-trips a session through EXPORT JSON / IMPORT JSON", async ({ page }, testInfo) => {
+  // WebKit on shared macOS GHA runners resolves the synthetic <a download>
+  // blob navigation in 30+ s under hypervisor load (vs ~1 s locally), which
+  // pushes download.path() past the default 30 s test budget. The 1.23.6
+  // dispatchEvent fix unblocked the click, but the download itself still
+  // races the timeout on a loaded runner. Give it headroom; re-tighten if
+  // we ever bypass the blob path (see Option B in the harden discussion).
+  testInfo.setTimeout(90_000);
+
   await page.goto("/");
   await dismissStartGate(page);
 
