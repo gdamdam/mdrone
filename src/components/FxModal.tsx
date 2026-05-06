@@ -13,7 +13,7 @@
 import { useState, useEffect, useId, useRef } from "react";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { EffectId } from "../engine/FxChain";
-import { TouchSlider } from "./TouchSlider";
+import { FxParamSlider } from "./FxParamSlider";
 
 interface FxModalProps {
   engine: AudioEngine | null;
@@ -169,46 +169,6 @@ function FxParams({ engine, effectId }: { engine: AudioEngine | null; effectId: 
 
 type FxChainLike = ReturnType<NonNullable<AudioEngine["getFxChain"]>> | undefined;
 
-function ParamSlider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  unit,
-  onChange,
-  midiId,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-  onChange: (v: number) => void;
-  midiId?: string;
-}) {
-  return (
-    <div className="fx-param-row">
-      <span className="fx-param-label">{label}</span>
-      <TouchSlider
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={onChange}
-        className="fx-param-slider"
-        aria-label={label}
-        midiId={midiId}
-      />
-      <span className="fx-param-value">
-        {step < 0.01 ? value.toFixed(3) : step < 1 ? value.toFixed(2) : Math.round(value)}
-        {unit}
-      </span>
-    </div>
-  );
-}
-
 function AmountOnly({
   engine, effectId, fx, defaultValue,
 }: {
@@ -219,7 +179,7 @@ function AmountOnly({
 }) {
   const [amount, setAmount] = useState(() => fx?.getEffectLevel(effectId) ?? defaultValue);
   return (
-    <ParamSlider
+    <FxParamSlider
       label="AMOUNT"
       value={amount}
       min={0}
@@ -240,7 +200,7 @@ function DelayParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLi
   const [fb, setFb] = useState(() => fx?.getDelayFeedback() ?? 0.58);
   return (
     <>
-      <ParamSlider
+      <FxParamSlider
         label="TIME"
         value={time}
         min={0.05}
@@ -249,7 +209,7 @@ function DelayParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLi
         unit=" s"
         onChange={(v) => { setTime(v); fx?.setDelayTime(v); }}
       />
-      <ParamSlider
+      <FxParamSlider
         label="FEEDBACK"
         value={fb}
         min={0}
@@ -269,7 +229,7 @@ function ShimmerParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChain
   const [mix, setMix] = useState(() => fx?.getShimmerMix() ?? 0.5);
   return (
     <>
-      <ParamSlider
+      <FxParamSlider
         label="FEEDBACK"
         value={fb}
         min={0}
@@ -278,7 +238,7 @@ function ShimmerParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChain
         unit=""
         onChange={(v) => { setFb(v); fx?.setShimmerFeedback(v); }}
       />
-      <ParamSlider
+      <FxParamSlider
         label="DECAY"
         value={decay}
         min={0}
@@ -287,7 +247,7 @@ function ShimmerParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChain
         unit=""
         onChange={(v) => { setDecay(v); fx?.setShimmerDecay(v); }}
       />
-      <ParamSlider
+      <FxParamSlider
         label="MIX"
         value={mix}
         min={0}
@@ -307,11 +267,11 @@ function HallParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLik
   const [decay, setDecay] = useState(() => fx?.getHallDecay() ?? 0.84);
   return (
     <>
-      <ParamSlider label="SIZE" value={size} min={0} max={2} step={0.01} unit=""
+      <FxParamSlider label="SIZE" value={size} min={0} max={2} step={0.01} unit=""
         onChange={(v) => { setSize(v); fx?.setHallSize(v); }} />
-      <ParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
+      <FxParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
         onChange={(v) => { setDamping(v); fx?.setHallDamping(v); }} />
-      <ParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
+      <FxParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
         onChange={(v) => { setDecay(v); fx?.setHallDecay(v); }} />
       <AmountOnly engine={engine} effectId="hall" fx={fx} defaultValue={0.5} />
     </>
@@ -324,11 +284,11 @@ function CisternParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChain
   const [decay, setDecay] = useState(() => fx?.getCisternDecay() ?? 0.94);
   return (
     <>
-      <ParamSlider label="SIZE" value={size} min={0} max={2} step={0.01} unit=""
+      <FxParamSlider label="SIZE" value={size} min={0} max={2} step={0.01} unit=""
         onChange={(v) => { setSize(v); fx?.setCisternSize(v); }} />
-      <ParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
+      <FxParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
         onChange={(v) => { setDamping(v); fx?.setCisternDamping(v); }} />
-      <ParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
+      <FxParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
         onChange={(v) => { setDecay(v); fx?.setCisternDecay(v); }} />
       <AmountOnly engine={engine} effectId="cistern" fx={fx} defaultValue={0.6} />
     </>
@@ -341,11 +301,11 @@ function PlateParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLi
   const [diffusion, setDiffusion] = useState(() => fx?.getPlateDiffusion() ?? 0.75);
   return (
     <>
-      <ParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
+      <FxParamSlider label="DECAY" value={decay} min={0} max={0.99} step={0.01} unit=""
         onChange={(v) => { setDecay(v); fx?.setPlateDecay(v); }} />
-      <ParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
+      <FxParamSlider label="DAMPING" value={damping} min={0} max={1} step={0.01} unit=""
         onChange={(v) => { setDamping(v); fx?.setPlateDamping(v); }} />
-      <ParamSlider label="DIFFUSION" value={diffusion} min={0} max={0.9} step={0.01} unit=""
+      <FxParamSlider label="DIFFUSION" value={diffusion} min={0} max={0.9} step={0.01} unit=""
         onChange={(v) => { setDiffusion(v); fx?.setPlateDiffusion(v); }} />
       <AmountOnly engine={engine} effectId="plate" fx={fx} defaultValue={0.5} />
     </>
@@ -356,7 +316,7 @@ function RingmodParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChain
   const [freq, setFreq] = useState(() => fx?.getRingmodFreq() ?? 80);
   return (
     <>
-      <ParamSlider label="FREQUENCY" value={freq} min={10} max={2000} step={1} unit=" Hz"
+      <FxParamSlider label="FREQUENCY" value={freq} min={10} max={2000} step={1} unit=" Hz"
         onChange={(v) => { setFreq(v); fx?.setRingmodFreq(v); }} />
       <AmountOnly engine={engine} effectId="ringmod" fx={fx} defaultValue={0.5} />
     </>
@@ -373,11 +333,11 @@ function GranularParams({ engine, fx, kind }: { engine: AudioEngine | null; fx: 
   const setP = isCloud ? (v: number) => fx?.setGrainCloudPitchSpread(v) : (v: number) => fx?.setGranularPitchSpread(v);
   return (
     <>
-      <ParamSlider label="SIZE" value={size} min={0.02} max={2} step={0.01} unit=" s"
+      <FxParamSlider label="SIZE" value={size} min={0.02} max={2} step={0.01} unit=" s"
         onChange={(v) => { setSize(v); setS(v); }} />
-      <ParamSlider label="DENSITY" value={density} min={0.3} max={40} step={0.1} unit="/s"
+      <FxParamSlider label="DENSITY" value={density} min={0.3} max={40} step={0.1} unit="/s"
         onChange={(v) => { setDensity(v); setD(v); }} />
-      <ParamSlider label="PITCH" value={pitch} min={0} max={1} step={0.01} unit=""
+      <FxParamSlider label="PITCH" value={pitch} min={0} max={1} step={0.01} unit=""
         onChange={(v) => { setPitch(v); setP(v); }} />
       <AmountOnly engine={engine} effectId={kind} fx={fx} defaultValue={isCloud ? 0.8 : 0.8} />
     </>
@@ -406,7 +366,7 @@ function FormantParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChain
           ))}
         </div>
       </div>
-      <ParamSlider
+      <FxParamSlider
         label="SHIFT"
         value={shift}
         min={0.5}
@@ -424,7 +384,7 @@ function CombParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLik
   const [fb, setFb] = useState(() => fx?.getCombFeedback() ?? 0.85);
   return (
     <>
-      <ParamSlider
+      <FxParamSlider
         label="RESONANCE"
         value={fb}
         min={0}
@@ -445,7 +405,7 @@ function SubParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLike
   const [center, setCenter] = useState(() => fx?.getSubCenter() ?? 110);
   return (
     <>
-      <ParamSlider
+      <FxParamSlider
         label="CENTER"
         value={center}
         min={40}
@@ -464,7 +424,7 @@ function FreezeParams({ fx }: { fx: FxChainLike }) {
   const [mode, setMode] = useState<0 | 1>(() => fx?.getFreezeMode() ?? 0);
   return (
     <>
-      <ParamSlider
+      <FxParamSlider
         label="MIX"
         value={mix}
         min={0}
@@ -503,7 +463,7 @@ function HaloParams({ engine, fx }: { engine: AudioEngine | null; fx: FxChainLik
   return (
     <>
       <AmountOnly engine={engine} effectId="halo" fx={fx} defaultValue={0.55} />
-      <ParamSlider
+      <FxParamSlider
         label="TILT"
         value={tilt}
         min={0}

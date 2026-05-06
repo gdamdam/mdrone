@@ -64,6 +64,66 @@ function EffectHalo({
   );
 }
 
+// AMOUNT mini-slider rendered beneath each active FX tile. Mirrors
+// the per-voice level slider on the instrument grid so AMOUNT is
+// reachable without opening the modal. Polls the engine at the same
+// 200 ms cadence the halo uses so MIDI / preset / modal edits stay in
+// sync without forcing the parent to re-render.
+function EffectAmount({
+  engine,
+  id,
+  active,
+}: {
+  engine: AudioEngine | null;
+  id: EffectId;
+  active: boolean;
+}) {
+  const [level, setLevel] = useState(0);
+  useEffect(() => {
+    if (!engine || !active) return;
+    const fx = engine.getFxChain();
+    const sync = () => {
+      const v = fx.getEffectLevel(id);
+      setLevel((prev) => (Math.abs(prev - v) > 0.001 ? v : prev));
+    };
+    sync();
+    const t = window.setInterval(sync, 200);
+    return () => window.clearInterval(t);
+  }, [engine, id, active]);
+  if (!engine || !active) return null;
+  const onChange = (v: number) => {
+    setLevel(v);
+    engine.getFxChain().setEffectLevel(id, v);
+  };
+  // Stop pointer/click bubbling — the parent <button> handles tap to
+  // toggle and long-press to open the modal; drag-to-set-amount must
+  // not trigger either.
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <div
+      className="fx-amount-cell"
+      onPointerDown={stop}
+      onPointerMove={stop}
+      onPointerUp={stop}
+      onClick={stop}
+      data-midi-id={`fx.${id}.amount`}
+    >
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={level}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="fx-amount-slider"
+        title={`${id} AMOUNT`}
+        aria-label={`${id} amount`}
+      />
+      <span className="fx-amount-value">{Math.round(level * 100)}</span>
+    </div>
+  );
+}
+
 // Variant C prototype — "modified" indicator on active effect tiles
 // when the AMOUNT has been dragged away from the engine default. The
 // flag is computed against ON_LEVELS (FxChain.getDefaultEffectLevel),
@@ -347,35 +407,37 @@ export function FxBar({ engine, states, onToggle, order, onReorder, suppressed }
             ? "\n\nTemporarily suppressed by audio protection — your setting is preserved."
             : "";
           return (
-            <button
-              key={id}
-              onClick={() => handleClick(id)}
-              onPointerDown={(e) => handlePointerDown(id, e)}
-              onPointerMove={handlePointerMove}
-              onPointerUp={cancelLongPress}
-              onPointerLeave={cancelLongPress}
-              onPointerCancel={cancelLongPress}
-              draggable={onReorder !== undefined}
-              onDragStart={onDragStart(id)}
-              onDragOver={onDragOver}
-              onDrop={onDropBtn(id)}
-              className={cls}
-              aria-pressed={states[id]}
-              data-suppressed={isSuppressed ? "true" : undefined}
-              title={
-                (pos !== undefined
-                  ? `${fx.hint}\n\nActive chain position: ${pos} of ${activeChain.length}. Drag to reorder · long-press for settings.`
-                  : `${fx.hint}\n\nInactive — drag to reorder · long-press for settings.`) + titleSuffix
-              }
-            >
-              <span className="fx-btn-num" aria-hidden="true">{pos ?? ""}</span>
-              <span className="fx-btn-icon-wrap">
-                <EffectHalo engine={engine} id={id} active={states[id]} />
-                <span className="fx-btn-icon">{fx.icon}</span>
-              </span>
-              <span className="fx-btn-label">{fx.label}</span>
-              <ModifiedPill engine={engine} id={id} active={states[id]} />
-            </button>
+            <div key={id} className="fx-cell">
+              <button
+                onClick={() => handleClick(id)}
+                onPointerDown={(e) => handlePointerDown(id, e)}
+                onPointerMove={handlePointerMove}
+                onPointerUp={cancelLongPress}
+                onPointerLeave={cancelLongPress}
+                onPointerCancel={cancelLongPress}
+                draggable={onReorder !== undefined}
+                onDragStart={onDragStart(id)}
+                onDragOver={onDragOver}
+                onDrop={onDropBtn(id)}
+                className={cls}
+                aria-pressed={states[id]}
+                data-suppressed={isSuppressed ? "true" : undefined}
+                title={
+                  (pos !== undefined
+                    ? `${fx.hint}\n\nActive chain position: ${pos} of ${activeChain.length}. Drag to reorder · long-press for settings.`
+                    : `${fx.hint}\n\nInactive — drag to reorder · long-press for settings.`) + titleSuffix
+                }
+              >
+                <span className="fx-btn-num" aria-hidden="true">{pos ?? ""}</span>
+                <span className="fx-btn-icon-wrap">
+                  <EffectHalo engine={engine} id={id} active={states[id]} />
+                  <span className="fx-btn-icon">{fx.icon}</span>
+                </span>
+                <span className="fx-btn-label">{fx.label}</span>
+                <ModifiedPill engine={engine} id={id} active={states[id]} />
+              </button>
+              <EffectAmount engine={engine} id={id} active={states[id]} />
+            </div>
           );
         })}
       </div>

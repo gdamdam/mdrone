@@ -4830,6 +4830,61 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   gap: 6px;
 }
 
+.fx-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* AMOUNT mini-slider beneath each active FX tile. Mirrors the
+   per-voice level cell on the instrument grid (.timbre-level-cell)
+   so AMOUNT is reachable without opening the modal. */
+.fx-amount-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  min-width: 0;
+}
+.fx-amount-slider {
+  flex: 1;
+  height: 4px;
+  min-width: 0;
+  background: var(--bg-cell);
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+.fx-amount-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--preview);
+  cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--preview) 75%, #000);
+}
+.fx-amount-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--preview);
+  border: 1px solid color-mix(in srgb, var(--preview) 75%, #000);
+  cursor: pointer;
+}
+.fx-amount-value {
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--preview);
+  min-width: 22px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 .fx-btn {
   display: flex;
   flex-direction: column;
