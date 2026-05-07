@@ -363,6 +363,21 @@ function ConceptsTab() {
         whatever else is playing.{" "}
         <W slug="Ableton_Link">Wikipedia · Ableton Link</W>
       </p>
+
+      <div className="fx-modal-divider" />
+      <div className="fx-modal-section-label">GLOSSARY</div>
+      <p className="fx-modal-desc">
+        Every musical, acoustic, DSP, and tuning term used in the app —
+        voices, effects, microtuning, mixer, motion, visualizers — defined
+        in plain language.{" "}
+        <a
+          href="https://github.com/gdamdam/mdrone/blob/main/docs/glossary.md"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          docs/glossary.md
+        </a>
+      </p>
     </>
   );
 }
