@@ -4,8 +4,8 @@ import { PrivacyModal } from "./PrivacyModal";
 
 /**
  * Footer — matches the mloop AppFooter layout: version, copyright,
- * repo link, help / support / license / cross-link / privacy line.
- * Two rows, centered, dimmed text, ember accent on the ko-fi link.
+ * repo link, help / license / cross-link / privacy line.
+ * Two rows, centered, dimmed text.
  */
 export function Footer() {
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -31,15 +31,6 @@ export function Footer() {
         github.com/gdamdam/mdrone
       </a>
       <div style={{ marginTop: 4 }}>
-        <a
-          href="https://ko-fi.com/gdamdam"
-          target="_blank"
-          rel="noopener"
-          style={{ color: "#ff4466", fontWeight: 700, textDecoration: "none" }}
-        >
-          Support ♥
-        </a>
-        {" · "}
         <a
           href="https://github.com/gdamdam/mdrone/blob/main/LICENSE"
           target="_blank"
