@@ -3,7 +3,6 @@
 <p align="center">
   <a href="https://github.com/gdamdam/mdrone"><img src="https://img.shields.io/github/package-json/v/gdamdam/mdrone?color=blue&label=version" alt="Version"></a>
   <a href="https://github.com/gdamdam/mdrone/actions/workflows/ci.yml"><img src="https://github.com/gdamdam/mdrone/workflows/CI/badge.svg" alt="CI"></a>
-  <a href="https://github.com/gdamdam/mdrone/actions/workflows/stage-hardening.yml"><img src="https://github.com/gdamdam/mdrone/actions/workflows/stage-hardening.yml/badge.svg" alt="Stage hardening"></a>
   <a href="https://github.com/gdamdam/mdrone/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/Web%20Audio-API-FF6600" alt="Web Audio API">
   <img src="https://img.shields.io/badge/AudioWorklet-DSP-FF6600" alt="AudioWorklet">
@@ -238,9 +237,9 @@ If you want to dig past the overview:
 
 - **Parameter reference** — `docs/parameters.md` is auto-generated; regenerate via `npm run docs:params`.
 - **Source layout** — `src/components/` (React UI), `src/engine/` (audio engine, voices, FX, worklets, presets, MIDI), `src/scene/` (scene model, share/snapshot codec), `src/microtuning.ts` (tuning tables + custom registry), `scripts/` (worklet bundle, doc + version generators), `tests/` (node:test suites).
-- **Local dev** — standard Vite app: `npm run dev` for the dev server, `npm run build` for a production bundle, `npm run test` / `npm run test:unit` / `npm run test:e2e` for the three test suites. Stage-hardening commands: `npm run test:e2e:all` (cross-browser), `npm run test:e2e:long` (long-hold audio burn-in), `npm run audit:presets` (offline LUFS / peak / band-energy per preset), `npm run audit:certify` (merge offline audit + runtime cert into one Markdown report).
+- **Local dev** — standard Vite app: `npm run dev` for the dev server, `npm run build` for a production bundle, `npm run test` / `npm run test:unit` / `npm run test:e2e` for the three test suites. Optional local checks: `npm run test:e2e:all` (cross-browser), `npm run test:e2e:long` (long-hold audio burn-in), `npm run audit:presets` (offline LUFS / peak / band-energy per preset), `npm run audit:certify` (merge offline audit + runtime cert into one Markdown report).
 - **Debug mode** — dev console tools are gated. Enable by appending `?debug` to the URL or running `localStorage.setItem("mdrone-debug", "1")` then reloading. While debug mode is on, `__engine`, `__measureAllPresets`, `__auditArrival`, and `__presetCert` are exposed on `window`. `__mdroneAudioReport` remains available outside debug mode.
-- **CI** — every push to `main` and every PR runs lint + typecheck + node tests + vitest + Playwright E2E + build via `.github/workflows/ci.yml`. The separate `.github/workflows/stage-hardening.yml` runs the cross-browser matrix and long-hold burn-in daily and on manual dispatch. Status visible from the badge above.
+- **CI** — every push to `main` and every PR runs lint + typecheck + node tests + vitest + Playwright E2E + build via `.github/workflows/ci.yml`. Status visible from the badge above.
 - **Releases** — tag-gated, not push-to-main. To cut a release:
   ```
   npm run release           # bumps patch (or `release minor` / `release major` / `release X.Y.Z`),
