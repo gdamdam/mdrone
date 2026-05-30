@@ -45,6 +45,10 @@ export const STORAGE_KEYS = {
    *  the current scene per click. Was an inline slider in the perform
    *  row; lives in Settings → GENERAL now. Default 0.25. */
   mutateIntensity: "mdrone-mutate-intensity",
+  /** Evolution indicator opt-in. When true, a small HELD STEADY /
+   *  DRIFTING / JOURNEY status line shows under the VU meter. Off by
+   *  default to keep the surface calm. */
+  evolutionIndicator: "mdrone-evolution-indicator",
 } as const;
 
 export type WeatherVisual = "waveform" | "flow" | "minimal";

@@ -799,6 +799,18 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     catch { /* noop */ }
   }, []);
 
+  // Evolution indicator — opt-in status line (HELD STEADY / DRIFTING /
+  // JOURNEY) under the VU meter. Off by default so the surface stays calm.
+  const [evolutionIndicator, setEvolutionIndicatorState] = useState<boolean>(() => {
+    try { return localStorage.getItem(STORAGE_KEYS.evolutionIndicator) === "1"; }
+    catch { return false; }
+  });
+  const setEvolutionIndicator = useCallback((on: boolean) => {
+    setEvolutionIndicatorState(on);
+    try { localStorage.setItem(STORAGE_KEYS.evolutionIndicator, on ? "1" : "0"); }
+    catch { /* noop */ }
+  }, []);
+
   // LIVE SAFE — explicit user-facing stability mode. Persisted; pushed
   // to the engine on hydrate and on every toggle. The engine controller
   // is idempotent so re-pushing the same value is a no-op.
@@ -1346,6 +1358,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleMotionRec={setMotionRecEnabled}
         lowPowerMode={lowPowerMode}
         onToggleLowPower={setLowPowerMode}
+        evolutionIndicator={evolutionIndicator}
+        onToggleEvolutionIndicator={setEvolutionIndicator}
         liveSafeMode={liveSafeMode}
         onToggleLiveSafeMode={setLiveSafeMode}
         headphoneSafe={headphoneSafe}
@@ -1419,6 +1433,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             onToggleKbd={() => setKbdActive((v) => !v)}
             warming={headerWarming}
             mutateIntensity={mutateIntensity}
+            showEvolveIndicator={evolutionIndicator}
             /* Recording controls (REC LIVE / BOUNCE LOOP / TIMED REC)
              * live in the header ⤓ dropdown — Layout passes the same
              * handlers to <Header> below. */

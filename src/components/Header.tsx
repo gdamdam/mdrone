@@ -96,6 +96,8 @@ interface HeaderProps {
   onToggleMotionRec: (on: boolean) => void;
   lowPowerMode: boolean;
   onToggleLowPower: (on: boolean) => void;
+  evolutionIndicator: boolean;
+  onToggleEvolutionIndicator: (on: boolean) => void;
   liveSafeMode: boolean;
   onToggleLiveSafeMode: (on: boolean) => void;
   /** Headphone-safe state — when on, master volume is clamped to
@@ -195,6 +197,8 @@ export function Header({
   onToggleMotionRec,
   lowPowerMode,
   onToggleLowPower,
+  evolutionIndicator,
+  onToggleEvolutionIndicator,
   liveSafeMode,
   onToggleLiveSafeMode,
   headphoneSafe = false,
@@ -1120,6 +1124,27 @@ export function Header({
                     : "Enable low-power mode for weaker hardware"}
                 >
                   {lowPowerMode ? "● LOW-POWER MODE" : "LOW-POWER MODE"}
+                </button>
+              </div>
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">EVOLUTION INDICATOR</div>
+              <p className="fx-modal-desc">
+                A small status line under the level meter — HELD STEADY,
+                DRIFTING, or ON A JOURNEY — so you can see at a glance
+                whether the drone is evolving on its own. Off by default.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className={evolutionIndicator ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => onToggleEvolutionIndicator(!evolutionIndicator)}
+                  aria-pressed={evolutionIndicator}
+                  aria-label={evolutionIndicator ? "Evolution indicator on, press to disable" : "Evolution indicator off, press to enable"}
+                  title={evolutionIndicator
+                    ? "Hide the evolution status line"
+                    : "Show the evolution status line under the level meter"}
+                >
+                  {evolutionIndicator ? "● EVOLUTION INDICATOR" : "EVOLUTION INDICATOR"}
                 </button>
               </div>
 

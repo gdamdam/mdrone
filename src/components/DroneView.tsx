@@ -337,6 +337,9 @@ interface DroneViewProps {
   onTonicChange?: (root: PitchClass, octave: number) => void;
   onPresetChange?: (presetId: string | null, presetName: string | null) => void;
   onMutateScene?: (intensity: number) => void;
+  /** Show the HELD STEADY / DRIFTING / JOURNEY status line under the VU
+   *  meter. Opt-in via Settings; off by default. */
+  showEvolveIndicator?: boolean;
   /** Push a short "fine-tune active" hint string up to the header
    *  (e.g. "±7 ¢"), or null when no offsets are non-zero or
    *  microtuning isn't engaged. */
@@ -431,7 +434,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, warming = false, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, showEvolveIndicator = false, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, warming = false, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
   ref,
 ) {
   const {
@@ -496,8 +499,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     hasSlotB: false,
   });
   const [shapeHintsOn, setShapeHintsOn] = useState<boolean>(() => {
-    try { return window.localStorage?.getItem("mdrone.shapeHintsOn") === "1"; }
-    catch { return false; }
+    // Default ON for newcomers (no stored preference) so the macros'
+    // plain-English one-liners are visible — recognition over recall.
+    // Returning users keep whatever they last toggled.
+    try {
+      const v = window.localStorage?.getItem("mdrone.shapeHintsOn");
+      return v === null || v === undefined ? true : v === "1";
+    }
+    catch { return true; }
   });
   const toggleShapeHints = () => setShapeHintsOn((v) => {
     const next = !v;
@@ -1186,6 +1195,26 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           isActive={() => engine?.isPlaying() ?? false}
         />
       </div>
+      {/* Aliveness indicator — a drone's reward is slow evolution, so the
+          UI can signal whether the sound is drifting on its own. Reads
+          reactive scene state only (EVOLVE macro + JOURNEY); no engine
+          coupling. Opt-in via Settings (off by default); sits just under
+          the VU meter. */}
+      {showEvolveIndicator && (
+        <div
+          className={`drone-pulse${(state.journey || state.evolve > 0.001) ? " is-alive" : ""}`}
+          aria-live="polite"
+        >
+          <span className="drone-pulse-dot" aria-hidden="true" />
+          <span className="drone-pulse-label">
+            {state.journey
+              ? `ON A JOURNEY · ${JOURNEYS[state.journey].label}`
+              : state.evolve > 0.001
+                ? `DRIFTING · ${Math.round(state.evolve * 100)}%`
+                : "HELD STEADY"}
+          </span>
+        </div>
+      )}
       <div className="panel preset-panel preset-panel-wide">
         {/* Compact preset strip — active preset meta, inline keyboard,
             tonic readout, expand chevron. Converted from a single
@@ -1236,7 +1265,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             <button
               type="button"
               data-tutor="good-drone"
-              className="preset-mut-btn preset-strip-action"
+              className="preset-mut-btn preset-strip-action preset-mut-btn-hero"
               disabled={attuneDisabled}
               onClick={() => {
                 if (attuneDisabled) return;

@@ -1086,6 +1086,22 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .preset-mut-btn:active {
   background: color-mix(in srgb, var(--preview) 25%, var(--bg-cell));
 }
+/* ATTUNE hero — the "make it beautiful" affordance gets visual primacy
+   over the neighbouring chips so the eye lands on the one-click path to
+   a good-sounding tuning. Filled accent vs the plain MUTATE/state chips. */
+.preset-mut-btn-hero {
+  background: color-mix(in srgb, var(--preview) 20%, var(--bg-cell));
+  border-color: color-mix(in srgb, var(--preview) 55%, var(--border));
+  color: var(--preview);
+}
+.preset-mut-btn-hero:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--preview) 32%, var(--bg-cell));
+  border-color: var(--preview);
+  color: var(--preview);
+}
+.preset-mut-btn-hero:disabled {
+  opacity: 0.45;
+}
 /* Label / icon swap — text on desktop, single glyph on mobile.
    Used by ATTUNE / MUTATE chips that live in the always-visible
    preset-strip identity row. */
@@ -3211,7 +3227,46 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   font-style: italic;
 }
 
-/* ── DroneView layout ─────────────────────────────────────────────── */
+/* Aliveness indicator — signals whether the drone is evolving on its
+   own. Calm/dim when held steady; gentle pulse when DRIFTING or on a
+   JOURNEY, so a slow, static-looking screen still reads as alive. */
+.drone-pulse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text-dim);
+  opacity: 0.6;
+  transition: opacity 0.3s, color 0.3s;
+}
+.drone-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: background 0.3s;
+}
+.drone-pulse.is-alive {
+  color: var(--preview);
+  opacity: 0.85;
+}
+.drone-pulse.is-alive .drone-pulse-dot {
+  background: var(--preview);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drone-pulse.is-alive .drone-pulse-dot {
+    animation: drone-pulse-breathe 2.4s ease-in-out infinite;
+  }
+}
+@keyframes drone-pulse-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.55; box-shadow: 0 0 0 0 color-mix(in srgb, var(--preview) 45%, transparent); }
+  50% { transform: scale(1.35); opacity: 1; box-shadow: 0 0 7px 2px color-mix(in srgb, var(--preview) 35%, transparent); }
+}
+
+/* ── DroneView layout ──────────────────────────────────────────────── */
 .drone-layout {
   display: grid;
   /* minmax(0, 1fr) prevents the column from expanding past the viewport
