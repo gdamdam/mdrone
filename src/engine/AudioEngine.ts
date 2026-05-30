@@ -913,6 +913,7 @@ export class AudioEngine {
     this.loadMonitor.dispose();
     this.adaptiveStability.dispose();
     this.motionEngine.dispose();
+    this.voiceEngine.dispose();
     this.masterRecorder.dispose();
     void this.ctx.close().catch(() => { /* already closed */ });
   }

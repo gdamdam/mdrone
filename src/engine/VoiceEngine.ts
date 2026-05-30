@@ -39,6 +39,7 @@ export class VoiceEngine {
   // rapid preset / layer churn.
   private pendingRetire: { gain: GainNode; voices: Voice[]; stopTimeout: number }[] = [];
   private stopDroneTimeout: number | null = null;
+  private disposed = false;
   private voiceUpdateDepth = 0;
   private voiceRebuildPending = false;
   private layerLevels: Record<VoiceType, number> = {
@@ -905,5 +906,66 @@ export class VoiceEngine {
     this.materialDriftScales = { tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1, noise: 1 };
     this.materialPluckFactor = 1;
     this.materialSubFactor = 1;
+  }
+
+  /** Release all long-lived resources owned by this voice engine:
+   *  the recurring material-motion interval, any pending one-shot stop
+   *  timeouts, all live + retiring voices, the sub oscillator pair, and
+   *  the owned gain/filter/analyser nodes. Does NOT close the
+   *  AudioContext — that is owned by AudioEngine. Called from
+   *  AudioEngine.dispose(); without it the material-motion interval kept
+   *  firing setTargetAtTime against a closed context and pinned the whole
+   *  voice graph in memory after dispose/HMR. Best-effort and idempotent. */
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+
+    if (this.materialInterval != null) {
+      window.clearInterval(this.materialInterval);
+      this.materialInterval = null;
+    }
+    if (this.stopDroneTimeout != null) {
+      clearTimeout(this.stopDroneTimeout);
+      this.stopDroneTimeout = null;
+    }
+
+    // Pending-retire voices from in-flight rebuilds: cancel their delayed
+    // stop and tear them down immediately.
+    for (const entry of this.pendingRetire.splice(0)) {
+      clearTimeout(entry.stopTimeout);
+      for (const v of entry.voices) {
+        try { v.stop(); } catch { /* best-effort */ }
+      }
+      try { entry.gain.disconnect(); } catch { /* best-effort */ }
+    }
+
+    // Live voices.
+    for (const voices of this.droneVoicesByLayer.values()) {
+      for (const v of voices) {
+        try { v.stop(); } catch { /* best-effort */ }
+      }
+    }
+    this.droneVoicesByLayer.clear();
+
+    if (this.subOscs) {
+      try { this.subOscs.a.stop(); this.subOscs.a.disconnect(); } catch { /* best-effort */ }
+      try { this.subOscs.b.stop(); this.subOscs.b.disconnect(); } catch { /* best-effort */ }
+      this.subOscs = null;
+    }
+
+    for (const g of this.layerGains.values()) {
+      try { g.disconnect(); } catch { /* best-effort */ }
+    }
+    this.layerGains.clear();
+    for (const an of this.layerAnalysers.values()) {
+      try { an.disconnect(); } catch { /* best-effort */ }
+    }
+    this.layerAnalysers.clear();
+
+    for (const node of [this.droneVoiceGain, this.subVoiceGain, this.shimmerVoiceGain, this.droneFilter]) {
+      try { node.disconnect(); } catch { /* best-effort */ }
+    }
+
+    this.droneOn = false;
   }
 }
