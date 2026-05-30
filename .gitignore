@@ -28,6 +28,7 @@ playwright/.cache/
 
 # Local project knowledge — gitignored by design
 misc/
+mockups/
 
 # Sticker / merch artwork
 stickers/
