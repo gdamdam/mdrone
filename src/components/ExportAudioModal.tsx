@@ -21,6 +21,10 @@ export interface ExportAudioModalProps {
   recordingTitle?: string;
   recTimeMs: number;
   onToggleRec: () => void;
+  /** When on, a long REC LIVE take splits into ~30-min WAV parts so
+   *  peak browser memory stays bounded. Off = single WAV. */
+  recSplitEnabled: boolean;
+  onToggleRecSplit: () => void;
   // BOUNCE LOOP — mirrors the existing LOOP control + length picker.
   loopLengthSec: number;
   onLoopLengthChange: (sec: number) => void;
@@ -51,6 +55,7 @@ export function ExportAudioModal({
   anchorRef,
   onClose,
   isRec, recordingBusy, recordingSupported, recordingTitle, recTimeMs, onToggleRec,
+  recSplitEnabled, onToggleRecSplit,
   loopLengthSec, onLoopLengthChange, loopBusy, loopProgress, onBounceLoop, onCancelBounceLoop,
   takeBusy, takeProgress, onExportTake, onCancelExportTake,
 }: ExportAudioModalProps) {
@@ -99,6 +104,17 @@ export function ExportAudioModal({
               : isRec
                 ? `■ ${fmtMmSs(recTimeMs)}`
                 : "● REC WAV"}
+        </button>
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={recSplitEnabled}
+          className={recSplitEnabled ? "export-menu-pill export-menu-pill-active" : "export-menu-pill"}
+          onClick={onToggleRecSplit}
+          disabled={isRec || recordingBusy}
+          title="Split a long take into ~30-min WAV parts so browser memory stays bounded. Each part downloads as it finishes."
+        >
+          {recSplitEnabled ? "◼ Split 30 min" : "◻ Split 30 min"}
         </button>
       </div>
 

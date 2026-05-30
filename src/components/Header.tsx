@@ -133,6 +133,8 @@ interface HeaderProps {
   recordingTitle?: string;
   recTimeMs: number;
   onToggleRec: () => void;
+  recSplitEnabled: boolean;
+  onToggleRecSplit: () => void;
   loopLengthSec: number;
   onLoopLengthChange: (sec: number) => void;
   loopBusy: boolean;
@@ -211,6 +213,8 @@ export function Header({
   recordingTitle,
   recTimeMs,
   onToggleRec,
+  recSplitEnabled,
+  onToggleRecSplit,
   loopLengthSec,
   onLoopLengthChange,
   loopBusy,
@@ -759,6 +763,8 @@ export function Header({
                 recordingTitle={recordingTitle}
                 recTimeMs={recTimeMs}
                 onToggleRec={onToggleRec}
+                recSplitEnabled={recSplitEnabled}
+                onToggleRecSplit={onToggleRecSplit}
                 loopLengthSec={loopLengthSec}
                 onLoopLengthChange={onLoopLengthChange}
                 loopBusy={loopBusy}

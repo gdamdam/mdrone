@@ -30,6 +30,19 @@ const MeditateView = lazy(() =>
 );
 import { trackEvent } from "../analytics";
 import { buildWavFilename, buildTakeWavFilename, buildLoopWavFilename, formatDurationMs } from "../engine/recordingFilename";
+import { segmentFilename, RECOMMENDED_MAX_TAKE_MINUTES } from "../engine/MasterRecorder";
+
+/** Trigger a browser download of a WAV ArrayBuffer. */
+function downloadWavBlob(wav: ArrayBuffer, filename: string): void {
+  const blob = new Blob([wav], { type: "audio/wav" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 import { TutorialFlow } from "./TutorialFlow";
 import { TutorialOffer } from "./TutorialOffer";
 import { addHoldTime } from "../tutorial/state";
@@ -77,6 +90,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [isRec, setIsRec] = useState(false);
   const [recTimeMs, setRecTimeMs] = useState(0);
   const [recBusy, setRecBusy] = useState(false);
+  // REC LIVE split — when on, a long take rotates into ~30-min WAV
+  // parts so peak memory stays bounded per segment. Off = single WAV
+  // (legacy behaviour). Can't change mid-take.
+  const [recSplit, setRecSplit] = useState(false);
   // Seamless-loop bounce — parallel to master record, separate state.
   const [loopLengthSec, setLoopLengthSec] = useState(30);
   const [loopBusy, setLoopBusy] = useState(false);
@@ -928,40 +945,62 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         // Auto-HOLD on REC start so REC WAV never produces a silent
         // file by default. Mirrors loop-bounce behavior.
         if (!engine.isPlaying()) holdToggleRef.current?.();
-        // One-shot long-recording memory nudge (~15 min) — Float32
-        // chunks live in memory; warn once per take.
-        const unsubscribe = engine.setMasterRecordingMemoryWarning(
-          15 * 60 * 1000,
-          () => showNotification(
-            "Long recording — browser memory may grow. Consider stopping and starting a new take.",
-            "warning",
-          ),
-        );
-        await engine.startMasterRecording();
+        if (recSplit) {
+          // Bounded-memory long take: the recorder rotates a fresh WAV
+          // every RECOMMENDED_MAX_TAKE_MINUTES and hands each finalized
+          // part to onSegment as it completes. The base name is fixed
+          // at start so every part shares one timestamp; the trailing
+          // piece also arrives via onSegment, so stop() is not
+          // downloaded again below.
+          const base = buildWavFilename(
+            sceneManager.shareInitialName,
+            new Date(),
+            `${headerTonic}${headerOctave}`,
+            sceneManager.currentPresetName,
+          ).replace(/\.wav$/i, "");
+          await engine.startMasterRecording({
+            segmentMinutes: RECOMMENDED_MAX_TAKE_MINUTES,
+            onSegment: (seg) => {
+              downloadWavBlob(seg.wav, segmentFilename(base, seg.index));
+              showNotification(
+                `Part ${seg.index} saved — ${formatDurationMs(seg.durationMs)}`,
+                "info",
+              );
+            },
+          });
+        } else {
+          // One-shot long-recording memory nudge (~15 min) — Float32
+          // chunks live in memory; warn once per take.
+          const unsubscribe = engine.setMasterRecordingMemoryWarning(
+            15 * 60 * 1000,
+            () => showNotification(
+              "Long recording — browser memory may grow. Turn on Split, or stop and start a new take.",
+              "warning",
+            ),
+          );
+          await engine.startMasterRecording();
+          // Park the unsubscribe so we clean up on stop.
+          recMemUnsubRef.current = unsubscribe;
+        }
         trackEvent("recording/wav");
         setIsRec(true);
-        // Park the unsubscribe so we clean up on stop.
-        recMemUnsubRef.current = unsubscribe;
       } else {
         const result = await engine.stopMasterRecording();
         recMemUnsubRef.current?.();
         recMemUnsubRef.current = null;
         setIsRec(false);
-        if (result) {
+        if (recSplit) {
+          // All audio was downloaded as parts via onSegment (including
+          // the trailing piece). Nothing left to save here.
+          showNotification("Recording saved as parts.", "info");
+        } else if (result) {
           const filename = buildWavFilename(
             sceneManager.shareInitialName,
             new Date(),
             `${headerTonic}${headerOctave}`,
             sceneManager.currentPresetName,
           );
-          const blob = new Blob([result.wav], { type: "audio/wav" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+          downloadWavBlob(result.wav, filename);
           showNotification(
             `WAV saved — ${formatDurationMs(result.durationMs)}`,
             "info",
@@ -1251,6 +1290,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         recordingTitle={recordingTitle}
         recTimeMs={recTimeMs}
         onToggleRec={handleToggleRec}
+        recSplitEnabled={recSplit}
+        onToggleRecSplit={() => setRecSplit((s) => !s)}
         loopLengthSec={loopLengthSec}
         onLoopLengthChange={setLoopLengthSec}
         loopBusy={loopBusy}
