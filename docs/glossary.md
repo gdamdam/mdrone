@@ -93,7 +93,7 @@ A reference for every musical, acoustic, DSP, and tuning term that appears in th
 - **Harmonic series** — The natural overtone series (1, 2, 3, 4, 5… × fundamental). The acoustic basis of timbre and many tunings.
 - **Relation preset** — The set of intervals layered above the tonic (unison / fifth / fourth / minor triad / drone triad / harmonic stack).
 - **Detune (±25 ¢)** — Per-interval fine-pitch offset, retuned live.
-- **ATTUNE / GOOD DRONE** — Guided-randomize of tuning + relation + ±2–5 ¢ detune.
+- **ATTUNE** — Guided-randomize of tuning + relation + ±2–5 ¢ detune.
 - **Scale Editor** — Author your own 13-degree cents table.
 
 ---
