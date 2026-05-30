@@ -1,0 +1,62 @@
+name: Audio burn-in
+
+# Long-hold audio stability burn-in. Holds a heavy preset for several
+# minutes of real browser time and asserts no underruns, no NaN/error
+# spew, and no runaway adaptive-stability escalation — the slow drift
+# that the fast PR smoke (e2e/smoke.spec.ts) can't catch.
+#
+# Opt-in spec (e2e/audio-longhold.spec.ts skips unless MDRONE_LONG_HOLD=1),
+# so it never slows the PR path. Runs weekly and on demand.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      hold_ms:
+        description: "Hold duration in milliseconds"
+        required: false
+        default: "600000"
+      preset:
+        description: "Preset name to burn in"
+        required: false
+        default: "High Shimmer"
+
+jobs:
+  burn-in:
+    name: long-hold burn-in (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # Builds the worklet bundles into public/ that the dev server serves.
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright (chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: Long-hold burn-in
+        env:
+          MDRONE_LONG_HOLD: "1"
+          LONG_HOLD_MS: ${{ github.event.inputs.hold_ms || '600000' }}
+          MDRONE_LONG_HOLD_PRESET: ${{ github.event.inputs.preset || 'High Shimmer' }}
+        run: npx playwright test --project=chromium e2e/audio-longhold.spec.ts
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: burn-in-report
+          path: playwright-report/
+          retention-days: 14
