@@ -125,3 +125,26 @@ describe("MasterRecorder stop without worklet ack", () => {
     expect(rec.isRecording()).toBe(false);
   });
 });
+
+// --- MasterRecorder: dispose tears down an active capture -----------------
+
+describe("MasterRecorder dispose", () => {
+  it("synchronously tears down an active capture and is idempotent", async () => {
+    const { MasterRecorder } = await import("../../src/engine/MasterRecorder");
+
+    const ctx = makeCtx(48_000);
+    nodeBehavior = { framesOnStart: 4800, doneOnStop: false };
+    const tap = { connect: vi.fn(), disconnect: vi.fn() } as any;
+    const rec = new MasterRecorder(ctx, tap);
+
+    await rec.start();
+    expect(rec.isRecording()).toBe(true);
+
+    rec.dispose();
+    expect(rec.isRecording()).toBe(false);
+    expect(tap.disconnect).toHaveBeenCalled();
+
+    // Teardown on an already-disposed recorder must not throw.
+    expect(() => rec.dispose()).not.toThrow();
+  });
+});

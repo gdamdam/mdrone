@@ -292,6 +292,28 @@ export class MasterRecorder {
     ]);
   }
 
+  /** Best-effort synchronous teardown for engine disposal (HMR /
+   *  re-creation). Unlike cancel() this does not await the worklet
+   *  "done" — it just stops the tap, disconnects, and drops buffers so
+   *  no node or Float32 backlog outlives the recorder. Idempotent. */
+  dispose(): void {
+    const node = this.recorderNode;
+    if (node) {
+      try { node.port.postMessage({ type: "stop" }); } catch { /* ok */ }
+      try { node.port.onmessage = null; } catch { /* ok */ }
+      try { this.tapNode.disconnect(node); } catch { /* ok */ }
+    }
+    this.recorderNode = null;
+    this.capturing = false;
+    this.donePromise = null;
+    this.chunksL = [];
+    this.chunksR = [];
+    this.totalFrames = 0;
+    this.segmentStartFrame = 0;
+    this.segmentIndex = 1;
+    this.onSegment = null;
+  }
+
   private finalizeSegment(): void {
     const startFrame = this.segmentStartFrame;
     const endFrame = this.totalFrames;

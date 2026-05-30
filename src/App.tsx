@@ -24,6 +24,16 @@ function getEngine(): AudioEngine {
   return globalEngine;
 }
 
+// Dev-only: on hot reload of this module, tear the engine down before a
+// fresh one is created so we don't stack parallel AudioContexts, timers,
+// and document/window listeners across reloads.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    globalEngine?.dispose();
+    globalEngine = null;
+  });
+}
+
 type SharedSceneState =
   | { status: "loading" }
   | { status: "ready"; scene: PortableScene | null };

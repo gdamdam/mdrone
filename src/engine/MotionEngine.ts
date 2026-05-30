@@ -163,6 +163,15 @@ export class MotionEngine {
 
   getEvolve(): number { return this.evolveAmount; }
 
+  /** Stop the JS-side evolve loop. Called on engine disposal so the
+   *  setInterval doesn't keep stepping a closed/replaced context. */
+  dispose(): void {
+    if (this.evolveInterval != null) {
+      window.clearInterval(this.evolveInterval);
+      this.evolveInterval = null;
+    }
+  }
+
   /** Re-seed the evolve PRNG so subsequent walk steps are
    *  deterministic. Called from applyDroneSnapshot with the scene's
    *  stored seed so reloads reproduce the same long-form trajectory. */

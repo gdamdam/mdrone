@@ -46,6 +46,10 @@ export class AudioEngine {
   private readonly liveSafe: LiveSafeMode;
   private isWorkletReady = false;
   private pendingStart: { freq: number; intervalsCents: number[] } | null = null;
+  /** Removers for document/window/context listeners, run on dispose()
+   *  so a replaced engine (HMR / re-creation) doesn't stack handlers. */
+  private readonly teardown: Array<() => void> = [];
+  private disposed = false;
 
   constructor() {
     const AC =
@@ -76,9 +80,9 @@ export class AudioEngine {
       outputLatencyMs: Math.round((this.ctx.outputLatency ?? 0) * 1000),
       state: this.ctx.state,
     });
-    this.ctx.addEventListener("statechange", () => {
-      trace("ctxState", { state: this.ctx.state });
-    });
+    const onTraceState = () => { trace("ctxState", { state: this.ctx.state }); };
+    this.ctx.addEventListener("statechange", onTraceState);
+    this.teardown.push(() => this.ctx.removeEventListener("statechange", onTraceState));
     this.loadMonitor = new AudioLoadMonitor(this.ctx);
     wireTraceToLoadMonitor(this.loadMonitor);
 
@@ -193,15 +197,21 @@ export class AudioEngine {
           .finally(() => { resumeInFlight = false; });
       }
     };
-    document.addEventListener("visibilitychange", () => {
+    const onVisibility = () => {
       if (document.visibilityState === "visible") tryResume();
-    });
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pageshow", tryResume);
     // Some browsers (Firefox during long idle holds, iOS during audio
     // session interruptions) flip the context to suspended/interrupted
     // without a corresponding visibility change. Listen for the lifecycle
     // event itself so we don't depend on the page being re-shown.
     this.ctx.addEventListener("statechange", tryResume);
+    this.teardown.push(
+      () => document.removeEventListener("visibilitychange", onVisibility),
+      () => window.removeEventListener("pageshow", tryResume),
+      () => this.ctx.removeEventListener("statechange", tryResume),
+    );
 
     if (typeof this.ctx.audioWorklet === "undefined") {
       // AudioWorklet shipped in Chrome 66 / Firefox 76 / Safari 14.1.
@@ -886,6 +896,26 @@ export class AudioEngine {
   }
 
   getLoadMonitor(): AudioLoadMonitor { return this.loadMonitor; }
+
+  /** Release all long-lived resources: document/window/context event
+   *  listeners, the load-monitor and motion-evolve intervals, the
+   *  adaptive-stability subscription, any active recording tap, and the
+   *  AudioContext itself. The engine is a module-scoped singleton in
+   *  production, so this is primarily a guard against dev HMR (and any
+   *  future multi-instance use) stacking parallel contexts/timers.
+   *  Idempotent. */
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    for (const fn of this.teardown.splice(0)) {
+      try { fn(); } catch { /* best-effort teardown */ }
+    }
+    this.loadMonitor.dispose();
+    this.adaptiveStability.dispose();
+    this.motionEngine.dispose();
+    this.masterRecorder.dispose();
+    void this.ctx.close().catch(() => { /* already closed */ });
+  }
 
   /** Current adaptive stability state — what the runtime mitigation
    *  controller has temporarily overridden, if anything. */
