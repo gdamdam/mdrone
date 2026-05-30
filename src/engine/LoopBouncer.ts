@@ -198,30 +198,37 @@ export class LoopBouncer {
       throw new BounceCancelledError();
     }
 
-    onProgress?.({ elapsedSec: totalSec, totalSec, phase: "encoding" });
+    // Post-process can throw — concat/resize allocate two Float32 buffers
+    // of totalFrames (≈200 MB peak for a 600 s loop) and encodeWav24 can
+    // OOM. If any of it throws, `running` must still clear or every later
+    // bounce is rejected with "already in progress" until reload.
+    try {
+      onProgress?.({ elapsedSec: totalSec, totalSec, phase: "encoding" });
 
-    // Flatten chunks and render the loop.
-    const rawL = concat(chunksL, captured);
-    const rawR = concat(chunksR, captured);
+      // Flatten chunks and render the loop.
+      const rawL = concat(chunksL, captured);
+      const rawR = concat(chunksR, captured);
 
-    // Trim to exact expected frame count, or pad with silence if
-    // the tap produced slightly fewer samples (very unlikely but
-    // possible at shutdown).
-    const left = resize(rawL, totalFrames);
-    const right = resize(rawR, totalFrames);
+      // Trim to exact expected frame count, or pad with silence if
+      // the tap produced slightly fewer samples (very unlikely but
+      // possible at shutdown).
+      const left = resize(rawL, totalFrames);
+      const right = resize(rawR, totalFrames);
 
-    const outL = new Float32Array(loopFrames);
-    const outR = new Float32Array(loopFrames);
-    crossfadeIntoOutput(left, right, outL, outR, loopFrames, fadeFrames);
+      const outL = new Float32Array(loopFrames);
+      const outR = new Float32Array(loopFrames);
+      crossfadeIntoOutput(left, right, outL, outR, loopFrames, fadeFrames);
 
-    const wav = encodeWav24(outL, outR, sampleRate, {
-      loopPoints: { start: 0, end: loopFrames - 1 },
-    });
+      const wav = encodeWav24(outL, outR, sampleRate, {
+        loopPoints: { start: 0, end: loopFrames - 1 },
+      });
 
-    this.running = false;
-    onProgress?.({ elapsedSec: totalSec, totalSec, phase: "done" });
+      onProgress?.({ elapsedSec: totalSec, totalSec, phase: "done" });
 
-    return { wav, lengthSec, sampleRate };
+      return { wav, lengthSec, sampleRate };
+    } finally {
+      this.running = false;
+    }
   }
 }
 

@@ -48,6 +48,13 @@ export interface MasterRecorderStartOptions {
  *  issue on typical browsers. Surfaced as UI guidance and as the
  *  default segment length when the user opts in. */
 export const RECOMMENDED_MAX_TAKE_MINUTES = 30;
+
+/** Max time to wait for the tap worklet's "done" acknowledgement on
+ *  stop/cancel. The worklet posts "done" promptly in the normal case;
+ *  this only bites on abnormal teardown (node GC'd, context killed
+ *  mid-stop), where without a ceiling stop() would await forever and
+ *  leave the UI stuck in a recording state. */
+const DONE_ACK_TIMEOUT_MS = 2000;
 export const SEGMENT_FILENAME_PAD = 2;
 
 /** Helper for recording UIs — produce `pt01`, `pt02`, … filenames
@@ -198,7 +205,7 @@ export class MasterRecorder {
     this.capturing = false;
 
     node.port.postMessage({ type: "stop" });
-    await this.donePromise;
+    await this.awaitDoneAck();
 
     try { this.tapNode.disconnect(node); } catch { /* ok */ }
     this.recorderNode = null;
@@ -261,7 +268,7 @@ export class MasterRecorder {
     if (!node || !this.capturing) return;
     this.capturing = false;
     node.port.postMessage({ type: "stop" });
-    try { await this.donePromise; } catch { /* swallow */ }
+    await this.awaitDoneAck();
     try { this.tapNode.disconnect(node); } catch { /* ok */ }
     this.recorderNode = null;
     this.chunksL = [];
@@ -270,6 +277,19 @@ export class MasterRecorder {
     this.segmentStartFrame = 0;
     this.segmentIndex = 1;
     this.onSegment = null;
+  }
+
+  /** Await the worklet's "done" message, but never longer than
+   *  DONE_ACK_TIMEOUT_MS. The done promise only ever resolves, so the
+   *  race resolves cleanly; the timeout is purely a hang guard for
+   *  abnormal teardown where "done" never arrives. */
+  private async awaitDoneAck(): Promise<void> {
+    const done = this.donePromise;
+    if (!done) return;
+    await Promise.race([
+      done,
+      new Promise<void>((resolve) => { window.setTimeout(resolve, DONE_ACK_TIMEOUT_MS); }),
+    ]);
   }
 
   private finalizeSegment(): void {

@@ -178,9 +178,19 @@ export class AudioEngine {
     // require a user gesture (the HOLD tap then provides one). Also
     // listen for `pageshow` because iOS sometimes fires that without
     // visibilitychange when restoring from the back-forward cache.
+    // Reentrancy guard: resume() itself emits a `statechange`, and we
+    // listen for `statechange` below. Without this flag a context stuck
+    // in suspended/interrupted (iOS audio-session interruption with no
+    // user gesture) would churn resume→statechange→resume tightly. Skip
+    // while a resume() is already settling.
+    let resumeInFlight = false;
     const tryResume = () => {
+      if (resumeInFlight) return;
       if (this.ctx.state !== "running") {
-        this.ctx.resume().catch(() => { /* user gesture may be needed */ });
+        resumeInFlight = true;
+        this.ctx.resume()
+          .catch(() => { /* user gesture may be needed */ })
+          .finally(() => { resumeInFlight = false; });
       }
     };
     document.addEventListener("visibilitychange", () => {
