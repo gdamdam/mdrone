@@ -74,11 +74,13 @@ function esc(s: string): string {
  *             short URL (skipped if `?nc` is present, e.g. dashboard links).
  */
 
-async function listShortKeys(env: Env, prefix?: string): Promise<{ name: string }[]> {
-  const out: { name: string }[] = [];
+interface ShortKey { name: string; metadata?: { createdAt?: number } | null }
+
+async function listShortKeys(env: Env, prefix?: string): Promise<ShortKey[]> {
+  const out: ShortKey[] = [];
   let cursor: string | undefined;
   do {
-    const page: { keys: { name: string }[]; list_complete: boolean; cursor?: string } =
+    const page: { keys: ShortKey[]; list_complete: boolean; cursor?: string } =
       await env.SHORT.list({ prefix, cursor, limit: 1000 });
     out.push(...page.keys);
     cursor = page.list_complete ? undefined : page.cursor;
@@ -108,7 +110,7 @@ async function handleTrack(request: Request, env: Env, ctx: ExecutionContext): P
   }
 }
 
-interface StatRow { id: string; shares: number; plays: number; }
+interface StatRow { id: string; shares: number; plays: number; createdAt: number | null; }
 interface StatsPayload {
   rows: StatRow[];
   totals: { shares: number; plays: number };
@@ -117,16 +119,20 @@ interface StatsPayload {
 
 async function collectStats(env: Env): Promise<StatsPayload> {
   const keys = await listShortKeys(env);
-  const ids = new Set<string>();
-  for (const { name } of keys) {
-    if (name.startsWith("u:")) ids.add(name.slice(2));
+  const createdById = new Map<string, number | null>();
+  for (const k of keys) {
+    if (k.name.startsWith("u:")) {
+      const id = k.name.slice(2);
+      const ts = k.metadata?.createdAt;
+      createdById.set(id, typeof ts === "number" ? ts : null);
+    }
   }
-  const rows = await Promise.all([...ids].map(async (id) => {
+  const rows = await Promise.all([...createdById.keys()].map(async (id) => {
     const [shares, plays] = await Promise.all([
       env.SHORT.get(`sc:${id}`).then((v) => parseInt(v || "0", 10)),
       env.SHORT.get(`pc:${id}`).then((v) => parseInt(v || "0", 10)),
     ]);
-    return { id, shares, plays };
+    return { id, shares, plays, createdAt: createdById.get(id) ?? null };
   }));
   rows.sort((a, b) => (b.shares + b.plays) - (a.shares + a.plays));
   const totals = rows.reduce(
@@ -231,8 +237,13 @@ async function handleDashboard(env: Env): Promise<Response> {
 
   const rows = data.rows.map((r) => {
     const total = r.shares + r.plays;
+    const createdLabel = r.createdAt
+      ? new Date(r.createdAt).toISOString().slice(0, 10)
+      : "—";
+    const createdVal = r.createdAt ?? 0;
     return `<tr>
       <td><a href="https://s.mdrone.org/${esc(r.id)}?nc" target="_blank" rel="noopener">${esc(r.id)}</a></td>
+      <td data-val="${createdVal}">${createdLabel}</td>
       <td data-val="${r.plays}">${r.plays}</td>
       <td data-val="${r.shares}">${r.shares}</td>
       <td data-val="${total}">${total}</td>
@@ -258,9 +269,10 @@ ${data.count === 0
 <table id="data-table">
   <thead><tr>
     <th data-col="0">ID</th>
-    <th data-col="1">Plays</th>
-    <th data-col="2">Shares</th>
-    <th data-col="3">Total</th>
+    <th data-col="1">Created</th>
+    <th data-col="2">Plays</th>
+    <th data-col="3">Shares</th>
+    <th data-col="4">Total</th>
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>`}
@@ -323,7 +335,7 @@ async function handleShorten(request: Request, env: Env): Promise<Response> {
     }
 
     await Promise.all([
-      env.SHORT.put(`u:${id}`, target),
+      env.SHORT.put(`u:${id}`, target, { metadata: { createdAt: Date.now() } }),
       env.SHORT.put(`h:${hashHex}`, id),
     ]);
     return new Response(
