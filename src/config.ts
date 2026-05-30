@@ -49,6 +49,12 @@ export const STORAGE_KEYS = {
    *  DRIFTING / JOURNEY status line shows under the VU meter. Off by
    *  default to keep the surface calm. */
   evolutionIndicator: "mdrone-evolution-indicator",
+  /** UI label mode — "plain" shows always-visible plain-language
+   *  captions under the coined primary controls (HOLD / WEATHER / RND /
+   *  ATTUNE / MUTATE) so first-time and touch users (no hover tooltips)
+   *  can read what each does; "poetic" hides them for the spare look.
+   *  Default plain. See src/labelMode.ts. */
+  labelMode: "mdrone-label-mode",
 } as const;
 
 export type WeatherVisual = "waveform" | "flow" | "minimal";

@@ -5,10 +5,12 @@ import "./styles/tutorial.css";
 import { App } from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PALETTES, applyPalette, loadPaletteId } from "./themes";
+import { applyLabelMode, loadLabelMode } from "./labelMode";
 import { registerServiceWorker } from "./swRegister";
 
 const palette = PALETTES.find((item) => item.id === loadPaletteId());
 if (palette) applyPalette(palette);
+applyLabelMode(loadLabelMode());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

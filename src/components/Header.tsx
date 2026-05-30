@@ -13,6 +13,7 @@ import {
   type MidiTemplates,
 } from "../engine/midiMapping";
 import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } from "../themes";
+import { loadLabelMode, saveLabelMode, applyLabelMode, type LabelMode } from "../labelMode";
 import { enableLinkBridge, onLinkState, getLinkState, type LinkState } from "../engine/linkBridge";
 import type { AudioLoadMonitor } from "../engine/AudioLoadMonitor";
 import { CpuWarning } from "./CpuWarning";
@@ -395,6 +396,13 @@ export function Header({
     setPaletteId(id);
   };
 
+  const [labelMode, setLabelMode] = useState<LabelMode>(() => loadLabelMode());
+  const handlePickLabelMode = (mode: LabelMode) => {
+    applyLabelMode(mode);
+    saveLabelMode(mode);
+    setLabelMode(mode);
+  };
+
   // Ableton Link (via the mpump Link Bridge companion app). Auto-
   // detect runs once on page load; this toggle forces explicit
   // enable with retries so the user can start the bridge at any
@@ -539,6 +547,7 @@ export function Header({
         >
           <span className="header-btn-label-full">RND</span>
           <span className="header-btn-label-glyph" aria-hidden="true">RND</span>
+          <span className="ctrl-caption" aria-hidden="true">new scene</span>
         </button>
         {rndArrivalRemaining && rndArrivalRemaining > 0 ? (
           <span
@@ -572,6 +581,7 @@ export function Header({
         >
           <span className="header-hold-label">{holding ? "■ HOLDING" : "▶ HOLD"}</span>
           <span className="header-hold-sub">{tonic}{octave}</span>
+          <span className="ctrl-caption ctrl-caption-hold" aria-hidden="true">play / stop</span>
           <span className="header-hold-glyph" aria-hidden="true">
             {holding ? "■" : "▶"}
           </span>
@@ -1220,6 +1230,26 @@ export function Header({
                     onClick={() => onChangeWeatherVisual(v)}
                   >
                     {v === "waveform" ? "WAVEFORM" : v === "flow" ? "FLOW FIELD" : "MINIMAL"}
+                  </button>
+                ))}
+              </div>
+
+              <div className="fx-modal-divider" />
+              <div className="fx-modal-section-label">LABELS</div>
+              <div className="share-style-row" role="radiogroup" aria-label="Control labels">
+                {(["plain", "poetic"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={labelMode === m}
+                    className={labelMode === m ? "share-style-btn share-style-btn-active" : "share-style-btn"}
+                    onClick={() => handlePickLabelMode(m)}
+                    title={m === "plain"
+                      ? "Show plain-language captions under HOLD / WEATHER / RND / ATTUNE / MUTATE"
+                      : "Hide captions for the spare, poetic look"}
+                  >
+                    {m === "plain" ? "PLAIN" : "POETIC"}
                   </button>
                 ))}
               </div>

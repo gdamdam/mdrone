@@ -963,6 +963,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   }
   .preset-strip-identity .preset-mut-btn-label { display: none; }
   .preset-strip-identity .preset-mut-btn-icon { display: inline-block; }
+  .preset-strip-identity .ctrl-caption { display: none; }
   /* PARTNER / JOURNEY dropdowns sit on the second row at ~33% each
      so they fit alongside XFADE without further wrapping. */
   .preset-strip-identity .preset-strip-action-select {
@@ -1086,6 +1087,39 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 .preset-mut-btn:active {
   background: color-mix(in srgb, var(--preview) 25%, var(--bg-cell));
 }
+
+/* ── Plain-language captions on coined primary controls ───────────────
+   Always-visible function labels under HOLD / WEATHER / RND / ATTUNE /
+   MUTATE so first-time and touch users (no hover tooltips) can read what
+   each does. Shown in the default "plain" label mode; hidden when the
+   user picks "poetic" (Settings → Appearance → LABELS). Driven by
+   data-labels on <html> so the caption markup stays static — no React
+   prop-drilling. aria-hidden on each span; the buttons already carry
+   full aria-labels, so this is purely a visual affordance. */
+.ctrl-caption {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1.1;
+  letter-spacing: 0.03em;
+  font-weight: 400;
+  text-transform: none;
+  text-align: center;
+  color: var(--text-dim);
+  opacity: 0.72;
+  pointer-events: none;
+}
+/* WEATHER — sits inline beside the title rather than stacking. */
+.ctrl-caption-inline {
+  display: inline-block;
+  margin: 0 0 0 6px;
+  text-align: left;
+}
+/* HOLD — compact inline-flex row; wrap the caption onto its own line. */
+.header-hold-btn { flex-wrap: wrap; }
+.ctrl-caption-hold { flex-basis: 100%; margin-top: 1px; }
+/* Poetic mode hides every caption. */
+:root[data-labels="poetic"] .ctrl-caption { display: none; }
 /* ATTUNE hero — the "make it beautiful" affordance gets visual primacy
    over the neighbouring chips so the eye lands on the one-click path to
    a good-sounding tuning. Filled accent vs the plain MUTATE/state chips. */
@@ -3073,6 +3107,7 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   .header-hold-label,
   .header-hold-sub   { display: none; }
   .header-hold-glyph { display: inline; }
+  .ctrl-caption-hold { display: none; }
   .header-btn-random { min-width: auto; padding: 4px 8px; font-size: 14px; line-height: 1; }
   .header-btn-record { min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }
   .header-btn-share  { min-width: 30px; padding: 4px 6px; font-size: 14px; line-height: 1; }

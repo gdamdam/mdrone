@@ -1291,6 +1291,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             >
               <span className="preset-mut-btn-label">ATTUNE</span>
               <span className="preset-mut-btn-icon" aria-hidden="true">✦</span>
+              <span className="ctrl-caption" aria-hidden="true">new tuning</span>
             </button>
             <button
               type="button"
@@ -1302,6 +1303,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             >
               <span className="preset-mut-btn-label">MUTATE</span>
               <span className="preset-mut-btn-icon" aria-hidden="true">↯</span>
+              <span className="ctrl-caption" aria-hidden="true">nudge sound</span>
             </button>
           </div>
           <div className="preset-strip-actions-state">

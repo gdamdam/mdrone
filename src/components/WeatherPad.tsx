@@ -276,6 +276,7 @@ export function WeatherPad({
     >
       <div className="weather-header">
         <span className={`weather-title${intro ? " weather-title-intro" : ""}`}>WEATHER</span>
+        <span className="ctrl-caption ctrl-caption-inline" aria-hidden="true">brightness &amp; motion</span>
         <span className={`weather-hint${intro ? " weather-hint-intro" : ""}`}>drag to change the room</span>
       </div>
       {arriveCallout}
