@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.26.1 — 2026-05-31
+
+- fix(seo): remove cloaking router, fix root canonical, add homepage to sitemap, keyword-optimize about.html (adebf32)
+
 ## 1.26.0 — 2026-05-31
 
 - fix: granular seam (#4), plate decay symmetry (#7); harden share worker — size cap (#2), rate limit (#3), first worker tests (#5) (e5fbf37)
