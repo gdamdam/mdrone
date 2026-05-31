@@ -227,8 +227,11 @@ class DattorroPlateProcessor extends AudioWorkletProcessor {
       const mod1 = Math.sin(this.lfoPhase1) * modDepth;
       const mod2 = Math.sin(this.lfoPhase2) * modDepth;
 
-      // Left tank side — input + cross feedback from right
-      let sig = x + this.crossR * decay + DENORM;
+      // Left tank side — input + cross feedback from right.
+      // crossR is already stored pre-multiplied by `decay` (see crossR =
+      // d * decay below), matching crossL on the right side. Don't apply
+      // decay a second time here or the figure-8 tank goes asymmetric.
+      let sig = x + this.crossR + DENORM;
 
       // Modulated allpass 1
       {
@@ -1091,9 +1094,12 @@ class FxGranularProcessor extends AudioWorkletProcessor {
         // Read sample at g.pos with linear interpolation
         const idx = g.pos;
         const i0 = Math.floor(idx);
-        const i1 = (i0 + 1) % this.bufLen;
         const frac = idx - i0;
+        // Wrap i0 into range first, then derive the +1 neighbour from the
+        // wrapped index. Deriving i1 from the unwrapped i0 made the pair
+        // non-adjacent at the ring-buffer seam (read a stale slot → click).
         const i0Wrapped = ((i0 % this.bufLen) + this.bufLen) % this.bufLen;
+        const i1 = (i0Wrapped + 1) % this.bufLen;
         const sampleL = this.bufL[i0Wrapped] * (1 - frac) + this.bufL[i1] * frac;
         const sampleR = this.bufR[i0Wrapped] * (1 - frac) + this.bufR[i1] * frac;
 

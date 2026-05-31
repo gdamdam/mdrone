@@ -1,7 +1,7 @@
 {
   "name": "mdrone",
   "version": "1.25.2",
-  "description": "A browser drone machine for long-form listening and live performance.",
+  "description": "A microtonal drone instrument in your browser.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {

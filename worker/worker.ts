@@ -37,6 +37,48 @@ const CORS = {
 
 const ID_RE = /^[a-z0-9]{6}$/;
 
+// Max accepted `target` length for POST /shorten, in UTF-8 bytes.
+//
+// The stored value is a full `https://s.mdrone.org/?z=<payload>` URL. A heavy
+// but legitimate share (full scene + a multi-minute gesture recording, whose
+// `motion` array is a flat [t_ms, paramId, value, …] tuple list, + a custom
+// tuning table) deflates+base64s to a few KB at the high end. 32 KB leaves
+// ~8–16x headroom over the worst realistic case while bounding KB-scale abuse,
+// and stays far under Cloudflare KV's per-value limit.
+const MAX_TARGET_BYTES = 32 * 1024;
+
+// Best-effort per-IP throttle for the write endpoints (/shorten, /track).
+// Counters live in KV keyed per-IP per fixed time window with a short TTL;
+// races are tolerable since the counts are cosmetic abuse-dampers, not a
+// security boundary. Window resets every RATE_WINDOW_SEC.
+const RATE_LIMIT_MAX = 30; // requests per window per IP
+const RATE_WINDOW_SEC = 60;
+
+/**
+ * Returns a 429 Response if this IP has exceeded RATE_LIMIT_MAX requests in the
+ * current RATE_WINDOW_SEC window, otherwise null (and bumps the counter).
+ * Best-effort: missing IP or KV errors fail open so legitimate traffic is never
+ * blocked by the limiter itself.
+ */
+async function rateLimited(request: Request, env: Env, ctx: ExecutionContext): Promise<Response | null> {
+  const ip = request.headers.get("cf-connecting-ip");
+  if (!ip) return null; // can't key it — fail open
+  const window = Math.floor(Date.now() / 1000 / RATE_WINDOW_SEC);
+  const key = `rl:${ip}:${window}`;
+  try {
+    const cur = parseInt((await env.SHORT.get(key)) || "0", 10);
+    if (cur >= RATE_LIMIT_MAX) {
+      return new Response(JSON.stringify({ error: "Too many requests" }), {
+        status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(RATE_WINDOW_SEC), ...CORS },
+      });
+    }
+    ctx.waitUntil(env.SHORT.put(key, String(cur + 1), { expirationTtl: RATE_WINDOW_SEC * 2 }));
+  } catch {
+    return null; // KV hiccup — fail open
+  }
+  return null;
+}
+
 // User-agents we treat as link-preview crawlers — excluded from play counts
 // so a Slack/Signal/iMessage unfurl doesn't inflate `pc:`.
 const BOT_RE = /bot|crawl|spider|preview|fetch|slack|discord|telegram|whatsapp|facebook|twitter|linkedin|signal|mastodon|bluesky|cardyb|okhttp|cfnetwork/i;
@@ -312,6 +354,13 @@ async function handleShorten(request: Request, env: Env): Promise<Response> {
         status: 400, headers: { "Content-Type": "application/json", ...CORS },
       });
     }
+    // Cap stored target size (see MAX_TARGET_BYTES). Measured in UTF-8 bytes
+    // so multi-byte payloads can't slip past a char-count check.
+    if (new TextEncoder().encode(target).length > MAX_TARGET_BYTES) {
+      return new Response(JSON.stringify({ error: "URL too large" }), {
+        status: 413, headers: { "Content-Type": "application/json", ...CORS },
+      });
+    }
 
     const hashHex = await sha256Hex(target);
     const existing = await env.SHORT.get(`h:${hashHex}`);
@@ -368,10 +417,14 @@ async function handleRequest(
   }
 
   if (url.pathname === "/shorten" && request.method === "POST") {
+    const limited = await rateLimited(request, env, ctx);
+    if (limited) return limited;
     return handleShorten(request, env);
   }
 
   if (url.pathname === "/track" && request.method === "POST") {
+    const limited = await rateLimited(request, env, ctx);
+    if (limited) return limited;
     return handleTrack(request, env, ctx);
   }
 
