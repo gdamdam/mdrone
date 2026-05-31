@@ -1,25 +1,21 @@
 /**
  * Root-route redirect logic for the static index.html stub.
  *
- * The live site ships a minimal index.html whose only job is to route
- * visitors to either about.html (search engines + crawlers + social
- * preview bots) or app.html (everyone else), while faithfully
- * forwarding the URL's search and hash so share payloads like /?z=...
- * survive the redirect.
+ * The live site ships a minimal index.html whose only job is to forward
+ * every visitor to app.html (the instrument), faithfully preserving the
+ * URL's search and hash so share payloads like /?z=... survive the
+ * redirect.
  *
- * Two signals send a visit to about.html:
- *   1. Referrer matches a known search engine — user clicked a result.
- *   2. User-Agent matches a known crawler / social preview bot —
- *      Googlebot, Bingbot, Twitterbot, etc. This is the SEO-critical
- *      path: Googlebot itself sends an empty referrer, so without UA
- *      detection it would route to app.html (the SPA shell) and never
- *      see the marketing landing meant to be indexed.
- *
- * Share payloads (?z= / ?b=) always go to app.html regardless of how
- * the visitor arrived — the link's purpose is to play that scene.
+ * NOTE: this stub deliberately does NOT vary its destination by referrer
+ * or User-Agent. An earlier version sent search engines and crawler UAs
+ * to about.html while sending humans to app.html — that is cloaking
+ * (serving Googlebot different content than users) and is against
+ * search-engine guidelines. Discoverability now relies on about.html
+ * being a standalone, indexed, keyword-optimised page that is linked
+ * from the app and listed in sitemap.xml — not on bot detection.
  *
  * Exports:
- *   routerDecision({ search, hash, referrer, userAgent }) → { target }
+ *   routerDecision({ search, hash }) → { target }
  *       Pure decision function. Unit-tested.
  *   ROUTER_INLINE_SCRIPT
  *       The <script> body embedded inside the generated index.html. Kept
@@ -27,38 +23,18 @@
  *       mirrored in both places (and is covered by the unit test).
  */
 
-const SEARCH_ENGINE_HOST_RE =
-  /^https?:\/\/([^/]+\.)?(google|bing|duckduckgo|yahoo|yandex|baidu|ecosia|brave|startpage|qwant|kagi)\./i;
-const SHARE_PARAM_RE = /[?&](z|b)=/;
-// Known indexing crawlers and social-unfurl bots. Conservative list —
-// the cost of a false positive is "this user lands on about.html
-// instead of app.html", which is the marketing splash they could have
-// reached via the About link anyway.
-const CRAWLER_UA_RE =
-  /Googlebot|Bingbot|DuckDuckBot|Slurp|YandexBot|Baiduspider|Applebot|facebookexternalhit|Twitterbot|LinkedInBot|Pinterestbot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|MastodonBot/i;
-
-function routerDecision({ search = "", hash = "", referrer = "", userAgent = "" } = {}) {
-  const hasShare = SHARE_PARAM_RE.test(search);
-  const fromSearch = SEARCH_ENGINE_HOST_RE.test(referrer);
-  const isCrawler = CRAWLER_UA_RE.test(userAgent);
-  const page = !hasShare && (fromSearch || isCrawler) ? "about.html" : "app.html";
-  return { target: page + search + hash };
+function routerDecision({ search = "", hash = "" } = {}) {
+  return { target: "app.html" + search + hash };
 }
 
-// Inline version embedded into the generated index.html. Uses a
-// doubly-escaped regex because this string is later injected into a
-// template literal — `\\/` reaches the browser as `\/`, a valid regex.
+// Inline version embedded into the generated index.html. Kept
+// behaviourally identical to routerDecision above (verified by the unit
+// test): forward search + hash to app.html, nothing else.
 const ROUTER_INLINE_SCRIPT =
   '(function(){' +
   'var s=location.search||"";' +
   'var h=location.hash||"";' +
-  'var hasShare=/[?&](z|b)=/.test(s);' +
-  'var r=document.referrer||"";' +
-  'var u=(navigator&&navigator.userAgent)||"";' +
-  'var fromSearch=/^https?:\\/\\/([^/]+\\.)?(google|bing|duckduckgo|yahoo|yandex|baidu|ecosia|brave|startpage|qwant|kagi)\\./i.test(r);' +
-  'var isCrawler=/Googlebot|Bingbot|DuckDuckBot|Slurp|YandexBot|Baiduspider|Applebot|facebookexternalhit|Twitterbot|LinkedInBot|Pinterestbot|WhatsApp|TelegramBot|Discordbot|SkypeUriPreview|MastodonBot/i.test(u);' +
-  'var target=(!hasShare&&(fromSearch||isCrawler))?"about.html":"app.html";' +
-  'location.replace(target+s+h);' +
+  'location.replace("app.html"+s+h);' +
   '})();';
 
 module.exports = { routerDecision, ROUTER_INLINE_SCRIPT };

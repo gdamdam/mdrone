@@ -3,8 +3,10 @@
  * Post-build script: landing page setup + version stamp.
  * Run after vite build via the "postbuild" npm lifecycle hook.
  *
- * Search-engine visitors (Google, Bing, etc.) see about.html.
- * Everyone else (direct links, bookmarks, shared URLs) sees app.html.
+ * The root index.html is a thin redirect stub that forwards every
+ * visitor (humans and crawlers alike — no bot detection, no cloaking)
+ * to app.html, preserving share payloads. about.html is the standalone,
+ * indexed landing page; sitemap.xml lists both `/` and `/about.html`.
  */
 const fs = require("fs");
 const path = require("path");
@@ -33,8 +35,8 @@ const JSON_LD = JSON.stringify({
   "image": `${CANONICAL_URL}/mdrone_screenshot.png`,
   "author": { "@type": "Person", "name": "gdamdam", "url": "https://github.com/gdamdam" }
 });
-fs.writeFileSync(path.join(dist, "index.html"), `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)</title><meta name="description" content="Free open-source browser drone instrument for iPhone, iPad, Android, and desktop. Layer voices, shape atmosphere, save scenes as links. No install, no account."><meta property="og:title" content="mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)"><meta property="og:description" content="Free browser drone instrument. Hold a note. Shape the air. Save the atmosphere. No install, no account."><meta property="og:url" content="${CANONICAL_URL}/"><meta property="og:type" content="website"><meta property="og:site_name" content="mdrone"><meta property="og:image" content="${CANONICAL_URL}/mdrone_screenshot.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)"><meta name="twitter:description" content="Free browser drone instrument. No install, no account."><meta name="twitter:image" content="${CANONICAL_URL}/mdrone_screenshot.png"><link rel="canonical" href="${CANONICAL_URL}/about.html"><script type="application/ld+json">${JSON_LD}</script><script>${ROUTER_INLINE_SCRIPT}</script></head><body><noscript><a href="about.html">mdrone — browser drone instrument</a></noscript></body></html>`);
-console.log("post-build: index.html → referrer-based router (about.html / app.html)");
+fs.writeFileSync(path.join(dist, "index.html"), `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)</title><meta name="description" content="Free open-source browser drone instrument for iPhone, iPad, Android, and desktop. Layer voices, shape atmosphere, save scenes as links. No install, no account."><meta property="og:title" content="mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)"><meta property="og:description" content="Free browser drone instrument. Hold a note. Shape the air. Save the atmosphere. No install, no account."><meta property="og:url" content="${CANONICAL_URL}/"><meta property="og:type" content="website"><meta property="og:site_name" content="mdrone"><meta property="og:image" content="${CANONICAL_URL}/mdrone_screenshot.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="mdrone — Browser Drone Instrument (iPhone, iPad, Desktop)"><meta name="twitter:description" content="Free browser drone instrument. No install, no account."><meta name="twitter:image" content="${CANONICAL_URL}/mdrone_screenshot.png"><link rel="canonical" href="${CANONICAL_URL}/"><script type="application/ld+json">${JSON_LD}</script><script>${ROUTER_INLINE_SCRIPT}</script></head><body><noscript>mdrone — a microtonal drone instrument in your browser. <a href="about.html">About mdrone</a> · <a href="app.html">Open the instrument</a></noscript></body></html>`);
+console.log("post-build: index.html → redirect stub (→ app.html, no bot detection)");
 
 // 2. Stamp version in landing page footer
 const landingPath = path.join(dist, "about.html");
@@ -55,4 +57,15 @@ if (fs.existsSync(swPath)) {
   sw = sw.replace(/__MDRONE_VERSION__/g, pkg.version);
   fs.writeFileSync(swPath, sw);
   console.log("post-build: sw.js stamped →", pkg.version);
+}
+
+// 4. Stamp the build date into sitemap.xml's `__BUILD_DATE__`
+// placeholders so every deploy advertises a fresh <lastmod> to crawlers.
+const sitemapPath = path.join(dist, "sitemap.xml");
+if (fs.existsSync(sitemapPath)) {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  let sitemap = fs.readFileSync(sitemapPath, "utf8");
+  sitemap = sitemap.replace(/__BUILD_DATE__/g, today);
+  fs.writeFileSync(sitemapPath, sitemap);
+  console.log("post-build: sitemap.xml lastmod →", today);
 }
