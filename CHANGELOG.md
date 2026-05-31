@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.26.0 — 2026-05-31
+
+- fix: granular seam (#4), plate decay symmetry (#7); harden share worker — size cap (#2), rate limit (#3), first worker tests (#5) (e5fbf37)
+
 ## 1.22.18 — 2026-05-03
 
 - fix: e2e session-sheet selectors track the 1.22.14 ◆ menu rename — `aria-label` "Open session sheet" → "Open session menu", popup role `dialog` → `menu`, and `EXPORT JSON` button label → `EXPORT` under a JSON section heading. The session-sheet round-trip spec was silently broken since 1.22.14; no production code change.
