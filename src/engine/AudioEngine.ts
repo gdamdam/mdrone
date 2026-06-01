@@ -7,6 +7,7 @@
  */
 
 import { AudioLoadMonitor } from "./AudioLoadMonitor";
+import { trackEvent } from "../analytics";
 import {
   AdaptiveStabilityEngine,
   type AdaptiveStabilityState,
@@ -155,7 +156,10 @@ export class AudioEngine {
       setEffect: (id, on) => this.fxChain.setEffect(id, on),
       getMaxVoiceLayers: () => this.voiceEngine.getMaxVoiceLayers(),
       setMaxVoiceLayers: (n) => this.voiceEngine.setMaxVoiceLayers(n),
-      notify: (msg, kind) => showNotification(msg, kind),
+      notify: (msg, kind) => {
+        showNotification(msg, kind);
+        if (/under load/i.test(msg)) trackEvent("audio/under-load");
+      },
       now: () => performance.now(),
     });
 

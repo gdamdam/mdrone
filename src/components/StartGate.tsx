@@ -3,6 +3,7 @@ import { APP_VERSION } from "../config";
 import { PALETTES, applyPalette } from "../themes";
 import { type AutosavedScene, resetAllLocalStorage } from "../session";
 import { DialogModal } from "./DialogModal";
+import { trackEvent } from "../analytics";
 
 const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀\n█ ▀ █ █▄▀ █▀▄ █▄█ █ ▀█ ██▄";
 
@@ -48,6 +49,7 @@ export function StartGate({ onStart, lastScene = null }: StartGateProps) {
       setError(null);
       try {
         await onStart(mode);
+        trackEvent("audio/start");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to start audio.");
         setStartingMode(null);

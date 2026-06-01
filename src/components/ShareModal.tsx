@@ -146,6 +146,7 @@ export function ShareModal({ initialName, onBuildShareData, onClose }: ShareModa
     if (ok) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
+      trackEvent("share/copy");
       if (shortInfo?.id) trackShare(shortInfo.id);
     } else {
       setError("Clipboard copy failed. You can still select the link manually.");

@@ -610,5 +610,33 @@
       · Also by gdamdam: <a href="https://mpump.live">mpump</a> · <a href="https://mloop.mpump.live">mloop</a>
     </footer>
   </main>
+  <script>
+    // GoatCounter — same site as the app, counted under the /about.html
+    // path so it shows as its own row in the Paths view. Mirrors the
+    // app shell's loader: skip localhost / file:// / offline (no dev
+    // noise, no self-counts), inject after load, fail silently.
+    (function () {
+      try {
+        var h = location.hostname;
+        if (
+          h === "localhost" ||
+          h === "127.0.0.1" ||
+          h === "0.0.0.0" ||
+          location.protocol === "file:" ||
+          navigator.onLine === false
+        ) return;
+        var inject = function () {
+          var s = document.createElement("script");
+          s.async = true;
+          s.src = "//gc.zgo.at/count.js";
+          s.setAttribute("data-goatcounter", "https://mdrone.goatcounter.com/count");
+          s.onerror = function () { /* silent */ };
+          document.body.appendChild(s);
+        };
+        if (document.readyState === "complete") inject();
+        else window.addEventListener("load", inject, { once: true });
+      } catch (_e) { /* silent */ }
+    })();
+  </script>
 </body>
 </html>

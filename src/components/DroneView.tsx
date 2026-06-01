@@ -17,6 +17,7 @@ const ScaleEditorModal = lazy(() =>
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { VoiceType } from "../engine/VoiceBuilder";
 import { PRESETS, ARRIVAL_PRESET_IDS, type PresetGroup } from "../engine/presets";
+import { trackEvent } from "../analytics";
 import { JOURNEYS, JOURNEY_IDS, type JourneyId } from "../journey";
 import { PARTNER_RELATIONS, type PartnerRelation } from "../partner";
 import { VuMeter } from "./VuMeter";
@@ -2303,7 +2304,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   <DropdownSelect
                     value={state.tuningId ?? ""}
                     options={TUNINGS.map((t) => ({ value: t.id, label: t.label }))}
-                    onChange={(v) => setTuning(v === "" ? null : v as typeof state.tuningId)}
+                    onChange={(v) => { setTuning(v === "" ? null : v as typeof state.tuningId); trackEvent("tuning/change"); }}
                     className="intonation-select"
                     title="Tuning system — pitch degrees in cents above the root"
                   />
