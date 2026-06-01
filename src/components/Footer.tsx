@@ -65,6 +65,26 @@ export function Footer() {
           No cookies · No personal data
         </button>
       </div>
+      <div style={{ marginTop: 4 }}>
+        Also by gdamdam:{" "}
+        <a
+          href="https://mpump.live"
+          target="_blank"
+          rel="noopener"
+          style={{ color: "var(--text-dim)", textDecoration: "none" }}
+        >
+          mpump
+        </a>
+        {" · "}
+        <a
+          href="https://mloop.mpump.live"
+          target="_blank"
+          rel="noopener"
+          style={{ color: "var(--text-dim)", textDecoration: "none" }}
+        >
+          mloop
+        </a>
+      </div>
       {privacyOpen && <PrivacyModal onClose={() => setPrivacyOpen(false)} />}
     </footer>
   );
