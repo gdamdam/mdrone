@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.26.2 — 2026-06-01
+
+- fix(seo): cross-link sibling products (mpump, mloop) in footer (d584976)
+
 ## 1.26.1 — 2026-05-31
 
 - fix(seo): remove cloaking router, fix root canonical, add homepage to sitemap, keyword-optimize about.html (adebf32)
