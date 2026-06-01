@@ -2,6 +2,12 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.26.4 — 2026-06-01
+
+- feat(analytics): count about.html pageviews + track 4 events (f0d1a5a)
+- chore: untrack docs/ and gitignore it (keep repo code-only; docs kept locally) (8725c8c)
+- chore: remove docs/SEO-AUDIT.md (keep SEO/launch notes out of the repo) (7d0a1db)
+
 ## 1.26.3 — 2026-06-01
 
 - feat(seo): add sibling-app links (mpump, mloop) to in-app footer (47a4784)
