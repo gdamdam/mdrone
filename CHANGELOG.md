@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.26.3 — 2026-06-01
+
+- feat(seo): add sibling-app links (mpump, mloop) to in-app footer (47a4784)
+
 ## 1.26.2 — 2026-06-01
 
 - fix(seo): cross-link sibling products (mpump, mloop) in footer (d584976)
