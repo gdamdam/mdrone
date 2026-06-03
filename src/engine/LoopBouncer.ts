@@ -15,7 +15,9 @@
  *      have played past the loop end. They are crossfaded onto the
  *      first F seconds of the output so that playing the file on a
  *      loop at (0, L-1) sounds continuous.
- *   3. Encode L seconds of output as 24-bit WAV with loop points.
+ *   3. Wrap the L-second seamless body in short faded edges (see
+ *      `padLoopEdges`) so one-shot playback starts/ends at silence,
+ *      then encode as 24-bit WAV with the loop points set to the body.
  *
  * Crossfade algorithm (linear):
  *   For i in [0, F):
@@ -77,6 +79,13 @@ export interface BounceOptions {
 }
 
 const DEFAULT_FADE_MS = 1500;
+
+/** Absolute fade at the very head and tail of the rendered file, in ms.
+ *  Short enough to be inaudible as an attack/release on a drone, long
+ *  enough (a few hundred samples) to ramp from/to digital silence without
+ *  a click on one-shot playback. Lives outside the smpl loop region so it
+ *  never affects sampler looping. */
+const EDGE_FADE_MS = 10;
 
 export class BounceCancelledError extends Error {
   constructor() {
@@ -215,12 +224,22 @@ export class LoopBouncer {
       const left = resize(rawL, totalFrames);
       const right = resize(rawR, totalFrames);
 
-      const outL = new Float32Array(loopFrames);
-      const outR = new Float32Array(loopFrames);
-      crossfadeIntoOutput(left, right, outL, outR, loopFrames, fadeFrames);
+      const bodyL = new Float32Array(loopFrames);
+      const bodyR = new Float32Array(loopFrames);
+      crossfadeIntoOutput(left, right, bodyL, bodyR, loopFrames, fadeFrames);
+
+      // Wrap the seamless body in short faded edges so one-shot playback
+      // (file preview, sampler in one-shot mode) starts and ends at digital
+      // silence instead of clicking on a mid-waveform sample. The loop region
+      // is set to the body only, so samplers loop with no per-pass level dip.
+      const padFrames = Math.min(
+        Math.max(1, Math.floor((EDGE_FADE_MS / 1000) * sampleRate)),
+        loopFrames,
+      );
+      const { outL, outR, loopStart, loopEnd } = padLoopEdges(bodyL, bodyR, padFrames);
 
       const wav = encodeWav24(outL, outR, sampleRate, {
-        loopPoints: { start: 0, end: loopFrames - 1 },
+        loopPoints: { start: loopStart, end: loopEnd },
       });
 
       onProgress?.({ elapsedSec: totalSec, totalSec, phase: "done" });
@@ -286,4 +305,67 @@ export function crossfadeIntoOutput(
     outL[i] = capL[i];
     outR[i] = capR[i];
   }
+}
+
+/**
+ * Wrap a seamless loop body in short faded edges so the file plays cleanly
+ * one-shot (no click at the absolute start/end) without disturbing how it
+ * loops in a sampler.
+ *
+ * Layout — output is `padFrames + loopFrames + padFrames` long:
+ *
+ *   [ pre-roll ][ ===== seamless body ===== ][ tail ]
+ *   0          loopStart                loopEnd      end
+ *
+ * The smpl loop region is [loopStart, loopEnd] = the body only, so a sampler
+ * wraps loopEnd → loopStart across body[L-1] → body[0] — the same natural
+ * seam crossfadeIntoOutput already made continuous. The pre-roll and tail are
+ * never inside the loop, so looping has no per-pass level dip.
+ *
+ * Pre-roll = a faded-in copy of the body's *tail* (body[L-pad .. L-1]).
+ * In the seamless loop the tail flows naturally into body[0], so leading the
+ * file in with it lands smoothly on the loop start. The fade gain is i/pad:
+ * exactly 0 at sample 0 (clean file start), ~1 at the loop start — the tiny
+ * <0.05 dB step into body[0] is inaudible.
+ *
+ * Tail = a faded-out copy of the body's *head* (body[0 .. pad-1]), the natural
+ * continuation past loopEnd. The fade gain is 1-(i+1)/pad: ~1 at the loop end
+ * (smooth exit from the body), exactly 0 at the last sample (clean file end).
+ *
+ * Caller must ensure 1 ≤ padFrames ≤ loopFrames. Exported for unit-testing
+ * the edge-silence and loop-region invariants.
+ */
+export function padLoopEdges(
+  bodyL: Float32Array,
+  bodyR: Float32Array,
+  padFrames: number,
+): { outL: Float32Array; outR: Float32Array; loopStart: number; loopEnd: number } {
+  const loopFrames = bodyL.length;
+  const outLen = loopFrames + 2 * padFrames;
+  const outL = new Float32Array(outLen);
+  const outR = new Float32Array(outLen);
+
+  // Seamless body sits in the middle — the only region the loop covers.
+  outL.set(bodyL, padFrames);
+  outR.set(bodyR, padFrames);
+
+  // Pre-roll: faded-in copy of the body tail, ramping from silence into
+  // the loop start.
+  for (let i = 0; i < padFrames; i++) {
+    const g = i / padFrames; // 0 at file start (exact silence) → ~1 at loop start
+    const src = loopFrames - padFrames + i;
+    outL[i] = bodyL[src] * g;
+    outR[i] = bodyR[src] * g;
+  }
+
+  // Tail: faded-out copy of the body head, the natural release past loopEnd,
+  // ramping to exact silence at the file end.
+  const tailBase = padFrames + loopFrames;
+  for (let i = 0; i < padFrames; i++) {
+    const g = 1 - (i + 1) / padFrames; // ~1 at loop end → 0 at file end (exact silence)
+    outL[tailBase + i] = bodyL[i] * g;
+    outR[tailBase + i] = bodyR[i] * g;
+  }
+
+  return { outL, outR, loopStart: padFrames, loopEnd: padFrames + loopFrames - 1 };
 }

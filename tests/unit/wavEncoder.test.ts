@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 import { encodeWav24 } from "../../src/engine/wavEncoder";
-import { crossfadeIntoOutput } from "../../src/engine/LoopBouncer";
+import { crossfadeIntoOutput, padLoopEdges } from "../../src/engine/LoopBouncer";
 
 function riffString(view: DataView, offset: number, length: number): string {
   let out = "";
@@ -194,5 +194,65 @@ describe("crossfadeIntoOutput", () => {
       expect(outL[i]).toBe(capL[i]);
       expect(outR[i]).toBe(capR[i]);
     }
+  });
+});
+
+describe("padLoopEdges", () => {
+  // The seamless body is placed in the middle of the file with a short
+  // faded pre-roll and tail outside the smpl loop region. Goal: a one-shot
+  // play of the file starts and ends at exact digital silence (no click),
+  // while a sampler looping [loopStart, loopEnd] sees the untouched
+  // seamless body (no per-loop level dip).
+  function makeBody(loopFrames: number) {
+    const bodyL = new Float32Array(loopFrames);
+    const bodyR = new Float32Array(loopFrames);
+    for (let i = 0; i < loopFrames; i++) {
+      // Deliberately non-zero at both ends so a naive copy would click.
+      bodyL[i] = 0.5 + 0.25 * Math.sin((2 * Math.PI * 7 * i) / loopFrames);
+      bodyR[i] = -0.5 + 0.25 * Math.cos((2 * Math.PI * 7 * i) / loopFrames);
+    }
+    return { bodyL, bodyR };
+  }
+
+  it("grows the file by 2*padFrames and points the loop at the body", () => {
+    const loopFrames = 1000;
+    const padFrames = 32;
+    const { bodyL, bodyR } = makeBody(loopFrames);
+    const { outL, outR, loopStart, loopEnd } = padLoopEdges(bodyL, bodyR, padFrames);
+
+    expect(outL.length).toBe(loopFrames + 2 * padFrames);
+    expect(outR.length).toBe(loopFrames + 2 * padFrames);
+    expect(loopStart).toBe(padFrames);
+    expect(loopEnd).toBe(padFrames + loopFrames - 1);
+  });
+
+  it("starts and ends the file at exact digital silence", () => {
+    const loopFrames = 1000;
+    const padFrames = 32;
+    const { bodyL, bodyR } = makeBody(loopFrames);
+    const { outL, outR } = padLoopEdges(bodyL, bodyR, padFrames);
+
+    // `=== 0` (not toBe, which is Object.is) so -0 — identical PCM silence —
+    // counts as silence; a negative body sample times gain 0 yields -0.
+    expect(outL[0] === 0).toBe(true);
+    expect(outR[0] === 0).toBe(true);
+    expect(outL[outL.length - 1] === 0).toBe(true);
+    expect(outR[outR.length - 1] === 0).toBe(true);
+  });
+
+  it("reproduces the seamless body verbatim inside the loop region", () => {
+    const loopFrames = 1000;
+    const padFrames = 32;
+    const { bodyL, bodyR } = makeBody(loopFrames);
+    const { outL, outR, loopStart, loopEnd } = padLoopEdges(bodyL, bodyR, padFrames);
+
+    for (let i = 0; i < loopFrames; i++) {
+      expect(outL[loopStart + i]).toBe(bodyL[i]);
+      expect(outR[loopStart + i]).toBe(bodyR[i]);
+    }
+    // The loop region must be exactly the body — the seam the sampler
+    // wraps across (loopEnd -> loopStart) is body[L-1] -> body[0], untouched.
+    expect(outL[loopEnd]).toBe(bodyL[loopFrames - 1]);
+    expect(outL[loopStart]).toBe(bodyL[0]);
   });
 });

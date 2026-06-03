@@ -634,7 +634,14 @@ export function Header({
               : "LIVE SAFE — prioritize stable audio for stage / pro use. Caps voice density and bypasses heavy FX without touching your scene."
           }
         >
-          <span aria-hidden="true">{liveSafeMode ? "●" : "◌"}</span>
+          {/* Shield reads "protected / stage-stable"; the old filled
+              circle (●) was confusable with a REC indicator, especially
+              since the app also records. U+FE0E forces text (monochrome)
+              presentation so it inherits the button's themed color and
+              matches the other header glyphs instead of rendering as a
+              color emoji. On/off is signalled by glyph opacity + the
+              existing active-state container styling. */}
+          <span className="header-btn-livesafe-glyph" aria-hidden="true">{"\u{1F6E1}︎"}</span>
         </button>
 
         {/* Admin cluster — VOL readout, help, settings. Quietest

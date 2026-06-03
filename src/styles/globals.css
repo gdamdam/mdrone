@@ -2924,6 +2924,10 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   border-color: color-mix(in srgb, #d94a2b 70%, var(--border));
   color: #d94a2b;
 }
+/* Shield glyph: dimmed when off, full when LIVE SAFE is active —
+   the on/off distinction the old ●/◌ filled-vs-hollow pair carried. */
+.header-btn.header-btn-livesafe .header-btn-livesafe-glyph { opacity: 0.6; }
+.header-btn.header-btn-livesafe-active .header-btn-livesafe-glyph { opacity: 1; }
 .header-btn.header-btn-livesafe-active {
   background: linear-gradient(
     180deg,
