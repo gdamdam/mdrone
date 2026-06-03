@@ -80,6 +80,13 @@ export interface BounceOptions {
 
 const DEFAULT_FADE_MS = 1500;
 
+/** Hang guard for the worklet "done" ack on stop. The tap normally replies
+ *  immediately; this bound is purely so abnormal teardown (node GC'd,
+ *  context killed mid-bounce) can't leave `await done` pending forever,
+ *  which would pin `running` and wedge every later bounce with "already in
+ *  progress". Mirrors MasterRecorder's DONE_ACK_TIMEOUT_MS. */
+const DONE_ACK_TIMEOUT_MS = 2000;
+
 /** Absolute fade at the very head and tail of the rendered file, in ms.
  *  Short enough to be inaudible as an attack/release on a drone, long
  *  enough (a few hundred samples) to ramp from/to digital silence without
@@ -194,8 +201,13 @@ export class LoopBouncer {
 
       node.port.postMessage({ type: "stop" });
       // Even on cancel we wait for the worklet's "done" so the tap
-      // shuts down cleanly before we disconnect.
-      await done;
+      // shuts down cleanly before we disconnect — but never longer than
+      // DONE_ACK_TIMEOUT_MS, so a worklet that never acks can't hang the
+      // bounce (and pin `running`) forever.
+      await Promise.race([
+        done,
+        new Promise<void>((resolve) => { window.setTimeout(resolve, DONE_ACK_TIMEOUT_MS); }),
+      ]);
     } finally {
       window.clearInterval(progressTimer);
       try { this.tapNode.disconnect(node); } catch { /* ok */ }

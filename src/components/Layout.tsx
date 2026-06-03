@@ -106,6 +106,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const takeTimerRef = useRef<number | null>(null);
   const takeTickRef = useRef<number | null>(null);
   const takeAbortedRef = useRef<boolean>(false);
+  // True while a stopMasterRecording() is in flight, so the auto-stop
+  // timeout and the cancel button can't both stop the one shared recorder
+  // (which would duplicate the cancel notification and waste the encode).
+  const takeStoppingRef = useRef<boolean>(false);
   const [mixerSyncToken, setMixerSyncToken] = useState(0);
   const [headerTonic, setHeaderTonic] = useState<PitchClass>("A");
   const [headerOctave, setHeaderOctave] = useState(2);
@@ -1117,6 +1121,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       ? `${Math.round(total / 60_000)}m`
       : `${Math.round(total / 1000)}s`;
     takeAbortedRef.current = false;
+    takeStoppingRef.current = false;
     setTakeBusy(true);
     setTakeProgress({ elapsedMs: 0, totalMs: total });
 
@@ -1135,6 +1140,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         }, 250);
         takeTimerRef.current = window.setTimeout(async () => {
           clearTakeTimers();
+          // If the cancel button already started stopping the recorder,
+          // don't issue a second stop.
+          if (takeStoppingRef.current) return;
+          takeStoppingRef.current = true;
           try {
             const result = await engine.stopMasterRecording();
             if (takeAbortedRef.current) {
@@ -1170,6 +1179,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             const msg = err instanceof Error ? err.message : "Unknown recording error.";
             showNotification(`Take failed — ${msg}`, "error");
           } finally {
+            takeStoppingRef.current = false;
             setTakeBusy(false);
             setTakeProgress(null);
           }
@@ -1191,14 +1201,22 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     if (!takeBusy) return;
     takeAbortedRef.current = true;
     clearTakeTimers();
+    // If the auto-stop timeout already fired and is mid-stop, it will
+    // observe takeAbortedRef and surface the cancellation itself — don't
+    // issue a second stop or a duplicate notification.
+    if (takeStoppingRef.current) return;
+    takeStoppingRef.current = true;
     // Force the timeout's stop path to run now so the recorder is
     // released cleanly. Mirrors the regular auto-stop, but keys off
     // takeAbortedRef so no file is downloaded.
     (async () => {
       try { await engine.stopMasterRecording(); } catch { /* swallow */ }
-      showNotification("Take cancelled — no WAV saved.", "info");
-      setTakeBusy(false);
-      setTakeProgress(null);
+      finally {
+        takeStoppingRef.current = false;
+        showNotification("Take cancelled — no WAV saved.", "info");
+        setTakeBusy(false);
+        setTakeProgress(null);
+      }
     })();
   }, [engine, takeBusy]);
 
@@ -1379,9 +1397,13 @@ export function Layout({ engine, startupMode }: LayoutProps) {
 
       {updateAvailable && (
         <div className="update-banner">
-          <span onClick={() => applyUpdateAndReload()}>
+          <button
+            type="button"
+            className="update-banner-apply"
+            onClick={() => applyUpdateAndReload()}
+          >
             New version available — tap to update
-          </span>
+          </button>
           <button
             className="update-banner-close"
             onClick={(e) => { e.stopPropagation(); setUpdateAvailable(false); }}

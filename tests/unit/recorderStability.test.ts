@@ -99,6 +99,37 @@ describe("LoopBouncer encode-failure recovery", () => {
   });
 });
 
+// --- LoopBouncer: stop() must not hang ------------------------------------
+
+describe("LoopBouncer stop without worklet ack", () => {
+  it("resolves bounce() even if the worklet never posts 'done'", async () => {
+    // Reset the module registry so this import doesn't reuse the throwing
+    // encodeWav24 mock the encode-failure test above registered.
+    vi.resetModules();
+    vi.doMock("../../src/engine/wavEncoder", () => ({
+      encodeWav24: () => new ArrayBuffer(8),
+    }));
+    const { LoopBouncer } = await import("../../src/engine/LoopBouncer");
+
+    vi.useFakeTimers();
+    const ctx = makeCtx(1000);
+    // Capture completes immediately (110 frames delivered on "start"), but
+    // the tap worklet never acks "stop". Without a timeout guard `await
+    // done` hangs forever and `running` stays true, wedging every later
+    // bounce with "already in progress".
+    nodeBehavior = { framesOnStart: 110, doneOnStop: false };
+    const bouncer = new LoopBouncer(ctx as any, tapNode);
+
+    const bounced = bouncer.bounce({ lengthSec: 0.1, fadeMs: 10 });
+    // Advance past the safety timeout; without it this promise hangs.
+    await vi.advanceTimersByTimeAsync(5000);
+    const result = await bounced;
+
+    expect(result.wav).toBeInstanceOf(ArrayBuffer);
+    expect(bouncer.isBouncing()).toBe(false);
+  });
+});
+
 // --- MasterRecorder: stop() must not hang ---------------------------------
 
 describe("MasterRecorder stop without worklet ack", () => {

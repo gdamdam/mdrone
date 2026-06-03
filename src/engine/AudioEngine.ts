@@ -914,11 +914,23 @@ export class AudioEngine {
     for (const fn of this.teardown.splice(0)) {
       try { fn(); } catch { /* best-effort teardown */ }
     }
+    // Cancel any in-flight RND loudness-leveling cycle: its setTimeout
+    // would otherwise fire after ctx.close() and call masterBus against a
+    // dead context, and its loudness subscription would outlive the bus.
+    if (this.levelLoudnessTimer !== null) {
+      window.clearTimeout(this.levelLoudnessTimer);
+      this.levelLoudnessTimer = null;
+    }
+    if (this.levelLoudnessUnsub) {
+      this.levelLoudnessUnsub();
+      this.levelLoudnessUnsub = null;
+    }
     this.loadMonitor.dispose();
     this.adaptiveStability.dispose();
     this.motionEngine.dispose();
     this.voiceEngine.dispose();
     this.masterRecorder.dispose();
+    this.masterBus.dispose();
     void this.ctx.close().catch(() => { /* already closed */ });
   }
 

@@ -736,6 +736,21 @@ export class MasterBus {
     return () => { this.loudnessListeners.delete(cb); };
   }
 
+  /** Best-effort teardown for engine disposal (HMR / re-creation).
+   *  Detaches the loudness-meter worklet's message handler, disconnects
+   *  it, and drops all loudness listeners so no closure or worklet
+   *  outlives the bus. `AudioContext.close()` frees the underlying nodes,
+   *  but the retained `port.onmessage` closure and listener set would
+   *  otherwise survive a re-create. Idempotent. */
+  dispose(): void {
+    if (this.loudnessMeter) {
+      try { this.loudnessMeter.port.onmessage = null; } catch { /* ok */ }
+      try { this.outputTrim.disconnect(this.loudnessMeter); } catch { /* ok */ }
+      this.loudnessMeter = null;
+    }
+    this.loudnessListeners.clear();
+  }
+
   private applyLimiterParams(): void {
     const now = this.ctx.currentTime;
     if (this.brickwallActive && this.brickwallNode) {

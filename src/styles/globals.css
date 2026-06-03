@@ -3154,12 +3154,20 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   font-weight: 800;
   letter-spacing: 0.6px;
 }
-.update-banner span {
+.update-banner-apply {
+  /* Reset UA button chrome so it reads as the banner text it replaced,
+     while staying a real, focusable/keyboard-activatable button. */
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
   cursor: pointer;
   flex: 1;
   text-align: center;
 }
-.update-banner span:hover { opacity: 0.85; }
+.update-banner-apply:hover { opacity: 0.85; }
 .update-banner-close {
   background: none;
   border: none;

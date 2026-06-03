@@ -1369,6 +1369,15 @@ export class FxChain {
 
     setTimeout(() => {
       this.syncNativeReverbBuffers();
+      // Restore delay/comb feedback to their configured levels (the same
+      // `enabled ? feedback : 0` setEffect uses). panic() only flushes the
+      // lines — it must not leave them permanently dead, which it would for
+      // any caller that doesn't follow with a startDrone()/restoreEnabledEffects().
+      // Output is ramped to 0 during panic so this is silent, and it's
+      // idempotent with the restore on the next start.
+      const t = this.ctx.currentTime;
+      this.delayFbGain.gain.setTargetAtTime(this.enabled.delay ? this.delayFeedback : 0, t, 0.05);
+      this.combFbGain.gain.setTargetAtTime(this.enabled.comb ? this.combFeedback : 0, t, 0.05);
     }, 220);
 
     // Post clear messages to every worklet-backed effect so they reset
