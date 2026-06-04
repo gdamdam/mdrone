@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.26.7 — 2026-06-04
+
+_No user-visible changes._
+
 ## 1.26.4 — 2026-06-01
 
 - feat(analytics): count about.html pageviews + track 4 events (f0d1a5a)
