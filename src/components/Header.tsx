@@ -101,6 +101,12 @@ interface HeaderProps {
   onToggleEvolutionIndicator: (on: boolean) => void;
   liveSafeMode: boolean;
   onToggleLiveSafeMode: (on: boolean) => void;
+  /** Display preference (distinct from the mode): when true, the
+   *  experimental LIVE SAFE shield is shown in the header, clickable
+   *  to toggle the mode on/off. When false, no shield in the header.
+   *  Turning it off also forces the mode off (handled by the parent). */
+  liveSafeInHeader: boolean;
+  onToggleLiveSafeInHeader: (on: boolean) => void;
   /** Headphone-safe state — when on, master volume is clamped to
    *  ~50%. Surfaced as a small badge on the VOL button so the user
    *  can see the cap without opening the Mixer view. */
@@ -202,6 +208,8 @@ export function Header({
   onToggleEvolutionIndicator,
   liveSafeMode,
   onToggleLiveSafeMode,
+  liveSafeInHeader,
+  onToggleLiveSafeInHeader,
   headphoneSafe = false,
   mutateIntensity,
   onChangeMutateIntensity,
@@ -617,11 +625,13 @@ export function Header({
           <span className="header-btn-label-glyph" aria-hidden="true">▤</span>
         </button>
 
-        {/* LIVE SAFE — explicit stage-readiness pill. Lives in the
-            performance row so the active state is impossible to miss
-            during a set, distinct from the auto CPU-warning blink and
-            from the gradient creative-active idiom of HOLD/MEDITATE.
-            The same toggle still lives in Settings for discoverability. */}
+        {/* LIVE SAFE — experimental stage-readiness pill. Shown in the
+            header only when the user opts in via Settings → GENERAL
+            (liveSafeInHeader); otherwise absent so the header stays
+            uncluttered for people not using it. When present, it's the
+            live on/off control for the mode itself — glyph opacity +
+            active-state styling signal whether the mode is engaged. */}
+        {liveSafeInHeader && (
         <button
           type="button"
           className={liveSafeMode ? "header-btn header-btn-livesafe header-btn-livesafe-active" : "header-btn header-btn-livesafe"}
@@ -643,6 +653,7 @@ export function Header({
               existing active-state container styling. */}
           <span className="header-btn-livesafe-glyph" aria-hidden="true">{"\u{1F6E1}︎"}</span>
         </button>
+        )}
 
         {/* Admin cluster — VOL readout, help, settings. Quietest
             tier; dimmed via .header-secondary opacity until hover. */}
@@ -1166,26 +1177,28 @@ export function Header({
               </div>
 
               <div className="fx-modal-divider" />
-              <div className="fx-modal-section-label">LIVE SAFE</div>
+              <div className="fx-modal-section-label">LIVE SAFE (EXPERIMENTAL)</div>
               <p className="fx-modal-desc">
-                Stage / pro use. Trades a bit of richness for solid
-                audio: clamps the voice cap to 4, suppresses the
-                heaviest FX (halo, granular, graincloud, shimmer,
-                freeze), and engages low-power visuals. Saved scenes
-                and share URLs are not changed — your settings are
-                restored when LIVE SAFE is turned off.
+                Adds a shield control to the header for stage / pro use.
+                When engaged from the header, LIVE SAFE trades a bit of
+                richness for solid audio: clamps the voice cap to 4,
+                suppresses the heaviest FX (halo, granular, graincloud,
+                shimmer, freeze), and engages low-power visuals. Saved
+                scenes and share URLs are never changed. Off by default —
+                turning this off also disengages the mode and removes the
+                header shield.
               </p>
               <div className="fx-modal-actions">
                 <button
-                  className={liveSafeMode ? "header-btn header-btn-midi-on" : "header-btn"}
-                  onClick={() => onToggleLiveSafeMode(!liveSafeMode)}
-                  aria-pressed={liveSafeMode}
-                  aria-label={liveSafeMode ? "LIVE SAFE on, press to disable" : "LIVE SAFE off, press to enable"}
-                  title={liveSafeMode
-                    ? "Disable LIVE SAFE — restore voice cap, heavy FX, and visuals"
-                    : "Enable LIVE SAFE — prioritize stable audio for stage / pro use"}
+                  className={liveSafeInHeader ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => onToggleLiveSafeInHeader(!liveSafeInHeader)}
+                  aria-pressed={liveSafeInHeader}
+                  aria-label={liveSafeInHeader ? "LIVE SAFE header control on, press to hide" : "LIVE SAFE header control off, press to show"}
+                  title={liveSafeInHeader
+                    ? "Hide the LIVE SAFE shield from the header (also disengages the mode)"
+                    : "Show the experimental LIVE SAFE shield in the header"}
                 >
-                  {liveSafeMode ? "● LIVE SAFE" : "LIVE SAFE"}
+                  {liveSafeInHeader ? "● LIVE SAFE IN HEADER" : "LIVE SAFE IN HEADER"}
                 </button>
               </div>
 

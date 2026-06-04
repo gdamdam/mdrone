@@ -41,6 +41,13 @@ export const STORAGE_KEYS = {
    *  voice cap, suppresses heavy FX, engages low-power visuals. Off
    *  by default. */
   liveSafeMode: "mdrone-live-safe",
+  /** LIVE SAFE header opt-in — display preference, distinct from the
+   *  mode itself. When true, the experimental shield control is shown
+   *  in the header (clickable to toggle the mode on/off). Off by
+   *  default so the header stays uncluttered for people not using it.
+   *  Turning this off also forces the mode off (no invisible active
+   *  state). */
+  liveSafeInHeader: "mdrone-live-safe-in-header",
   /** Mutation intensity (0..1) — controls how much MUTATE perturbs
    *  the current scene per click. Was an inline slider in the perform
    *  row; lives in Settings → GENERAL now. Default 0.25. */

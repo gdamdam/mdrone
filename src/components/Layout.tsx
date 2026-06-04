@@ -830,6 +830,20 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     try { localStorage.setItem(STORAGE_KEYS.liveSafeMode, on ? "1" : "0"); }
     catch { /* noop */ }
   }, []);
+  // LIVE SAFE header opt-in — display preference only. When on, the
+  // experimental shield control appears in the header (clickable to
+  // toggle the mode). Off by default. Turning it off also forces the
+  // mode off so there's never an active-but-hidden state.
+  const [liveSafeInHeader, setLiveSafeInHeaderState] = useState<boolean>(() => {
+    try { return localStorage.getItem(STORAGE_KEYS.liveSafeInHeader) === "1"; }
+    catch { return false; }
+  });
+  const setLiveSafeInHeader = useCallback((on: boolean) => {
+    setLiveSafeInHeaderState(on);
+    try { localStorage.setItem(STORAGE_KEYS.liveSafeInHeader, on ? "1" : "0"); }
+    catch { /* noop */ }
+    if (!on) setLiveSafeMode(false);
+  }, [setLiveSafeMode]);
   // MUTATE intensity (0..1). Was an inline slider in the perform row;
   // moved to Settings → GENERAL so the surface stays calm. Persisted
   // so the user's preferred amount survives reloads.
@@ -1380,6 +1394,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
         onToggleEvolutionIndicator={setEvolutionIndicator}
         liveSafeMode={liveSafeMode}
         onToggleLiveSafeMode={setLiveSafeMode}
+        liveSafeInHeader={liveSafeInHeader}
+        onToggleLiveSafeInHeader={setLiveSafeInHeader}
         headphoneSafe={headphoneSafe}
         mutateIntensity={mutateIntensity}
         onChangeMutateIntensity={setMutateIntensity}
