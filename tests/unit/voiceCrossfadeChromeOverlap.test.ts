@@ -173,9 +173,14 @@ const BLOOM = 0.3;
 const QUANTUM = 128 / 48000; // one render quantum ≈ 2.67 ms
 
 describe("rebuild crossfade vs Chrome curve-overlap semantics", () => {
-  it("a level write landing inside the crossfade window does not throw", () => {
+  it("a level write landing inside the crossfade window does not throw AND does not kill the curve", () => {
     // Screenshot repro 1: level/mute/motion write ~0.67 s into a
     // 0.675 s crossfade → setValueAtTime inside the live curve window.
+    // Second-order regression (adversarial audit): the material-motion
+    // tick fires every 2.2 s under EVOLVE and routes through
+    // glideLayerGain — if that CANCELS the in-flight curve, the
+    // equal-power crossfade is truncated to a plain setTargetAtTime in
+    // exactly the evolving-drone case. The write must defer instead.
     const { ve, ctx, created } = makeEngine();
     ve.voiceLayers.tanpura = true;
     ve.layerLevels.tanpura = 0.8;
@@ -183,18 +188,18 @@ describe("rebuild crossfade vs Chrome curve-overlap semantics", () => {
     const newGain = created[0];
     expect(newGain.gain.setValueCurveAtTime).toHaveBeenCalled();
 
-    ctx.currentTime = BLOOM * 0.93; // strictly inside the window
+    ctx.currentTime = BLOOM * 0.5; // strictly inside the window
     expect(() => ve.setVoiceLevel("tanpura", 0.5)).not.toThrow();
 
-    // No-jump anchoring: the re-anchor must sit on the curve's value at
-    // the write time, not on a stale .value snapshot.
-    const calls = newGain.gain.setValueAtTime.mock.calls;
-    const anchored = calls[calls.length - 1][0] as number;
-    const target = (ve as any).effectiveLayerLevel("tanpura"); // fix may re-read level
-    void target;
-    // sin fade-in from 0 → 0.8 at 93% progress ≈ 0.8·sin(0.93·π/2) ≈ 0.795
-    expect(anchored).toBeGreaterThan(0.7);
-    expect(anchored).toBeLessThanOrEqual(0.81);
+    // The fade-in curve must survive the write…
+    const curves = (newGain.gain.events as Array<{ kind: string }>).filter(
+      (e) => e.kind === "curve",
+    );
+    expect(curves.length).toBe(1);
+    // …and the glide lands at/after the curve window's end, never inside.
+    const glide = newGain.gain.setTargetAtTime.mock.calls.at(-1)!;
+    expect(glide[0]).toBeCloseTo((ve as any).effectiveLayerLevel("tanpura"), 9);
+    expect(glide[1]).toBeGreaterThanOrEqual(BLOOM);
   });
 
   it("a rebuild retrigger one quantum into the previous crossfade does not throw (ATTUNE spam)", () => {

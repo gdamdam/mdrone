@@ -3,7 +3,7 @@ import type { AudioEngine, EngineSceneMutation } from "../engine/AudioEngine";
 import { ALL_VOICE_TYPES, type VoiceType } from "../engine/VoiceBuilder";
 import type { EffectId } from "../engine/FxChain";
 import { PRESETS, applyPreset, getPresetMaterialProfile } from "../engine/presets";
-import type { DroneSessionSnapshot } from "../session";
+import { withSnapshotDefaults, type DroneSessionSnapshot } from "../session";
 import type { PitchClass } from "../types";
 import type { RelationId, TuningId } from "../types";
 import type { JourneyId } from "../journey";
@@ -612,8 +612,11 @@ export function useDroneScene({
     }
   }, [engine, recordParam]);
 
-  const applySnapshot = useCallback((snapshot: DroneSessionSnapshot) => {
+  const applySnapshot = useCallback((rawSnapshot: DroneSessionSnapshot) => {
     const current = stateRef.current;
+    // Default engine-defaulted optional fields (coupleAmount) so the
+    // merge-based reducer can't keep a stale value the engine dropped.
+    const snapshot = withSnapshotDefaults(rawSnapshot);
     const shouldPlay = snapshot.playing ?? false;
     const nextSnapshot = { ...snapshot, playing: shouldPlay };
     const nextFreq = pitchToFreq(snapshot.root, snapshot.octave);

@@ -505,10 +505,36 @@ export class VoiceEngine {
     return g.value;
   }
 
+  /** Pad past a tracked curve window when deferring a glide behind it.
+   *  Covers Chrome's start-time clamping: a curve scheduled with a
+   *  just-past start is clamped to currentTime, shifting its real
+   *  window slightly later than our nominal record (~1–2 render quanta
+   *  under normal load); 50 ms ≈ 19 quanta absorbs heavy jank too. */
+  private static readonly GLIDE_DEFER_PAD_SEC = 0.05;
+
   /** setTargetAtTime on a layer gain, safe against an in-flight
-   *  rebuild crossfade (see anchorLayerGainNow). */
+   *  rebuild crossfade. If a crossfade curve is running, do NOT cancel
+   *  it — the material-motion tick fires every 2.2 s under EVOLVE, and
+   *  cancelling would truncate the equal-power fade to a plain glide
+   *  in exactly the evolving-drone case. Defer the glide to just past
+   *  the curve's end instead (≤1.8 s late, inaudible on a drone). */
   private glideLayerGain(gain: GainNode, target: number, tc: number): void {
     const now = this.ctx.currentTime;
+    const rec = this.activeGainCurves.get(gain.gain);
+    if (rec && now < rec.start + rec.dur) {
+      const after = rec.start + rec.dur + VoiceEngine.GLIDE_DEFER_PAD_SEC;
+      try {
+        // Clears any previously deferred glide without touching the
+        // curve (its start is before the boundary).
+        gain.gain.cancelScheduledValues(after);
+        gain.gain.setTargetAtTime(target, after, tc);
+        return;
+      } catch {
+        // Ultimate fallback: if the deferred schedule still collides
+        // (pathological clamp drift), sacrifice the curve rather than
+        // crash the view — the pre-audit behavior.
+      }
+    }
     this.anchorLayerGainNow(gain, now);
     gain.gain.setTargetAtTime(target, now, tc);
   }

@@ -5,6 +5,8 @@ import {
   resetAllLocalStorage,
   saveAutosavedScene,
   saveSessions,
+  withSnapshotDefaults,
+  type DroneSessionSnapshot,
   type PortableScene,
   type SavedSession,
 } from "../../src/session";
@@ -144,6 +146,29 @@ describe("resetAllLocalStorage", () => {
     localStorage.setItem("mdrone-old-straggler", "x");
     resetAllLocalStorage();
     expect(localStorage.getItem("mdrone-old-straggler")).toBeNull();
+  });
+});
+
+describe("withSnapshotDefaults (engine/state divergence guard)", () => {
+  // applySnapshot pushes engine defaults for optional fields
+  // (engine.setCoupleAmount(snapshot.coupleAmount ?? 0)) but the scene
+  // reducer is merge-based, so a snapshot MISSING the key would leave
+  // the previous scene's value in React state — slider shows COUPLE,
+  // audio has none. Every optional field the engine defaults on apply
+  // must be defaulted here too, so state and engine cannot diverge.
+  it("defaults coupleAmount to 0 when the snapshot omits it (RND/preset/legacy loads)", () => {
+    const out = withSnapshotDefaults({ playing: true } as Partial<DroneSessionSnapshot> as DroneSessionSnapshot);
+    expect(out.coupleAmount).toBe(0);
+  });
+
+  it("preserves an explicit coupleAmount", () => {
+    const out = withSnapshotDefaults({ coupleAmount: 0.6 } as Partial<DroneSessionSnapshot> as DroneSessionSnapshot);
+    expect(out.coupleAmount).toBe(0.6);
+  });
+
+  it("does not invent values for fields the engine does not default (entrain)", () => {
+    const out = withSnapshotDefaults({} as Partial<DroneSessionSnapshot> as DroneSessionSnapshot);
+    expect(out.entrain).toBeUndefined();
   });
 });
 

@@ -93,6 +93,21 @@ export interface DroneSessionSnapshot {
   coupleAmount?: number;
 }
 
+/** Default the optional snapshot fields that applySnapshot pushes
+ *  engine defaults for. The scene reducer is merge-based, so a
+ *  snapshot MISSING such a key would otherwise leave the previous
+ *  scene's value in React state while the engine gets the default —
+ *  e.g. COUPLE slider showing a level that no longer sounds. Fields
+ *  the engine does NOT default on apply (entrain is skipped when
+ *  absent) must stay undefined here, or we'd flip them instead.
+ *  Add every new engine-defaulted optional field to this function. */
+export function withSnapshotDefaults(snapshot: DroneSessionSnapshot): DroneSessionSnapshot {
+  return {
+    ...snapshot,
+    coupleAmount: snapshot.coupleAmount ?? 0,
+  };
+}
+
 export interface MixerSessionSnapshot {
   hpfHz: number;
   low: number;

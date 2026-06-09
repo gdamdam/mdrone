@@ -62,9 +62,14 @@ export function registerServiceWorker(): void {
 
         // When the active SW changes (after SKIP_WAITING), reload once
         // so the new precache is the one answering fetches.
+        // `hadController` alone is not enough: a FIRST-VISIT tab kept
+        // open until an update arrives has hadController === false, yet
+        // a user-requested update (banner click → SKIP_WAITING) must
+        // still reload — otherwise the old page keeps running against
+        // the new SW's cache. `userRequestedUpdate` is that signal.
         let reloaded = false;
         navigator.serviceWorker.addEventListener("controllerchange", () => {
-          if (!hadController) return; // first install, not an update
+          if (!hadController && !userRequestedUpdate) return; // first install, not an update
           if (reloaded) return;
           reloaded = true;
           location.reload();
@@ -76,6 +81,11 @@ export function registerServiceWorker(): void {
   if (document.readyState === "complete") run();
   else window.addEventListener("load", run, { once: true });
 }
+
+/** Set when the user explicitly accepts an update (banner click), so
+ *  the controllerchange reload fires even on a tab that never had a
+ *  controller at registration time (first visit, long session). */
+let userRequestedUpdate = false;
 
 function dispatchUpdateAvailable(): void {
   window.dispatchEvent(new CustomEvent("mdrone:update-available"));
@@ -96,6 +106,7 @@ export function applyUpdateAndReload(): void {
     .getRegistration()
     .then((reg) => {
       if (reg && reg.waiting) {
+        userRequestedUpdate = true;
         reg.waiting.postMessage({ type: "SKIP_WAITING" });
       } else {
         location.reload();

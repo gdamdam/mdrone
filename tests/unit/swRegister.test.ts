@@ -11,7 +11,7 @@
  * captures listeners so tests can fire `controllerchange` directly.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { registerServiceWorker } from "../../src/swRegister";
+import { applyUpdateAndReload, registerServiceWorker } from "../../src/swRegister";
 
 function makeServiceWorkerMock(controller: object | null) {
   const listeners: Record<string, Array<() => void>> = {};
@@ -77,6 +77,34 @@ describe("swRegister controllerchange handling", () => {
     fire("controllerchange");
     fire("controllerchange");
 
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("reloads after a user-requested update even when no controller existed at registration", async () => {
+    // First-visit tab kept open for hours (typical drone session):
+    // hadController was captured false at registration, but the user
+    // explicitly clicked the update banner — SKIP_WAITING fires
+    // controllerchange and the reload MUST happen, or the old page
+    // keeps running against the new SW's cache.
+    const { swc, fire } = makeServiceWorkerMock(null);
+    const { reload } = stubBrowser(swc);
+
+    registerServiceWorker();
+    await flush();
+
+    // First-install claim: no reload (still correct).
+    swc.controller = {};
+    fire("controllerchange");
+    expect(reload).not.toHaveBeenCalled();
+
+    // Hours later: update banner clicked; a waiting SW exists.
+    (swc.getRegistration as ReturnType<typeof vi.fn>).mockResolvedValue({
+      waiting: { postMessage: vi.fn() },
+    });
+    applyUpdateAndReload();
+    await flush();
+
+    fire("controllerchange");
     expect(reload).toHaveBeenCalledTimes(1);
   });
 });
