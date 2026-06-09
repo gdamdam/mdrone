@@ -482,17 +482,44 @@ export function customTuningIdForName(name: string): CustomTuningId {
 
 export function saveCustomTuning(name: string, degrees: readonly number[]): TuningTable {
   const label = name.trim() || "Untitled";
-  const id = customTuningIdForName(label);
+  const baseId = customTuningIdForName(label);
+  // De-duplicate against every known id (builtin, authored `custom:*`,
+  // previously saved) so e.g. a user save named "Pelog" can't silently
+  // shadow the authored custom:pelog table. Suffixes are deterministic
+  // (-2, -3, …); existing stored entries are never re-slugged, so old
+  // saves keep loading at their original ids.
+  let id = baseId;
+  for (let n = 2; tuningMap.has(id); n++) {
+    id = `${baseId}-${n}` as CustomTuningId;
+  }
   const padded = degrees.slice(0, 13);
   while (padded.length < 13) padded.push(0);
   const table: TuningTable = { id, label, degrees: padded };
-  const existingIdx = customTunings.findIndex((t) => t.id === id);
-  if (existingIdx >= 0) customTunings[existingIdx] = table;
-  else customTunings.push(table);
+  customTunings.push(table);
   rebuildTuningMap();
   persistCustomTunings();
   notifySubscribers();
   return table;
+}
+
+/** Save flow for the scale editor. Slug de-duplication in
+ *  `saveCustomTuning` means re-saving the tuning the editor was opened
+ *  on would create a `-2` duplicate instead of updating it — so when
+ *  the name still slugs to `currentTuningId`, replace in place via
+ *  `saveCustomTuningAtId`; otherwise save as a new entry. */
+export function saveOrUpdateCustomTuning(
+  name: string,
+  degrees: readonly number[],
+  currentTuningId: string | null,
+): TuningTable {
+  const label = name.trim() || "Untitled";
+  if (currentTuningId && customTuningIdForName(label) === currentTuningId) {
+    const padded = degrees.slice(0, 13) as number[];
+    while (padded.length < 13) padded.push(0);
+    const replaced = saveCustomTuningAtId(currentTuningId, label, padded);
+    if (replaced) return replaced;
+  }
+  return saveCustomTuning(name, degrees);
 }
 
 export function deleteCustomTuning(id: string): void {
@@ -508,16 +535,28 @@ export function deleteCustomTuning(id: string): void {
  *  keep working. Includes custom tunings, so the SHAPE tuning picker
  *  auto-lists them. Treat as readonly — mutations must go through
  *  saveCustomTuning / deleteCustomTuning. */
+// The Proxy traps fire once per property access (`.length` plus every
+// numeric index in render loops), so rebuilding the combined array in
+// each trap was an O(n) allocation per access. Cache it and invalidate
+// whenever the custom registry changes (rebuildTuningMap runs on every
+// save/delete path).
+let combinedTuningsCache: TuningTable[] | null = null;
+function combinedTunings(): TuningTable[] {
+  if (combinedTuningsCache === null) {
+    combinedTuningsCache = [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings];
+  }
+  return combinedTuningsCache;
+}
+
 export const TUNINGS: readonly TuningTable[] = new Proxy([] as TuningTable[], {
   get(_target, prop, receiver) {
-    const combined = [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings];
+    const combined = combinedTunings();
     const value = Reflect.get(combined, prop, receiver);
     if (typeof value === "function") return value.bind(combined);
     return value;
   },
   has(_target, prop) {
-    const combined = [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings];
-    return Reflect.has(combined, prop);
+    return Reflect.has(combinedTunings(), prop);
   },
 });
 
@@ -532,6 +571,9 @@ function rebuildTuningMap(): void {
   tuningMap = new Map<string, TuningTable>(
     [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS, ...customTunings].map((t) => [t.id, t]),
   );
+  // customTunings changed — drop the TUNINGS proxy's combined snapshot
+  // so the next access rebuilds it.
+  combinedTuningsCache = null;
 }
 
 export function tuningById(id: TuningId): TuningTable {

@@ -309,6 +309,21 @@ export class AdaptiveStabilityEngine {
     return this.bypassedFxSet.has(id);
   }
 
+  /** Inbound half of the user-intent contract (isFxSuppressed is the
+   *  outbound half): the user-intent write path (AudioEngine.setEffect)
+   *  reports user toggles here. A suppressed FX reads live-OFF either
+   *  way, so without this signal recovery can't tell "still suppressed"
+   *  from "user deliberately turned it off" — and would re-enable an FX
+   *  against the user's wishes. Any deliberate user toggle of a
+   *  suppressed FX transfers ownership back to the user: forget the
+   *  bypass so recovery leaves the user's live state alone. */
+  noteUserEffectIntent(id: EffectId): void {
+    if (!this.bypassedFxSet.has(id)) return;
+    this.bypassedFxSet.delete(id);
+    this.bypassedFx = this.bypassedFx.filter((x) => x !== id);
+    this.emit();
+  }
+
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
     listener(this.getState());

@@ -97,6 +97,27 @@ describe("AudioEngine.resume() — context lifecycle", () => {
   });
 });
 
+describe("AudioEngine.setEffect — user-intent handoff", () => {
+  it("notes user intent with adaptive stability before forwarding to FxChain", () => {
+    // A user toggle of a suppressed FX must transfer ownership back to
+    // the user (AdaptiveStabilityEngine.noteUserEffectIntent), or
+    // adaptive recovery re-enables an FX the user deliberately turned
+    // off while it was suppressed.
+    const adaptiveStability = { noteUserEffectIntent: vi.fn() };
+    const liveSafe = { noteUserEffectIntent: vi.fn() };
+    const fxChain = { setEffect: vi.fn() };
+    const engine = Object.assign(Object.create(AudioEngine.prototype) as AudioEngine, {
+      adaptiveStability,
+      liveSafe,
+      fxChain,
+    });
+    engine.setEffect("shimmer", false);
+    expect(adaptiveStability.noteUserEffectIntent).toHaveBeenCalledWith("shimmer");
+    expect(liveSafe.noteUserEffectIntent).toHaveBeenCalledWith("shimmer");
+    expect(fxChain.setEffect).toHaveBeenCalledWith("shimmer", false);
+  });
+});
+
 describe("AudioEngine.panic() — in-flight master fade interaction", () => {
   afterEach(() => {
     vi.useRealTimers();

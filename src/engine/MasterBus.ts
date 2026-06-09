@@ -976,15 +976,20 @@ export class MasterBus {
   getTilt(): number { return this.tiltValue; }
 
   setHpfFreq(hz: number): void {
-    this.hpf.frequency.value = Math.max(10, hz);
+    // setTargetAtTime (house pattern, see setTilt) so a moving knob
+    // glides instead of stepping — direct .value writes zipper/click.
+    this.hpf.frequency.setTargetAtTime(Math.max(10, hz), this.ctx.currentTime, 0.05);
   }
 
   getHpfFreq(): number { return this.hpf.frequency.value; }
 
   setGlueAmount(amount: number): void {
     const a = Math.max(0, Math.min(1, amount));
-    this.glueComp.threshold.value = -18 * a;
-    this.glueMakeup.gain.value = 1 + a * 0.5;
+    const now = this.ctx.currentTime;
+    // Compressor threshold is k-rate, but setTargetAtTime still avoids
+    // the abrupt jump (and the makeup-gain click) of a direct .value set.
+    this.glueComp.threshold.setTargetAtTime(-18 * a, now, 0.05);
+    this.glueMakeup.gain.setTargetAtTime(1 + a * 0.5, now, 0.05);
   }
 
   getGlueAmount(): number { return -this.glueComp.threshold.value / 18; }

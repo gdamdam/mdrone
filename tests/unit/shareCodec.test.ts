@@ -3,6 +3,8 @@ import {
   encodeScenePayload,
   decodeScenePayload,
   extractScenePayloadFromUrl,
+  bytesToUrlSafeB64,
+  urlSafeB64ToBytes,
 } from "../../src/shareCodec";
 import { normalizePortableScene } from "../../src/session";
 
@@ -149,6 +151,54 @@ describe("shareCodec malformed input", () => {
       const b64 = btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       expect(await decodeScenePayload(b64, false)).toBeNull();
     }
+  });
+});
+
+describe("bytesToUrlSafeB64 byte-level encoding", () => {
+  // Known-good reference: the original simple char-by-char concat loop.
+  // The production encoder may be optimized (chunked), but its output must
+  // stay byte-identical to this naive implementation for every input.
+  const referenceB64 = (bytes: Uint8Array): string => {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+  };
+
+  // Deterministic pseudo-random bytes so failures are reproducible.
+  const pseudoRandomBytes = (length: number, seed = 0x9e3779b9): Uint8Array => {
+    const bytes = new Uint8Array(length);
+    let state = seed >>> 0;
+    for (let i = 0; i < length; i++) {
+      // xorshift32 — cheap, deterministic, full byte coverage
+      state ^= state << 13;
+      state ^= state >>> 17;
+      state ^= state << 5;
+      bytes[i] = state & 0xff;
+    }
+    return bytes;
+  };
+
+  // Lengths straddling the 0x8000 chunk boundary catch off-by-one slicing
+  // bugs; ~200 KB approximates a large motion-recording payload.
+  const lengths = [0, 1, 3, 100, 0x8000 - 1, 0x8000, 0x8000 + 1, 200_000];
+
+  it("round-trips byte payloads of every size class", () => {
+    for (const length of lengths) {
+      const bytes = pseudoRandomBytes(length);
+      const decoded = urlSafeB64ToBytes(bytesToUrlSafeB64(bytes));
+      expect(decoded, `length ${length}`).toEqual(bytes);
+    }
+  });
+
+  it("matches the reference concat-loop encoder byte-for-byte", () => {
+    for (const length of lengths) {
+      const bytes = pseudoRandomBytes(length);
+      expect(bytesToUrlSafeB64(bytes), `length ${length}`).toBe(referenceB64(bytes));
+    }
+  });
+
+  it("encodes the empty array to the empty string", () => {
+    expect(bytesToUrlSafeB64(new Uint8Array(0))).toBe("");
   });
 });
 

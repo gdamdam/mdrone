@@ -155,6 +155,27 @@ describe("LiveSafeMode", () => {
     expect(mode.isFxSuppressed("shimmer")).toBe(false);
   });
 
+  it("does not re-enable an FX the user turned off while suppressed", () => {
+    // Same blind spot as AdaptiveStabilityEngine: a suppressed FX reads
+    // live-OFF either way, so without an intent signal revert() can't
+    // tell "still suppressed" from "user deliberately turned it off".
+    mode.setActive(true);
+    expect(mode.isFxSuppressed("shimmer")).toBe(true);
+    // User toggles shimmer (off) while LIVE SAFE holds it suppressed.
+    mode.noteUserEffectIntent("shimmer");
+    expect(mode.isFxSuppressed("shimmer")).toBe(false);
+    mode.setActive(false);
+    expect(adapter.effects["shimmer"]).toBe(false);
+  });
+
+  it("still restores untouched FX after a user toggle of another one", () => {
+    mode.setActive(true);
+    const others = mode.getState().suppressedFx.filter((id) => id !== "shimmer");
+    mode.noteUserEffectIntent("shimmer");
+    mode.setActive(false);
+    for (const id of others) expect(adapter.effects[id]).toBe(true);
+  });
+
   it("emits state to subscribers on transitions", () => {
     const seen: boolean[] = [];
     mode.subscribe((s) => seen.push(s.active));

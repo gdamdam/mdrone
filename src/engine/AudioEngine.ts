@@ -650,6 +650,12 @@ export class AudioEngine {
   getPresetTrim(): number { return this.presetTrim.gain.value; }
 
   setEffect(id: EffectId, on: boolean): void {
+    // User-intent write funnel: hand ownership of a suppressed FX back
+    // to its suppressor *before* the live toggle, so neither adaptive
+    // recovery nor a LIVE SAFE revert later re-enables an FX the user
+    // deliberately turned off while it was suppressed.
+    this.adaptiveStability.noteUserEffectIntent(id);
+    this.liveSafe.noteUserEffectIntent(id);
     this.fxChain.setEffect(id, on);
   }
 

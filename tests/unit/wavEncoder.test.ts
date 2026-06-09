@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 import { encodeWav24 } from "../../src/engine/wavEncoder";
-import { crossfadeIntoOutput, padLoopEdges } from "../../src/engine/LoopBouncer";
+import { crossfadeIntoOutput, padLoopEdges, encodeWav24Chunked } from "../../src/engine/LoopBouncer";
 
 function riffString(view: DataView, offset: number, length: number): string {
   let out = "";
@@ -194,6 +194,45 @@ describe("crossfadeIntoOutput", () => {
       expect(outL[i]).toBe(capL[i]);
       expect(outR[i]).toBe(capR[i]);
     }
+  });
+});
+
+describe("encodeWav24Chunked", () => {
+  // The chunked encoder exists so bounce() doesn't block the main thread
+  // for seconds on a ~200 MB encode. Correctness bar: byte-for-byte
+  // identical output to the single-pass encodeWav24 — header, PCM data
+  // and smpl chunk alike.
+  function makeStereo(frames: number) {
+    const left = new Float32Array(frames);
+    const right = new Float32Array(frames);
+    for (let i = 0; i < frames; i++) {
+      // Cover both polarities and clipping so quantization paths match.
+      left[i] = Math.sin(i * 0.07) * 1.2;
+      right[i] = Math.cos(i * 0.05) * 0.6 - 0.1;
+    }
+    return { left, right };
+  }
+
+  it("matches single-pass output byte-for-byte (with smpl chunk)", async () => {
+    // 1000 frames with 64-frame chunks → 16 slices, last one partial.
+    const { left, right } = makeStereo(1000);
+    const opts = { loopPoints: { start: 10, end: 989 } };
+    const single = new Uint8Array(encodeWav24(left, right, 48_000, opts));
+    const chunked = new Uint8Array(
+      await encodeWav24Chunked(left, right, 48_000, opts, 64),
+    );
+    expect(chunked.length).toBe(single.length);
+    expect(chunked).toEqual(single);
+  });
+
+  it("matches single-pass output byte-for-byte (no smpl chunk)", async () => {
+    const { left, right } = makeStereo(257);
+    const single = new Uint8Array(encodeWav24(left, right, 44_100));
+    const chunked = new Uint8Array(
+      await encodeWav24Chunked(left, right, 44_100, {}, 100),
+    );
+    expect(chunked.length).toBe(single.length);
+    expect(chunked).toEqual(single);
   });
 });
 

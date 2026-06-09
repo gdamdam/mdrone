@@ -22,7 +22,7 @@ import {
   deleteCustomTuning,
   getAllTunings,
   getCustomTunings,
-  saveCustomTuning,
+  saveOrUpdateCustomTuning,
   type TuningId,
   type TuningTable,
 } from "../microtuning";
@@ -124,7 +124,7 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
 
   const handleSaveAndApply = () => {
     if (saveDisabled) return;
-    const table = saveCustomTuning(name || "Untitled", degrees);
+    const table = saveOrUpdateCustomTuning(name || "Untitled", degrees, currentTuningId);
     refreshRegistry();
     onApply(table);
     onClose();

@@ -184,6 +184,60 @@ describe("AdaptiveStabilityEngine", () => {
     expect(adapter.effects.shimmer).toBe(true);
   });
 
+  it("does not re-enable an FX the user turned OFF while it was suppressed", () => {
+    adapter.fakeNow = 10000;
+    monitor.emit({ struggling: true, underruns: 1 });
+    adapter.fakeNow = 12000;
+    monitor.emit({ struggling: true, underruns: 2 });
+    expect(engine.isFxSuppressed("shimmer")).toBe(true);
+
+    // User toggles the suppressed (displayed-ON) FX off. The user-intent
+    // write path (AudioEngine.setEffect) reports the toggle and writes
+    // the live state — already false, so only the report carries signal.
+    engine.noteUserEffectIntent("shimmer");
+    adapter.effects.shimmer = false;
+    expect(engine.isFxSuppressed("shimmer")).toBe(false);
+
+    adapter.fakeNow = 20000;
+    monitor.emit({ struggling: false, underruns: 2 });
+    expect(engine.getState().stage).toBe(1);
+    // shimmer stays off (user intent); the untouched FX still recover.
+    expect(adapter.effects.shimmer).toBe(false);
+    expect(adapter.effects.granular).toBe(true);
+    expect(adapter.effects.graincloud).toBe(true);
+    expect(adapter.effects.halo).toBe(true);
+  });
+
+  it("restores a suppressed FX the user never touched", () => {
+    adapter.fakeNow = 10000;
+    monitor.emit({ struggling: true, underruns: 1 });
+    adapter.fakeNow = 12000;
+    monitor.emit({ struggling: true, underruns: 2 });
+    expect(adapter.effects.shimmer).toBe(false);
+
+    adapter.fakeNow = 20000;
+    monitor.emit({ struggling: false, underruns: 2 });
+    expect(adapter.effects.shimmer).toBe(true);
+  });
+
+  it("restores an FX the user turned off then back on while suppressed", () => {
+    adapter.fakeNow = 10000;
+    monitor.emit({ struggling: true, underruns: 1 });
+    adapter.fakeNow = 12000;
+    monitor.emit({ struggling: true, underruns: 2 });
+    expect(engine.isFxSuppressed("shimmer")).toBe(true);
+
+    // Off then back on — each user write reports intent and sets live state.
+    engine.noteUserEffectIntent("shimmer");
+    adapter.effects.shimmer = false;
+    engine.noteUserEffectIntent("shimmer");
+    adapter.effects.shimmer = true;
+
+    adapter.fakeNow = 20000;
+    monitor.emit({ struggling: false, underruns: 2 });
+    expect(adapter.effects.shimmer).toBe(true);
+  });
+
   it("never observes or stomps the user's persisted low-power setting", () => {
     // The split adapter has no isLowPower/setLowPower — only adaptive overlay.
     // Adapter starts with adaptiveLowPower=false; recovery should leave it at false.

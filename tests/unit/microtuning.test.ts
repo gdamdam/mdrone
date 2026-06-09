@@ -6,6 +6,9 @@ import {
   tuningById,
   relationById,
   resolveTuning,
+  saveCustomTuning,
+  saveOrUpdateCustomTuning,
+  deleteCustomTuning,
 } from "../../src/microtuning";
 
 /**
@@ -100,5 +103,110 @@ describe("resolver fallbacks & combinatorics", () => {
       expect(t.degrees[0]).toBe(0);
       expect(t.degrees[12]).toBe(1200);
     }
+  });
+});
+
+// Valid 13-slot degree table (12-TET) for save tests.
+const TEST_DEGREES = Array.from({ length: 13 }, (_, i) => i * 100);
+
+describe("saveCustomTuning slug collisions", () => {
+  it("de-duplicates the slug when it collides with an authored custom id", () => {
+    // "Pelog" slugs to custom:pelog, which is an authored tuning id —
+    // before the fix the user save silently shadowed the authored table.
+    const authored = tuningById("custom:pelog");
+    expect(authored.id).toBe("custom:pelog");
+
+    const saved = saveCustomTuning("Pelog", TEST_DEGREES);
+    try {
+      expect(saved.id).not.toBe("custom:pelog");
+      // Both must remain resolvable: authored at its original id…
+      expect(tuningById("custom:pelog")).toBe(authored);
+      // …and the user save at its de-duplicated id.
+      expect(tuningById(saved.id).label).toBe("Pelog");
+      expect(tuningById(saved.id).degrees).toEqual(TEST_DEGREES);
+    } finally {
+      deleteCustomTuning(saved.id);
+    }
+  });
+
+  it("two saves with the same name get distinct ids", () => {
+    const a = saveCustomTuning("My Drone Scale", TEST_DEGREES);
+    const b = saveCustomTuning("My Drone Scale", TEST_DEGREES);
+    try {
+      expect(a.id).not.toBe(b.id);
+      expect(tuningById(a.id).id).toBe(a.id);
+      expect(tuningById(b.id).id).toBe(b.id);
+    } finally {
+      deleteCustomTuning(a.id);
+      deleteCustomTuning(b.id);
+    }
+  });
+});
+
+describe("saveOrUpdateCustomTuning (scale editor save flow)", () => {
+  it("edits in place when the name still slugs to the opened tuning", () => {
+    // The editor's "edit in place" flow: re-saving the tuning the
+    // editor was opened on must update it, not create a -2 duplicate
+    // (which slug de-duplication in saveCustomTuning would otherwise do).
+    const original = saveCustomTuning("Editor Probe", TEST_DEGREES);
+    const editedDegrees = TEST_DEGREES.map((d, i) => (i === 1 ? d + 1 : d));
+    const updated = saveOrUpdateCustomTuning("Editor Probe", editedDegrees, original.id);
+    try {
+      expect(updated.id).toBe(original.id);
+      expect(tuningById(original.id).degrees).toEqual(editedDegrees);
+      // No duplicate left behind at a suffixed id.
+      expect(TUNINGS.some((t) => t.id === `${original.id}-2`)).toBe(false);
+    } finally {
+      deleteCustomTuning(original.id);
+    }
+  });
+
+  it("creates a new de-duplicated entry when the name no longer matches", () => {
+    const original = saveCustomTuning("Editor Probe", TEST_DEGREES);
+    const renamed = saveOrUpdateCustomTuning("Editor Probe Two", TEST_DEGREES, original.id);
+    try {
+      expect(renamed.id).not.toBe(original.id);
+      expect(tuningById(original.id).id).toBe(original.id);
+      expect(tuningById(renamed.id).label).toBe("Editor Probe Two");
+    } finally {
+      deleteCustomTuning(original.id);
+      deleteCustomTuning(renamed.id);
+    }
+  });
+
+  it("saves as new when opened with no current tuning", () => {
+    const saved = saveOrUpdateCustomTuning("Editor Probe", TEST_DEGREES, null);
+    try {
+      expect(tuningById(saved.id).label).toBe("Editor Probe");
+    } finally {
+      deleteCustomTuning(saved.id);
+    }
+  });
+});
+
+describe("TUNINGS proxy cache", () => {
+  it("reflects a save immediately and a delete immediately after", () => {
+    const before = TUNINGS.length;
+    const saved = saveCustomTuning("Cache Probe", TEST_DEGREES);
+    try {
+      // Mutate-after-save visibility: a stale cache would still report
+      // the old length / miss the new entry here.
+      expect(TUNINGS.length).toBe(before + 1);
+      expect(TUNINGS[TUNINGS.length - 1].id).toBe(saved.id);
+      expect(TUNINGS.some((t) => t.id === saved.id)).toBe(true);
+    } finally {
+      deleteCustomTuning(saved.id);
+    }
+    expect(TUNINGS.length).toBe(before);
+    expect(TUNINGS.some((t) => t.id === saved.id)).toBe(false);
+  });
+
+  it("element identity is stable across repeated accesses", () => {
+    // Observable contract: indexing twice yields the same object, so
+    // identity-based lookups (indexOf, Set membership) work on TUNINGS.
+    expect(TUNINGS[0]).toBe(TUNINGS[0]);
+    expect(TUNINGS.indexOf(TUNINGS[0])).toBe(0);
+    const last = TUNINGS[TUNINGS.length - 1];
+    expect(TUNINGS.includes(last)).toBe(true);
   });
 });

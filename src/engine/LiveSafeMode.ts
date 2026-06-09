@@ -166,6 +166,19 @@ export class LiveSafeMode {
     return this.suppressedFx.includes(id);
   }
 
+  /** Inbound half of the user-intent contract (mirrors
+   *  AdaptiveStabilityEngine.noteUserEffectIntent): a suppressed FX
+   *  reads live-OFF either way, so without this signal revert() can't
+   *  tell "still suppressed" from "user deliberately turned it off"
+   *  mid-mode — and would re-enable it against the user's wishes. A
+   *  deliberate toggle transfers ownership back to the user. */
+  noteUserEffectIntent(id: EffectId): void {
+    const idx = this.suppressedFx.indexOf(id);
+    if (idx < 0) return;
+    this.suppressedFx.splice(idx, 1);
+    this.emit();
+  }
+
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
     listener(this.getState());

@@ -104,10 +104,12 @@ describe("LoopBouncer encode-failure recovery", () => {
 describe("LoopBouncer stop without worklet ack", () => {
   it("resolves bounce() even if the worklet never posts 'done'", async () => {
     // Reset the module registry so this import doesn't reuse the throwing
-    // encodeWav24 mock the encode-failure test above registered.
+    // encodeWav24 mock the encode-failure test above registered. The fake
+    // returns a header-sized (44-byte) buffer because the chunked encode
+    // wrapper stitches real headers — a real encode is never smaller.
     vi.resetModules();
     vi.doMock("../../src/engine/wavEncoder", () => ({
-      encodeWav24: () => new ArrayBuffer(8),
+      encodeWav24: () => new ArrayBuffer(44),
     }));
     const { LoopBouncer } = await import("../../src/engine/LoopBouncer");
 
@@ -126,6 +128,43 @@ describe("LoopBouncer stop without worklet ack", () => {
     const result = await bounced;
 
     expect(result.wav).toBeInstanceOf(ArrayBuffer);
+    expect(bouncer.isBouncing()).toBe(false);
+  });
+});
+
+// --- LoopBouncer: capture must not hang on a stalled audio clock -----------
+
+describe("LoopBouncer clock-stall watchdog", () => {
+  it("rejects bounce() when ctx.currentTime stops advancing", async () => {
+    // Reset the module registry so this import doesn't reuse mocks from
+    // earlier tests in this file. (Encode is never reached — the bounce
+    // aborts during capture — but a header-sized fake keeps it harmless.)
+    vi.resetModules();
+    vi.doMock("../../src/engine/wavEncoder", () => ({
+      encodeWav24: () => new ArrayBuffer(44),
+    }));
+    const { LoopBouncer } = await import("../../src/engine/LoopBouncer");
+
+    vi.useFakeTimers();
+    // makeCtx pins currentTime at a constant — exactly what happens when
+    // the context suspends mid-bounce (iOS screen lock). The worklet
+    // delivers too few frames to finish, so the capture loop's only exit
+    // is the clock — which never advances. Without a watchdog bounce()
+    // hangs forever.
+    const ctx = makeCtx(1000);
+    nodeBehavior = { framesOnStart: 10, doneOnStop: true };
+    const bouncer = new LoopBouncer(ctx as any, tapNode);
+
+    const bounced = bouncer.bounce({ lengthSec: 0.1, fadeMs: 10 });
+    // Attach the rejection expectation before advancing so an early
+    // rejection isn't reported as unhandled.
+    const expectation = expect(bounced).rejects.toThrow(/stalled/i);
+    // Advance well past the watchdog window (plus done-ack slack).
+    await vi.advanceTimersByTimeAsync(15_000);
+    await expectation;
+
+    // The watchdog must clear `running` like cancel does, or every later
+    // bounce is rejected with "already in progress".
     expect(bouncer.isBouncing()).toBe(false);
   });
 });

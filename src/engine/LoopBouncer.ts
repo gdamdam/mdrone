@@ -49,7 +49,7 @@
  * stem bounce lands later, OAC becomes worth the refactor.
  */
 
-import { encodeWav24 } from "./wavEncoder";
+import { encodeWav24, type WavOptions } from "./wavEncoder";
 
 export interface BounceProgress {
   /** Elapsed capture seconds, 0 … totalSec. */
@@ -93,6 +93,25 @@ const DONE_ACK_TIMEOUT_MS = 2000;
  *  a click on one-shot playback. Lives outside the smpl loop region so it
  *  never affects sampler looping. */
 const EDGE_FADE_MS = 10;
+
+/** Polling interval of the capture wait loop, in ms. */
+const CAPTURE_TICK_MS = 50;
+
+/** Watchdog for a stalled audio clock during capture. `ctx.currentTime`
+ *  is the capture loop's only reliable exit condition; if the context
+ *  suspends mid-bounce (iOS screen lock, tab discarded to background)
+ *  the clock stops advancing and the loop would spin forever, pinning
+ *  `running` and wedging every later bounce. If the clock hasn't moved
+ *  for this much wall-clock time we abort through the same teardown
+ *  path as cancel() so the caller gets a rejection instead of a hang.
+ *  10 s is far above any legitimate scheduler hiccup. */
+const CLOCK_STALL_TIMEOUT_MS = 10_000;
+
+/** Frames per slice in encodeWav24Chunked. 256k stereo frames ≈ 1.5 MB
+ *  of 24-bit PCM — a few ms of encode work per slice, so a 600 s loop
+ *  (~110 slices) yields to the event loop often enough that the UI
+ *  never freezes, without drowning in macrotask overhead. */
+const ENCODE_CHUNK_FRAMES = 262_144;
 
 export class BounceCancelledError extends Error {
   constructor() {
@@ -183,18 +202,35 @@ export class LoopBouncer {
       onProgress({ elapsedSec, totalSec, phase: "capturing" });
     }, 250);
 
-    // Wait for capture to complete (or cancel).
+    // Wait for capture to complete (or cancel, or clock stall).
+    let stalled = false;
     try {
       await new Promise<void>((resolve) => {
         const start = this.ctx.currentTime;
+        // Clock-stall watchdog state — counts wall-clock ticks during
+        // which currentTime did not advance (see CLOCK_STALL_TIMEOUT_MS).
+        let lastTime = start;
+        let stalledMs = 0;
         const tick = () => {
           if (this.cancelled) { resolve(); return; }
-          const elapsed = this.ctx.currentTime - start;
+          const now = this.ctx.currentTime;
+          const elapsed = now - start;
           if (elapsed >= totalSec || captured >= totalFrames) {
             resolve();
             return;
           }
-          window.setTimeout(tick, 50);
+          if (now === lastTime) {
+            stalledMs += CAPTURE_TICK_MS;
+            if (stalledMs >= CLOCK_STALL_TIMEOUT_MS) {
+              stalled = true;
+              resolve();
+              return;
+            }
+          } else {
+            lastTime = now;
+            stalledMs = 0;
+          }
+          window.setTimeout(tick, CAPTURE_TICK_MS);
         };
         tick();
       });
@@ -213,9 +249,16 @@ export class LoopBouncer {
       try { this.tapNode.disconnect(node); } catch { /* ok */ }
     }
 
-    if (this.cancelled) {
+    if (this.cancelled || stalled) {
       this.running = false;
       this.cancelled = false;
+      // A stall is a failure the user must see (Layout only silences
+      // BounceCancelledError), so it gets a plain Error instead.
+      if (stalled) {
+        throw new Error(
+          "Loop bounce aborted — the audio clock stalled (context suspended?). Keep the screen on and try again.",
+        );
+      }
       throw new BounceCancelledError();
     }
 
@@ -250,7 +293,10 @@ export class LoopBouncer {
       );
       const { outL, outR, loopStart, loopEnd } = padLoopEdges(bodyL, bodyR, padFrames);
 
-      const wav = encodeWav24(outL, outR, sampleRate, {
+      // Chunked rather than single-pass: a 600 s loop is ~200 MB of PCM
+      // and a synchronous encode would freeze the main thread (UI, audio
+      // scheduling callbacks) for seconds.
+      const wav = await encodeWav24Chunked(outL, outR, sampleRate, {
         loopPoints: { start: loopStart, end: loopEnd },
       });
 
@@ -261,6 +307,59 @@ export class LoopBouncer {
       this.running = false;
     }
   }
+}
+
+/**
+ * encodeWav24 split across macrotasks so a multi-hundred-MB encode does
+ * not block the main thread. Output is byte-for-byte identical to a
+ * single-pass `encodeWav24(left, right, sampleRate, opts)`:
+ *
+ *   - 24-bit quantization is per-sample with no cross-sample state, so
+ *     the data section of a slice encode is byte-identical to the same
+ *     region of a full encode.
+ *   - The header and optional `smpl` chunk are taken from a zero-frame
+ *     encodeWav24 call (their layout does not depend on data length),
+ *     then the only two length-dependent fields — RIFF size and data
+ *     size — are patched in.
+ *
+ * `chunkFrames` is parameterized for unit tests; production uses the
+ * default. Exported for unit-testing the byte-for-byte invariant.
+ */
+export async function encodeWav24Chunked(
+  left: Float32Array,
+  right: Float32Array,
+  sampleRate: number,
+  opts: WavOptions = {},
+  chunkFrames: number = ENCODE_CHUNK_FRAMES,
+): Promise<ArrayBuffer> {
+  const HEADER_BYTES = 44;
+  const BLOCK_ALIGN = 6; // stereo, 3 bytes per sample
+  const frames = left.length;
+  const dataSize = frames * BLOCK_ALIGN;
+
+  const skeleton = new Uint8Array(
+    encodeWav24(new Float32Array(0), new Float32Array(0), sampleRate, opts),
+  );
+  const out = new Uint8Array(skeleton.length + dataSize);
+  out.set(skeleton.subarray(0, HEADER_BYTES), 0);
+  // Trailing smpl chunk (if any) goes after the data section.
+  out.set(skeleton.subarray(HEADER_BYTES), HEADER_BYTES + dataSize);
+  const view = new DataView(out.buffer);
+  view.setUint32(4, out.length - 8, true); // RIFF chunk size
+  view.setUint32(40, dataSize, true);      // data chunk size
+
+  for (let start = 0; start < frames; start += chunkFrames) {
+    // Yield between slices (not before the first) so small encodes stay
+    // synchronous and big ones release the event loop each slice.
+    if (start > 0) await new Promise<void>((r) => { setTimeout(r, 0); });
+    const end = Math.min(frames, start + chunkFrames);
+    const piece = new Uint8Array(
+      encodeWav24(left.subarray(start, end), right.subarray(start, end), sampleRate),
+    );
+    out.set(piece.subarray(HEADER_BYTES), HEADER_BYTES + start * BLOCK_ALIGN);
+  }
+
+  return out.buffer;
 }
 
 function concat(chunks: Float32Array[], totalFrames: number): Float32Array {

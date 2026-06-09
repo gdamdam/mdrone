@@ -3,13 +3,22 @@ import { normalizePortableScene } from "./session";
 
 const CODEC_TIMEOUT_MS = 2500;
 
-function bytesToUrlSafeB64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+// Exported (with urlSafeB64ToBytes) so unit tests can verify byte-level
+// encode/decode behavior without going through scene JSON.
+export function bytesToUrlSafeB64(bytes: Uint8Array): string {
+  // Convert in chunks instead of per-byte string concat (quadratic-ish as
+  // motion payloads grow). Chunked because a single fromCharCode.apply over
+  // the whole payload can exceed the engine's argument-list limit and throw.
+  const CHUNK_SIZE = 0x8000;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + CHUNK_SIZE);
+    parts.push(String.fromCharCode.apply(null, chunk as unknown as number[]));
+  }
+  return btoa(parts.join("")).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
-function urlSafeB64ToBytes(payload: string): Uint8Array {
+export function urlSafeB64ToBytes(payload: string): Uint8Array {
   const b64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
   const binary = atob(b64);
   const bytes = new Uint8Array(binary.length);

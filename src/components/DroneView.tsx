@@ -685,6 +685,17 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     return () => clearTimeout(handle);
   }, [state, getSnapshot, syncHistoryUi]);
 
+  // Suppress-release timer is tracked so unmount can't leave a stale
+  // callback firing into a dead ref (same hygiene as the other timer
+  // refs below). Re-arming also clears any prior pending release so
+  // rapid undo/redo can't drop suppression mid-debounce and push the
+  // restored snapshot back into history.
+  const suppressReleaseTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (suppressReleaseTimerRef.current != null) {
+      window.clearTimeout(suppressReleaseTimerRef.current);
+    }
+  }, []);
   const applyAndSuppress = useCallback((snap: DroneSessionSnapshot) => {
     suppressPushRef.current = true;
     // Undo/redo and A/B recall apply a full snapshot — same staleness
@@ -693,7 +704,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     applySnapshot(snap);
     // Release after the push debounce window plus a margin so the
     // next state change from the user re-engages history cleanly.
-    setTimeout(() => { suppressPushRef.current = false; }, 500);
+    if (suppressReleaseTimerRef.current != null) {
+      window.clearTimeout(suppressReleaseTimerRef.current);
+    }
+    suppressReleaseTimerRef.current = window.setTimeout(() => {
+      suppressPushRef.current = false;
+      suppressReleaseTimerRef.current = null;
+    }, 500);
   }, [applySnapshot, clearMuteSoloForLoad]);
 
   const undo = useCallback(() => {
@@ -775,6 +792,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       return next;
     });
   };
+  // Delayed "advanced" tour offer (ADVANCED disclosure click) is
+  // tracked so unmount can't leave a stale pub-sub publish pending —
+  // a leaked offer would otherwise surface against a future mount.
+  const advancedOfferTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (advancedOfferTimerRef.current != null) {
+      window.clearTimeout(advancedOfferTimerRef.current);
+    }
+  }, []);
 
   // MUTATE intensity — local state, not persisted across reloads.
   // 0.25 is an audible but coherent default for typical drones.
@@ -2280,7 +2306,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
             // First-time expansion offers the advanced tour as a
             // dismissible pill — never auto-starts the spotlight.
             if (willOpen && !isFlowDone("advanced")) {
-              window.setTimeout(() => requestOfferFlow("advanced"), 120);
+              if (advancedOfferTimerRef.current != null) {
+                window.clearTimeout(advancedOfferTimerRef.current);
+              }
+              advancedOfferTimerRef.current = window.setTimeout(() => {
+                advancedOfferTimerRef.current = null;
+                requestOfferFlow("advanced");
+              }, 120);
             }
           }}
         >
