@@ -103,6 +103,7 @@ function makeEngine() {
     layerAnalysers: new Map(),
     layerFilters: new Map(),
     layerFilterWalkStops: new Map(),
+    activeGainCurves: new Map(),
     pendingRetire: [],
     droneVoiceGain: makeGain(),
   });
@@ -173,10 +174,13 @@ describe("VoiceEngine rebuild crossfade is equal-power", () => {
     expect(outCurve[outCurve.length - 1]).toBe(Math.fround(FLOOR));
     expect(inCurve[inCurve.length - 1]).toBe(Math.fround(LEVEL));
 
-    // House style: a final setValueAtTime anchor at the exact target
-    // after the curve window ends.
-    expect(oldGain.gain.setValueAtTime).toHaveBeenCalledWith(FLOOR, BLOOM);
-    expect(newGain.gain.setValueAtTime).toHaveBeenCalledWith(LEVEL, BLOOM);
+    // NO post-curve setValueAtTime anchor: Chrome clamps a just-past
+    // curve start to currentTime, so an anchor at now + bloom can land
+    // inside the curve's own (clamped) window and throw
+    // NotSupportedError (field crash). The pinned last curve point is
+    // the end-value guarantee instead — asserted above.
+    expect(oldGain.gain.setValueAtTime).not.toHaveBeenCalledWith(FLOOR, BLOOM);
+    expect(newGain.gain.setValueAtTime).not.toHaveBeenCalledWith(LEVEL, BLOOM);
   });
 
   it("holds ≈ full power at the fade midpoint (linear pair dips to 50% power)", () => {
@@ -216,11 +220,15 @@ describe("VoiceEngine rebuild crossfade is equal-power", () => {
 
     // Scheduling hygiene on the retired param, in order:
     // cancelScheduledValues → setValueAtTime(current) → curve.
+    // The cancel targets the in-flight curve's START (0), not `now`:
+    // Chrome's cancelScheduledValues does not remove a running curve
+    // (spec divergence), so cancelling from the start is the only
+    // cross-browser way to clear its exclusive window.
     const cancelOrder = liveGain.gain.cancelScheduledValues.mock.invocationCallOrder.at(-1)!;
     const curveOrder = liveGain.gain.setValueCurveAtTime.mock.invocationCallOrder.at(-1)!;
     const anchorOrders = liveGain.gain.setValueAtTime.mock.invocationCallOrder
       .filter((o: number) => o > cancelOrder && o < curveOrder);
-    expect(liveGain.gain.cancelScheduledValues).toHaveBeenCalledWith(BLOOM / 2);
+    expect(liveGain.gain.cancelScheduledValues).toHaveBeenCalledWith(0);
     expect(anchorOrders.length).toBeGreaterThan(0);
     expect(liveGain.gain.setValueCurveAtTime).toHaveBeenCalledTimes(2);
     const [, at, dur] = lastCurveCall(liveGain.gain);

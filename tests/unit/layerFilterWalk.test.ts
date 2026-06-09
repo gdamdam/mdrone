@@ -129,6 +129,7 @@ function makeEngine(rootFreq = 220) {
     layerAnalysers: new Map(),
     layerFilters: new Map(),
     layerFilterWalkStops: new Map(),
+    activeGainCurves: new Map(),
     pendingRetire: [],
     droneVoiceGain: makeGain(),
   });

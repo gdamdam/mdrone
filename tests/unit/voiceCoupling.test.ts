@@ -148,6 +148,7 @@ function makeEngine(rootFreq = 220) {
     coupleAmount: 0,
     coupling: null,
     couplingInjections: new Map(),
+    activeGainCurves: new Map(),
     pendingRetire: [],
     droneVoiceGain: makeGain(),
   });

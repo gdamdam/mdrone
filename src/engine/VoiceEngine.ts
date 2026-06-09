@@ -83,6 +83,16 @@ export class VoiceEngine {
 
   private droneVoicesByLayer: Map<VoiceType, Voice[]> = new Map();
   private layerGains: Map<VoiceType, GainNode> = new Map();
+  /** Live rebuild-crossfade windows, keyed by the layer-gain param.
+   *  Chrome does not implement the spec provision that
+   *  cancelScheduledValues(t) removes an in-flight setValueCurveAtTime
+   *  whose window contains t — the curve survives and the next event
+   *  scheduled inside its window throws NotSupportedError (field
+   *  crash: level/ATTUNE writes landing inside a crossfade). Tracking
+   *  the window lets anchorLayerGainNow() cancel from the curve's
+   *  *start* (>= start removes it in every browser) and re-anchor at
+   *  the curve's sampled value, click-free. */
+  private activeGainCurves: Map<AudioParam, { start: number; dur: number; curve: Float32Array }> = new Map();
   // Per-voice analyser taps for UI metering. Created lazily alongside
   // each layerGain. Connecting an AnalyserNode is a passthrough probe;
   // it doesn't sink the audio path (gain still flows through to
@@ -457,15 +467,49 @@ export class VoiceEngine {
     if (gain) this.glideLayerGain(gain, this.effectiveLayerLevel(type), 0.08);
   }
 
+  /** Sample a tracked crossfade curve at time t (linear interpolation
+   *  between points, matching browser curve rendering). */
+  private static sampleXfadeCurve(
+    rec: { start: number; dur: number; curve: Float32Array },
+    t: number,
+  ): number {
+    const n = rec.curve.length;
+    const pos = Math.min(1, Math.max(0, (t - rec.start) / rec.dur)) * (n - 1);
+    const i = Math.floor(pos);
+    if (i >= n - 1) return rec.curve[n - 1];
+    return rec.curve[i] + (rec.curve[i + 1] - rec.curve[i]) * (pos - i);
+  }
+
+  /** Cancel a layer gain's schedule and re-anchor it Chrome-safely,
+   *  returning the anchored value. If our bookkeeping says a rebuild
+   *  crossfade curve is still running, cancelScheduledValues(now)
+   *  would NOT remove it in Chrome and the re-anchor would throw
+   *  NotSupportedError — so cancel from the curve's start instead and
+   *  anchor at the curve's sampled value (the level the fade had
+   *  reached; no audible step). The stored start is the *nominal*
+   *  schedule time; if Chrome clamped the curve later (start time
+   *  already past when scheduled), the actual start is >= nominal, so
+   *  cancelling from the nominal start still removes it. */
+  private anchorLayerGainNow(gain: GainNode, now: number): number {
+    const g = gain.gain;
+    const rec = this.activeGainCurves.get(g);
+    this.activeGainCurves.delete(g);
+    if (rec && now < rec.start + rec.dur) {
+      const v = VoiceEngine.sampleXfadeCurve(rec, now);
+      g.cancelScheduledValues(rec.start);
+      g.setValueAtTime(v, now);
+      return v;
+    }
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    return g.value;
+  }
+
   /** setTargetAtTime on a layer gain, safe against an in-flight
-   *  rebuild crossfade: setValueCurveAtTime makes its whole window
-   *  exclusive (any overlapping event throws NotSupportedError), so
-   *  cancel + re-anchor at the current value first — same anchoring
-   *  hygiene rebuildIntervals() uses on droneVoiceGain. */
+   *  rebuild crossfade (see anchorLayerGainNow). */
   private glideLayerGain(gain: GainNode, target: number, tc: number): void {
     const now = this.ctx.currentTime;
-    gain.gain.cancelScheduledValues(now);
-    gain.gain.setValueAtTime(gain.gain.value, now);
+    this.anchorLayerGainNow(gain, now);
     gain.gain.setTargetAtTime(target, now, tc);
   }
 
@@ -730,18 +774,20 @@ export class VoiceEngine {
       const oldFilter = this.retireLayerFilter(type);
       const oldGain = this.layerGains.get(type);
       if (oldGain) {
-        const cur = oldGain.gain.value;
-        oldGain.gain.cancelScheduledValues(now);
-        oldGain.gain.setValueAtTime(cur, now);
+        // Chrome-safe cancel + re-anchor (see anchorLayerGainNow) —
+        // a retriggered rebuild lands inside the previous crossfade's
+        // curve window, where a plain cancelScheduledValues(now) does
+        // not protect the writes below.
+        const cur = this.anchorLayerGainNow(oldGain, now);
         // Equal-power fade-out (cos shape) paired with the sin-shaped
-        // fade-in below — see XFADE_OUT_PROGRESS. The cancel above is
-        // load-bearing: setValueCurveAtTime throws NotSupportedError
-        // if any event overlaps its [now, now+bloom) window, including
-        // a still-running curve from a retriggered rebuild.
-        oldGain.gain.setValueCurveAtTime(
-          scaleXfadeCurve(XFADE_OUT_PROGRESS, cur, 0.0001), now, bloom,
-        );
-        oldGain.gain.setValueAtTime(0.0001, now + bloom);
+        // fade-in below — see XFADE_OUT_PROGRESS. No setValueAtTime
+        // anchor after the curve: the curve's last point is pinned to
+        // the target already, and a post-curve anchor at now + bloom
+        // can land inside the curve's own window when Chrome clamps a
+        // just-past start time to currentTime (field crash).
+        const outCurve = scaleXfadeCurve(XFADE_OUT_PROGRESS, cur, 0.0001);
+        oldGain.gain.setValueCurveAtTime(outCurve, now, bloom);
+        this.activeGainCurves.set(oldGain.gain, { start: now, dur: bloom, curve: outCurve });
         this.layerGains.delete(type);
         // Tear down the analyser tap too — the gain it was probing is
         // about to be retired/disconnected, so the tap would otherwise
@@ -770,13 +816,12 @@ export class VoiceEngine {
       layerGain.gain.setValueAtTime(0, now);
       // Equal-power fade-in (sin shape), complement of the retiring
       // layer's cos fade-out above: g_out² + g_in² ≈ const, no −3 dB
-      // mid-crossfade dip. End value pinned to the exact target, then
-      // re-anchored so the post-fade value is deterministic.
+      // mid-crossfade dip. End value pinned to the exact target by the
+      // curve's last point; no post-curve anchor (see fade-out above).
       const layerTarget = this.effectiveLayerLevel(type);
-      layerGain.gain.setValueCurveAtTime(
-        scaleXfadeCurve(XFADE_IN_PROGRESS, 0, layerTarget), now, bloom,
-      );
-      layerGain.gain.setValueAtTime(layerTarget, now + bloom);
+      const inCurve = scaleXfadeCurve(XFADE_IN_PROGRESS, 0, layerTarget);
+      layerGain.gain.setValueCurveAtTime(inCurve, now, bloom);
+      this.activeGainCurves.set(layerGain.gain, { start: now, dur: bloom, curve: inCurve });
       this.layerGains.set(type, layerGain);
       // Re-attach the analyser tap to this freshly built bus so the
       // UI meter resumes after a layer rebuild. This path runs in
@@ -822,6 +867,7 @@ export class VoiceEngine {
     entry.stopTimeout = window.setTimeout(() => {
       const idx = this.pendingRetire.indexOf(entry);
       if (idx >= 0) this.pendingRetire.splice(idx, 1);
+      this.activeGainCurves.delete(gain.gain);
       for (const voice of voices) {
         try { voice.stop(); } catch { /* ok */ }
       }
@@ -840,11 +886,12 @@ export class VoiceEngine {
     for (const entry of entries) {
       clearTimeout(entry.stopTimeout);
       // Fast-fade over 30 ms to avoid a click, then stop + disconnect.
+      // anchorLayerGainNow: the retiring gain usually still has its
+      // fade-out curve in flight, which a plain cancel(now) would not
+      // remove in Chrome (the ramp below would throw).
       try {
-        const g = entry.gain.gain;
-        g.cancelScheduledValues(now);
-        g.setValueAtTime(g.value, now);
-        g.linearRampToValueAtTime(0, now + 0.03);
+        this.anchorLayerGainNow(entry.gain, now);
+        entry.gain.gain.linearRampToValueAtTime(0, now + 0.03);
       } catch { /* ok */ }
       const { voices, gain, filter } = entry;
       window.setTimeout(() => {
@@ -1214,6 +1261,7 @@ export class VoiceEngine {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.activeGainCurves.clear();
 
     if (this.materialInterval != null) {
       window.clearInterval(this.materialInterval);
