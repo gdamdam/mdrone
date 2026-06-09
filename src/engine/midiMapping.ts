@@ -179,13 +179,19 @@ export function loadCcMap(): CcMap {
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const map: CcMap = {};
+      const tombstones: number[] = [];
       for (const [k, v] of Object.entries(parsed)) {
         const cc = parseInt(k, 10);
-        if (!isNaN(cc) && cc >= 0 && cc <= 127 && isValidTargetId(v)) {
-          map[cc] = v;
-        }
+        if (isNaN(cc) || cc < 0 || cc > 127) continue;
+        // `null` is a tombstone: the user unmapped a default CC, so it
+        // must stay gone after the defaults merge below. Legacy files
+        // never contain null and load exactly as before.
+        if (v === null) tombstones.push(cc);
+        else if (isValidTargetId(v)) map[cc] = v;
       }
-      return { ...DEFAULT_CC_MAP, ...map };
+      const merged: CcMap = { ...DEFAULT_CC_MAP, ...map };
+      for (const cc of tombstones) delete merged[cc];
+      return merged;
     }
   } catch { /* noop */ }
   return { ...DEFAULT_CC_MAP };
@@ -193,11 +199,17 @@ export function loadCcMap(): CcMap {
 
 export function saveCcMap(map: CcMap): void {
   try {
-    const overrides: CcMap = {};
+    const overrides: Record<number, string | null> = {};
     for (const [k, v] of Object.entries(map)) {
       const cc = parseInt(k, 10);
       // Persist entries that differ from default or weren't defaulted.
       if (DEFAULT_CC_MAP[cc] !== v) overrides[cc] = v;
+    }
+    // Tombstone defaults the user unmapped — without an explicit null,
+    // loadCcMap's defaults merge would silently resurrect them.
+    for (const k of Object.keys(DEFAULT_CC_MAP)) {
+      const cc = parseInt(k, 10);
+      if (!(cc in map)) overrides[cc] = null;
     }
     if (Object.keys(overrides).length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));

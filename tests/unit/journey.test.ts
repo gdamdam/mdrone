@@ -99,8 +99,8 @@ describe("applyJourneyTick determinism", () => {
     for (let t = 1; t <= total + 5; t++) {
       snap = applyJourneyTick(snap, "morning", t);
     }
-    // Final dissolve target for morning has air ≈ 0.62. After 30+
-    // ticks of 25% lerp the result should be inside ±0.02.
+    // Final dissolve target for morning has air ≈ 0.62. After a full
+    // journey (~300 ticks) of 4% lerp the result should be inside ±0.02.
     const finalAir = JOURNEYS.morning.phases[3].targets.air;
     expect(finalAir).toBeDefined();
     expect(snap.air).toBeGreaterThan((finalAir as number) - 0.02);
@@ -117,6 +117,68 @@ describe("applyJourneyTick determinism", () => {
             expect(Number.isFinite(v)).toBe(true);
           }
         }
+      }
+    }
+  });
+});
+
+describe("Journey pacing (~20 min ritual)", () => {
+  // 1 evolve tick = 4 s (INTERVAL_MS in useSceneManager). The UI sells
+  // JOURNEY as a "~20 min" ritual, so the authored motion must span a
+  // sane window around that — not finish in ~2 min and coast.
+  const TICK_SECONDS = 4;
+
+  it("schedules ~20 minutes of authored motion per journey (16–24 min)", () => {
+    for (const id of JOURNEY_IDS) {
+      const minutes = (journeyDurationTicks(id) * TICK_SECONDS) / 60;
+      expect(minutes, `${id} total duration`).toBeGreaterThanOrEqual(16);
+      expect(minutes, `${id} total duration`).toBeLessThanOrEqual(24);
+    }
+  });
+
+  it("is deterministic: same seed ⇒ identical tick-by-tick schedule", () => {
+    // Evolve ticks reset to 0 whenever the scene seed changes, so two
+    // visitors on the same share URL replay the same (id, tick) walk.
+    // The journey schedule must therefore be a pure function of
+    // (snapshot, id, tick): two full replays from the same start state
+    // must produce byte-identical snapshot sequences.
+    for (const id of JOURNEY_IDS) {
+      const total = journeyDurationTicks(id);
+      let a = baseDrone();
+      let b = baseDrone();
+      for (let t = 1; t <= total; t++) {
+        a = applyJourneyTick(a, id, t);
+        b = applyJourneyTick(b, id, t);
+        expect(a).toEqual(b);
+      }
+    }
+  });
+
+  it("keeps per-tick parameter motion drone-gradual (≤ 5% of gap per 4 s)", () => {
+    // Design intent: the original pacing moved 25% of the remaining
+    // distance per 4 s tick across ~24-tick journeys. Stretching the
+    // arc to ~300 ticks must come from *slower* motion, not more
+    // events — so the per-tick step must shrink proportionally. We
+    // bound it at 5% of the remaining gap, i.e. for 0..1 macros no
+    // single tick may move any parameter by more than 0.05 (and in
+    // practice far less, since authored targets sit within 0..0.85).
+    const MAX_STEP = 0.05;
+    for (const id of JOURNEY_IDS) {
+      let snap = baseDrone();
+      // Start far from every target so the first ticks see the
+      // worst-case remaining distance.
+      snap = { ...snap, air: 0, bloom: 0, drift: 1, climateX: 1, climateY: 1 };
+      const total = journeyDurationTicks(id);
+      for (let t = 1; t <= total + 5; t++) {
+        const next = applyJourneyTick(snap, id, t);
+        for (const k of [
+          "drift", "air", "time", "sub", "bloom",
+          "glide", "climateX", "climateY", "evolve",
+        ] as const) {
+          const delta = Math.abs((next[k] as number) - (snap[k] as number));
+          expect(delta, `${id} tick ${t} ${k}`).toBeLessThanOrEqual(MAX_STEP);
+        }
+        snap = next;
       }
     }
   });

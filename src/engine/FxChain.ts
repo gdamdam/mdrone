@@ -916,6 +916,12 @@ export class FxChain {
     const performSwap = () => {
       const stale = kind === "hall" ? this.hallWorklet : this.cisternWorklet;
       if (stale) {
+        // Tell the processor to terminate (its process() returns false
+        // on "stop") before severing the graph — a disconnected
+        // AudioWorkletNode whose processor still returns true keeps
+        // rendering forever, leaking one full FDN per swap. Same
+        // pattern as VoiceBuilder's stop().
+        try { stale.port.postMessage({ type: "stop" }); } catch { /* noop */ }
         try { stale.disconnect(); } catch { /* noop */ }
         try { ins.insertIn.disconnect(stale); } catch { /* noop */ }
       }

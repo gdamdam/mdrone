@@ -1388,8 +1388,15 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
       this.apR.push({ buf: new Float32Array(lenR), idx: 0, maxLen: lenR, base: Math.floor((allpassBase[i] + STEREO_OFFSET) * srScale) });
     }
 
+    // "stop" terminates the processor: swapFdnReverb() builds a fresh
+    // node per reverb re-seed, and a disconnected processor whose
+    // process() returns true keeps rendering forever — two leaked
+    // Freeverb networks per preset change without this.
+    this.stopped = false;
     this.port.onmessage = (e) => {
-      if (e.data && e.data.type === "clear") this.clear();
+      if (!e.data) return;
+      if (e.data.type === "clear") this.clear();
+      else if (e.data.type === "stop") this.stopped = true;
     };
   }
 
@@ -1401,6 +1408,7 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
   }
 
   process(_inputs, outputs, parameters) {
+    if (this.stopped) return false;
     const input = _inputs[0];
     const output = outputs[0];
     if (!input || input.length === 0 || !output) return true;
@@ -1653,13 +1661,16 @@ registerProcessor("fx-loudness-meter", LoudnessMeterProcessor);
 //
 // Messages:
 //   main → node : { type: "start" }   — begin capturing
-//   main → node : { type: "stop" }    — stop + flush remaining buffer
+//   main → node : { type: "stop" }    — stop + flush remaining buffer,
+//                  then terminate (process() returns false; the node is
+//                  single-use — recorders build a fresh tap per take)
 //   node → main : { type: "chunk", samples: [Float32Array, Float32Array] }
 //   node → main : { type: "done" }    — last chunk sent, safe to encode
 class RecorderTapProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.capturing = false;
+    this.stopped = false;
     // 32 × 128 = 4096-frame batches ≈ 93 ms at 44.1 k. Small enough
     // that a stop-click yields <100 ms of lost tail; large enough
     // that we aren't messaging 344 times/s.
@@ -1677,6 +1688,11 @@ class RecorderTapProcessor extends AudioWorkletProcessor {
         if (this.blockInBatch > 0) this.flush();
         this.capturing = false;
         try { this.port.postMessage({ type: "done" }); } catch { /* noop */ }
+        // Recording finalized — terminate the processor. MasterRecorder
+        // and LoopBouncer build a fresh tap node per take/bounce, so a
+        // processor that keeps returning true after "done" accumulates
+        // one idle-but-alive worklet per recording.
+        this.stopped = true;
       }
     };
   }
@@ -1700,6 +1716,7 @@ class RecorderTapProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs) {
+    if (this.stopped) return false;
     if (!this.capturing) return true;
     const input = inputs[0];
     if (!input || input.length === 0) return true;

@@ -19,6 +19,11 @@
 const APP_VERSION = "__MDRONE_VERSION__";
 const CACHE = `mdrone-v${APP_VERSION}`;
 
+// How long a navigation request may wait on the network before the SW
+// answers from the cached shell instead. 3s keeps real updates flowing
+// on healthy connections while bounding the blank-page window on lie-fi.
+const NAV_NETWORK_TIMEOUT_MS = 3000;
+
 // Shell files that are stable across a single deploy. Hashed Vite
 // chunks (/assets/*) are intentionally not listed — they are filled
 // into the cache on first fetch via the runtime strategy below.
@@ -80,14 +85,33 @@ self.addEventListener("fetch", (event) => {
   if (req.mode === "navigate") {
     event.respondWith(
       (async () => {
-        try {
-          const fresh = await fetch(req);
-          return fresh;
-        } catch {
+        const cachedFallback = async () => {
           const shell = await caches.match("./app.html");
           if (shell) return shell;
           const offline = await caches.match("./offline.html");
           return offline || new Response("offline", { status: 503 });
+        };
+        try {
+          // Lie-fi guard: a flaky connection can leave the fetch hanging
+          // for tens of seconds while the user stares at a blank page.
+          // Past this budget, serve the cached shell instead; the network
+          // request keeps running but its result is discarded.
+          let timer;
+          const network = fetch(req);
+          const fresh = await Promise.race([
+            network,
+            new Promise((resolve) => {
+              timer = setTimeout(() => resolve(null), NAV_NETWORK_TIMEOUT_MS);
+            }),
+          ]);
+          clearTimeout(timer);
+          if (fresh) return fresh;
+          // Timed out: swallow the eventual network failure so it doesn't
+          // surface as an unhandled rejection.
+          network.catch(() => { /* silent */ });
+          return cachedFallback();
+        } catch {
+          return cachedFallback();
         }
       })()
     );

@@ -16,6 +16,7 @@ const ScaleEditorModal = lazy(() =>
 );
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { VoiceType } from "../engine/VoiceBuilder";
+import { shouldTriggerHoldToggle, muteSoloAfterSceneLoad } from "./droneViewLogic";
 import { PRESETS, ARRIVAL_PRESET_IDS, type PresetGroup } from "../engine/presets";
 import { trackEvent } from "../analytics";
 import { JOURNEYS, JOURNEY_IDS, type JourneyId } from "../journey";
@@ -614,6 +615,27 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     mutedVoices, soloVoice, restoreFromMuteStash, restoreFromSoloStash,
   ]);
 
+  // Scene/preset/snapshot loads write authored voice levels directly,
+  // but mute/solo lives outside the scene reducer (Variant C above) —
+  // without a reset, the mute flag survives the load and un-muting
+  // restores a stale pre-mute level from the PREVIOUS scene over the
+  // freshly loaded one. Flags clear too, not just the stashes: a
+  // loaded scene should sound as authored (see muteSoloAfterSceneLoad
+  // for the full rationale). No level writes happen here — the loaded
+  // snapshot's levels are authoritative.
+  const clearMuteSoloForLoad = useCallback(() => {
+    const cleared = muteSoloAfterSceneLoad({
+      mutedVoices,
+      soloVoice,
+      muteStash: stashedLevelsRef.current,
+      soloStash: soloStashRef.current,
+    });
+    stashedLevelsRef.current = cleared.muteStash;
+    soloStashRef.current = cleared.soloStash;
+    setMutedVoices(cleared.mutedVoices);
+    setSoloVoice(cleared.soloVoice);
+  }, [mutedVoices, soloVoice]);
+
   const [shapeCollapsed, setShapeCollapsed] = useState<boolean>(() => {
     try {
       const saved = window.localStorage?.getItem("mdrone.shapeCollapsed");
@@ -665,11 +687,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
 
   const applyAndSuppress = useCallback((snap: DroneSessionSnapshot) => {
     suppressPushRef.current = true;
+    // Undo/redo and A/B recall apply a full snapshot — same staleness
+    // hazard as any other load, so the mute/solo stash resets first.
+    clearMuteSoloForLoad();
     applySnapshot(snap);
     // Release after the push debounce window plus a margin so the
     // next state change from the user re-engages history cleanly.
     setTimeout(() => { suppressPushRef.current = false; }, 500);
-  }, [applySnapshot]);
+  }, [applySnapshot, clearMuteSoloForLoad]);
 
   const undo = useCallback(() => {
     if (historyIndexRef.current <= 0) return;
@@ -1043,13 +1068,15 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       ? `${morphSeconds}s`
       : `${Math.round(morphSeconds / 60)}m`;
   const onPresetClick = useCallback((presetId: string, group: PresetGroup) => {
-    const run = () => { handlePreset(presetId); setTabOverride({ group, presetId }); };
+    // Presets are loads too: reset mute/solo so the preset sounds as
+    // authored instead of inheriting stale mute flags/stash.
+    const run = () => { clearMuteSoloForLoad(); handlePreset(presetId); setTabOverride({ group, presetId }); };
     if (morphSeconds > 0 && engine) {
       engine.morphRun(run, morphSeconds);
     } else {
       run();
     }
-  }, [engine, handlePreset, morphSeconds]);
+  }, [engine, handlePreset, morphSeconds, clearMuteSoloForLoad]);
   const presetTab =
     tabOverride && tabOverride.presetId === state.activePresetId
       ? tabOverride.group
@@ -1097,6 +1124,14 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.code === "Space") {
+        // Only hijack Space when it wouldn't operate the focused
+        // control — Tab-to-button + Space must activate the button
+        // (likewise selects, links, ARIA widgets), not toggle HOLD.
+        // The predicate also drops key-repeat so holding Space down
+        // doesn't retoggle the transport.
+        if (!shouldTriggerHoldToggle({ code: e.code, repeat: e.repeat, target: e.target as HTMLElement | null })) {
+          return;
+        }
         e.preventDefault();
         togglePlay();
         return;
@@ -1149,8 +1184,11 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     // the stale local 0 back on next render).
     const nextDiv = typeof snap.lfoDivision === "number" ? snap.lfoDivision : 0;
     if (nextDiv !== lfoDivision) setLfoDivisionState(nextDiv);
+    // Incoming snapshot's levels are authoritative — drop the local
+    // mute/solo stash so un-mute can't restore a pre-load level.
+    clearMuteSoloForLoad();
     applySnapshot(snap);
-  }, [applySnapshot, handleTanpuraTuning, tanpuraTuning, lfoDivision]);
+  }, [applySnapshot, handleTanpuraTuning, tanpuraTuning, lfoDivision, clearMuteSoloForLoad]);
 
   useImperativeHandle(ref, () => ({
     getSnapshot: getSnapshotWithLocals,
@@ -1163,6 +1201,8 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setRootFromUser,
     setOctave,
     applyPresetById(presetId) {
+      // Same staleness hazard as onPresetClick — see clearMuteSoloForLoad.
+      clearMuteSoloForLoad();
       handlePreset(presetId);
     },
     startImmediate,
@@ -1183,6 +1223,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     restartDrone,
     handlePreset,
     handleEffectReorder,
+    clearMuteSoloForLoad,
   ]);
 
   return (

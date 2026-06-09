@@ -77,6 +77,38 @@ export function clampEntrainAmDepth(d: number): number {
   return Math.max(ENTRAIN_AM_DEPTH_MIN, Math.min(ENTRAIN_AM_DEPTH_MAX, d));
 }
 
+/** Interaural detune, in cents, that puts a voice's R channel exactly
+ *  `rateHz` Hz above its L channel when the voice plays at `voiceHz`:
+ *  Δcents = 1200·log2(1 + rate/f). A fixed-cents detune makes the
+ *  difference frequency scale with pitch (~8 ¢ ≈ 1 Hz at 220 Hz but
+ *  ≈ 4 Hz at 880 Hz), so the cents must be re-derived per voice.
+ *  The "beat" here is just the acoustic L/R difference frequency —
+ *  binaural-beat practice specifies it in Hz; whether it entrains
+ *  anything neurally is not a claim this function makes. */
+export function dichoticCentsForFrequency(rateHz: number, voiceHz: number): number {
+  if (!Number.isFinite(rateHz) || !Number.isFinite(voiceHz)) return 0;
+  if (rateHz <= 0 || voiceHz <= 0) return 0;
+  return 1200 * Math.log2(1 + rateHz / voiceHz);
+}
+
+/** Engine-side rate hand-off for DICHOTIC mode. MotionEngine receives
+ *  the authoritative EntrainState but owns no voices; VoiceEngine owns
+ *  the voices (and the per-voice frequencies the cents conversion
+ *  above needs) but is only handed the dichotic on/off fan-out. The
+ *  two engines hold no reference to each other, so the rate crosses
+ *  over through this module-scoped latch. AudioEngine.setEntrain
+ *  always pushes state to MotionEngine before fanning out to
+ *  VoiceEngine, so the latch is current by the time voices read it. */
+let latchedRateHz = DEFAULT_ENTRAIN.rateHz;
+
+export function latchEntrainRateHz(hz: number): void {
+  latchedRateHz = clampEntrainRate(hz);
+}
+
+export function latchedEntrainRateHz(): number {
+  return latchedRateHz;
+}
+
 /** Zone color for a given Hz. Discrete bands, matte palette to
  *  align with the project's heavy/photographic aesthetic. Returned
  *  as a CSS color string so callers can drop into style. */

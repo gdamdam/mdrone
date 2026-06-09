@@ -33,6 +33,12 @@ export function registerServiceWorker(): void {
   // Defer registration to after load so SW install never competes
   // with first-paint / first-tone on arrival.
   const run = () => {
+    // clients.claim() in sw.js fires controllerchange on the very FIRST
+    // install too. Reloading then would kill audio for a first-time
+    // visitor who already started a drone, so remember whether a
+    // controller existed before registration — only a real update
+    // takeover (controller → new controller) warrants a reload.
+    const hadController = Boolean(navigator.serviceWorker.controller);
     navigator.serviceWorker
       .register("./sw.js")
       .then((reg) => {
@@ -58,6 +64,7 @@ export function registerServiceWorker(): void {
         // so the new precache is the one answering fetches.
         let reloaded = false;
         navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (!hadController) return; // first install, not an update
           if (reloaded) return;
           reloaded = true;
           location.reload();

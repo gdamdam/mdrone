@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   encodeScenePayload,
   decodeScenePayload,
@@ -70,10 +70,46 @@ describe("shareCodec round-trip", () => {
   });
 });
 
+describe("shareCodec without DecompressionStream", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reports unsupported-compression instead of silently returning null", async () => {
+    const scene = freshScene();
+    const { key, value } = await encodeScenePayload(scene);
+    expect(key).toBe("z"); // need a genuinely compressed payload for this test
+
+    vi.stubGlobal("DecompressionStream", undefined);
+    const failure: { reason?: string } = {};
+    const decoded = await decodeScenePayload(value, true, failure);
+    expect(decoded).toBeNull();
+    expect(failure.reason).toBe("unsupported-compression");
+  });
+
+  it("does not flag plain (uncompressed) payloads as unsupported", async () => {
+    const scene = freshScene();
+    const json = JSON.stringify(scene);
+    const b64 = btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+    vi.stubGlobal("DecompressionStream", undefined);
+    const failure: { reason?: string } = {};
+    const decoded = await decodeScenePayload(b64, false, failure);
+    expect(decoded).not.toBeNull();
+    expect(failure.reason).toBeUndefined();
+  });
+});
+
 describe("shareCodec malformed input", () => {
   it("extractScenePayloadFromUrl returns null when no z/b param is present", () => {
     expect(extractScenePayloadFromUrl("https://example.test/")).toBeNull();
     expect(extractScenePayloadFromUrl("https://example.test/?foo=bar")).toBeNull();
+  });
+
+  it("extractScenePayloadFromUrl returns null for malformed URL strings instead of throwing", () => {
+    expect(extractScenePayloadFromUrl("not a url")).toBeNull();
+    expect(extractScenePayloadFromUrl("")).toBeNull();
+    expect(extractScenePayloadFromUrl("http://")).toBeNull();
   });
 
   it("decodeScenePayload returns null for garbage base64 (uncompressed)", async () => {

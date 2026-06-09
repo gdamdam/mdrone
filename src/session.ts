@@ -524,8 +524,18 @@ export function normalizeUiSnapshot(value: unknown): UiSessionSnapshot {
   };
 }
 
+/** Highest PortableScene `version` this client knows how to read. */
+const SUPPORTED_SCENE_VERSION = 1;
+
 export function normalizePortableScene(value: unknown, fallbackName = "Shared Scene"): PortableScene | null {
   if (!isRecord(value)) return null;
+  // Reject scenes authored by a newer client instead of silently
+  // coercing them to v1 — future fields may carry incompatible
+  // semantics. Missing/non-numeric versions stay lenient so legacy
+  // links keep loading.
+  if (typeof value.version === "number" && value.version > SUPPORTED_SCENE_VERSION) {
+    return null;
+  }
   const drone = normalizeDroneSnapshot(value.drone);
   const mixer = normalizeMixerSnapshot(value.mixer);
   if (!drone || !mixer) return null;
@@ -616,9 +626,17 @@ export function loadSessions(): SavedSession[] {
   }
 }
 
-export function saveSessions(sessions: SavedSession[]): void {
-  if (!hasLocalStorage()) return;
-  localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify(sessions));
+/** Returns false when the write failed (quota exceeded, private-mode
+ *  Safari, …) so callers can warn/retry instead of losing data silently. */
+export function saveSessions(sessions: SavedSession[]): boolean {
+  if (!hasLocalStorage()) return false;
+  try {
+    localStorage.setItem(STORAGE_KEYS.sessions, JSON.stringify(sessions));
+    return true;
+  } catch (error) {
+    console.warn("mdrone: failed to persist sessions", error);
+    return false;
+  }
 }
 
 export function loadCurrentSessionId(): string | null {
@@ -650,12 +668,37 @@ export function loadAutosavedScene(): AutosavedScene | null {
   }
 }
 
-export function saveAutosavedScene(scene: PortableScene): void {
-  if (!hasLocalStorage()) return;
-  localStorage.setItem(STORAGE_KEYS.autosave, JSON.stringify({
-    savedAt: new Date().toISOString(),
-    scene,
-  }));
+/** Returns false when the write failed so the autosave loop can keep
+ *  the scene marked dirty and retry on the next tick. */
+export function saveAutosavedScene(scene: PortableScene): boolean {
+  if (!hasLocalStorage()) return false;
+  try {
+    localStorage.setItem(STORAGE_KEYS.autosave, JSON.stringify({
+      savedAt: new Date().toISOString(),
+      scene,
+    }));
+    return true;
+  } catch (error) {
+    console.warn("mdrone: failed to autosave scene", error);
+    return false;
+  }
+}
+
+/** One autosave tick: dirty-check `scene` against the caller's last
+ *  successfully-saved marker, write when changed (or forced), and
+ *  return the marker to keep for the next tick. The marker only
+ *  advances after a SUCCESSFUL write — advancing it before the write
+ *  was a lost-write bug: one quota failure made the loop believe the
+ *  save succeeded and it never retried. */
+export function autosaveSceneTick(
+  scene: PortableScene,
+  lastMarker: string,
+  force = false,
+): { marker: string; failed: boolean } {
+  const serialized = JSON.stringify(scene);
+  if (!force && serialized === lastMarker) return { marker: lastMarker, failed: false };
+  if (saveAutosavedScene(scene)) return { marker: serialized, failed: false };
+  return { marker: lastMarker, failed: true };
 }
 
 /** Full factory reset — wipes every mdrone-namespaced key from
@@ -666,11 +709,13 @@ export function resetAllLocalStorage(): void {
   for (const key of Object.values(STORAGE_KEYS)) {
     localStorage.removeItem(key);
   }
-  // Sweep up any mdrone-* keys left behind by older code paths.
+  // Sweep up any mdrone-namespaced keys not in STORAGE_KEYS — older
+  // code paths used `mdrone-*` and a few modules (meditateState's
+  // `mdrone.meditate.visualizer`) use a `mdrone.` dot-namespace.
   const stragglers: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith("mdrone-")) stragglers.push(k);
+    if (k && (k.startsWith("mdrone-") || k.startsWith("mdrone."))) stragglers.push(k);
   }
   for (const k of stragglers) localStorage.removeItem(k);
 }

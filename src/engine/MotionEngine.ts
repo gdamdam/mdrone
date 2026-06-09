@@ -6,6 +6,7 @@ import {
   DEFAULT_ENTRAIN,
   ENTRAIN_MAX_HZ,
   ENTRAIN_MIN_HZ,
+  latchEntrainRateHz,
   type EntrainState,
 } from "../entrain";
 
@@ -331,6 +332,12 @@ export class MotionEngine {
    *  place so useDroneScene only has to forward React state. */
   setEntrain(state: EntrainState): void {
     this.entrainState = { ...state };
+    // DICHOTIC consumes the rate over in VoiceEngine (per-voice
+    // frequency lives there, not here); publish it through the entrain
+    // module latch since the two engines hold no reference to each
+    // other and AudioEngine fans cents out to VoiceEngine right after
+    // this call.
+    latchEntrainRateHz(state.rateHz);
     this.applyEntrain();
   }
 

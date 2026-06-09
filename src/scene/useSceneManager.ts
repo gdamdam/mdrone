@@ -73,12 +73,12 @@ import { loadMeditateVisualizer, saveMeditateVisualizer } from "../meditateState
 import { buildSceneShareUrl, loadSceneFromCurrentUrlOnce } from "../shareCodec";
 import { applyPalette, getPaletteById, loadPaletteId, savePaletteId } from "../themes";
 import {
+  autosaveSceneTick,
   loadAutosavedScene,
   loadCurrentSessionId,
   loadSessions,
   makeSessionId,
   normalizePortableScene,
-  saveAutosavedScene,
   saveCurrentSessionId,
   saveSessions,
   type PortableScene,
@@ -335,6 +335,9 @@ export function useSceneManager({
   }, [applyPortableScene, applyStartupScene, currentSessionId, startupMode]);
 
   const lastAutoSavedSerializedRef = useRef<string>("");
+  // One-shot guard so a persistently failing autosave (quota exceeded,
+  // private-mode Safari) warns the user once instead of every 3 s.
+  const autosaveFailWarnedRef = useRef(false);
   useEffect(() => {
     const doAutoSave = (force = false) => {
       const name = currentSessionId
@@ -342,14 +345,21 @@ export function useSceneManager({
         : (currentPresetName || currentSessionName || "Last Scene");
       const scene = captureCurrentSceneSnapshot(name);
       if (!scene) return;
-      // Dirty-check: serialize once, skip the localStorage write when
-      // nothing changed since the last save. localStorage.setItem is
-      // synchronous and blocks the main thread, so in a long idle
-      // session this eliminates ~every 3 s of needless jitter.
-      const serialized = JSON.stringify(scene);
-      if (!force && serialized === lastAutoSavedSerializedRef.current) return;
-      lastAutoSavedSerializedRef.current = serialized;
-      saveAutosavedScene(scene);
+      // Dirty-check + write live in autosaveSceneTick (src/session.ts).
+      // The marker only advances after a SUCCESSFUL write, so a quota
+      // failure keeps the scene dirty and the next tick retries instead
+      // of silently dropping the save forever.
+      const { marker, failed } = autosaveSceneTick(
+        scene,
+        lastAutoSavedSerializedRef.current,
+        force,
+      );
+      lastAutoSavedSerializedRef.current = marker;
+      if (failed && !autosaveFailWarnedRef.current) {
+        autosaveFailWarnedRef.current = true;
+        showNotification("Couldn't autosave — browser storage may be full or unavailable.", "warning");
+      }
+      if (!failed) autosaveFailWarnedRef.current = false;
     };
 
     const id = window.setInterval(doAutoSave, 3000);
@@ -369,7 +379,11 @@ export function useSceneManager({
 
   const persistSessions = useCallback((sessions: SavedSession[]) => {
     setSavedSessions(sessions);
-    saveSessions(sessions);
+    // Explicit user saves deserve a visible failure — saveSessions
+    // returns false instead of throwing on quota/private-mode errors.
+    if (!saveSessions(sessions)) {
+      showNotification("Couldn't save the session — browser storage may be full.", "warning");
+    }
   }, []);
 
   const captureCurrentScene = useCallback((name: string): PortableScene | null => {

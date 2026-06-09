@@ -283,13 +283,21 @@ export class AudioEngine {
    * the user's previous volume. Total silence window: ~250 ms.
    */
   panic(): void {
+    // A master fade (startMasterFade) rides this same outputTrim param.
+    // Cancel it through the public path first so MotionEngine's fade
+    // bookkeeping is cleared — otherwise the cancelScheduledValues()
+    // below would kill the ramp while the engine still believed a fade
+    // was in flight. No-op when no fade is active.
+    this.cancelMasterFade();
+
     const now = this.ctx.currentTime;
     const outputTrim = this.masterBus.getOutputTrim();
-    const previousGain = outputTrim.gain.value;
+    const currentGain = outputTrim.gain.value;
 
-    // Ramp out fast
+    // Ramp out fast — from wherever the trim actually is right now
+    // (possibly a transient mid-fade level), so the cut is click-free.
     outputTrim.gain.cancelScheduledValues(now);
-    outputTrim.gain.setValueAtTime(previousGain, now);
+    outputTrim.gain.setValueAtTime(currentGain, now);
     outputTrim.gain.linearRampToValueAtTime(0, now + 0.04);
 
     // Stop drone voices so nothing keeps feeding the effects chain
@@ -298,9 +306,19 @@ export class AudioEngine {
     // Flush effect internal state (convolver buffers, worklet buffers)
     this.fxChain.panic();
 
-    // Ramp back up after the flush settles
-    outputTrim.gain.setValueAtTime(0, now + 0.24);
-    outputTrim.gain.linearRampToValueAtTime(previousGain, now + 0.3);
+    // Ramp back up after the flush settles. Restore the *user's* mixer
+    // volume via setMasterVolume — not the value sampled above: if a
+    // fade was mid-flight that sample is a transient level, and ramping
+    // back to it would freeze the output there forever while the mixer
+    // UI still showed the user volume. Panic is a reset-to-known-state
+    // gesture, so the user volume (not the fade's destination) is the
+    // correct target; setMasterVolume also re-applies the
+    // headphone-safe clamp for us. The linearRamp above holds the trim
+    // at 0 until this fires.
+    window.setTimeout(() => {
+      if (this.disposed) return;
+      this.masterBus.setMasterVolume(this.masterBus.getMasterVolume());
+    }, 260);
   }
 
   setDroneFreq(freq: number): void {
@@ -354,7 +372,13 @@ export class AudioEngine {
   }
 
   resume(): Promise<void> {
-    if (this.ctx.state === "suspended") return this.ctx.resume();
+    // Match the constructor's tryResume(): iOS Safari reports the
+    // non-standard "interrupted" state (lock screen, phone call,
+    // AirPods disconnect) instead of "suspended", so gating on
+    // "suspended" alone made this user-gesture resume a no-op exactly
+    // when iOS needs it. Treat anything that isn't "running" as
+    // resumable — resume() on a running context is a no-op anyway.
+    if (this.ctx.state !== "running") return this.ctx.resume();
     return Promise.resolve();
   }
 

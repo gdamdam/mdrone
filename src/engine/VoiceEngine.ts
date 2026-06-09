@@ -4,6 +4,7 @@ import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
 import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type TanpuraTuningId, type Voice, type VoiceType } from "./VoiceBuilder";
 import { readAudioDebugFlags } from "./audioDebug";
 import { trace } from "./audioTrace";
+import { dichoticCentsForFrequency, latchedEntrainRateHz } from "../entrain";
 
 /** Spread a layer's voices across the stereo field. With N copies of
  *  the same voice timbre at different intervals, panning each copy
@@ -210,7 +211,7 @@ export class VoiceEngine {
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
-        voice.setDichoticCents(this.dichoticCents);
+        voice.setDichoticCents(this.voiceDichoticCents(c));
         voices.push(voice);
       }
       this.droneVoicesByLayer.set(type, voices);
@@ -296,6 +297,10 @@ export class VoiceEngine {
         voices[i].setFreq(target, glide);
       }
     }
+    // Dichotic cents depend on each voice's absolute frequency —
+    // re-derive after a root change so the interaural beat stays at
+    // the chosen entrain rate instead of tracking the old pitch.
+    if (this.dichoticCents > 0) this.applyDichoticTargets();
 
     if (this.subOscs) this.glideOscPair(this.subOscs, freq * 0.5, now, glide);
   }
@@ -342,6 +347,9 @@ export class VoiceEngine {
         voices[i].setFreq(hz, glideSec);
       }
     }
+    // Same rationale as setDroneFreq: per-voice dichotic cents track
+    // the voice's absolute frequency, so a retune must re-derive them.
+    if (this.dichoticCents > 0) this.applyDichoticTargets();
   }
 
   setVoiceLayer(type: VoiceType, on: boolean): void {
@@ -650,7 +658,7 @@ export class VoiceEngine {
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
-        voice.setDichoticCents(this.dichoticCents);
+        voice.setDichoticCents(this.voiceDichoticCents(c));
         voices.push(voice);
       }
       this.droneVoicesByLayer.set(type, voices);
@@ -815,18 +823,38 @@ export class VoiceEngine {
     for (const voice of tanpuraVoices) voice.setPluckRate(rate);
   }
 
-  /** Push the current ENTRAIN dichotic cents to every live voice.
-   *  Cheap — each voice forwards a single postMessage to its worklet. */
+  /** Per-voice DICHOTIC detune. The L/R offset must be re-derived from
+   *  each voice's own frequency so the interaural difference stays at
+   *  the entrain rate in Hz — a fixed-cents offset makes the beat
+   *  scale with pitch (~8 ¢ ≈ 1 Hz at 220 Hz but ≈ 4 Hz at 880 Hz),
+   *  silently detaching the audible beat from the rate the user chose,
+   *  which is the one parameter binaural-beat practice specifies.
+   *  The cents AudioEngine fans out act as the on/off gate (0 = off);
+   *  the magnitude comes from the latched entrain rate. */
+  private voiceDichoticCents(intervalCents: number): number {
+    if (!(this.dichoticCents > 0)) return 0;
+    const voiceHz = this.droneRootFreq * Math.pow(2, intervalCents / 1200);
+    return dichoticCentsForFrequency(latchedEntrainRateHz(), voiceHz);
+  }
+
+  /** Push the current ENTRAIN dichotic detune to every live voice.
+   *  Cheap — each voice forwards a single postMessage to its worklet.
+   *  Voices were built index-parallel to the interval list, so
+   *  intervals[i] is voice i's offset from the root. */
   private applyDichoticTargets(): void {
+    const intervals = this.debugIntervals();
     for (const type of ALL_VOICE_TYPES) {
       const voices = this.droneVoicesByLayer.get(type);
       if (!voices) continue;
-      for (const voice of voices) voice.setDichoticCents(this.dichoticCents);
+      for (let i = 0; i < voices.length; i++) {
+        voices[i].setDichoticCents(this.voiceDichoticCents(intervals[i] ?? 0));
+      }
     }
   }
 
-  /** Set the dichotic L/R spread in cents. Broadcasts to live voices
-   *  and stores the value so newly-spawned voices inherit it. */
+  /** Set the dichotic L/R spread gate in cents (0 = off). Broadcasts
+   *  the per-voice frequency-dependent detune to live voices and
+   *  stores the gate so newly-spawned voices inherit it. */
   setDichoticCents(cents: number): void {
     const clamped = Number.isFinite(cents) ? Math.max(0, Math.min(100, cents)) : 0;
     this.dichoticCents = clamped;

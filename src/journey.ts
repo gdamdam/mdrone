@@ -52,51 +52,52 @@ export interface JourneyDef {
 }
 
 /**
- * Authored journey presets. Phase durations are short by design — a
- * full journey is 4 phases × ~6 ticks = ~96 s of evolution before
- * settling. Targets are gentle and bounded: nothing here pushes a
- * macro past 0.85 or below 0.05, so the resulting scene always stays
- * inside the "calm drone" envelope.
+ * Authored journey presets. Phase durations are long by design — the
+ * UI presents JOURNEY as a "~20 min" ritual, so a full journey is
+ * 4 phases × ~50-110 ticks ≈ 300 ticks ≈ 20 min of evolution before
+ * settling on the dissolve targets. Targets are gentle and bounded:
+ * nothing here pushes a macro past 0.85 or below 0.05, so the
+ * resulting scene always stays inside the "calm drone" envelope.
  */
 export const JOURNEYS: Record<JourneyId, JourneyDef> = {
   morning: {
     id: "morning",
     label: "Morning",
     phases: [
-      { name: "arrival",    durationTicks: 4, targets: { air: 0.32, bloom: 0.42, climateY: 0.22, drift: 0.18, evolve: 0.25 } },
-      { name: "bloom",      durationTicks: 6, targets: { air: 0.5,  bloom: 0.62, climateY: 0.42, drift: 0.32, time: 0.32 } },
-      { name: "suspension", durationTicks: 8, targets: { air: 0.55, bloom: 0.72, climateY: 0.5,  climateX: 0.55, drift: 0.28 } },
-      { name: "dissolve",   durationTicks: 6, targets: { air: 0.62, bloom: 0.55, climateY: 0.32, drift: 0.18, evolve: 0.12 } },
+      { name: "arrival",    durationTicks: 50,  targets: { air: 0.32, bloom: 0.42, climateY: 0.22, drift: 0.18, evolve: 0.25 } },
+      { name: "bloom",      durationTicks: 75,  targets: { air: 0.5,  bloom: 0.62, climateY: 0.42, drift: 0.32, time: 0.32 } },
+      { name: "suspension", durationTicks: 100, targets: { air: 0.55, bloom: 0.72, climateY: 0.5,  climateX: 0.55, drift: 0.28 } },
+      { name: "dissolve",   durationTicks: 75,  targets: { air: 0.62, bloom: 0.55, climateY: 0.32, drift: 0.18, evolve: 0.12 } },
     ],
   },
   evening: {
     id: "evening",
     label: "Evening",
     phases: [
-      { name: "arrival",    durationTicks: 5, targets: { air: 0.42, bloom: 0.52, climateX: 0.5, drift: 0.22, evolve: 0.3 } },
-      { name: "bloom",      durationTicks: 7, targets: { air: 0.58, bloom: 0.7,  climateX: 0.58, climateY: 0.32, sub: 0.22 } },
-      { name: "suspension", durationTicks: 9, targets: { air: 0.62, bloom: 0.78, climateX: 0.6,  drift: 0.32, time: 0.18 } },
-      { name: "dissolve",   durationTicks: 7, targets: { air: 0.55, bloom: 0.45, climateX: 0.42, sub: 0.08, evolve: 0.1 } },
+      { name: "arrival",    durationTicks: 55, targets: { air: 0.42, bloom: 0.52, climateX: 0.5, drift: 0.22, evolve: 0.3 } },
+      { name: "bloom",      durationTicks: 75, targets: { air: 0.58, bloom: 0.7,  climateX: 0.58, climateY: 0.32, sub: 0.22 } },
+      { name: "suspension", durationTicks: 95, targets: { air: 0.62, bloom: 0.78, climateX: 0.6,  drift: 0.32, time: 0.18 } },
+      { name: "dissolve",   durationTicks: 75, targets: { air: 0.55, bloom: 0.45, climateX: 0.42, sub: 0.08, evolve: 0.1 } },
     ],
   },
   dusk: {
     id: "dusk",
     label: "Dusk",
     phases: [
-      { name: "arrival",    durationTicks: 4, targets: { air: 0.38, bloom: 0.48, climateX: 0.42, climateY: 0.18, drift: 0.2, evolve: 0.28 } },
-      { name: "bloom",      durationTicks: 6, targets: { air: 0.55, bloom: 0.68, climateX: 0.5,  climateY: 0.38, drift: 0.35, sub: 0.18 } },
-      { name: "suspension", durationTicks: 8, targets: { air: 0.6,  bloom: 0.75, climateY: 0.45, drift: 0.4,  time: 0.22 } },
-      { name: "dissolve",   durationTicks: 6, targets: { air: 0.5,  bloom: 0.42, climateY: 0.22, drift: 0.22, sub: 0.06,  evolve: 0.1 } },
+      { name: "arrival",    durationTicks: 50,  targets: { air: 0.38, bloom: 0.48, climateX: 0.42, climateY: 0.18, drift: 0.2, evolve: 0.28 } },
+      { name: "bloom",      durationTicks: 75,  targets: { air: 0.55, bloom: 0.68, climateX: 0.5,  climateY: 0.38, drift: 0.35, sub: 0.18 } },
+      { name: "suspension", durationTicks: 100, targets: { air: 0.6,  bloom: 0.75, climateY: 0.45, drift: 0.4,  time: 0.22 } },
+      { name: "dissolve",   durationTicks: 75,  targets: { air: 0.5,  bloom: 0.42, climateY: 0.22, drift: 0.22, sub: 0.06,  evolve: 0.1 } },
     ],
   },
   void: {
     id: "void",
     label: "Void",
     phases: [
-      { name: "arrival",    durationTicks: 6, targets: { air: 0.45, bloom: 0.55, drift: 0.18, glide: 0.25, evolve: 0.22 } },
-      { name: "bloom",      durationTicks: 8, targets: { air: 0.65, bloom: 0.78, drift: 0.32, glide: 0.32, climateY: 0.38 } },
-      { name: "suspension", durationTicks: 12, targets: { air: 0.72, bloom: 0.82, drift: 0.42, climateY: 0.5,  time: 0.12 } },
-      { name: "dissolve",   durationTicks: 8, targets: { air: 0.55, bloom: 0.5,  drift: 0.22, glide: 0.18, evolve: 0.08 } },
+      { name: "arrival",    durationTicks: 55,  targets: { air: 0.45, bloom: 0.55, drift: 0.18, glide: 0.25, evolve: 0.22 } },
+      { name: "bloom",      durationTicks: 75,  targets: { air: 0.65, bloom: 0.78, drift: 0.32, glide: 0.32, climateY: 0.38 } },
+      { name: "suspension", durationTicks: 110, targets: { air: 0.72, bloom: 0.82, drift: 0.42, climateY: 0.5,  time: 0.12 } },
+      { name: "dissolve",   durationTicks: 80,  targets: { air: 0.55, bloom: 0.5,  drift: 0.22, glide: 0.18, evolve: 0.08 } },
     ],
   },
 };
@@ -140,10 +141,12 @@ export function journeyProgressAt(
  * given (current snapshot, journey id, tick), returns the snapshot
  * with macro fields nudged toward the active phase's targets.
  *
- * Lerp factor scales with tick density — each tick moves ~25 % of the
- * remaining distance toward the target so the motion is audible
- * within a phase but never jumps. After ~6-8 ticks the macro fully
- * settles into the phase target.
+ * Lerp factor scales with tick density — each tick moves ~4 % of the
+ * remaining distance toward the target, so over a ~75-tick (~5 min)
+ * phase the macro settles to within ~5 % of the target. That keeps
+ * per-tick motion well below audibility-as-an-event (slower than the
+ * original 25 %/tick pacing, not more events) while the journey's
+ * authored arc genuinely spans the advertised ~20 minutes.
  */
 export function applyJourneyTick(
   snap: DroneSessionSnapshot,
@@ -151,7 +154,7 @@ export function applyJourneyTick(
   tick: number,
 ): DroneSessionSnapshot {
   const { phase } = journeyProgressAt(id, tick);
-  const lerp = (v: number, target: number) => v + (target - v) * 0.25;
+  const lerp = (v: number, target: number) => v + (target - v) * 0.04;
   const t = phase.targets;
   return {
     ...snap,

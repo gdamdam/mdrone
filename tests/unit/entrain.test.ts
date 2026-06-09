@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   clampDichoticCents,
   clampEntrainRate,
   DEFAULT_ENTRAIN,
   describeEntrain,
+  dichoticCentsForFrequency,
   ENTRAIN_LANDMARKS,
   ENTRAIN_MAX_HZ,
   ENTRAIN_MIN_HZ,
@@ -12,6 +13,8 @@ import {
   zoneColorForHz,
   zoneGradientCss,
 } from "../../src/entrain";
+import { MotionEngine } from "../../src/engine/MotionEngine";
+import { VoiceEngine } from "../../src/engine/VoiceEngine";
 
 describe("entrain: clampEntrainRate", () => {
   it("clamps to the defined band", () => {
@@ -103,6 +106,173 @@ describe("entrain: phaseLockedRate", () => {
     const r = phaseLockedRate(1, 999);
     expect(r.lockedHz).toBeLessThanOrEqual(ENTRAIN_MAX_HZ + 1);
     expect(r.k).toBe(Math.round(ENTRAIN_MAX_HZ / 1));
+  });
+});
+
+describe("entrain: dichoticCentsForFrequency", () => {
+  it("matches 1200·log2(1 + Δf/f)", () => {
+    const cases: Array<[number, number]> = [
+      [1, 220], [8, 220], [8, 440], [4, 880], [40, 110],
+    ];
+    for (const [rateHz, f] of cases) {
+      expect(dichoticCentsForFrequency(rateHz, f)).toBeCloseTo(
+        1200 * Math.log2(1 + rateHz / f),
+        9,
+      );
+    }
+  });
+
+  it("inverts back to a constant beat in Hz at any carrier", () => {
+    const impliedBeatHz = (f: number, cents: number) =>
+      f * (Math.pow(2, cents / 1200) - 1);
+    for (const f of [55, 220, 440, 880]) {
+      expect(impliedBeatHz(f, dichoticCentsForFrequency(8, f))).toBeCloseTo(8, 6);
+    }
+  });
+
+  it("returns 0 for degenerate inputs", () => {
+    expect(dichoticCentsForFrequency(NaN, 220)).toBe(0);
+    expect(dichoticCentsForFrequency(8, NaN)).toBe(0);
+    expect(dichoticCentsForFrequency(-1, 220)).toBe(0);
+    expect(dichoticCentsForFrequency(0, 220)).toBe(0);
+    expect(dichoticCentsForFrequency(8, 0)).toBe(0);
+    expect(dichoticCentsForFrequency(8, -220)).toBe(0);
+  });
+});
+
+/**
+ * Engine-level dichotic fan-out — tested against the prototypes with a
+ * minimal fake `this` (same spirit as engine.test.ts). AudioEngine's
+ * call order is fixed: motionEngine.setEntrain(state) first, then
+ * voiceEngine.setDichoticCents(gateCents); these harnesses mirror that.
+ */
+function makeFakeMotion() {
+  return Object.assign(Object.create(MotionEngine.prototype) as MotionEngine, {
+    entrainState: { ...DEFAULT_ENTRAIN },
+    // null LFO → applyEntrain() early-returns; the AM path has its own
+    // harness below.
+    entrainLfo: null,
+  });
+}
+
+function makeFakeVoiceEngine(rootHz: number, intervalsCents: number[]) {
+  const voices = intervalsCents.map(() => ({ setDichoticCents: vi.fn() }));
+  const ve = Object.assign(Object.create(VoiceEngine.prototype) as VoiceEngine, {
+    droneRootFreq: rootHz,
+    droneIntervalsCents: intervalsCents,
+    droneVoicesByLayer: new Map([["reed", voices]]),
+    dichoticCents: 0,
+  });
+  return { ve, voices };
+}
+
+describe("entrain: dichotic detune is fixed-Hz, not fixed-cents", () => {
+  /** Cents the engine actually posts to a voice at `rootHz` after the
+   *  AudioEngine.setEntrain fan-out sequence. */
+  function appliedCents(rootHz: number, rateHz: number): number {
+    const motion = makeFakeMotion();
+    motion.setEntrain({
+      ...DEFAULT_ENTRAIN, enabled: true, mode: "dichotic", rateHz,
+    });
+    const { ve, voices } = makeFakeVoiceEngine(rootHz, [0]);
+    // The user's spread knob value AudioEngine fans out — it gates the
+    // effect on/off; the magnitude must come from rateHz.
+    ve.setDichoticCents(DEFAULT_ENTRAIN.dichoticCents);
+    const calls = voices[0].setDichoticCents.mock.calls;
+    return calls[calls.length - 1][0] as number;
+  }
+
+  const impliedBeatHz = (f: number, cents: number) =>
+    f * (Math.pow(2, cents / 1200) - 1);
+
+  it("implies the same interaural beat in Hz at 220 Hz and 880 Hz for the same rateHz", () => {
+    // Repro for the fixed-cents bug: a constant ~8¢ detune beats at
+    // ~1 Hz on a 220 Hz voice but ~4 Hz at 880 Hz, so the user's
+    // chosen rate never governed the beat.
+    const rateHz = 8;
+    const beat220 = impliedBeatHz(220, appliedCents(220, rateHz));
+    const beat880 = impliedBeatHz(880, appliedCents(880, rateHz));
+    expect(beat220).toBeCloseTo(rateHz, 6);
+    expect(beat880).toBeCloseTo(rateHz, 6);
+    expect(beat220).toBeCloseTo(beat880, 6);
+  });
+
+  it("derives per-voice cents from each voice's own frequency, not just the root", () => {
+    const motion = makeFakeMotion();
+    motion.setEntrain({
+      ...DEFAULT_ENTRAIN, enabled: true, mode: "dichotic", rateHz: 8,
+    });
+    // Root + a fifth (702¢): the upper voice needs proportionally
+    // fewer cents to keep the same Hz difference.
+    const { ve, voices } = makeFakeVoiceEngine(220, [0, 702]);
+    ve.setDichoticCents(DEFAULT_ENTRAIN.dichoticCents);
+    const upperHz = 220 * Math.pow(2, 702 / 1200);
+    expect(voices[0].setDichoticCents).toHaveBeenLastCalledWith(
+      dichoticCentsForFrequency(8, 220),
+    );
+    expect(voices[1].setDichoticCents).toHaveBeenLastCalledWith(
+      dichoticCentsForFrequency(8, upperHz),
+    );
+    expect(impliedBeatHz(upperHz, dichoticCentsForFrequency(8, upperHz))).toBeCloseTo(8, 6);
+  });
+
+  it("still gates fully off when AudioEngine fans out 0", () => {
+    const motion = makeFakeMotion();
+    motion.setEntrain({
+      ...DEFAULT_ENTRAIN, enabled: true, mode: "dichotic", rateHz: 8,
+    });
+    const { ve, voices } = makeFakeVoiceEngine(220, [0]);
+    ve.setDichoticCents(0);
+    expect(voices[0].setDichoticCents).toHaveBeenLastCalledWith(0);
+  });
+});
+
+describe("entrain: AM mode engine outputs (regression guard)", () => {
+  // AM behaviour must be byte-identical before/after the dichotic
+  // fixed-Hz change — these pin the existing rate lock + depth curve.
+  function makeFakeParam() {
+    return { value: 0, setTargetAtTime: vi.fn() };
+  }
+
+  function makeAmMotion(userLfoRate = 0.4) {
+    const freq = makeFakeParam();
+    const depth = makeFakeParam();
+    const motion = Object.assign(Object.create(MotionEngine.prototype) as MotionEngine, {
+      ctx: { currentTime: 0 },
+      entrainState: { ...DEFAULT_ENTRAIN },
+      entrainLfo: { frequency: freq },
+      entrainLfoDepth: { gain: depth },
+      entrainBaseDepth: 0.15,
+      baseMacroTC: 0.4,
+      morphAmount: 0.25,
+      userLfoRate,
+    });
+    return { motion, freq, depth };
+  }
+
+  it("integer-locks the AM rate to breathing and applies full base depth at 8 Hz", () => {
+    const { motion, freq, depth } = makeAmMotion(0.4);
+    motion.setEntrain({ enabled: true, rateHz: 8, mode: "am", dichoticCents: 8, amDepth: 1 });
+    expect(freq.setTargetAtTime).toHaveBeenLastCalledWith(
+      expect.closeTo(8, 9), 0, expect.any(Number),
+    );
+    expect(depth.setTargetAtTime).toHaveBeenLastCalledWith(
+      expect.closeTo(0.15, 9), 0, expect.any(Number),
+    );
+  });
+
+  it("scales AM depth down at slow rates (2 Hz → quarter depth)", () => {
+    const { motion, depth } = makeAmMotion(0.4);
+    motion.setEntrain({ enabled: true, rateHz: 2, mode: "am", dichoticCents: 8, amDepth: 1 });
+    expect(depth.setTargetAtTime).toHaveBeenLastCalledWith(
+      expect.closeTo(0.15 * 0.25, 9), 0, expect.any(Number),
+    );
+  });
+
+  it("keeps AM depth at zero in dichotic-only mode", () => {
+    const { motion, depth } = makeAmMotion(0.4);
+    motion.setEntrain({ enabled: true, rateHz: 8, mode: "dichotic", dichoticCents: 8, amDepth: 1 });
+    expect(depth.setTargetAtTime).toHaveBeenLastCalledWith(0, 0, expect.any(Number));
   });
 });
 

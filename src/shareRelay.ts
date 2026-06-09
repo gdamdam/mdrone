@@ -8,10 +8,14 @@ const RELAY = import.meta.env.DEV ? "http://localhost:8787" : "https://s.mdrone.
 let healthCache: boolean | null = null;
 let healthCheckedAt = 0;
 const HEALTH_TTL = 60_000;
+// Failures are often transient (cold worker, network blip); retry quickly
+// so one hiccup doesn't degrade sharing for a full minute.
+const HEALTH_NEGATIVE_TTL = 5_000;
 
 export async function checkRelayHealth(): Promise<boolean> {
   const now = Date.now();
-  if (healthCache !== null && now - healthCheckedAt < HEALTH_TTL) return healthCache;
+  const ttl = healthCache ? HEALTH_TTL : HEALTH_NEGATIVE_TTL;
+  if (healthCache !== null && now - healthCheckedAt < ttl) return healthCache;
   try {
     const r = await fetch(`${RELAY}/health`, { signal: AbortSignal.timeout(3000) });
     healthCache = r.ok;

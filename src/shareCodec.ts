@@ -31,7 +31,9 @@ async function compressBytes(input: Uint8Array): Promise<Uint8Array> {
 }
 
 async function decompressBytes(input: Uint8Array): Promise<Uint8Array> {
-  if (typeof DecompressionStream === "undefined") return input;
+  // No silent fallback here: returning the raw deflate bytes would make
+  // JSON.parse fail downstream and look like a corrupt link. Callers must
+  // check for DecompressionStream support before invoking.
   const piped = new Blob([new Uint8Array(input)])
     .stream()
     .pipeThrough(new DecompressionStream("deflate"));
@@ -84,7 +86,13 @@ export async function buildSceneShareUrl(scene: PortableScene): Promise<string> 
 }
 
 export function extractScenePayloadFromUrl(url: string | URL): { payload: string; compressed: boolean } | null {
-  const target = typeof url === "string" ? new URL(url) : url;
+  let target: URL;
+  try {
+    // Exported API: a malformed string must yield null, not a TypeError.
+    target = typeof url === "string" ? new URL(url) : url;
+  } catch {
+    return null;
+  }
   const compressed = (target.searchParams.get("z") || "").replace(/ /g, "+");
   if (compressed) return { payload: compressed, compressed: true };
   const plain = (target.searchParams.get("b") || "").replace(/ /g, "+");
@@ -92,10 +100,21 @@ export function extractScenePayloadFromUrl(url: string | URL): { payload: string
   return null;
 }
 
+/** Why decoding returned null, so callers can message the user instead of
+ *  treating an unsupported browser the same as a corrupt link. */
+export type SceneDecodeFailureReason = "unsupported-compression" | "invalid-payload";
+
 export async function decodeScenePayload(
   payload: string,
   compressed: boolean,
+  failure?: { reason?: SceneDecodeFailureReason },
 ): Promise<PortableScene | null> {
+  if (compressed && typeof DecompressionStream === "undefined") {
+    // Old browsers without DecompressionStream can't open `?z=` links.
+    // Fail explicitly rather than parsing raw deflate bytes as JSON.
+    if (failure) failure.reason = "unsupported-compression";
+    return null;
+  }
   try {
     const bytes = urlSafeB64ToBytes(payload);
     const decodedBytes = compressed
@@ -104,6 +123,7 @@ export async function decodeScenePayload(
     const json = new TextDecoder().decode(decodedBytes);
     return normalizePortableScene(JSON.parse(json));
   } catch {
+    if (failure) failure.reason = "invalid-payload";
     return null;
   }
 }

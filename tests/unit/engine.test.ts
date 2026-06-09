@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { AudioEngine } from "../../src/engine/AudioEngine";
 import { EFFECT_ORDER, type EffectId } from "../../src/engine/FxChain";
 import { PRESETS, getPresetMaterialProfile } from "../../src/engine/presets";
 import { TUNINGS, RELATIONS } from "../../src/microtuning";
@@ -52,6 +53,93 @@ describe("EFFECT_ORDER (serial chain topology)", () => {
     const maxFoundation = Math.max(...foundation.map((id) => EFFECT_ORDER.indexOf(id)));
     const minSpatial = Math.min(...spatial.map((id) => EFFECT_ORDER.indexOf(id)));
     expect(maxFoundation).toBeLessThan(minSpatial);
+  });
+});
+
+/**
+ * AudioEngine lifecycle methods, tested against the prototype with a
+ * minimal fake `this` (same spirit as voiceEngineDispose.test.ts —
+ * mock only the AudioContext/node surface the method touches; real
+ * audio-graph wiring is covered by the Playwright smoke tests).
+ */
+function makeFakeParam(initial: number) {
+  return {
+    value: initial,
+    setValueAtTime: vi.fn(),
+    linearRampToValueAtTime: vi.fn(),
+    setTargetAtTime: vi.fn(),
+    cancelScheduledValues: vi.fn(),
+  };
+}
+
+describe("AudioEngine.resume() — context lifecycle", () => {
+  function resumeWithState(state: string) {
+    const ctx = { state, resume: vi.fn(() => Promise.resolve()) };
+    const engine = Object.assign(Object.create(AudioEngine.prototype) as AudioEngine, { ctx });
+    void engine.resume();
+    return ctx;
+  }
+
+  it("resumes a suspended context", () => {
+    expect(resumeWithState("suspended").resume).toHaveBeenCalledTimes(1);
+  });
+
+  it("resumes an interrupted context (iOS audio-session interruption)", () => {
+    // iOS Safari reports the non-standard "interrupted" state after a
+    // lock-screen / phone-call / AirPods-disconnect interruption. The
+    // constructor's tryResume() handles it; the public resume() (user
+    // gesture path) must too, or the HOLD tap is a silent no-op.
+    expect(resumeWithState("interrupted").resume).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a no-op on a running context", () => {
+    expect(resumeWithState("running").resume).not.toHaveBeenCalled();
+  });
+});
+
+describe("AudioEngine.panic() — in-flight master fade interaction", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function makeFakeEngine() {
+    // Simulate a master fade caught mid-flight: the user's mixer volume
+    // is 0.8 but the outputTrim has faded down to 0.3 when panic fires.
+    const trimGain = makeFakeParam(0.3);
+    const masterBus = {
+      getOutputTrim: () => ({ gain: trimGain }),
+      getMasterVolume: vi.fn(() => 0.8),
+      setMasterVolume: vi.fn(),
+    };
+    const motionEngine = { cancelFade: vi.fn() };
+    const engine = Object.assign(Object.create(AudioEngine.prototype) as AudioEngine, {
+      ctx: { currentTime: 1 },
+      masterBus,
+      motionEngine,
+      voiceEngine: { stopDrone: vi.fn() },
+      fxChain: { panic: vi.fn() },
+    });
+    return { engine, trimGain, masterBus, motionEngine };
+  }
+
+  it("panic during master fade restores user volume and clears fade state", () => {
+    vi.useFakeTimers();
+    const { engine, trimGain, masterBus, motionEngine } = makeFakeEngine();
+    engine.panic();
+
+    // Fade bookkeeping must be cleared via the public cancel path so a
+    // later startMasterFade doesn't trip over stale state.
+    expect(motionEngine.cancelFade).toHaveBeenCalledTimes(1);
+
+    // Ramp-out still starts from the actual (mid-fade) trim level.
+    expect(trimGain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 1.04);
+
+    // After the flush window, the output returns to the user's mixer
+    // volume — never frozen at the sampled mid-fade 0.3.
+    vi.advanceTimersByTime(400);
+    expect(masterBus.setMasterVolume).toHaveBeenCalledWith(0.8);
+    const rampedTargets = trimGain.linearRampToValueAtTime.mock.calls.map((c) => c[0]);
+    expect(rampedTargets).not.toContain(0.3);
   });
 });
 
