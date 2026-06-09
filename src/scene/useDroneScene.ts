@@ -51,6 +51,7 @@ export interface DroneLivePatch {
   evolve?: number;
   pluckRate?: number;
   noiseColor?: number;
+  coupleAmount?: number;
 }
 
 function sameIntervals(a: readonly number[], b: readonly number[]): boolean {
@@ -321,6 +322,14 @@ export function useDroneScene({
     recordParam(MOTION_PARAM_IDS.glide, glide);
   }, [engine, setGlideState, recordParam]);
 
+  // Cross-voice COUPLE (E4) — shape param like noiseColor, not routed
+  // through REC MOTION (no MOTION_PARAM_ID; drones don't script
+  // coupling gestures, and adding a recorder id is out of scope here).
+  const setCoupleAmount = useCallback((coupleAmount: number) => {
+    dispatch({ type: "merge", patch: { coupleAmount } });
+    engine?.setCoupleAmount(coupleAmount);
+  }, [engine]);
+
   const setLfoShape = useCallback((lfoShape: OscillatorType) => {
     setLfoShapeState(lfoShape);
     engine?.setLfoShape(lfoShape);
@@ -359,6 +368,7 @@ export function useDroneScene({
     engine.setLfoRate(snap.lfoRate);
     engine.setLfoAmount(snap.lfoAmount);
     if (snap.entrain) engine.setEntrain(snap.entrain);
+    engine.setCoupleAmount(snap.coupleAmount ?? 0);
     engine.setPresetMorph(snap.presetMorph);
     engine.setEvolve(snap.evolve);
     engine.setTanpuraPluckRate(snap.pluckRate);
@@ -576,6 +586,7 @@ export function useDroneScene({
     if (patch.evolve !== undefined) engine.setEvolve(patch.evolve);
     if (patch.pluckRate !== undefined) engine.setTanpuraPluckRate(patch.pluckRate);
     if (patch.noiseColor !== undefined) engine.setNoiseColor(patch.noiseColor);
+    if (patch.coupleAmount !== undefined) engine.setCoupleAmount(patch.coupleAmount);
     if (current.playing && (patch.root !== undefined || patch.octave !== undefined)) {
       engine.setDroneFreq(pitchToFreq(nextRoot, nextOctave));
     }
@@ -670,6 +681,9 @@ export function useDroneScene({
     engine.setLfoRate(snapshot.lfoRate);
     engine.setLfoAmount(snapshot.lfoAmount);
     if (snapshot.entrain) engine.setEntrain(snapshot.entrain);
+    // ?? 0: loading a legacy scene must turn coupling OFF, not leave
+    // whatever the previous scene had ringing through the bus.
+    engine.setCoupleAmount(snapshot.coupleAmount ?? 0);
     engine.setPresetMorph(snapshot.presetMorph);
     engine.setEvolve(snapshot.evolve);
     engine.setTanpuraPluckRate(snapshot.pluckRate);
@@ -765,6 +779,7 @@ export function useDroneScene({
     setSub,
     setBloom,
     setGlide,
+    setCoupleAmount,
     setLfoShape,
     setLfoRate,
     setLfoAmount,

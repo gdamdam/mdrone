@@ -4,6 +4,7 @@ import {
   saveCcMap,
   removeCc,
   assignCc,
+  MIDI_TARGETS_BY_ID,
 } from "../../src/engine/midiMapping";
 
 const STORAGE_KEY = "mdrone-midi-cc-map";
@@ -24,6 +25,15 @@ function installMemoryStorage() {
 }
 
 beforeEach(() => installMemoryStorage());
+
+describe("MIDI target registry", () => {
+  it("exposes COUPLE as a continuous macro target", () => {
+    const t = MIDI_TARGETS_BY_ID.get("couple");
+    expect(t).toBeDefined();
+    expect(t?.kind).toBe("continuous");
+    expect(t?.group).toBe("Macros");
+  });
+});
 
 describe("midiMapping persistence", () => {
   it("keeps a removed default mapping removed across save/load", () => {

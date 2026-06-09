@@ -2,6 +2,7 @@ import { FxChain } from "./FxChain";
 import type { PresetMaterialProfile } from "./presets";
 import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
 import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type TanpuraTuningId, type Voice, type VoiceType } from "./VoiceBuilder";
+import { LAYER_FILTER_MAX_HZ, LAYER_FILTER_MIN_HZ, registerLayerFilterWalk } from "./MotionEngine";
 import { readAudioDebugFlags } from "./audioDebug";
 import { trace } from "./audioTrace";
 import { dichoticCentsForFrequency, latchedEntrainRateHz } from "../entrain";
@@ -15,6 +16,59 @@ function layerVoicePan(i: number, n: number): number {
   if (n <= 1) return 0;
   return ((i / (n - 1)) - 0.5) * 1.2;
 }
+
+/** Equal-power crossfade shapes for voice rebuilds. The retiring and
+ *  incoming layers are UNCORRELATED sources, so their *powers* add —
+ *  a paired linear ramp keeps summed amplitude constant but dips
+ *  summed power to 50% (−3 dB) at the midpoint of every rebuild.
+ *  Quarter-cycle cos/sin shapes keep g_out² + g_in² ≈ constant.
+ *  Stored as fade *progress* (0 → 1) so one scaler covers both
+ *  directions; precomputed once, scaled per rebuild by the actual
+ *  start/target gains. */
+const XFADE_CURVE_POINTS = 128;
+const XFADE_OUT_PROGRESS = new Float32Array(XFADE_CURVE_POINTS); // 1 − cos
+const XFADE_IN_PROGRESS = new Float32Array(XFADE_CURVE_POINTS);  // sin
+for (let i = 0; i < XFADE_CURVE_POINTS; i++) {
+  const phase = (i / (XFADE_CURVE_POINTS - 1)) * (Math.PI / 2);
+  XFADE_OUT_PROGRESS[i] = 1 - Math.cos(phase);
+  XFADE_IN_PROGRESS[i] = Math.sin(phase);
+}
+
+/** Scale a unit progress shape into an absolute gain curve from→to.
+ *  First point equals `from` (the param's current value — required so
+ *  a retriggered fade picks up where the last one left off) and the
+ *  last point is pinned to `to` exactly so the post-curve
+ *  setValueAtTime anchor can't step. */
+function scaleXfadeCurve(progress: Float32Array, from: number, to: number): Float32Array {
+  const curve = new Float32Array(XFADE_CURVE_POINTS);
+  for (let i = 0; i < XFADE_CURVE_POINTS; i++) {
+    curve[i] = from + (to - from) * progress[i];
+  }
+  curve[XFADE_CURVE_POINTS - 1] = to;
+  return curve;
+}
+
+/** Cross-voice coupling (Tier-4 / E4): cap on the TOTAL feedback feed
+ *  at coupleAmount = 1. Each layer's injection gain is
+ *  coupleAmount × this / N (N = layers on the bus), so the summed
+ *  cross-feed can never exceed 0.15 of the bus signal. Worst-case
+ *  loop gain is 0.15 × the layer lowpass's resonance peak
+ *  (Q ≤ 2.24 ≈ ×2.24) ≈ 0.34 — more than 9 dB below unity, so the
+ *  loop can never run away and the FxChain-style soft clipper
+ *  (FxChain.ts feedback paths) is unnecessary at these gains. */
+export const COUPLE_MAX_TOTAL_INJECTION = 0.15;
+/** Coupling-loop delay. Web Audio silently mutes graph cycles unless
+ *  they pass through a DelayNode; 15 ms is also physically motivated —
+ *  the acoustic coupling distance (~5 m) between instrument bodies. */
+export const COUPLE_DELAY_SEC = 0.015;
+/** Gentle bandpass on the cross-feed so coupling thickens the mids
+ *  instead of doubling the low fundamentals into mud. 700 Hz at
+ *  Q 0.5 is a broad (~2-octave) mid window; the receiving layer's own
+ *  lowpass then shapes the top end per layer. Fixed rather than
+ *  root-tracked — at injection gains ≤ 0.15/N the exact band placement
+ *  is a colour choice, not a stability one. */
+const COUPLE_TONE_HZ = 700;
+const COUPLE_TONE_Q = 0.5;
 
 export class VoiceEngine {
   private static readonly MIN_REBUILD_XFADE_SEC = 0.3;
@@ -34,11 +88,36 @@ export class VoiceEngine {
   // it doesn't sink the audio path (gain still flows through to
   // droneVoiceGain), it just lets JS read time-domain samples.
   private layerAnalysers: Map<VoiceType, AnalyserNode> = new Map();
+  // Per-layer resonant lowpass (Tier-4 / E3): one BiquadFilterNode per
+  // LAYER (not per voice copy — keeps node count flat), inserted
+  // between the layer's voices and its layerGain so the rebuild
+  // crossfade curves on the gain are untouched. Cutoff walks slowly
+  // under MotionEngine's walk clock via the registry in MotionEngine.ts.
+  private layerFilters: Map<VoiceType, BiquadFilterNode> = new Map();
+  /** Unregister handles for each layer's cutoff-walk target — called
+   *  on layer retire / dispose so walks stop with the layer. */
+  private layerFilterWalkStops: Map<VoiceType, () => void> = new Map();
+  /** Cross-voice COUPLE amount (0..1, default 0 = off). One global
+   *  knob — see COUPLE_MAX_TOTAL_INJECTION for the gain math. */
+  private coupleAmount = 0;
+  /** Shared coupling core, created lazily on the first non-zero
+   *  setCoupleAmount so the default graph stays byte-identical to the
+   *  pre-E4 one: every live layerGain taps into `bus`, which feeds
+   *  `delay` (the mandatory cycle-breaker) then `tone` (bandpass),
+   *  which fans out through the per-layer injection gains below. */
+  private coupling: { bus: GainNode; delay: DelayNode; tone: BiquadFilterNode } | null = null;
+  /** Per-layer injection gains: coupling.tone → injection → that
+   *  layer's layerFilter input. NOTE the layer's own contribution is
+   *  deliberately NOT subtracted from its injection — at ≤ 0.15/N the
+   *  self-feed reads as mild resonant thickening (Lyra-adjacent),
+   *  and subtracting it would cost an inverted summing node per layer
+   *  for no audible benefit. */
+  private couplingInjections: Map<VoiceType, GainNode> = new Map();
   // Retiring voices from a previous rebuild whose tail hasn't finished.
   // Tracked on the instance (not in a local inside rebuildIntervals) so
   // a fresh rebuild can fast-kill them and avoid voice stacking under
   // rapid preset / layer churn.
-  private pendingRetire: { gain: GainNode; voices: Voice[]; stopTimeout: number }[] = [];
+  private pendingRetire: { gain: GainNode; voices: Voice[]; stopTimeout: number; filter: BiquadFilterNode | null }[] = [];
   private stopDroneTimeout: number | null = null;
   private disposed = false;
   private voiceUpdateDepth = 0;
@@ -203,11 +282,12 @@ export class VoiceEngine {
     for (const type of ALL_VOICE_TYPES) {
       if (!capped[type]) continue;
       const layerGain = this.ensureLayerGain(type);
+      const layerFilter = this.ensureLayerFilter(type, layerGain);
       const voices: Voice[] = [];
       for (let i = 0; i < intervals.length; i++) {
         const c = intervals[i];
         const pan = layerVoicePan(i, intervals.length);
-        const voice = buildVoice(type, this.ctx, layerGain, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan);
+        const voice = buildVoice(type, this.ctx, layerFilter, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
@@ -297,6 +377,14 @@ export class VoiceEngine {
         voices[i].setFreq(target, glide);
       }
     }
+    // Per-layer filter base cutoffs are derived from the root —
+    // re-derive on retune so a transposed-up drone isn't choked (and a
+    // transposed-down one isn't left with the filter parked uselessly
+    // high). The MotionEngine walk re-centers on the new base on its
+    // next tick; this keeps the intervening seconds sensible.
+    for (const [type, filter] of this.layerFilters) {
+      filter.frequency.setTargetAtTime(this.layerFilterBaseCutoff(type), now, Math.max(0.25, glide * 0.5));
+    }
     // Dichotic cents depend on each voice's absolute frequency —
     // re-derive after a root change so the interaural beat stays at
     // the chosen entrain rate instead of tracking the old pitch.
@@ -366,9 +454,19 @@ export class VoiceEngine {
     const v = Math.max(0, Math.min(1, level));
     this.layerLevels[type] = v;
     const gain = this.layerGains.get(type);
-    if (gain) {
-      gain.gain.setTargetAtTime(this.effectiveLayerLevel(type), this.ctx.currentTime, 0.08);
-    }
+    if (gain) this.glideLayerGain(gain, this.effectiveLayerLevel(type), 0.08);
+  }
+
+  /** setTargetAtTime on a layer gain, safe against an in-flight
+   *  rebuild crossfade: setValueCurveAtTime makes its whole window
+   *  exclusive (any overlapping event throws NotSupportedError), so
+   *  cancel + re-anchor at the current value first — same anchoring
+   *  hygiene rebuildIntervals() uses on droneVoiceGain. */
+  private glideLayerGain(gain: GainNode, target: number, tc: number): void {
+    const now = this.ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(gain.gain.value, now);
+    gain.gain.setTargetAtTime(target, now, tc);
   }
 
   getVoiceLevel(type: VoiceType): number { return this.layerLevels[type]; }
@@ -383,9 +481,7 @@ export class VoiceEngine {
         this.voiceLayers[type] = layers[type];
         this.layerLevels[type] = Math.max(0, Math.min(1, levels[type]));
         const gain = this.layerGains.get(type);
-        if (gain) {
-          gain.gain.setTargetAtTime(this.effectiveLayerLevel(type), this.ctx.currentTime, 0.08);
-        }
+        if (gain) this.glideLayerGain(gain, this.effectiveLayerLevel(type), 0.08);
       }
       this.voiceRebuildPending = true;
     } finally {
@@ -406,9 +502,7 @@ export class VoiceEngine {
         this.voiceLayers[type] = layers[type];
         this.layerLevels[type] = Math.max(0, Math.min(1, levels[type]));
         const gain = this.layerGains.get(type);
-        if (gain) {
-          gain.gain.setTargetAtTime(this.effectiveLayerLevel(type), this.ctx.currentTime, 0.08);
-        }
+        if (gain) this.glideLayerGain(gain, this.effectiveLayerLevel(type), 0.08);
       }
       this.voiceRebuildPending = true;
     } finally {
@@ -460,6 +554,27 @@ export class VoiceEngine {
   }
 
   getGlide(): number { return this.glideAmount; }
+
+  /** Global cross-voice COUPLE amount (0..1, default 0 = off). Builds
+   *  the coupling core on first non-zero use and attaches any layers
+   *  that were already live; per-layer injection gains then ramp to
+   *  coupleAmount × COUPLE_MAX_TOTAL_INJECTION / N. */
+  setCoupleAmount(v: number): void {
+    const clamped = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0;
+    this.coupleAmount = clamped;
+    if (clamped > 0) {
+      this.ensureCouplingCore();
+      // Attach every layer that predates coupling activation —
+      // attachCoupling is idempotent per layer.
+      for (const [type, filter] of this.layerFilters) {
+        const gain = this.layerGains.get(type);
+        if (gain) this.attachCoupling(type, filter, gain);
+      }
+    }
+    this.applyCouplingTargets();
+  }
+
+  getCoupleAmount(): number { return this.coupleAmount; }
 
   setPresetMorph(v: number): void {
     this.morphAmount = Math.max(0, Math.min(1, v));
@@ -609,12 +724,24 @@ export class VoiceEngine {
         capped[type] && voices.length === targetIntervalCount;
       if (shouldKeep) continue;
 
+      // Stop the layer's cutoff walk now (the registry must not keep
+      // nudging a retiring filter); the node itself is disconnected
+      // with its gain after the fade, via scheduleRetire.
+      const oldFilter = this.retireLayerFilter(type);
       const oldGain = this.layerGains.get(type);
       if (oldGain) {
         const cur = oldGain.gain.value;
         oldGain.gain.cancelScheduledValues(now);
         oldGain.gain.setValueAtTime(cur, now);
-        oldGain.gain.linearRampToValueAtTime(0.0001, now + bloom);
+        // Equal-power fade-out (cos shape) paired with the sin-shaped
+        // fade-in below — see XFADE_OUT_PROGRESS. The cancel above is
+        // load-bearing: setValueCurveAtTime throws NotSupportedError
+        // if any event overlaps its [now, now+bloom) window, including
+        // a still-running curve from a retriggered rebuild.
+        oldGain.gain.setValueCurveAtTime(
+          scaleXfadeCurve(XFADE_OUT_PROGRESS, cur, 0.0001), now, bloom,
+        );
+        oldGain.gain.setValueAtTime(0.0001, now + bloom);
         this.layerGains.delete(type);
         // Tear down the analyser tap too — the gain it was probing is
         // about to be retired/disconnected, so the tap would otherwise
@@ -625,7 +752,9 @@ export class VoiceEngine {
           try { oldAn.disconnect(); } catch { /* ok */ }
           this.layerAnalysers.delete(type);
         }
-        this.scheduleRetire(oldGain, voices, bloom);
+        this.scheduleRetire(oldGain, voices, bloom, oldFilter);
+      } else if (oldFilter) {
+        try { oldFilter.disconnect(); } catch { /* ok */ }
       }
       this.droneVoicesByLayer.delete(type);
     }
@@ -639,7 +768,15 @@ export class VoiceEngine {
       layerGain.gain.value = 0;
       layerGain.connect(this.droneVoiceGain);
       layerGain.gain.setValueAtTime(0, now);
-      layerGain.gain.linearRampToValueAtTime(this.effectiveLayerLevel(type), now + bloom);
+      // Equal-power fade-in (sin shape), complement of the retiring
+      // layer's cos fade-out above: g_out² + g_in² ≈ const, no −3 dB
+      // mid-crossfade dip. End value pinned to the exact target, then
+      // re-anchored so the post-fade value is deterministic.
+      const layerTarget = this.effectiveLayerLevel(type);
+      layerGain.gain.setValueCurveAtTime(
+        scaleXfadeCurve(XFADE_IN_PROGRESS, 0, layerTarget), now, bloom,
+      );
+      layerGain.gain.setValueAtTime(layerTarget, now + bloom);
       this.layerGains.set(type, layerGain);
       // Re-attach the analyser tap to this freshly built bus so the
       // UI meter resumes after a layer rebuild. This path runs in
@@ -650,11 +787,12 @@ export class VoiceEngine {
       layerGain.connect(an);
       this.layerAnalysers.set(type, an);
 
+      const layerFilter = this.ensureLayerFilter(type, layerGain);
       const voices: Voice[] = [];
       for (let i = 0; i < intervals.length; i++) {
         const c = intervals[i];
         const pan = layerVoicePan(i, intervals.length);
-        const voice = buildVoice(type, this.ctx, layerGain, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan);
+        const voice = buildVoice(type, this.ctx, layerFilter, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan);
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
@@ -673,12 +811,13 @@ export class VoiceEngine {
     vg.setTargetAtTime(this.voiceStackGain(), now, 0.2);
   }
 
-  private scheduleRetire(gain: GainNode, voices: Voice[], bloom: number): void {
+  private scheduleRetire(gain: GainNode, voices: Voice[], bloom: number, filter: BiquadFilterNode | null = null): void {
     const stopAtMs = bloom * 1000 + 150;
-    const entry: { gain: GainNode; voices: Voice[]; stopTimeout: number } = {
+    const entry: { gain: GainNode; voices: Voice[]; stopTimeout: number; filter: BiquadFilterNode | null } = {
       gain,
       voices,
       stopTimeout: 0,
+      filter,
     };
     entry.stopTimeout = window.setTimeout(() => {
       const idx = this.pendingRetire.indexOf(entry);
@@ -687,6 +826,9 @@ export class VoiceEngine {
         try { voice.stop(); } catch { /* ok */ }
       }
       try { gain.disconnect(); } catch { /* ok */ }
+      if (filter) {
+        try { filter.disconnect(); } catch { /* ok */ }
+      }
     }, stopAtMs);
     this.pendingRetire.push(entry);
   }
@@ -704,13 +846,139 @@ export class VoiceEngine {
         g.setValueAtTime(g.value, now);
         g.linearRampToValueAtTime(0, now + 0.03);
       } catch { /* ok */ }
-      const { voices, gain } = entry;
+      const { voices, gain, filter } = entry;
       window.setTimeout(() => {
         for (const voice of voices) {
           try { voice.stop(); } catch { /* ok */ }
         }
         try { gain.disconnect(); } catch { /* ok */ }
+        if (filter) {
+          try { filter.disconnect(); } catch { /* ok */ }
+        }
       }, 50);
+    }
+  }
+
+  /** Base cutoff for a layer's resonant lowpass: 4–6× the drone root
+   *  (per-layer multiplier so no two layers share a resonance),
+   *  clamped to [600 Hz, 12 kHz]. 4–6× the root sits above the strong
+   *  partials of every voice model, so the filter is nearly
+   *  transparent at rest — an idle walk ≈ the pre-E3 sound and the
+   *  LUFS-audited preset balance survives. Re-derived on retune (see
+   *  setDroneFreq) so the filter tracks pitch instead of choking a
+   *  transposed-up drone. */
+  private layerFilterBaseCutoff(type: VoiceType): number {
+    const i = ALL_VOICE_TYPES.indexOf(type);
+    const mult = 4 + 2 * (i / Math.max(1, ALL_VOICE_TYPES.length - 1));
+    return Math.min(LAYER_FILTER_MAX_HZ, Math.max(LAYER_FILTER_MIN_HZ, this.droneRootFreq * mult));
+  }
+
+  /** Per-layer lowpass between the layer's voices and its layerGain.
+   *  Q spreads 1.4 → 2.24 across the layer index — a gentle shelfy
+   *  resonance bump, far below self-oscillation. Registers the
+   *  filter's cutoff as a MotionEngine walk target; the unregister
+   *  handle is kept so retiring the layer stops its walk. */
+  private ensureLayerFilter(type: VoiceType, layerGain: GainNode): BiquadFilterNode {
+    let filter = this.layerFilters.get(type);
+    if (!filter) {
+      const layerIndex = ALL_VOICE_TYPES.indexOf(type);
+      filter = this.ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = this.layerFilterBaseCutoff(type);
+      filter.Q.value = 1.4 + layerIndex * 0.12;
+      filter.connect(layerGain);
+      this.layerFilters.set(type, filter);
+      this.layerFilterWalkStops.set(type, registerLayerFilterWalk({
+        layerIndex,
+        frequency: filter.frequency,
+        getBaseCutoffHz: () => this.layerFilterBaseCutoff(type),
+      }));
+      // New layers join the coupling bus at build time (when COUPLE is
+      // active) and everyone re-scales to the new 1/N.
+      if (this.coupling) {
+        this.attachCoupling(type, filter, layerGain);
+        this.applyCouplingTargets();
+      }
+    }
+    return filter;
+  }
+
+  /** Stop a layer's cutoff walk and drop the filter from the live
+   *  maps. Returns the node so the caller can disconnect it — either
+   *  immediately (dispose) or after the retire fade (rebuild). */
+  private retireLayerFilter(type: VoiceType): BiquadFilterNode | null {
+    const filter = this.layerFilters.get(type) ?? null;
+    if (filter) this.layerFilters.delete(type);
+    const stop = this.layerFilterWalkStops.get(type);
+    if (stop) {
+      stop();
+      this.layerFilterWalkStops.delete(type);
+    }
+    // Drop the layer's coupling injection now. Cutting a ≤ 0.15/N
+    // ambience feed mid-retire-fade is inaudible (the layer itself is
+    // fading out at the same moment), and waiting for the fade would
+    // mean threading the injection through pendingRetire for nothing.
+    // (Optional chaining: fake-`this` test harnesses predating E4
+    // don't carry the coupling fields.)
+    const inj = this.couplingInjections?.get(type);
+    if (inj) {
+      this.couplingInjections.delete(type);
+      try { inj.disconnect(); } catch { /* ok */ }
+      if (this.coupling) {
+        try { this.coupling.tone.disconnect(inj); } catch { /* ok */ }
+      }
+      // Survivors re-scale: 1/N just changed.
+      this.applyCouplingTargets();
+    }
+    return filter;
+  }
+
+  /** Lazily build the shared coupling spine: bus → delay → tone.
+   *  Nothing here makes sound until a per-layer injection gain rises
+   *  above 0, so an idle core is acoustically free. */
+  private ensureCouplingCore(): { bus: GainNode; delay: DelayNode; tone: BiquadFilterNode } {
+    if (this.coupling) return this.coupling;
+    const bus = this.ctx.createGain();
+    bus.gain.value = 1;
+    const delay = this.ctx.createDelay();
+    delay.delayTime.value = COUPLE_DELAY_SEC;
+    const tone = this.ctx.createBiquadFilter();
+    tone.type = "bandpass";
+    tone.frequency.value = COUPLE_TONE_HZ;
+    tone.Q.value = COUPLE_TONE_Q;
+    bus.connect(delay);
+    delay.connect(tone);
+    this.coupling = { bus, delay, tone };
+    return this.coupling;
+  }
+
+  /** Join a layer to the coupling loop: tap its layerGain (post-filter,
+   *  post-level — so crossfades and layer levels scale its bus
+   *  contribution) into the bus, and feed the delayed/filtered bus back
+   *  into the layer's filter input through a per-layer injection gain.
+   *  Idempotent per layer; no-op until the coupling core exists. */
+  private attachCoupling(type: VoiceType, filter: BiquadFilterNode, layerGain: GainNode): void {
+    if (!this.coupling || this.couplingInjections.has(type)) return;
+    layerGain.connect(this.coupling.bus);
+    const inj = this.ctx.createGain();
+    inj.gain.value = 0;
+    this.coupling.tone.connect(inj);
+    inj.connect(filter);
+    this.couplingInjections.set(type, inj);
+  }
+
+  /** Ramp every injection gain to coupleAmount × cap / N. Anchor +
+   *  setTargetAtTime per house style so retriggered knob moves and
+   *  N-changes glide instead of stepping. */
+  private applyCouplingTargets(): void {
+    if (!this.couplingInjections || this.couplingInjections.size === 0) return;
+    const n = this.couplingInjections.size;
+    const target = (this.coupleAmount * COUPLE_MAX_TOTAL_INJECTION) / n;
+    const now = this.ctx.currentTime;
+    for (const inj of this.couplingInjections.values()) {
+      inj.gain.cancelScheduledValues(now);
+      inj.gain.setValueAtTime(inj.gain.value, now);
+      inj.gain.setTargetAtTime(target, now, 0.12);
     }
   }
 
@@ -793,10 +1061,9 @@ export class VoiceEngine {
 
 
   private applyLayerGainTargets(): void {
-    const now = this.ctx.currentTime;
     for (const type of ALL_VOICE_TYPES) {
       const gain = this.layerGains.get(type);
-      if (gain) gain.gain.setTargetAtTime(this.effectiveLayerLevel(type), now, 0.18);
+      if (gain) this.glideLayerGain(gain, this.effectiveLayerLevel(type), 0.18);
     }
   }
 
@@ -965,6 +1232,9 @@ export class VoiceEngine {
         try { v.stop(); } catch { /* best-effort */ }
       }
       try { entry.gain.disconnect(); } catch { /* best-effort */ }
+      if (entry.filter) {
+        try { entry.filter.disconnect(); } catch { /* best-effort */ }
+      }
     }
 
     // Live voices.
@@ -979,6 +1249,32 @@ export class VoiceEngine {
       try { this.subOscs.a.stop(); this.subOscs.a.disconnect(); } catch { /* best-effort */ }
       try { this.subOscs.b.stop(); this.subOscs.b.disconnect(); } catch { /* best-effort */ }
       this.subOscs = null;
+    }
+
+    // Layer filters: unregister every cutoff-walk target first (the
+    // MotionEngine registry must not keep scheduling against a dead
+    // graph), then disconnect the nodes.
+    for (const stop of this.layerFilterWalkStops.values()) stop();
+    this.layerFilterWalkStops.clear();
+    for (const f of this.layerFilters.values()) {
+      try { f.disconnect(); } catch { /* best-effort */ }
+    }
+    this.layerFilters.clear();
+
+    // Coupling graph (E4): injections first (they hold the only
+    // references back into the layer filters), then the shared spine.
+    // Guards exist for fake-`this` test harnesses predating E4.
+    if (this.couplingInjections) {
+      for (const inj of this.couplingInjections.values()) {
+        try { inj.disconnect(); } catch { /* best-effort */ }
+      }
+      this.couplingInjections.clear();
+    }
+    if (this.coupling) {
+      for (const node of [this.coupling.bus, this.coupling.delay, this.coupling.tone]) {
+        try { node.disconnect(); } catch { /* best-effort */ }
+      }
+      this.coupling = null;
     }
 
     for (const g of this.layerGains.values()) {

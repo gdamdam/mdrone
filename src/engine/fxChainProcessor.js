@@ -1306,30 +1306,49 @@ class BrickwallLimiterProcessor extends AudioWorkletProcessor {
 registerProcessor("fx-brickwall", BrickwallLimiterProcessor);
 
 // ═════════════════════════════════════════════════════════════════════
-// FREEVERB-STYLE REVERB — 8 parallel combs + 4 series allpasses / ch
+// FDN REVERB — true 8×8 Jot FDN with Householder feedback matrix
 // ═════════════════════════════════════════════════════════════════════
-// (Registered as `fx-fdn-reverb` for backward-compat with saved scenes
-// — it is NOT an FDN in the Jot sense; there is no mixing matrix.
-// Architecture is Schroeder / Freeverb: parallel feedback combs
-// followed by series allpasses.)
+// Registered as `fx-fdn-reverb` (HALL and CISTERN serial inserts).
+// Replaces the previous Freeverb-style comb bank: 8 fixed parallel
+// combs ring metallically at cistern-length decays because each comb
+// is an isolated resonator whose modal series never mixes with its
+// neighbours. A Jot FDN cross-couples every line through an energy-
+// preserving matrix, so modal density grows over time instead of
+// settling into 8 static pitch ridges.
 //
-// Replaces the old noise-IR ConvolverNode for HALL and CISTERN. The
-// convolver reads as "noise verb"; this topology reads as a modelled
-// space because the combs carry discrete modal peaks and the
-// allpasses diffuse them.
+// Topology (Jot 1991):
+//   input → 3 series allpass diffusers → injected (±) into 8 delay
+//   lines with mutually-coprime lengths. Per line: fractional-delay
+//   read → one-pole damping LP → per-line gain g_k → Householder
+//   feedback H = I − (2/N)·11ᵀ (energy-preserving; applied O(N) as
+//   w_k − (2/N)·Σw) → write back. Stereo taps read disjoint line
+//   subsets with alternating signs.
 //
-// Comb delays are the classic Freeverb primes (scaled by sample rate
-// from the original 44.1 kHz values). Per-channel offsets of ±23
-// samples decorrelate L/R. A seed (via port message) perturbs the
-// prime offsets ±2 % so every preset gets a deterministic but
-// distinct modal pattern.
+// Decay: per-line gain follows g_k = 10^(−3·D_k/T60), with the
+// requested T60 derived from the legacy `decay` param so the existing
+// hall/cistern presets keep their meaning:
+//   T60 = 3·meanDelaySec / −log10(decay)
+// i.e. `decay` is the feedback gain a line of mean length would have.
+// Every line then decays at the SAME rate regardless of its length —
+// the per-mode ring-out mismatch of the comb bank is gone.
 //
-// Parameters:
-//   size     — 0..1, delay-length scaling (0.5 = Freeverb default,
-//              1.0 = cavernous cistern, 0.3 = tight room)
-//   damping  — 0..1, lowpass amount in comb feedback (0.5 default)
-//   decay    — 0..1, comb feedback gain (0.84 default ≈ 2 s RT60 at
-//              size=0.5; at size=1.0 the tail reaches ~15 s)
+// Modulation: each line's delay time is swept by a slow sine
+// (0.1–0.3 Hz, depth ~1.5–3.5 samples, fractional interpolation),
+// with rate/phase/depth drawn deterministically from the seed. The
+// sweep detunes each modal series a few cents over seconds, which is
+// what kills the residual metallic ringing at 15 s decays.
+//
+// Determinism: line lengths, modulation params and diffuser lengths
+// all derive from the seed via mulberry32 — same seed, same reverb.
+//
+// Parameters (surface unchanged from the comb-bank version):
+//   size     — 0.1..1.5, delay-length scaling (effective length =
+//              base·(0.3+size); 0.45 = hall, 1.2 = cistern)
+//   damping  — 0..1, one-pole lowpass amount in the feedback path
+//   decay    — 0..0.98, feedback gain at the mean delay (see above)
+//   mix      — 0..1 output level
+// Messages: {type:"clear"}, {type:"stop"} — stop makes process()
+// return false (preserves the swapFdnReverb teardown contract).
 //
 class FdnReverbProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -1346,13 +1365,7 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
     const opts = options?.processorOptions || {};
     this.seed = (opts.seed >>> 0) || 0xFEED;
 
-    // Freeverb prime comb lengths (reference at 44.1 kHz)
-    const REF_SR = 44100;
-    const combBase = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
-    const allpassBase = [556, 441, 341, 225];
-    const STEREO_OFFSET = 23; // samples — right channel is offset for decorrelation
-
-    // Deterministic mulberry32 for prime perturbation.
+    // Deterministic mulberry32 — seeds line lengths + modulation.
     let a = this.seed;
     const rnd = () => {
       a = (a + 0x6D2B79F5) >>> 0;
@@ -1362,36 +1375,62 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
 
-    // Per-comb state: buffer, write index, LP feedback state.
-    // Buffers are sized to the MAXIMUM length we'd ever need
-    // (size=1.5 × REF scaling). Effective length is set each block
-    // via `size` + stays ≤ buffer length.
-    const srScale = sampleRate / REF_SR;
-    const MAX_SIZE_MUL = 1.6;
+    const N = 8;
+    // Base line lengths (ms) span ~25–75 ms — same range the old comb
+    // bank covered, so hall/cistern keep their size character. Each is
+    // seed-jittered ±3 %, then nudged upward until coprime with every
+    // previously chosen length so no two lines share a modal series.
+    const BASE_MS = [25.3, 29.7, 35.1, 39.8, 46.9, 54.1, 63.7, 74.3];
+    // size max 1.5 → length multiplier 0.3+1.5 = 1.8; small headroom.
+    const MAX_SIZE_MUL = 1.85;
+    const gcd = (x, y) => { while (y) { const t = x % y; x = y; y = t; } return x; };
 
-    this.combL = [];
-    this.combR = [];
-    for (let i = 0; i < 8; i++) {
-      const jitter = 1 + (rnd() - 0.5) * 0.04; // ±2 %
-      const len = Math.ceil(combBase[i] * srScale * MAX_SIZE_MUL * jitter);
-      this.combL.push({ buf: new Float32Array(len), idx: 0, maxLen: len, base: Math.floor(combBase[i] * srScale * jitter), lp: 0 });
-      const jitterR = 1 + (rnd() - 0.5) * 0.04;
-      const lenR = Math.ceil((combBase[i] + STEREO_OFFSET) * srScale * MAX_SIZE_MUL * jitterR);
-      this.combR.push({ buf: new Float32Array(lenR), idx: 0, maxLen: lenR, base: Math.floor((combBase[i] + STEREO_OFFSET) * srScale * jitterR), lp: 0 });
+    this.lines = [];
+    const chosen = [];
+    let meanBase = 0;
+    for (let k = 0; k < N; k++) {
+      let base = Math.round(BASE_MS[k] * 0.001 * sampleRate * (1 + (rnd() - 0.5) * 0.06));
+      while (chosen.some((c) => gcd(c, base) !== 1)) base++;
+      chosen.push(base);
+      meanBase += base;
+      const depth = 1.5 + rnd() * 2.0;             // samples
+      const rateHz = 0.1 + rnd() * 0.2;            // 0.1–0.3 Hz
+      const phase = rnd() * Math.PI * 2;
+      const bufLen = Math.ceil(base * MAX_SIZE_MUL + depth + 8);
+      this.lines.push({
+        buf: new Float32Array(bufLen), idx: 0, base,
+        lp: 0,                                     // damping LP state
+        depth, phase, inc: (Math.PI * 2 * rateHz) / sampleRate,
+        cur: base, g: 0, modStart: 0, modSlope: 0, // per-block values
+      });
     }
-    this.apL = [];
-    this.apR = [];
-    for (let i = 0; i < 4; i++) {
-      const len = Math.ceil(allpassBase[i] * srScale * MAX_SIZE_MUL);
-      this.apL.push({ buf: new Float32Array(len), idx: 0, maxLen: len, base: Math.floor(allpassBase[i] * srScale) });
-      const lenR = Math.ceil((allpassBase[i] + STEREO_OFFSET) * srScale * MAX_SIZE_MUL);
-      this.apR.push({ buf: new Float32Array(lenR), idx: 0, maxLen: lenR, base: Math.floor((allpassBase[i] + STEREO_OFFSET) * srScale) });
-    }
+    this.meanBase = meanBase / N;
+
+    // Input diffusion — 3 short series allpasses (mono, pre-injection)
+    // smear the direct attack so the FDN onset reads as a space, not
+    // a multi-tap echo.
+    const DIFF_MS = [3.1, 5.9, 8.3];
+    this.diff = DIFF_MS.map((ms) => {
+      const len = Math.max(4, Math.round(ms * 0.001 * sampleRate * (1 + (rnd() - 0.5) * 0.1)));
+      return { buf: new Float32Array(len), idx: 0 };
+    });
+
+    // Alternating-sign injection decorrelates the lines' build-up;
+    // the L/R taps read disjoint line subsets (even/odd) so the
+    // channels decorrelate without a Freeverb-style ±23-sample offset.
+    this.inj = [1, -1, 1, -1, 1, -1, 1, -1];
+    this.readV = new Float32Array(N); // scratch: raw delayed reads
+    this.fbV = new Float32Array(N);   // scratch: damped+gained vector
+
+    // Output DC blockers, one per channel (Householder feedback with
+    // same-sign gains can carry a slow DC component around the loop).
+    this.dcx0 = 0; this.dcy0 = 0;
+    this.dcx1 = 0; this.dcy1 = 0;
 
     // "stop" terminates the processor: swapFdnReverb() builds a fresh
     // node per reverb re-seed, and a disconnected processor whose
     // process() returns true keeps rendering forever — two leaked
-    // Freeverb networks per preset change without this.
+    // FDN networks per preset change without this.
     this.stopped = false;
     this.port.onmessage = (e) => {
       if (!e.data) return;
@@ -1401,10 +1440,10 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
   }
 
   clear() {
-    for (const c of this.combL) { c.buf.fill(0); c.lp = 0; }
-    for (const c of this.combR) { c.buf.fill(0); c.lp = 0; }
-    for (const a of this.apL)   { a.buf.fill(0); }
-    for (const a of this.apR)   { a.buf.fill(0); }
+    for (const l of this.lines) { l.buf.fill(0); l.lp = 0; }
+    for (const d of this.diff) { d.buf.fill(0); }
+    this.dcx0 = 0; this.dcy0 = 0;
+    this.dcx1 = 0; this.dcy1 = 0;
   }
 
   process(_inputs, outputs, parameters) {
@@ -1420,70 +1459,106 @@ class FdnReverbProcessor extends AudioWorkletProcessor {
 
     const size = parameters.size[0];
     const damping = parameters.damping[0];
-    const decay = parameters.decay[0];
+    const decay = Math.min(0.98, Math.max(0, parameters.decay[0]));
     const mix = parameters.mix[0];
     const DENORM = 1e-25;
 
-    // Compute per-block effective delay length for each comb/allpass.
-    for (const c of this.combL) c.curLen = Math.max(1, Math.min(c.maxLen, Math.round(c.base * (0.3 + size * 1.0))));
-    for (const c of this.combR) c.curLen = Math.max(1, Math.min(c.maxLen, Math.round(c.base * (0.3 + size * 1.0))));
-    for (const a of this.apL)   a.curLen = Math.max(1, Math.min(a.maxLen, Math.round(a.base * (0.3 + size * 1.0))));
-    for (const a of this.apR)   a.curLen = Math.max(1, Math.min(a.maxLen, Math.round(a.base * (0.3 + size * 1.0))));
+    // NaN sanitation: the Householder mix spreads a single NaN to all
+    // 8 lines within one loop pass, so a poisoned filter state means
+    // the whole tank is poisoned — flush everything, not just the
+    // offending state (per-state reset can't recover NaN'd buffers).
+    let poisoned = !Number.isFinite(this.dcy0) || !Number.isFinite(this.dcy1);
+    if (!poisoned) {
+      for (const l of this.lines) {
+        if (!Number.isFinite(l.lp)) { poisoned = true; break; }
+      }
+    }
+    if (poisoned) this.clear();
 
-    // NaN sanitation on comb LP state
-    for (const c of this.combL) if (!Number.isFinite(c.lp)) c.lp = 0;
-    for (const c of this.combR) if (!Number.isFinite(c.lp)) c.lp = 0;
+    // Per-block (k-rate) line setup: effective delay, per-line gain
+    // from the T60 mapping, and the modulation ramp for this block.
+    const sizeMul = 0.3 + size;
+    const meanDelaySec = (this.meanBase * sizeMul) / sampleRate;
+    for (const l of this.lines) {
+      const maxDelay = l.buf.length - 3 - l.depth;
+      l.cur = Math.min(maxDelay, Math.max(4, l.base * sizeMul));
+      // g_k = 10^(−3·D_k/T60) with T60 = 3·meanDelay/−log10(decay)
+      // ≡ decay^(D_k/meanDelay) — exact, no log/pow chain needed.
+      l.g = decay <= 0 ? 0 : Math.pow(decay, (l.cur / sampleRate) / meanDelaySec);
+      // Mod offset stays in [0, depth] so the total delay never
+      // exceeds the buffer; sine evaluated at block edges and ramped
+      // linearly inside the block (0.3 Hz moves ~µs per 128 frames).
+      const m0 = l.depth * (0.5 + 0.5 * Math.sin(l.phase));
+      l.phase += l.inc * n;
+      if (l.phase > Math.PI * 2) l.phase -= Math.PI * 2;
+      const m1 = l.depth * (0.5 + 0.5 * Math.sin(l.phase));
+      l.modStart = m0;
+      l.modSlope = (m1 - m0) / n;
+    }
 
-    // Freeverb's original 0.015 was conservative and made hall/cistern
-    // ~-46 dB RMS — inaudible against a full-level dry drone. 0.1 (6.7x)
-    // brings the reverb tail to ~-28 dB RMS, matching plate, without
-    // pushing tank state near float overflow even at decay=0.94.
-    const FIXED_GAIN = 0.1;
+    // Loudness calibration (see tests/unit/fdnReverb.test.ts): the old
+    // comb bank measured −25.1 dBFS (hall) / −24.8 dBFS (cistern) RMS
+    // on the reference noise burst. IN·OUT below lands the FDN within
+    // ±2 dB of both without touching the listening-audited wet trims
+    // in FxChain.ts.
+    const IN_GAIN = 0.25;
+    const OUT_GAIN = 0.68;
+    const AP_COEF = 0.62;
+
+    const lines = this.lines;
+    const diff = this.diff;
+    const inj = this.inj;
+    const readV = this.readV;
+    const fbV = this.fbV;
 
     for (let i = 0; i < n; i++) {
-      const drySum = (inL[i] + inR[i]) * 0.5 * FIXED_GAIN;
+      // Mono fold-down + input diffusion
+      let x = (inL[i] + inR[i]) * 0.5 * IN_GAIN;
+      for (let k = 0; k < diff.length; k++) {
+        const d = diff[k];
+        const r = d.buf[d.idx];
+        const w = x + r * AP_COEF;
+        d.buf[d.idx] = w;
+        d.idx = (d.idx + 1) % d.buf.length;
+        x = r - w * AP_COEF;
+      }
 
-      // Parallel comb bank per channel
-      let sumL = 0, sumR = 0;
+      // Fractional-delay reads → damping LP → per-line gain
+      let sum = 0;
       for (let k = 0; k < 8; k++) {
-        const cL = this.combL[k];
-        const cR = this.combR[k];
-        // Read from delay (tap at curLen samples back)
-        const readL = cL.buf[(cL.idx + cL.maxLen - cL.curLen) % cL.maxLen];
-        const readR = cR.buf[(cR.idx + cR.maxLen - cR.curLen) % cR.maxLen];
-        // Lowpass in the feedback path (damping)
-        cL.lp = readL * (1 - damping) + cL.lp * damping + DENORM;
-        cR.lp = readR * (1 - damping) + cR.lp * damping + DENORM;
-        // Write new sample: input + damped feedback × decay
-        cL.buf[cL.idx] = drySum + cL.lp * decay;
-        cR.buf[cR.idx] = drySum + cR.lp * decay;
-        cL.idx = (cL.idx + 1) % cL.maxLen;
-        cR.idx = (cR.idx + 1) % cR.maxLen;
-        sumL += readL;
-        sumR += readR;
+        const l = lines[k];
+        const L = l.buf.length;
+        let rp = l.idx - (l.cur + l.modStart + l.modSlope * i);
+        if (rp < 0) rp += L;
+        const i0 = rp | 0;
+        const frac = rp - i0;
+        const i1 = i0 + 1 >= L ? 0 : i0 + 1;
+        const v = l.buf[i0] + (l.buf[i1] - l.buf[i0]) * frac;
+        readV[k] = v;
+        l.lp = v * (1 - damping) + l.lp * damping + DENORM;
+        const w = l.lp * l.g;
+        fbV[k] = w;
+        sum += w;
       }
 
-      // Serial allpass diffusers per channel
-      let yL = sumL;
-      let yR = sumR;
-      const AP_COEF = 0.5;
-      for (let k = 0; k < 4; k++) {
-        const aL = this.apL[k];
-        const aR = this.apR[k];
-        const readL = aL.buf[(aL.idx + aL.maxLen - aL.curLen) % aL.maxLen];
-        const readR = aR.buf[(aR.idx + aR.maxLen - aR.curLen) % aR.maxLen];
-        const writeL = yL + readL * AP_COEF;
-        const writeR = yR + readR * AP_COEF;
-        aL.buf[aL.idx] = writeL;
-        aR.buf[aR.idx] = writeR;
-        aL.idx = (aL.idx + 1) % aL.maxLen;
-        aR.idx = (aR.idx + 1) % aR.maxLen;
-        yL = readL - writeL * AP_COEF;
-        yR = readR - writeR * AP_COEF;
+      // Householder feedback (H·w = w − (2/N)·Σw, N=8) + injection
+      const h = sum * 0.25;
+      for (let k = 0; k < 8; k++) {
+        const l = lines[k];
+        l.buf[l.idx] = fbV[k] - h + x * inj[k];
+        l.idx = (l.idx + 1) % l.buf.length;
       }
 
-      outL[i] = yL * mix;
-      outR[i] = yR * mix;
+      // Stereo tap-out: disjoint line subsets, alternating signs.
+      // Raw (pre-damping) reads keep the top end of the tail alive.
+      let yL = readV[0] - readV[2] + readV[4] - readV[6];
+      let yR = readV[1] - readV[3] + readV[5] - readV[7];
+      // DC blockers (R = 0.9995 ≈ 4 Hz at 48 kHz)
+      const tL = yL; yL = yL - this.dcx0 + 0.9995 * this.dcy0; this.dcx0 = tL; this.dcy0 = yL;
+      const tR = yR; yR = yR - this.dcx1 + 0.9995 * this.dcy1; this.dcx1 = tR; this.dcy1 = yR;
+
+      outL[i] = yL * OUT_GAIN * mix;
+      outR[i] = yR * OUT_GAIN * mix;
     }
     return true;
   }

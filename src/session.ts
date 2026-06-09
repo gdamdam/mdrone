@@ -86,6 +86,11 @@ export interface DroneSessionSnapshot {
    *  DEFAULT_ENTRAIN values. Visible only when the user has opted
    *  the panel in via Settings → Advanced. */
   entrain?: EntrainState;
+  /** Cross-voice COUPLE amount (0..1): how much of the summed layer
+   *  output is fed back into each layer's input (Lyra-8-adjacent,
+   *  conservative). Optional for backward-compat — missing field
+   *  means coupling off (0), so legacy scenes are unchanged. */
+  coupleAmount?: number;
 }
 
 export interface MixerSessionSnapshot {
@@ -450,6 +455,9 @@ export function normalizeDroneSnapshot(value: unknown): DroneSessionSnapshot | n
       ? { lfoDivision: Math.floor(value.lfoDivision) }
       : {}),
     entrain: normalizeEntrain(value.entrain),
+    ...(typeof value.coupleAmount === "number" && Number.isFinite(value.coupleAmount)
+      ? { coupleAmount: Math.max(0, Math.min(1, value.coupleAmount)) }
+      : {}),
   };
 }
 

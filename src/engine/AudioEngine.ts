@@ -599,6 +599,16 @@ export class AudioEngine {
 
   getDrift(): number { return this.voiceEngine.getDrift(); }
 
+  /** Cross-voice COUPLE amount (0..1, default 0 = off): feeds each
+   *  voice layer a little of the summed layer output through a
+   *  delayed, bandpassed feedback bus. See VoiceEngine for the
+   *  topology and loop-gain cap. */
+  setCoupleAmount(v: number): void {
+    this.voiceEngine.setCoupleAmount(v);
+  }
+
+  getCoupleAmount(): number { return this.voiceEngine.getCoupleAmount(); }
+
   setAir(v: number): void {
     this.motionEngine.setAir(v);
   }

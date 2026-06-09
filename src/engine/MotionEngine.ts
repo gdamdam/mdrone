@@ -10,6 +10,40 @@ import {
   type EntrainState,
 } from "../entrain";
 
+/** Per-layer resonant-filter cutoff walk (Tier-4 / E3, internal-only).
+ *
+ *  VoiceEngine owns the per-layer BiquadFilterNodes; MotionEngine owns
+ *  the walk clock (same home as the EVOLVE walk). The two engines hold
+ *  no reference to each other, so the hookup goes through this
+ *  module-level registry — the same latch pattern the ENTRAIN rate
+ *  handoff uses (see latchEntrainRateHz). VoiceEngine registers one
+ *  target per live layer and calls the returned unregister function
+ *  when the layer retires, so retired filters drop out of the walk
+ *  immediately. */
+export interface LayerFilterWalkTarget {
+  /** Stable per-layer index — used to desynchronize walk phases. */
+  layerIndex: number;
+  /** The filter cutoff AudioParam the walk schedules onto. */
+  frequency: AudioParam;
+  /** Live base cutoff in Hz — re-read every tick so root retunes
+   *  re-center the walk band without re-registering. */
+  getBaseCutoffHz: () => number;
+}
+
+/** Hard cutoff bounds for the per-layer filters. The base cutoff is
+ *  derived from the drone root (see VoiceEngine.layerFilterBaseCutoff);
+ *  these clamps keep a very low root from choking the layer and a very
+ *  high root from scheduling cutoffs past anything audible. */
+export const LAYER_FILTER_MIN_HZ = 600;
+export const LAYER_FILTER_MAX_HZ = 12000;
+
+const layerFilterWalkTargets = new Set<LayerFilterWalkTarget>();
+
+export function registerLayerFilterWalk(target: LayerFilterWalkTarget): () => void {
+  layerFilterWalkTargets.add(target);
+  return () => { layerFilterWalkTargets.delete(target); };
+}
+
 interface MotionEngineOptions {
   ctx: AudioContext;
   fxChain: FxChain;
@@ -68,6 +102,18 @@ export class MotionEngine {
   private evolveAmount = 0;
   private evolveTicks = 0;
   private evolveInterval: number | null = null;
+  /** Layer-filter cutoff walk clock (E3). A 6 s tick driving 5 s
+   *  setTargetAtTime time constants reads as continuous glacial
+   *  motion, not stepping. Offsets are a pure function of
+   *  (tick, layerIndex) — no PRNG draws, so the seeded evolve stream
+   *  above stays byte-identical and the walk is reproducible. */
+  private static readonly FILTER_WALK_TICK_MS = 6000;
+  private static readonly FILTER_WALK_TC_SEC = 5;
+  /** Walk span in octaves around each layer's base cutoff (±0.7 keeps
+   *  the LUFS-audited preset balance intact — spec band ±0.5..1). */
+  private static readonly FILTER_WALK_SPAN_OCT = 0.7;
+  private filterWalkTicks = 0;
+  private filterWalkInterval: number | null = null;
   private presetMotionProfile: PresetMotionProfile = DEFAULT_PRESET_MOTION_PROFILE;
 
   /** Seeded PRNG state for the evolve loop. Using a seeded source
@@ -139,6 +185,50 @@ export class MotionEngine {
     this.entrainLfo.start();
 
     this.fxChain.setAir(this.air);
+
+    this.startFilterWalkLoop();
+  }
+
+  /** Arm the layer-filter cutoff-walk clock. Always armed (unlike the
+   *  evolve loop, which is gated on EVOLVE > 0) because the spectral
+   *  walk is the resting behavior of the per-layer filters; the tick
+   *  body no-ops while the drone is stopped or no layer is registered,
+   *  matching the evolve loop's in-tick isPlaying guard. */
+  private startFilterWalkLoop(): void {
+    this.filterWalkInterval = window.setInterval(() => {
+      if (!this.isPlayingImpl() || layerFilterWalkTargets.size === 0) return;
+      this.tickLayerFilterWalk();
+    }, MotionEngine.FILTER_WALK_TICK_MS);
+  }
+
+  /** One walk step: glide every registered layer filter toward a new
+   *  cutoff within ±FILTER_WALK_SPAN_OCT octaves of its (live) base.
+   *  Two incommensurate sinusoids per layer give a wandering rather
+   *  than obviously cyclic trajectory (~69 s and ~3 min periods at the
+   *  6 s tick); the golden-angle phase offset per layerIndex keeps the
+   *  layers' spectral motion decorrelated. */
+  private tickLayerFilterWalk(): void {
+    this.filterWalkTicks++;
+    const now = this.ctx.currentTime;
+    for (const target of layerFilterWalkTargets) {
+      const oct = MotionEngine.filterWalkOffsetOctaves(this.filterWalkTicks, target.layerIndex);
+      const hz = MotionEngine.clamp(
+        target.getBaseCutoffHz() * Math.pow(2, oct),
+        LAYER_FILTER_MIN_HZ,
+        LAYER_FILTER_MAX_HZ,
+      );
+      target.frequency.setTargetAtTime(hz, now, MotionEngine.FILTER_WALK_TC_SEC);
+    }
+  }
+
+  /** Deterministic walk offset in octaves — a pure function of the
+   *  tick counter and layer index (no wall clock, no PRNG), so a given
+   *  session length reproduces the same spectral trajectory. */
+  private static filterWalkOffsetOctaves(tick: number, layerIndex: number): number {
+    const phase = layerIndex * 2.39996; // golden angle → max decorrelation
+    const med = Math.sin(tick * 0.55 + phase) * 0.62;
+    const slow = Math.sin(tick * 0.21 + phase * 1.7 + 0.9) * 0.38;
+    return (med + slow) * MotionEngine.FILTER_WALK_SPAN_OCT;
   }
 
   setPresetMorph(v: number): void {
@@ -170,6 +260,10 @@ export class MotionEngine {
     if (this.evolveInterval != null) {
       window.clearInterval(this.evolveInterval);
       this.evolveInterval = null;
+    }
+    if (this.filterWalkInterval != null) {
+      window.clearInterval(this.filterWalkInterval);
+      this.filterWalkInterval = null;
     }
   }
 

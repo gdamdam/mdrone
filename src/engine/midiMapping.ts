@@ -66,6 +66,7 @@ export const MIDI_TARGETS: readonly MidiTarget[] = [
   { id: "glide",    label: "GLIDE",    group: "Macros",   kind: "continuous" },
   { id: "morph",    label: "CROSSFADE", group: "Macros",  kind: "continuous" },
   { id: "evolve",   label: "EVOLVE",   group: "Macros",   kind: "continuous" },
+  { id: "couple",   label: "COUPLE",   group: "Macros",   kind: "continuous" },
   { id: "pluck",    label: "PLUCK",    group: "Macros",   kind: "continuous" },
   { id: "tilt",     label: "TILT",     group: "Macros",   kind: "continuous" },
   { id: "width",    label: "WIDTH",    group: "Macros",   kind: "continuous" },

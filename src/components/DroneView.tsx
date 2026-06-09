@@ -474,6 +474,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setJourney,
     setPartner,
     setEntrain,
+    setCoupleAmount,
   } = useDroneScene({
     engine,
     onTransportChange,
@@ -1900,6 +1901,16 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 hint="autonomous slow drift"
                 caption="ongoing slow drift"
                 midiId="evolve"
+              />
+              <Macro
+                label="COUPLE"
+                value={state.coupleAmount ?? 0}
+                onChange={setCoupleAmount}
+                icon={<IconDrift />}
+                title="COUPLE — how much the voices feed each other's resonance, like strings sharing a soundboard. 0 = independent, 1 = sympathetic bloom."
+                hint="voices excite each other"
+                caption="voices feed each other"
+                midiId="couple"
               />
             </div>
 
