@@ -1266,7 +1266,7 @@ export function Header({
                     className={labelMode === m ? "share-style-btn share-style-btn-active" : "share-style-btn"}
                     onClick={() => handlePickLabelMode(m)}
                     title={m === "plain"
-                      ? "Show plain-language captions under HOLD / WEATHER / RND / ATTUNE / MUTATE"
+                      ? "Show plain-language captions under HOLD / WEATHER / RND / ATTUNE / MUTATE / EVOLVE"
                       : "Hide captions for the spare, poetic look"}
                   >
                     {m === "plain" ? "PLAIN" : "POETIC"}

@@ -3,7 +3,7 @@
  * controls.
  *
  * The Performance surface speaks in invented vocabulary (HOLD, WEATHER,
- * RND, ATTUNE, MUTATE). Hover `title` tooltips explain them, but ~half
+ * RND, ATTUNE, MUTATE, EVOLVE). Hover `title` tooltips explain them, but ~half
  * the audience is on touch and never sees a tooltip. In "plain" mode
  * (the default) a small always-visible caption renders under each of
  * those controls; in "poetic" mode the captions are hidden to reclaim

@@ -1090,8 +1090,8 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 
 /* ── Plain-language captions on coined primary controls ───────────────
    Always-visible function labels under HOLD / WEATHER / RND / ATTUNE /
-   MUTATE so first-time and touch users (no hover tooltips) can read what
-   each does. Shown in the default "plain" label mode; hidden when the
+   MUTATE / EVOLVE so first-time and touch users (no hover tooltips) can
+   read what each does. Shown in the default "plain" label mode; hidden when the
    user picks "poetic" (Settings → Appearance → LABELS). Driven by
    data-labels on <html> so the caption markup stays static — no React
    prop-drilling. aria-hidden on each span; the buttons already carry
@@ -1118,6 +1118,18 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
 /* HOLD — compact inline-flex row; wrap the caption onto its own line. */
 .header-hold-btn { flex-wrap: wrap; }
 .ctrl-caption-hold { flex-basis: 100%; margin-top: 1px; }
+/* EVOLVE (macro slider) — second line under the row, indented to sit
+   under the label like .macro-hint. The richer hint replaces it while
+   visible (hover / focus / hints toggle) so the two near-identical
+   lines never stack. */
+.ctrl-caption-macro {
+  margin-top: 0;
+  padding-left: 26px;
+  text-align: left;
+}
+.shape-hints-on .ctrl-caption-macro,
+.macro-row-wrap:hover .ctrl-caption-macro,
+.macro-row-wrap:focus-within .ctrl-caption-macro { display: none; }
 /* Poetic mode hides every caption. */
 :root[data-labels="poetic"] .ctrl-caption { display: none; }
 /* ATTUNE hero — the "make it beautiful" affordance gets visual primacy

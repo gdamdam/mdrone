@@ -59,7 +59,7 @@ import {
   type TanpuraTuningId,
 } from "../engine/VoiceBuilder";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
-import { relationLabels, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
+import { relationLabels, relationForTuningPick, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
 import { sampleGoodDrone } from "../goodDrone";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
 import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from "../engine/linkBridge";
@@ -1898,6 +1898,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 icon={<IconDrift />}
                 title="EVOLVE (minutes) — how much the drone drifts on its own while a preset is held. 0 = dead-still, 1 = continuous slow change."
                 hint="autonomous slow drift"
+                caption="ongoing slow drift"
                 midiId="evolve"
               />
             </div>
@@ -2377,7 +2378,21 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   <DropdownSelect
                     value={state.tuningId ?? ""}
                     options={TUNINGS.map((t) => ({ value: t.id, label: t.label }))}
-                    onChange={(v) => { setTuning(v === "" ? null : v as typeof state.tuningId); trackEvent("tuning/change"); }}
+                    onChange={(v) => {
+                      const next = v === "" ? null : v as typeof state.tuningId;
+                      setTuning(next);
+                      // Explicit pick: land on the tuning's authored
+                      // suggested relation when it has one (curated
+                      // entries are designed around a relation; unison
+                      // often buries their character). Tunings without
+                      // a suggestion keep the current relation, and the
+                      // user can still change relation afterwards.
+                      // Scene/share/preset loads don't pass through
+                      // here, so their own relation is never overridden.
+                      const suggested = relationForTuningPick(next, state.relationId ?? null);
+                      if (suggested !== (state.relationId ?? null)) setRelation(suggested);
+                      trackEvent("tuning/change");
+                    }}
                     className="intonation-select"
                     title="Tuning system — pitch degrees in cents above the root"
                   />
@@ -2601,6 +2616,7 @@ function Macro({
   title,
   displayValue,
   hint,
+  caption,
   vertical,
   midiId,
 }: {
@@ -2615,6 +2631,12 @@ function Macro({
    *  panel has `.shape-hints-on` — teaches what the macro does
    *  without waiting for the tooltip. */
   hint?: string;
+  /** Always-visible plain-label-mode caption (the `ctrl-caption`
+   *  system, see labelMode.ts) for coined macros like EVOLVE whose
+   *  name alone doesn't say what they do. Unlike `hint` it needs no
+   *  hover/toggle, so touch users see it too. Horizontal layout only
+   *  — the coined macros all render as rows. */
+  caption?: string;
   /** Render as a vertical fader column instead of a horizontal row.
    *  Used by SHAPE macros where the "studio console" metaphor
    *  reinforces the two-tier driver/body hierarchy. On narrow
@@ -2668,6 +2690,7 @@ function Macro({
           {displayValue ?? Math.round(value * 100)}
         </span>
       </div>
+      {caption && <span className="ctrl-caption ctrl-caption-macro" aria-hidden="true">{caption}</span>}
       {hint && <span className="macro-hint">{hint}</span>}
     </div>
   );

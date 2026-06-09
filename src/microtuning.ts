@@ -43,6 +43,17 @@ export interface TuningTable {
   label: string;
   /** Cents for 13 degree positions (P1 through P8). */
   degrees: readonly number[];
+  /** Authored starting-point metadata: the relation this tuning was
+   *  designed to be heard through. Applied when the user explicitly
+   *  picks the tuning in the picker (see relationForTuningPick) —
+   *  never on scene/share/preset loads, which carry their own
+   *  relation. Absent on builtins and unannotated entries. */
+  suggestedRelationId?: RelationId;
+  /** Companion voice-layer ids (DroneView VOICES) for the authored
+   *  reading. Metadata only for now — not auto-applied, since
+   *  rewriting the user's voice mix on a tuning pick would be
+   *  destructive; reserved for a future "apply voicing" affordance. */
+  suggestedVoicing?: readonly string[];
 }
 
 export interface Relation {
@@ -148,9 +159,10 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
   },
 
   // ── Curated additions: drone-forward scales from the wider canon ──
-  // Each is annotated with a suggested relation + voicing so the picker
-  // (or a future "apply suggested relation" affordance) can land the
-  // user in a musically idiomatic starting place rather than unison.
+  // Each carries structured suggestedRelationId / suggestedVoicing
+  // metadata so the picker can land the user in a musically idiomatic
+  // starting place rather than unison (see relationForTuningPick).
+  // The per-entry comments keep the musical *why* behind each pairing.
 
   {
     id: "custom:pythagorean" as CustomTuningId,
@@ -161,6 +173,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: tonic-fifth. Voicing: tanpura + metal —
     // the ringing 3/2 is the whole point.
     degrees: [0, 90.2, 203.9, 294.1, 407.8, 498.0, 611.7, 702.0, 792.2, 905.9, 996.1, 1109.8, 1200],
+    suggestedRelationId: "tonic-fifth",
+    suggestedVoicing: ["tanpura", "metal"],
   },
   {
     id: "custom:kirnberger-iii" as CustomTuningId,
@@ -170,6 +184,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: drone-triad. Voicing: piano + reed for the
     // harpsichord / clavichord reading.
     degrees: [0, 90.2, 193.2, 294.1, 386.3, 498.0, 590.2, 696.6, 792.2, 889.7, 996.1, 1088.3, 1200],
+    suggestedRelationId: "drone-triad",
+    suggestedVoicing: ["piano", "reed"],
   },
   {
     id: "custom:werckmeister-iii" as CustomTuningId,
@@ -178,6 +194,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Kirnberger III, the likeliest temperament behind WTC Book I.
     // Suggested relation: drone-triad. Voicing: piano + air.
     degrees: [0, 90.2, 192.2, 294.1, 390.2, 498.0, 588.3, 696.1, 792.2, 888.3, 996.1, 1092.2, 1200],
+    suggestedRelationId: "drone-triad",
+    suggestedVoicing: ["piano", "air"],
   },
   {
     id: "custom:17-tet" as CustomTuningId,
@@ -187,6 +205,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: tonic-fifth (the 3rds are too hot for a
     // drone triad). Voicing: reed + metal.
     degrees: [0, 70.6, 211.8, 282.4, 352.9, 494.1, 564.7, 705.9, 776.5, 917.6, 988.2, 1129.4, 1200],
+    suggestedRelationId: "tonic-fifth",
+    suggestedVoicing: ["reed", "metal"],
   },
   {
     id: "custom:19-tet" as CustomTuningId,
@@ -195,6 +215,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // minor 3rd is its purest interval (6/5-adjacent).
     // Suggested relation: minor-triad. Voicing: reed + air.
     degrees: [0, 126.3, 189.5, 315.8, 378.9, 505.3, 631.6, 694.7, 821.1, 884.2, 1010.5, 1073.7, 1200],
+    suggestedRelationId: "minor-triad",
+    suggestedVoicing: ["reed", "air"],
   },
   {
     id: "custom:22-edo" as CustomTuningId,
@@ -204,6 +226,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: drone-triad. Voicing: metal + noise for
     // the bright xen character.
     degrees: [0, 109.1, 218.2, 272.7, 381.8, 490.9, 600, 709.1, 818.2, 927.3, 1036.4, 1090.9, 1200],
+    suggestedRelationId: "drone-triad",
+    suggestedVoicing: ["metal", "noise"],
   },
   {
     id: "custom:31-tet" as CustomTuningId,
@@ -213,6 +237,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: drone-triad. Voicing: tanpura + reed —
     // silky, near-pure triad.
     degrees: [0, 116.1, 193.5, 309.7, 387.1, 503.2, 580.6, 696.8, 812.9, 890.3, 1006.5, 1083.9, 1200],
+    suggestedRelationId: "drone-triad",
+    suggestedVoicing: ["tanpura", "reed"],
   },
   {
     id: "custom:yaman" as CustomTuningId,
@@ -224,6 +250,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // all relations resolve to real Yaman tones.
     // Suggested relation: drone-triad. Voicing: tanpura + reed.
     degrees: [0, 111.7, 203.9, 315.6, 386.3, 498.0, 590.2, 702.0, 813.7, 905.9, 996.1, 1088.3, 1200],
+    suggestedRelationId: "drone-triad",
+    suggestedVoicing: ["tanpura", "reed"],
   },
   {
     id: "custom:pelog" as CustomTuningId,
@@ -236,6 +264,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: unison — gamelan drones are single-tone.
     // Voicing: metal + air.
     degrees: [0, 120, 194, 258, 398, 538, 607, 675, 785, 864, 942, 1070, 1200],
+    suggestedRelationId: "unison",
+    suggestedVoicing: ["metal", "air"],
   },
   {
     id: "custom:bayati" as CustomTuningId,
@@ -247,6 +277,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: tonic-fifth (sa–pa drone; neutral 2nd
     // sings in melody, not chord). Voicing: reed + air.
     degrees: [0, 150, 203.9, 294.1, 386.3, 498.0, 582.5, 702.0, 792.2, 884.4, 996.1, 1088.3, 1200],
+    suggestedRelationId: "tonic-fifth",
+    suggestedVoicing: ["reed", "air"],
   },
 
   // ── Concept tunings: reference, spectral, broken, cluster, sparse, house ──
@@ -264,6 +296,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: harmonic-stack. Voicing: reed + air +
     // metal — spectral richness without interfering beats.
     degrees: [0, 105.0, 203.9, 297.5, 386.3, 470.8, 551.3, 628.3, 702.0, 840.5, 968.8, 1088.3, 1200],
+    suggestedRelationId: "harmonic-stack",
+    suggestedVoicing: ["reed", "air", "metal"],
   },
   {
     id: "custom:spectral-primes" as CustomTuningId,
@@ -276,6 +310,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: harmonic-stack. Voicing: metal + fm —
     // lets the upper-prime colour ring against bright partials.
     degrees: [0, 105.0, 203.9, 297.5, 386.3, 470.8, 628.3, 702.0, 772.6, 905.9, 968.8, 1088.3, 1200],
+    suggestedRelationId: "harmonic-stack",
+    suggestedVoicing: ["metal", "fm"],
   },
   {
     id: "custom:skewed-pythagorean" as CustomTuningId,
@@ -287,6 +323,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: tonic-fifth. Voicing: reed + noise —
     // the persistent beating reads as living texture.
     degrees: [0, 82.2, 217.9, 283.1, 426.8, 492.0, 633.7, 689.0, 784.2, 922.9, 987.1, 1124.8, 1200],
+    suggestedRelationId: "tonic-fifth",
+    suggestedVoicing: ["reed", "noise"],
   },
   {
     id: "custom:cluster-sruti" as CustomTuningId,
@@ -299,6 +337,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: unison — cluster relations easily overload.
     // Voicing: air + metal — quiet dense weather, not chordal mass.
     degrees: [0, 22.5, 45.1, 70.7, 92.2, 111.7, 133.2, 158.8, 182.4, 203.9, 223.5, 249.1, 1200],
+    suggestedRelationId: "unison",
+    suggestedVoicing: ["air", "metal"],
   },
   {
     id: "custom:hollow-fifth" as CustomTuningId,
@@ -312,6 +352,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: tonic-fifth. Voicing: amp + tanpura —
     // the archetypal open-5th drone.
     degrees: [0, 2, 4, 6, 8, 700, 702, 704, 706, 1194, 1196, 1198, 1200],
+    suggestedRelationId: "tonic-fifth",
+    suggestedVoicing: ["amp", "tanpura"],
   },
   {
     id: "custom:mdrone-signature" as CustomTuningId,
@@ -333,6 +375,8 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
     // Suggested relation: harmonic-stack (shows off the full just
     // skeleton). Voicing: tanpura + reed + air.
     degrees: [0, 77.42, 193.55, 315.64, 386.31, 498.04, 619.35, 701.96, 774.19, 890.32, 968.83, 1122.58, 1200],
+    suggestedRelationId: "harmonic-stack",
+    suggestedVoicing: ["tanpura", "reed", "air"],
   },
 ];
 
@@ -582,6 +626,23 @@ export function tuningById(id: TuningId): TuningTable {
 
 export function relationById(id: RelationId): Relation {
   return relationMap.get(id) ?? RELATIONS[0];
+}
+
+/** Relation to dispatch when the user EXPLICITLY picks `tuningId` in
+ *  the tuning picker: the tuning's authored suggestedRelationId when it
+ *  has one, otherwise the relation they already had. Pure decision
+ *  helper — callers must only invoke it on direct picker interaction,
+ *  never on scene/share/preset loads (those carry their own relation). */
+export function relationForTuningPick(
+  tuningId: TuningId | null,
+  currentRelationId: RelationId | null,
+): RelationId | null {
+  if (!tuningId) return currentRelationId;
+  // Deliberately not tuningById(): its equal-temperament fallback for
+  // unknown ids would wrongly surface equal's (absent) suggestion as a
+  // real lookup; unknown tunings must leave the relation untouched.
+  const tuning = tuningMap.get(tuningId);
+  return tuning?.suggestedRelationId ?? currentRelationId;
 }
 
 // ── Resolver ─────────────────────────────────────────────────────────

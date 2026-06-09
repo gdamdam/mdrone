@@ -9,6 +9,7 @@ import {
   saveCustomTuning,
   saveOrUpdateCustomTuning,
   deleteCustomTuning,
+  relationForTuningPick,
 } from "../../src/microtuning";
 
 /**
@@ -208,5 +209,50 @@ describe("TUNINGS proxy cache", () => {
     expect(TUNINGS.indexOf(TUNINGS[0])).toBe(0);
     const last = TUNINGS[TUNINGS.length - 1];
     expect(TUNINGS.includes(last)).toBe(true);
+  });
+});
+
+describe("suggested-relation metadata (U4)", () => {
+  it("relationForTuningPick returns the suggested relation for an annotated tuning", () => {
+    expect(relationForTuningPick("custom:pythagorean", "unison")).toBe("tonic-fifth");
+    expect(relationForTuningPick("custom:pelog", "tonic-fifth")).toBe("unison");
+    expect(relationForTuningPick("custom:otonal-16-32", null)).toBe("harmonic-stack");
+  });
+
+  it("relationForTuningPick keeps the current relation for unannotated tunings", () => {
+    // Builtins and the first authored batch carry no suggestion.
+    expect(relationForTuningPick("just5", "minor-triad")).toBe("minor-triad");
+    expect(relationForTuningPick("custom:just7", "unison")).toBe("unison");
+    expect(relationForTuningPick("equal", null)).toBe(null);
+  });
+
+  it("relationForTuningPick keeps the current relation for unknown / null ids", () => {
+    expect(relationForTuningPick("custom:does-not-exist", "tonic-fourth")).toBe("tonic-fourth");
+    expect(relationForTuningPick(null, "drone-triad")).toBe("drone-triad");
+  });
+
+  it("every suggestedRelationId references a real relation", () => {
+    for (const t of TUNINGS) {
+      if (t.suggestedRelationId !== undefined) {
+        expect(
+          RELATIONS.some((r) => r.id === t.suggestedRelationId),
+          `tuning "${t.id}" suggests unknown relation "${t.suggestedRelationId}"`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("every suggestedVoicing entry is a known voice id", () => {
+    // Mirror of the voice timbre ids in DroneView's VOICES list — kept
+    // in sync by hand; this test catches typos in authored metadata.
+    const VOICE_IDS = new Set(["tanpura", "reed", "metal", "air", "piano", "fm", "amp", "noise"]);
+    for (const t of TUNINGS) {
+      if (t.suggestedVoicing !== undefined) {
+        expect(t.suggestedVoicing.length, `tuning "${t.id}"`).toBeGreaterThan(0);
+        for (const v of t.suggestedVoicing) {
+          expect(VOICE_IDS.has(v), `tuning "${t.id}" voicing "${v}"`).toBe(true);
+        }
+      }
+    }
   });
 });
