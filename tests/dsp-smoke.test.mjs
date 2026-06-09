@@ -582,7 +582,13 @@ test("full-engine integration — 16-voice stack + FX chain stable", () => {
   const voicesReg = loadWorklet("src/engine/droneVoiceProcessor.js", SR);
   const VoiceProc = voicesReg.get("drone-voice");
   const fxReg = loadWorklet("src/engine/fxChainProcessor.js", SR);
-  const BLK = 128, BLOCKS = Math.ceil(3 * SR / BLK);
+  // 9 s render, stability measured on the last 6 s. The 1.27.0 FDN
+  // hall/cistern (true Jot FDN, ~28 s cistern tail) charges toward
+  // steady state for ~3 s — slower than the old comb design — so a
+  // 3 s window read the onset bloom as a 3.4 dB half-to-half climb.
+  // Measured per-second RMS: −33.1 −31.0 −28.4 −27.4 then bounded
+  // wobble −30.2…−27.0 through 9 s — a plateau, not accumulation.
+  const BLK = 128, CHARGE_SEC = 3, BLOCKS = Math.ceil(9 * SR / BLK);
   const N = BLOCKS * BLK;
 
   // Preset-shaped object — mirrors the audit tool's contract for
@@ -626,7 +632,18 @@ test("full-engine integration — 16-voice stack + FX chain stable", () => {
   // Brickwall ceiling 0.891 → -1 dBFS hard limit, so peak must stay
   // well under 1.0 if the limiter is doing its job. A peak over the
   // ceiling implies the limiter ran out of release headroom (bad).
-  assertLongHoldStable([L, R], "16-voice+FX", {
+  // The limiter must hold during the reverb charge window too, even
+  // though RMS stability is only judged after it.
+  for (const buf of [L, R]) {
+    let onsetPeak = 0;
+    for (let i = 0; i < CHARGE_SEC * SR; i++) {
+      const v = Math.abs(buf[i]);
+      if (v > onsetPeak) onsetPeak = v;
+    }
+    assert.ok(onsetPeak < 0.95, `16-voice+FX onset peak ${onsetPeak.toFixed(3)} exceeds 0.95`);
+  }
+  const POST = CHARGE_SEC * SR;
+  assertLongHoldStable([L.subarray(POST), R.subarray(POST)], "16-voice+FX", {
     peakMax: 0.95,
     dcMax: 0.05,
     dcDriftMax: 0.05,
@@ -635,10 +652,13 @@ test("full-engine integration — 16-voice stack + FX chain stable", () => {
     // dropped the stack RMS just under the prior threshold.
     // 0.04 → 0.025: 1.20.13 TANPURA -6 dB (×0.5) + 1.20.15 AMP -4 dB
     // (×0.63) dropped the stack ~4 dB further. Measured 0.031/0.037
-    // post-trim. This is a stability test, not a level test — 0.025
-    // is still ~250x the silence floor (~1e-4); any voice/FX failure
+    // post-trim. This is a stability test, not a level test — the
+    // floor is still ~200x silence (~1e-4); any voice/FX failure
     // would land far below it.
-    rmsMin: 0.025,
+    // 0.025 → 0.02: 1.27.1 moved the measurement window to the 3–9 s
+    // post-charge span (FDN rewrite); the right channel's quietest
+    // half measures 0.0239 there (modulated-FDN wobble, bounded).
+    rmsMin: 0.02,
   });
 });
 
