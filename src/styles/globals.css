@@ -940,7 +940,7 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
      the preset name alone reads fine at this width. Desktop keeps it. */
   .preset-strip-attr { display: none; }
   /* Identity row wraps on mobile — first line is meta-btn + the two
-     icon chips (ATTUNE / MUTATE @ 25% each), second line carries
+     labeled chips (ATTUNE / MUTATE @ 25% each), second line carries
      the wider scene-transition controls (PARTNER / JOURNEY / XFADE).
      Without flex-wrap the row would clip the new controls or push
      them out of the strip entirely. */
@@ -949,20 +949,22 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
      on mobile so their children flatten into the identity flex row,
      letting the 25% / 33% width rules below resolve against the row
      itself instead of the cluster div. The visual separator border
-     is desktop-only — on mobile the row break does the grouping. */
-  .preset-strip-actions-triggers,
-  .preset-strip-actions-state { display: contents; }
-  /* Action chips collapse to a single glyph at 25% width each on
-     mobile so the meta-btn keeps roughly half the first row for
-     icon + name. */
+     is desktop-only — on mobile the row break does the grouping.
+     Specificity 0,2,0 to beat the base `display: flex` cluster rule
+     further down (0,1,0, later in source order) — without the
+     identity prefix the clusters stay flex and the chips' 25% width
+     resolves against the ~100px cluster instead of the row. */
+  .preset-strip-identity .preset-strip-actions-triggers,
+  .preset-strip-identity .preset-strip-actions-state { display: contents; }
+  /* Action chips keep their text label at 25% width each on mobile
+     (glyph stays hidden; an icon alone read as cryptic) so the
+     meta-btn keeps roughly half the first row for icon + name. */
   .preset-strip-identity .preset-strip-action {
     width: 25%;
     padding: 6px 0;
     text-align: center;
     flex: 0 0 25%;
   }
-  .preset-strip-identity .preset-mut-btn-label { display: none; }
-  .preset-strip-identity .preset-mut-btn-icon { display: inline-block; }
   .preset-strip-identity .ctrl-caption { display: none; }
   /* PARTNER / JOURNEY dropdowns sit on the second row at ~33% each
      so they fit alongside XFADE without further wrapping. */
