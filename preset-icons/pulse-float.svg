@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Three drifting arcs at different heights — a floating cloud,
+       not locked to a baseline. Theta / hypnagogic. -->
+  <path d="M3 11 Q6 6 10 11"/>
+  <path d="M12 17 Q16 12 20 17"/>
+  <path d="M21 10 Q24 5 28 10"/>
+  <!-- Three subtle resting dots below, staggered -->
+  <circle cx="6" cy="23" r="0.9" fill="#000" stroke="none"/>
+  <circle cx="16" cy="25" r="0.9" fill="#000" stroke="none"/>
+  <circle cx="25" cy="23" r="0.9" fill="#000" stroke="none"/>
+</svg>
