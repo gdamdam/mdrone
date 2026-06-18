@@ -10,6 +10,12 @@ import {
   saveOrUpdateCustomTuning,
   deleteCustomTuning,
   relationForTuningPick,
+  PLAY_KEY_TO_DEGREE,
+  MAX_PLAYED_NOTES,
+  playedDegreeToCents,
+  playedNoteCents,
+  mergePlayedIntervals,
+  togglePlayedNote,
 } from "../../src/microtuning";
 
 /**
@@ -254,5 +260,119 @@ describe("suggested-relation metadata (U4)", () => {
         }
       }
     }
+  });
+});
+
+/**
+ * Played-pitch layer (Option A). The QWERTY keyboard, in PLAY mode,
+ * adds sustained scale-degree voices above the tonic instead of moving
+ * the root. These pure helpers turn key presses into intervalsCents the
+ * engine already consumes, snapped to the active tuning.
+ */
+describe("played-pitch layer", () => {
+  it("maps the QWERTY play keys to ascending degree indices", () => {
+    expect(PLAY_KEY_TO_DEGREE.KeyA).toBe(0);
+    expect(PLAY_KEY_TO_DEGREE.KeyJ).toBe(11);
+    expect(PLAY_KEY_TO_DEGREE.KeyK).toBe(12);
+    // 13 keys covering one octave (P1..P8 inclusive).
+    expect(Object.keys(PLAY_KEY_TO_DEGREE).length).toBe(13);
+    const degrees = Object.values(PLAY_KEY_TO_DEGREE);
+    expect(new Set(degrees).size).toBe(degrees.length); // no duplicate degrees
+  });
+
+  it("exposes a positive integer note cap", () => {
+    expect(Number.isInteger(MAX_PLAYED_NOTES)).toBe(true);
+    expect(MAX_PLAYED_NOTES).toBeGreaterThan(0);
+  });
+
+  it("resolves a played degree to cents in equal temperament", () => {
+    expect(playedDegreeToCents(0, "equal")).toBe(0);
+    expect(playedDegreeToCents(7, "equal")).toBe(700);
+    expect(playedDegreeToCents(12, "equal")).toBe(1200);
+  });
+
+  it("snaps played degrees to the ACTIVE tuning, not 12-TET", () => {
+    // Just 5-limit major third is 386.31¢, not 400¢.
+    expect(playedDegreeToCents(4, "just5")).toBeCloseTo(386.31, 2);
+    expect(playedDegreeToCents(7, "just5")).toBeCloseTo(701.96, 2);
+  });
+
+  it("falls back to equal temperament when tuning is null", () => {
+    expect(playedDegreeToCents(3, null)).toBe(300);
+  });
+
+  it("returns null for out-of-range or invalid degrees", () => {
+    expect(playedDegreeToCents(13, "equal")).toBeNull();
+    expect(playedDegreeToCents(-1, "equal")).toBeNull();
+    expect(playedDegreeToCents(1.5, "equal")).toBeNull();
+  });
+
+  it("leaves base intervals untouched when nothing is played", () => {
+    expect(mergePlayedIntervals([0, 700], [])).toEqual([0, 700]);
+  });
+
+  it("appends played cents not already present, base order preserved", () => {
+    expect(mergePlayedIntervals([0, 700], [400])).toEqual([0, 700, 400]);
+  });
+
+  it("dedupes played cents that collide (within 1¢) with the base", () => {
+    expect(mergePlayedIntervals([0, 700], [700.2])).toEqual([0, 700]);
+  });
+
+  it("sorts the appended played additions ascending", () => {
+    expect(mergePlayedIntervals([0], [900, 300, 600])).toEqual([0, 300, 600, 900]);
+  });
+
+  it("caps the number of played additions at MAX_PLAYED_NOTES", () => {
+    const played = [100, 200, 300, 400, 500, 600, 700, 800]; // 8 distinct
+    const merged = mergePlayedIntervals([0], played);
+    expect(merged.length).toBe(1 + MAX_PLAYED_NOTES);
+  });
+
+  it("resolves a played note to cents including its octave register", () => {
+    expect(playedNoteCents({ degree: 7, octave: 0 }, "equal")).toBe(700);
+    expect(playedNoteCents({ degree: 7, octave: 1 }, "equal")).toBe(1900); // +1 octave
+    expect(playedNoteCents({ degree: 0, octave: -1 }, "equal")).toBe(-1200); // below the tonic
+  });
+
+  it("octave offset rides on top of the active microtuning", () => {
+    // Just-5 fifth (701.96¢) one octave up.
+    expect(playedNoteCents({ degree: 7, octave: 1 }, "just5")).toBeCloseTo(1901.96, 2);
+  });
+
+  it("returns null for a note with an out-of-range degree", () => {
+    expect(playedNoteCents({ degree: 13, octave: 0 }, "equal")).toBeNull();
+  });
+
+  it("toggle adds a note not yet held, sorted by octave then degree", () => {
+    expect(togglePlayedNote([{ degree: 5, octave: 0 }], { degree: 2, octave: 0 }))
+      .toEqual([{ degree: 2, octave: 0 }, { degree: 5, octave: 0 }]);
+  });
+
+  it("toggle removes a held degree regardless of which octave it's in", () => {
+    // The held note is degree 4 at octave 0; toggling degree 4 at the
+    // current register (+1) still removes it — removal is register-
+    // agnostic so a note can always be cleared by tapping its key.
+    expect(togglePlayedNote([{ degree: 0, octave: 0 }, { degree: 4, octave: 0 }], { degree: 4, octave: 1 }))
+      .toEqual([{ degree: 0, octave: 0 }]);
+  });
+
+  it("a degree holds at most one octave — re-toggling clears it, doesn't double it", () => {
+    // Holding degree 0 at octave 0, then toggling degree 0 at octave +1
+    // removes the held one rather than stacking a second.
+    expect(togglePlayedNote([{ degree: 0, octave: 0 }], { degree: 0, octave: 1 }))
+      .toEqual([]);
+  });
+
+  it("toggle refuses to add past the cap, returning the same reference", () => {
+    const full = [0, 1, 2, 3, 4, 5].map((degree) => ({ degree, octave: 0 }));
+    const result = togglePlayedNote(full, { degree: 6, octave: 0 }, 6);
+    expect(result).toBe(full); // unchanged reference → no re-render
+  });
+
+  it("toggle still removes when already at the cap", () => {
+    const full = [0, 1, 2, 3, 4, 5].map((degree) => ({ degree, octave: 0 }));
+    expect(togglePlayedNote(full, { degree: 2, octave: 0 }, 6))
+      .toEqual([0, 1, 3, 4, 5].map((degree) => ({ degree, octave: 0 })));
   });
 });

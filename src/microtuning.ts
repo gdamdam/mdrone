@@ -714,3 +714,95 @@ export function resolveIntervals(state: {
   }
   return scaleIntervalsFallback(state.scale);
 }
+
+// ── Played-pitch layer (Option A) ────────────────────────────────────
+// The QWERTY keyboard, in PLAY mode, adds sustained scale-degree voices
+// ON TOP of the drone instead of moving the tonic. Each key is a degree
+// of the ACTIVE tuning measured above the current root, so played notes
+// are microtuning-native by construction — playing in Just 5-limit
+// sounds just thirds, not 12-TET ones. The held degrees get merged into
+// the same intervalsCents list the engine already consumes, so voice
+// building, crossfades, COUPLE and partner all apply unchanged.
+
+/** QWERTY key code → degree index (0..12) into the tuning table.
+ *  Mirrors the tonic-controller layout (A=P1 … J=M7) and extends it
+ *  with K=P8 so a full octave is reachable. */
+export const PLAY_KEY_TO_DEGREE: Readonly<Record<string, number>> = {
+  KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6,
+  KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12,
+};
+
+/** Most simultaneous played notes. Each played interval spawns one
+ *  worklet voice per active layer, so this bounds the extra DSP load
+ *  and leaves headroom for the adaptive-stability engine. */
+export const MAX_PLAYED_NOTES = 6;
+
+/** Cents above the tonic for a played degree in the active tuning.
+ *  Returns null for out-of-range / non-integer degrees so callers can
+ *  ignore unmapped keys. A null tuningId falls back to equal (12-TET),
+ *  matching the legacy scale path. */
+export function playedDegreeToCents(
+  degree: number,
+  tuningId: TuningId | null,
+): number | null {
+  if (!Number.isInteger(degree) || degree < 0) return null;
+  const cents = tuningById(tuningId ?? "equal").degrees[degree];
+  return typeof cents === "number" ? cents : null;
+}
+
+/** Merge played-note cents into a base intervalsCents list. The base
+ *  order is preserved (the engine treats index 0 as the root); played
+ *  cents not already present (within 1¢) are appended in ascending
+ *  order, capped at MAX_PLAYED_NOTES additions. */
+export function mergePlayedIntervals(
+  base: readonly number[],
+  playedCents: readonly number[],
+): number[] {
+  const out = base.slice();
+  const seen = new Set(out.map((c) => Math.round(c)));
+  const additions: number[] = [];
+  for (const c of [...playedCents].sort((a, b) => a - b)) {
+    const key = Math.round(c);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    additions.push(c);
+    if (additions.length >= MAX_PLAYED_NOTES) break;
+  }
+  return out.concat(additions);
+}
+
+/** A held played note: a degree (0..12) in the tuning table plus an
+ *  octave register (relative to the tonic) chosen when it was added. A
+ *  degree holds at most one octave at a time — see togglePlayedNote. */
+export interface PlayedNote {
+  degree: number;
+  octave: number;
+}
+
+/** Absolute cents above the tonic for a played note: the degree's cents
+ *  in the active tuning plus `octave × 1200`. So the octave register
+ *  rides on top of whatever microtuning is active. Returns null when the
+ *  degree is out of range. */
+export function playedNoteCents(note: PlayedNote, tuningId: TuningId | null): number | null {
+  const base = playedDegreeToCents(note.degree, tuningId);
+  return base === null ? null : base + note.octave * 1200;
+}
+
+/** Toggle a played note in/out of the held set (for click/tap input,
+ *  where momentary hold can't build a chord). Identity for REMOVAL is
+ *  the degree alone — tapping a key that's held in any octave clears it,
+ *  so a note can always be released by tapping its key (no dependence on
+ *  the current register). Adding places the note at `note.octave` (the
+ *  current register) and is refused at the `max` cap. Returns the SAME
+ *  array reference when nothing changes so React skips a re-render. */
+export function togglePlayedNote(
+  prev: readonly PlayedNote[],
+  note: PlayedNote,
+  max: number = MAX_PLAYED_NOTES,
+): PlayedNote[] {
+  if (prev.some((n) => n.degree === note.degree)) {
+    return prev.filter((n) => n.degree !== note.degree);
+  }
+  if (prev.length >= max) return prev as PlayedNote[];
+  return [...prev, note].sort((a, b) => (a.octave - b.octave) || (a.degree - b.degree));
+}

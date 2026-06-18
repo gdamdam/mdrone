@@ -174,7 +174,12 @@ function PlayTab({ onReplay }: { onReplay: (id: FlowId) => void }) {
         <li><kbd>Space</kbd> — HOLD toggle</li>
         <li><kbd>&lt;</kbd> / <kbd>&gt;</kbd> — previous / next preset in group</li>
         <li><kbd>⌘/Ctrl</kbd>+<kbd>Z</kbd> — undo · <kbd>⌘/Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> — redo</li>
-        <li>QWERTY tonic: A=C, W=C♯, S=D, E=D♯… (toggle the ⌨ button). <kbd>Z</kbd>/<kbd>X</kbd> shift octave.</li>
+        <li>QWERTY keyboard (toggle the ⌨ button). Two modes via the <strong>TONIC</strong>/<strong>PLAY</strong> chip next to ⌨:
+          <ul className="help-list help-list-compact">
+            <li><strong>TONIC</strong> (default) — A=C, W=C♯, S=D, E=D♯… a key moves the root. <kbd>Z</kbd>/<kbd>X</kbd> transpose the drone an octave.</li>
+            <li><strong>PLAY</strong> — A…K (or the on-screen keys) voice scale degrees <em>above</em> the tonic, snapped to the active tuning. Tap to hold a note, tap again to release — so chords build up and keep sounding on top of the drone. Up to six notes at once. <kbd>Z</kbd>/<kbd>X</kbd> set the octave <em>register</em> (shown as <code>8VA ±N</code>) for the next note only — held notes and the drone don't move.</li>
+          </ul>
+        </li>
       </ul>
     </>
   );

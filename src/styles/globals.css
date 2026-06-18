@@ -1489,6 +1489,26 @@ button, .header, .mixer-strips, .view-toggle, .tonic-wheel, .scale-grid {
   border-color: var(--preview);
   color: #160c06;
 }
+/* PLAY-mode octave register readout (8VA +1 …). A click resets it to
+   the tonic octave; Z/X shift it. Compact, monospace-ish chip. */
+.header-kbd-register {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--preview) 35%, var(--border));
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s;
+}
+.header-kbd-register:hover {
+  color: var(--preview);
+  border-color: var(--preview);
+}
 
 .title {
   display: flex;
@@ -4778,6 +4798,31 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   padding-bottom: 2px;
 }
 .tonic-keys-inline .tonic-key-black.tonic-key-active {
+  font-size: 6px;
+}
+/* PLAY mode: the inline keys voice sustained degrees above the tonic
+   (tap to hold, tap again to release) rather than setting the root.
+   A faint accent border signals the mode shift; held keys keep the
+   bright active fill. */
+.tonic-keys-inline.tonic-keys-play .tonic-key {
+  border-color: color-mix(in srgb, var(--preview) 40%, var(--border));
+}
+/* A degree held in a DIFFERENT octave than the current register: a
+   faint fill (and a dim degree label) so the user sees it's in play,
+   without it reading as the bright click-to-release "held here" state.
+   A click still releases it — removal is register-agnostic. */
+.tonic-keys-inline.tonic-keys-play .tonic-key-played-elsewhere {
+  border-color: color-mix(in srgb, var(--preview) 55%, var(--border));
+  background: color-mix(in srgb, var(--preview) 22%, var(--bg-cell));
+  font-size: 7px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--text) 60%, transparent);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 2px;
+}
+.tonic-keys-inline.tonic-keys-play .tonic-key-black.tonic-key-played-elsewhere {
   font-size: 6px;
 }
 

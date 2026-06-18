@@ -193,7 +193,12 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
 
 ## Keyboard, MIDI & Link
 
-**Keyboard** — `A W S E D F T G Y H U J` for tonic, `Z` / `X` for octave, `Space` for HOLD, `Cmd/Ctrl+Z` / `Shift+Z` for undo / redo, `<` / `>` for previous / next preset.
+**Keyboard** — toggle the `⌨` button to enable the QWERTY keyboard, then pick its mode with the **TONIC** / **PLAY** chip beside it:
+
+- **TONIC** (default) — `A W S E D F T G Y H U J` move the root (`A=C W=C♯ S=D …`).
+- **PLAY** — the keys (`A … K`) and the on-screen keyboard voice scale degrees _above_ the tonic, snapped to the active tuning. Tap to hold a note and tap its key again to release it — a held degree clears no matter which octave register it's in — so you can stack chords that keep sounding on top of the drone (up to six notes at once; each degree holds one octave at a time). The played notes ride the tonic, octave, and microtuning, and never persist into saved scenes or share links.
+
+In TONIC mode, `Z` / `X` transpose the drone root by an octave. In PLAY mode they instead shift the **octave register** — which octave the _next_ played note lands in (shown as `8VA ±N` beside the chip; click it to reset) — so changing octave affects only the note you add next, not the held notes or the drone. Always-on: `Space` for HOLD, `Cmd/Ctrl+Z` / `Shift+Z` for undo / redo, `<` / `>` for previous / next preset.
 
 **MIDI** — Web MIDI note-in retunes tonic + octave. The header **MIDI ▾** dropdown (desktop only — Web MIDI is desktop-grade in practice, hidden on mobile) holds INPUT toggle, an Ableton-style **LEARN MODE** (click any control, wiggle a CC to bind), and a **MAPPING…** modal with templates and JSON import / export. ~52 assignable targets across macros, weather, mixer, voices, effects, triggers, and preset stepping. Multiple CCs per target are supported. Defaults: CC1 → WEATHER Y, CC2 → WEATHER X, CC7 → VOL, CC64 → HOLD, CC71–76 → DRIFT, AIR, TIME, BLOOM, GLIDE, SUB.
 

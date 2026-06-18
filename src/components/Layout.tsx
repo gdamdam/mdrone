@@ -4,6 +4,7 @@ import { loadCcMap, saveCcMap, assignCc, resetCcMap, ccForTarget, MIDI_TARGETS_B
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION, STORAGE_KEYS, type WeatherVisual } from "../config";
+import { PLAY_KEY_TO_DEGREE } from "../microtuning";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { NotificationTray } from "./NotificationTray";
@@ -762,6 +763,10 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // E=D#, D=E, F=F, T=F#, G=G, Y=G#, H=A, U=A#, J=B.
   // Z/X shift octave down/up.
   const [kbdActive, setKbdActive] = useState(false);
+  // PLAY mode for the QWERTY keyboard: keys sound stacked played notes
+  // above the tonic (Option A) instead of moving the root. Default off
+  // so the long-standing tonic-controller behaviour is unchanged.
+  const [kbdPlayMode, setKbdPlayMode] = useState(false);
   // Motion-recording feature flag — hidden by default, opt-in via
   // the Settings modal. Persisted in localStorage.
   const [motionRecEnabled, setMotionRecEnabledState] = useState<boolean>(
@@ -913,7 +918,11 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [viewMode, setViewMode]);
 
-  // QWERTY tonic keyboard (only when ⌨ enabled)
+  // QWERTY keyboard (only when ⌨ enabled). TONIC mode (default): a key
+  // moves the root. PLAY mode (Option A): a key toggles a sustained note
+  // above the tonic — tap to hold, tap again to release — so the user
+  // can voice chords on top of the drone that keep sounding. Z/X always
+  // shift the octave.
   useEffect(() => {
     if (!kbdActive) return;
     const QWERTY: Record<string, PitchClass> = {
@@ -921,26 +930,51 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       KeyF: "F", KeyT: "F#", KeyG: "G", KeyY: "G#", KeyH: "A",
       KeyU: "A#", KeyJ: "B",
     };
-    const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      if (e.metaKey || e.ctrlKey) return;
-      const pc = QWERTY[e.code];
-      if (pc) {
-        e.preventDefault();
-        droneViewRef.current?.setRootFromUser(pc);
-        return;
+    const isTyping = (t: EventTarget | null) =>
+      t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement;
+    const onDown = (e: KeyboardEvent) => {
+      if (isTyping(e.target) || e.metaKey || e.ctrlKey) return;
+      if (kbdPlayMode) {
+        const degree = PLAY_KEY_TO_DEGREE[e.code];
+        if (degree !== undefined) {
+          e.preventDefault();
+          // Ignore auto-repeat so holding the key doesn't flip the note
+          // on and off; one press = one toggle.
+          if (!e.repeat) droneViewRef.current?.togglePlayedNote(degree);
+          return;
+        }
+      } else {
+        const pc = QWERTY[e.code];
+        if (pc) {
+          e.preventDefault();
+          droneViewRef.current?.setRootFromUser(pc);
+          return;
+        }
       }
       if (e.code === "KeyZ") {
         e.preventDefault();
-        droneViewRef.current?.setOctave(Math.max(1, headerOctave - 1));
+        // In PLAY mode Z/X move the octave REGISTER for the next played
+        // note (existing notes and the drone root stay put); in TONIC
+        // mode they transpose the drone root as before.
+        if (kbdPlayMode) droneViewRef.current?.shiftPlayOctave(-1);
+        else droneViewRef.current?.setOctave(Math.max(1, headerOctave - 1));
       } else if (e.code === "KeyX") {
         e.preventDefault();
-        droneViewRef.current?.setOctave(Math.min(6, headerOctave + 1));
+        if (kbdPlayMode) droneViewRef.current?.shiftPlayOctave(1);
+        else droneViewRef.current?.setOctave(Math.min(6, headerOctave + 1));
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [kbdActive, headerOctave]);
+    window.addEventListener("keydown", onDown);
+    return () => window.removeEventListener("keydown", onDown);
+  }, [kbdActive, kbdPlayMode, headerOctave]);
+
+  // Release any held played notes when the keyboard or PLAY mode is
+  // switched off, so a note can't stick after the mode that sounded it
+  // is gone. Kept separate from the handler effect so octave changes
+  // (which re-run that effect) don't drop held notes.
+  useEffect(() => {
+    if (!kbdActive || !kbdPlayMode) droneViewRef.current?.clearPlayedNotes();
+  }, [kbdActive, kbdPlayMode]);
 
   const handleToggleHold = () => {
     droneViewRef.current?.togglePlay();
@@ -1470,6 +1504,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
             weatherVisual={weatherVisual}
             kbdActive={kbdActive}
             onToggleKbd={() => setKbdActive((v) => !v)}
+            kbdPlayMode={kbdPlayMode}
+            onToggleKbdPlay={() => setKbdPlayMode((v) => !v)}
             warming={headerWarming}
             mutateIntensity={mutateIntensity}
             showEvolveIndicator={evolutionIndicator}

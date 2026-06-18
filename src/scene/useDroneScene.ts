@@ -8,6 +8,7 @@ import type { PitchClass } from "../types";
 import type { RelationId, TuningId } from "../types";
 import type { JourneyId } from "../journey";
 import { withPartnerIntervals, type PartnerState } from "../partner";
+import { mergePlayedIntervals, playedNoteCents, togglePlayedNote as toggleNote, type PlayedNote } from "../microtuning";
 import type { EntrainState } from "../entrain";
 import { flickerZone, trackEvent } from "../analytics";
 import { MOTION_PARAM_IDS, pitchClassToIndex, type MotionParamId } from "../sceneRecorder";
@@ -401,11 +402,47 @@ export function useDroneScene({
   // list to the main intervals so each main voice is mirrored at the
   // chosen relation. Memoised so referential equality is stable
   // across renders that don't touch the underlying inputs.
+  // Played-pitch layer (Option A): notes the user is holding on the
+  // QWERTY / on-screen keyboard in PLAY mode, each a {degree, octave}
+  // above the tonic. Ephemeral performance state — kept out of the scene
+  // reducer (and therefore out of share URLs / saved sessions) so played
+  // notes don't leak into persisted scenes. Merged into the live
+  // intervals below so the engine sounds them as ordinary extra voices.
+  const [playedNotes, setPlayedNotes] = useState<readonly PlayedNote[]>([]);
+  // PLAY octave register (relative to the tonic): the octave a NEWLY
+  // played note lands in. Z/X shift it in PLAY mode; notes already held
+  // keep their own octave, so changing it moves only the next note —
+  // never the whole drone. Read through a ref so the toggle callback
+  // sees the current register without changing identity every shift.
+  const [playOctave, setPlayOctave] = useState(0);
+  const playOctaveRef = useRef(0);
+  useEffect(() => { playOctaveRef.current = playOctave; }, [playOctave]);
+  // Toggle a held note in/out of the set, placing new notes at the
+  // current register. A tap (on-screen click or a physical key press)
+  // adds the note and keeps it sounding until tapped again — so chords
+  // build up and sustain with a single pointer.
+  const togglePlayedNote = useCallback((degree: number) => {
+    setPlayedNotes((prev) => toggleNote(prev, { degree, octave: playOctaveRef.current }));
+  }, []);
+  const shiftPlayOctave = useCallback((delta: number) => {
+    setPlayOctave((prev) => Math.max(-2, Math.min(2, prev + delta)));
+  }, []);
+  const resetPlayOctave = useCallback(() => setPlayOctave(0), []);
+  const clearPlayedNotes = useCallback(() => {
+    setPlayedNotes((prev) => (prev.length ? [] : prev));
+    setPlayOctave(0);
+  }, []);
+
   const { scale, tuningId, relationId, fineTuneOffsets, partner } = state;
   const intervals = useMemo(() => {
     const base = resolveIntervals({ scale, tuningId, relationId, fineTuneOffsets });
-    return withPartnerIntervals(base, partner);
-  }, [scale, tuningId, relationId, fineTuneOffsets, partner]);
+    const withPartner = withPartnerIntervals(base, partner);
+    if (playedNotes.length === 0) return withPartner;
+    const playedCents = playedNotes
+      .map((n) => playedNoteCents(n, tuningId))
+      .filter((c): c is number => c !== null);
+    return mergePlayedIntervals(withPartner, playedCents);
+  }, [scale, tuningId, relationId, fineTuneOffsets, partner, playedNotes]);
 
   const didAutostartRef = useRef(false);
   useEffect(() => {
@@ -795,5 +832,11 @@ export function useDroneScene({
     applySnapshot,
     applyLivePatch,
     startImmediate,
+    playedNotes,
+    playOctave,
+    togglePlayedNote,
+    shiftPlayOctave,
+    resetPlayOctave,
+    clearPlayedNotes,
   };
 }

@@ -59,7 +59,7 @@ import {
   type TanpuraTuningId,
 } from "../engine/VoiceBuilder";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
-import { relationLabels, relationForTuningPick, resolveTuning, TUNINGS, RELATIONS } from "../microtuning";
+import { relationLabels, relationForTuningPick, resolveTuning, TUNINGS, RELATIONS, DEGREE_LABELS } from "../microtuning";
 import { sampleGoodDrone } from "../goodDrone";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
 import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from "../engine/linkBridge";
@@ -360,6 +360,11 @@ interface DroneViewProps {
   weatherVisual?: import("../config").WeatherVisual;
   kbdActive: boolean;
   onToggleKbd: () => void;
+  /** PLAY mode for the QWERTY keyboard. When true, keys sound played
+   *  notes (scale degrees above the tonic) instead of moving the root.
+   *  Only meaningful while `kbdActive`. */
+  kbdPlayMode?: boolean;
+  onToggleKbdPlay?: () => void;
   /** True for the first ~10s after HOLD turns on. Voices are still
    *  ramping in and FX feedback states are filling — actions that
    *  rebuild the voice graph (notably ATTUNE, when the new tuning
@@ -425,6 +430,18 @@ export interface DroneViewHandle {
    *  subsequent render can't overwrite the engine with a stale
    *  locally-persisted order. */
   applyEffectOrder(order: readonly EffectId[]): void;
+  /** Played-pitch layer (Option A). In QWERTY PLAY mode a key press
+   *  toggles a sustained scale degree above the tonic (snapped to the
+   *  active tuning) instead of moving the root — tap to hold, tap again
+   *  to release. `degree` is a 0..12 index into the tuning table. */
+  togglePlayedNote(degree: number): void;
+  /** Shift the PLAY octave register (where the next played note lands)
+   *  by `delta` octaves, clamped. Driven by Z/X while in PLAY mode so
+   *  octave changes affect the next note, not the whole drone. */
+  shiftPlayOctave(delta: number): void;
+  /** Release all held played notes (called when PLAY mode or the
+   *  keyboard is switched off so notes can't stick). */
+  clearPlayedNotes(): void;
 }
 
 /**
@@ -436,7 +453,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, showEvolveIndicator = false, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, warming = false, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
+  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, showEvolveIndicator = false, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, kbdPlayMode = false, onToggleKbdPlay, warming = false, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
   ref,
 ) {
   const {
@@ -475,6 +492,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setPartner,
     setEntrain,
     setCoupleAmount,
+    playedNotes,
+    playOctave,
+    togglePlayedNote,
+    shiftPlayOctave,
+    resetPlayOctave,
+    clearPlayedNotes,
   } = useDroneScene({
     engine,
     onTransportChange,
@@ -1237,6 +1260,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       setDisclosed((prev) => prev.presets ? prev : { ...prev, presets: true });
     },
     applyEffectOrder: handleEffectReorder,
+    togglePlayedNote,
+    shiftPlayOctave,
+    clearPlayedNotes,
   }), [
     getSnapshotWithLocals,
     applySnapshotWithLocals,
@@ -1251,6 +1277,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     handlePreset,
     handleEffectReorder,
     clearMuteSoloForLoad,
+    togglePlayedNote,
+    shiftPlayOctave,
+    clearPlayedNotes,
   ]);
 
   return (
@@ -1450,22 +1479,46 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               scene-actions area per the layout pass (P2.3). Hidden on
               mobile where space is tight; the two native-select
               dropdowns below take its place there. */}
-          <div className="tonic-keys tonic-keys-inline preset-strip-keys">
-            {PITCH_CLASSES.map((pc) => {
+          <div className={`tonic-keys tonic-keys-inline preset-strip-keys${kbdPlayMode ? " tonic-keys-play" : ""}`}>
+            {PITCH_CLASSES.map((pc, i) => {
               const isSharp = pc.includes("#");
-              const isActive = state.root === pc;
+              // PLAY mode: each chromatic position i is a degree above
+              // the tonic (0=P1 … 11=M7). A click toggles {degree i,
+              // octave: register}; the note holds until clicked again.
+              // "Here" = held at the current register (click releases
+              // it); "elsewhere" = held in another octave (click adds a
+              // second one). TONIC mode: a key sets the root.
+              const degreeLabel = DEGREE_LABELS[i] ?? "";
+              // PLAY mode: a degree holds at most one octave. The key is
+              // bright when held AT the current register, faint when held
+              // in another octave — either way a click releases it
+              // (removal is register-agnostic). A dark key adds the note
+              // at the current register. TONIC mode: a key sets the root.
+              const heldNote = kbdPlayMode ? playedNotes.find((n) => n.degree === i) : undefined;
+              const heldHere = !!heldNote && heldNote.octave === playOctave;
+              const heldElsewhere = !!heldNote && !heldHere;
+              const heldOctaveTag = heldNote && heldNote.octave !== 0
+                ? ` (8va ${heldNote.octave > 0 ? "+" : ""}${heldNote.octave})` : "";
+              const isActive = kbdPlayMode ? heldHere : state.root === pc;
               return (
                 <button
                   key={pc}
                   type="button"
                   className={
-                    `tonic-key${isSharp ? " tonic-key-black" : ""}${isActive ? " tonic-key-active" : ""}`
+                    `tonic-key${isSharp ? " tonic-key-black" : ""}${isActive ? " tonic-key-active" : ""}${heldElsewhere ? " tonic-key-played-elsewhere" : ""}`
                   }
-                  onClick={() => setRootFromUser(pc)}
-                  title={pc}
-                  aria-label={pc}
+                  onClick={() => (kbdPlayMode ? togglePlayedNote(i) : setRootFromUser(pc))}
+                  title={kbdPlayMode
+                    ? (heldNote
+                        ? `${degreeLabel}${heldOctaveTag} — click to release`
+                        : `${degreeLabel} above the tonic — click to hold`)
+                    : pc}
+                  aria-label={kbdPlayMode ? `Play ${degreeLabel} above the tonic` : pc}
+                  aria-pressed={kbdPlayMode ? !!heldNote : undefined}
                 >
-                  {isActive ? pc.replace("#", "♯") : ""}
+                  {kbdPlayMode
+                    ? (heldNote ? degreeLabel : "")
+                    : (isActive ? pc.replace("#", "♯") : "")}
                 </button>
               );
             })}
@@ -1527,11 +1580,37 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
               className={kbdActive ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
               onClick={onToggleKbd}
               title={kbdActive
-                ? "QWERTY keyboard active — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up"
-                : "Enable QWERTY keyboard as tonic controller"}
+                ? (kbdPlayMode
+                    ? "QWERTY keyboard active (PLAY) — A…K stack sustained notes above the tonic, snapped to the active tuning · Z/X = octave register for the next note (doesn't move the drone)"
+                    : "QWERTY keyboard active (TONIC) — A=C W=C# S=D E=D# D=E F=F T=F# G=G Y=G# H=A U=A# J=B · Z/X = octave down/up")
+                : "Enable QWERTY keyboard"}
             >
               ⌨
             </button>
+            {kbdActive && onToggleKbdPlay && (
+              <button
+                type="button"
+                className={kbdPlayMode ? "header-kbd-btn header-kbd-btn-active" : "header-kbd-btn"}
+                onClick={onToggleKbdPlay}
+                title={kbdPlayMode
+                  ? "PLAY mode — keys stack sustained notes above the tonic. Click for TONIC mode (keys move the root)."
+                  : "TONIC mode — keys move the root. Click for PLAY mode (keys stack notes above the tonic)."}
+                aria-pressed={kbdPlayMode}
+              >
+                {kbdPlayMode ? "PLAY" : "TONIC"}
+              </button>
+            )}
+            {kbdActive && kbdPlayMode && (
+              <button
+                type="button"
+                className="header-kbd-register"
+                onClick={resetPlayOctave}
+                title="Octave register for the next played note (Z/X to shift). Click to reset to the tonic octave."
+                aria-label={`Play octave register ${playOctave >= 0 ? "+" : ""}${playOctave}`}
+              >
+                {`8VA ${playOctave > 0 ? "+" : ""}${playOctave}`}
+              </button>
+            )}
           </div>
           <span className="preset-strip-tonic">
             {modeIsMicro && (() => {
