@@ -96,7 +96,13 @@ DroneVoiceProcessor.prototype.airProcess = function(L, R, n, freq, drift, amp) {
         // Advance Q walk
         this.airQWalks[r] += (this.airQTargets[r] - this.airQWalks[r]) * 0.00003;
         const q = this.airQWalks[r];
-        const cutoff = Math.max(20, Math.min(sampleRate * 0.48, freq * this.airRatios[r]));
+        // Clamp to fs/6 (not fs/2): this is a Chamberlin SVF, whose
+        // coefficient f = 2·sin(π·fc/fs) must stay below the stability
+        // limit. fs/6 gives f ≤ 1.0; the old fs·0.48 ceiling let f reach
+        // ~2.0, which on high tonics × high partial ratios turned a
+        // high-Q (damp→0) resonator into a near-undamped near-Nyquist
+        // oscillator that rings/blows up.
+        const cutoff = Math.max(20, Math.min(sampleRate / 6, freq * this.airRatios[r]));
         // SVF coefficients
         const f = 2 * Math.sin(Math.PI * cutoff / sampleRate);
         const damp = Math.min(2, Math.max(0.0001, 1 / q));

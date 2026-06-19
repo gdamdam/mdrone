@@ -971,6 +971,7 @@ export class AudioEngine {
     this.voiceEngine.dispose();
     this.masterRecorder.dispose();
     this.masterBus.dispose();
+    this.fxChain.dispose();
     void this.ctx.close().catch(() => { /* already closed */ });
   }
 

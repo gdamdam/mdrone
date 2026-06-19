@@ -37,6 +37,11 @@ describe("shared share-link normaliser", () => {
     expect(above?.drone.octave).toBe(6);
   });
 
+  it("caps an over-long scene name so a crafted link can't smuggle a huge string", () => {
+    const scene = normalizeSharedScene({ name: "x".repeat(5000) });
+    expect(scene!.name.length).toBe(1024);
+  });
+
   it("fills defaults when drone and mixer are absent", () => {
     const scene = normalizeSharedScene({ name: "Bare" });
     expect(scene).not.toBeNull();

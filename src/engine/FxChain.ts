@@ -286,6 +286,10 @@ export class FxChain {
     plate: 0, hall: 0, cistern: 0,
   };
   private parallelBus!: GainNode;
+  /** Deferred reverb-swap / panic-restore setTimeout ids, tracked so
+   *  dispose() can cancel any in-flight callback before the AudioContext
+   *  closes — otherwise performSwap() fires on a closed ctx and throws. */
+  private readonly pendingTimers = new Set<ReturnType<typeof setTimeout>>();
   private parallelHallVerb!: ConvolverNode;
   private parallelHallWet!: GainNode;
   private parallelCisternVerb!: ConvolverNode;
@@ -957,8 +961,13 @@ export class FxChain {
       // Schedule the swap a few ms after the fade completes so the
       // disconnect lands on a silent wet path. setTimeout precision
       // is fine for a 30+ ms gate; the AudioParam ramp guarantees
-      // the silence is sample-accurate.
-      setTimeout(performSwap, Math.round(FADE_SEC * 1000) + 5);
+      // the silence is sample-accurate. Tracked so dispose() can cancel
+      // it — otherwise it fires on a closed ctx after teardown.
+      const id = setTimeout(() => {
+        this.pendingTimers.delete(id);
+        performSwap();
+      }, Math.round(FADE_SEC * 1000) + 5);
+      this.pendingTimers.add(id);
     } else {
       // Wet was already silent — swap immediately, no audible click.
       performSwap();
@@ -1041,7 +1050,11 @@ export class FxChain {
       wetParam.setTargetAtTime(target, t, 0.05);
     };
     if (audible) {
-      setTimeout(performSwap, Math.round(FADE_SEC * 1000) + 5);
+      const id = setTimeout(() => {
+        this.pendingTimers.delete(id);
+        performSwap();
+      }, Math.round(FADE_SEC * 1000) + 5);
+      this.pendingTimers.add(id);
     } else {
       performSwap();
     }
@@ -1357,6 +1370,15 @@ export class FxChain {
     }
   }
 
+  /** Cancel deferred reverb-swap / panic-restore callbacks so they can't
+   *  fire on a closed AudioContext after teardown. AudioEngine owns
+   *  ctx.close(); call this just before it. FxChain has no nodes of its
+   *  own to free here — AudioContext.close() releases the whole graph. */
+  dispose(): void {
+    for (const id of this.pendingTimers) clearTimeout(id);
+    this.pendingTimers.clear();
+  }
+
   /** Emergency silence — flush convolver buffers and worklet state so
    *  long tails die instantly. Called by AudioEngine.panic() while the
    *  output trim is ramped to 0. All effects keep running but their
@@ -1373,7 +1395,8 @@ export class FxChain {
     try { this.parallelHallVerb.buffer = empty; } catch { /* noop */ }
     try { this.parallelCisternVerb.buffer = empty; } catch { /* noop */ }
 
-    setTimeout(() => {
+    const restoreId = setTimeout(() => {
+      this.pendingTimers.delete(restoreId);
       this.syncNativeReverbBuffers();
       // Restore delay/comb feedback to their configured levels (the same
       // `enabled ? feedback : 0` setEffect uses). panic() only flushes the
@@ -1385,6 +1408,7 @@ export class FxChain {
       this.delayFbGain.gain.setTargetAtTime(this.enabled.delay ? this.delayFeedback : 0, t, 0.05);
       this.combFbGain.gain.setTargetAtTime(this.enabled.comb ? this.combFeedback : 0, t, 0.05);
     }, 220);
+    this.pendingTimers.add(restoreId);
 
     // Post clear messages to every worklet-backed effect so they reset
     // their internal buffers too (plate, shimmer, freeze, granular,

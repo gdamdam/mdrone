@@ -345,8 +345,15 @@ function readBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+/** Max accepted length for any normalized string field. A crafted share
+ *  link could otherwise smuggle a multi-MB string (e.g. a scene name)
+ *  into the DOM/memory; no legitimate field approaches this. Truncate
+ *  rather than reject so loads don't fail. */
+const MAX_STRING_LEN = 1024;
+
 function readString(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() ? value : fallback;
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  return value.length > MAX_STRING_LEN ? value.slice(0, MAX_STRING_LEN) : value;
 }
 
 function normalizeVoiceLayers(value: unknown): Record<VoiceType, boolean> {

@@ -116,18 +116,23 @@ DroneVoiceProcessor.prototype.pianoProcess = function(L, R, n, freq, drift, amp)
       // Soundboard resonator — parallel bandpass peaks at 220 Hz
       // (body) and 900 Hz (mid/wood). Same SVF technique as tanpura
       // body: band outputs mixed into the dry signal.
+      // +1e-20 denormal escape on the SVF feedback states — same guard
+      // amp.js/tanpura.js apply to the identical soundboard SVF. PIANO is
+      // the long-decay sustain voice, so on a quiet hold these states
+      // decay into subnormal range and spike CPU silently every few
+      // seconds without the floor.
       const pbHL = l - this.pianoBodyLowL - this.pianoBodyDamp * this.pianoBodyBandL;
-      this.pianoBodyBandL += this.pianoBodyF * pbHL;
-      this.pianoBodyLowL  += this.pianoBodyF * this.pianoBodyBandL;
+      this.pianoBodyBandL += this.pianoBodyF * pbHL + 1e-20;
+      this.pianoBodyLowL  += this.pianoBodyF * this.pianoBodyBandL + 1e-20;
       const pmHL = l - this.pianoMidLowL - this.pianoMidDamp * this.pianoMidBandL;
-      this.pianoMidBandL += this.pianoMidF * pmHL;
-      this.pianoMidLowL  += this.pianoMidF * this.pianoMidBandL;
+      this.pianoMidBandL += this.pianoMidF * pmHL + 1e-20;
+      this.pianoMidLowL  += this.pianoMidF * this.pianoMidBandL + 1e-20;
       const pbHR = r - this.pianoBodyLowR - this.pianoBodyDamp * this.pianoBodyBandR;
-      this.pianoBodyBandR += this.pianoBodyF * pbHR;
-      this.pianoBodyLowR  += this.pianoBodyF * this.pianoBodyBandR;
+      this.pianoBodyBandR += this.pianoBodyF * pbHR + 1e-20;
+      this.pianoBodyLowR  += this.pianoBodyF * this.pianoBodyBandR + 1e-20;
       const pmHR = r - this.pianoMidLowR - this.pianoMidDamp * this.pianoMidBandR;
-      this.pianoMidBandR += this.pianoMidF * pmHR;
-      this.pianoMidLowR  += this.pianoMidF * this.pianoMidBandR;
+      this.pianoMidBandR += this.pianoMidF * pmHR + 1e-20;
+      this.pianoMidLowR  += this.pianoMidF * this.pianoMidBandR + 1e-20;
       l += this.pianoBodyBandL * 0.15 + this.pianoMidBandL * 0.10;
       r += this.pianoBodyBandR * 0.15 + this.pianoMidBandR * 0.10;
 

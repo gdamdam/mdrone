@@ -1,6 +1,6 @@
 {
   "name": "mdrone",
-  "version": "1.28.0",
+  "version": "1.28.1",
   "description": "A microtonal drone instrument in your browser.",
   "license": "AGPL-3.0-or-later",
   "type": "module",

@@ -164,3 +164,63 @@ describe("RecorderTapProcessor stop lifecycle", () => {
     expect(t.process(stereoBlock())).toBe(true);
   });
 });
+
+// --- teardown: deferred reverb swaps must not fire on a closed ctx ---------
+
+describe("FxChain.dispose cancels deferred swap callbacks", () => {
+  it("clears a pending FDN swap so performSwap can't fire after ctx.close()", async () => {
+    const { FxChain } = await import("../../src/engine/FxChain");
+    vi.useFakeTimers();
+    try {
+      class FakeWorkletNode {
+        port = { postMessage: vi.fn(), onmessage: null };
+        parameters = { get: () => undefined };
+        connect = vi.fn();
+        disconnect = vi.fn();
+      }
+      (globalThis as any).AudioWorkletNode = FakeWorkletNode;
+
+      const stale = new FakeWorkletNode();
+      // Audible wet (>0.001) → the swap is DEFERRED via setTimeout rather
+      // than run inline, which is the path dispose() must be able to cancel.
+      const wetGainParam = {
+        value: 0.5,
+        cancelScheduledValues: vi.fn(),
+        setValueAtTime: vi.fn(),
+        linearRampToValueAtTime: vi.fn(),
+      };
+      const self: any = {
+        ctx: { currentTime: 0, createGain: () => ({ gain: { value: 1 }, connect: vi.fn() }) },
+        reverbSeed: 42,
+        hallWorklet: stale,
+        cisternWorklet: null,
+        hallSerialTrim: { connect: vi.fn() },
+        cisternSerialTrim: null,
+        pendingTimers: new Set<ReturnType<typeof setTimeout>>(),
+        inserts: {
+          hall: {
+            wetGain: { gain: wetGainParam },
+            insertIn: { connect: vi.fn(), disconnect: vi.fn() },
+          },
+        },
+      };
+
+      (FxChain.prototype as any).swapFdnReverb.call(self, "hall");
+      // Deferred: the timer is tracked and the swap has NOT run yet.
+      expect(self.pendingTimers.size).toBe(1);
+      expect(self.hallWorklet).toBe(stale);
+
+      // dispose() cancels the pending swap…
+      (FxChain.prototype as any).dispose.call(self);
+      expect(self.pendingTimers.size).toBe(0);
+
+      // …so even once the delay elapses, performSwap never runs (no fresh
+      // AudioWorkletNode constructed against the would-be-closed ctx).
+      vi.advanceTimersByTime(100);
+      expect(self.hallWorklet).toBe(stale);
+      expect(stale.port.postMessage).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

@@ -34,6 +34,31 @@ export interface LinkState {
 
 type LinkListener = (state: LinkState) => void;
 
+/** Keep a numeric field from an untrusted bridge message only if it's a
+ *  finite number, clamped to [min, max]; otherwise fall back to prev. */
+function clampFinite(value: unknown, prev: number, min: number, max: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(min, Math.min(max, value))
+    : prev;
+}
+
+/** Build the next LinkState from an untrusted "link" message + the previous
+ *  state. The bridge WebSocket is loopback-only, so this is defense-in-depth:
+ *  a buggy or hostile local process could otherwise feed NaN/Infinity/strings
+ *  straight into tempo-driven LFO math (the raw `msg.x ?? prev.x` only caught
+ *  null/undefined). Exported for unit testing. */
+export function sanitizeLinkMessage(msg: Record<string, unknown>, prev: LinkState): LinkState {
+  return {
+    tempo: clampFinite(msg.tempo, prev.tempo, 20, 999),
+    beat: clampFinite(msg.beat, prev.beat, 0, 1e9),
+    phase: clampFinite(msg.phase, prev.phase, 0, 16),
+    playing: typeof msg.playing === "boolean" ? msg.playing : prev.playing,
+    peers: Math.floor(clampFinite(msg.peers, prev.peers, 0, 9999)),
+    clients: Math.floor(clampFinite(msg.clients, prev.clients, 0, 9999)),
+    connected: true,
+  };
+}
+
 const WS_URLS = ["ws://127.0.0.1:19876", "ws://[::1]:19876", "ws://localhost:19876"];
 const RETRY_MS = 5000;
 let wsUrlIdx = 0;
@@ -72,15 +97,7 @@ function connect(): void {
       try {
         const msg = JSON.parse(e.data);
         if (msg.type === "link") {
-          lastState = {
-            tempo: msg.tempo ?? lastState.tempo,
-            beat: msg.beat ?? lastState.beat,
-            phase: msg.phase ?? lastState.phase,
-            playing: msg.playing ?? lastState.playing,
-            peers: msg.peers ?? lastState.peers,
-            clients: msg.clients ?? lastState.clients,
-            connected: true,
-          };
+          lastState = sanitizeLinkMessage(msg, lastState);
           notify();
         }
       } catch { /* ignore malformed JSON */ }

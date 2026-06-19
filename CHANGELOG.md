@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.1 — 2026-06-19
+
+- docs(readme): restructure into player/internals/dev groups, add Quick start, fix TOC (dd00869)
+
 ## 1.26.7 — 2026-06-04
 
 _No user-visible changes._

@@ -83,3 +83,42 @@ describe("MasterBus.setGlueAmount", () => {
     );
   });
 });
+
+describe("MasterBus.setDrive", () => {
+  function makeFakeDriveBus() {
+    return {
+      ctx: { currentTime: 1.5 },
+      driveAmount: 1.1,
+      drivePre: { gain: makeParam(1.1) },
+      drive: { curve: null as Float32Array | null },
+      drivePost: { gain: makeParam(1 / Math.sqrt(1.1)) },
+    };
+  }
+
+  it("ramps pre/post gains instead of assigning .value (zipper fix)", () => {
+    const bus = makeFakeDriveBus();
+    MasterBus.prototype.setDrive.call(bus as any, 4);
+    // Direct .value writes mid-flight are the zipper-noise bug.
+    expect(bus.drivePre.gain.value).toBe(1.1);
+    expect(bus.drivePost.gain.value).toBeCloseTo(1 / Math.sqrt(1.1));
+    expect(bus.drivePre.gain.setTargetAtTime).toHaveBeenCalledWith(
+      4, 1.5, expect.any(Number),
+    );
+    expect(bus.drivePost.gain.setTargetAtTime).toHaveBeenCalledWith(
+      1 / Math.sqrt(4), 1.5, expect.any(Number),
+    );
+    // The WaveShaper curve is still swapped — inherently discrete, so it
+    // is not (and cannot be) ramped.
+    expect(bus.drive.curve).toBeInstanceOf(Float32Array);
+  });
+
+  it("clamps amount to [1, 10]; getDrive returns the target, not the ramping .value", () => {
+    const bus = makeFakeDriveBus();
+    MasterBus.prototype.setDrive.call(bus as any, 999);
+    expect(bus.driveAmount).toBe(10);
+    expect(MasterBus.prototype.getDrive.call(bus as any)).toBe(10);
+    expect(bus.drivePre.gain.setTargetAtTime).toHaveBeenCalledWith(
+      10, expect.any(Number), expect.any(Number),
+    );
+  });
+});

@@ -25,6 +25,9 @@ export class MasterBus {
   private readonly drivePre: GainNode;
   private readonly drive: WaveShaperNode;
   private readonly drivePost: GainNode;
+  /** Target drive amount. getDrive() reads this rather than
+   *  drivePre.gain.value, which now lags during the setTargetAtTime ramp. */
+  private driveAmount = 1.1;
   /** Bridge nodes around the limiter. Previously an AudioWorkletNode
    *  brick-wall limiter was spliced between these on worklet load;
    *  now we use a native DynamicsCompressor for Safari parity (see
@@ -1017,12 +1020,19 @@ export class MasterBus {
 
   setDrive(amount: number): void {
     const a = Math.max(1, Math.min(10, amount));
-    this.drivePre.gain.value = a;
+    const now = this.ctx.currentTime;
+    this.driveAmount = a;
+    // Ramp the pre/post gains so a moving DRIVE knob doesn't zipper —
+    // matches the setTargetAtTime convention every other setter here uses.
+    // The WaveShaper curve swap below is inherently discrete (a curve can't
+    // be ramped without a dual-shaper crossfade); the gain ramps smooth the
+    // level change around it.
+    this.drivePre.gain.setTargetAtTime(a, now, 0.01);
     this.drive.curve = MasterBus.makeDriveCurve(a);
-    this.drivePost.gain.value = 1 / Math.sqrt(a);
+    this.drivePost.gain.setTargetAtTime(1 / Math.sqrt(a), now, 0.01);
   }
 
-  getDrive(): number { return this.drivePre.gain.value; }
+  getDrive(): number { return this.driveAmount; }
 
   private static makeDriveCurve(amount: number): Float32Array<ArrayBuffer> {
     // LUT resolution bumped from 1024 → 4096. At drive = 10 the tanh
