@@ -2167,8 +2167,14 @@ export function drawScryingMirror(
 //   spectral centroid    → facet size (low centroid → big slabs,
 //                                      high → tiny shards)
 //   active-pitch mass    → spawn rate
-interface Facet { x: number; y: number; size: number; angle: number; sides: number; light: number; parentIdx: number; }
+interface Facet { x: number; y: number; size: number; angle: number; sides: number; light: number; }
 const facets: Facet[] = [];
+// Cap the facet pool so a long hold on CRYSTAL LATTICE doesn't grow the
+// array without bound (the app's headline use case is hour-long holds).
+// Old facets are already baked into the persistent crystalCanvas, so
+// trimming the array is visually invisible — it only bounds the
+// parent-selection pool, which clusters toward recent facets anyway.
+const FACET_MAX = 600;
 let crystalCanvas: HTMLCanvasElement | null = null;
 let crystalCtx: CanvasRenderingContext2D | null = null;
 let lastFacetSpawn = 0;
@@ -2298,7 +2304,6 @@ export function drawCrystalLattice(
       angle: Math.random() * Math.PI,
       sides,
       light: 45 + Math.random() * 25,
-      parentIdx,
     };
     facets.push(facet);
     // Growth vein — a faint line from parent to child shows the
@@ -2313,6 +2318,9 @@ export function drawCrystalLattice(
       c.stroke();
     }
     drawFacetInto(c, facet);
+    // Bound the pool — see FACET_MAX. The vein above already used the
+    // parent (still in-array); future spawns re-pick from the trimmed pool.
+    if (facets.length > FACET_MAX) facets.shift();
   }
   ctx.drawImage(crystalCanvas!, 0, 0);
 

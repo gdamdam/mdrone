@@ -236,3 +236,45 @@ describe("VoiceEngine rebuild crossfade is equal-power", () => {
     expect(dur).toBeCloseTo(BLOOM, 9);
   });
 });
+
+describe("VoiceEngine.killPendingRetire teardown + throw-fallback", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  function retireEntry() {
+    return {
+      gain: makeGain(0.8),
+      voices: [makeFakeVoice(), makeFakeVoice()],
+      filter: makeBiquad(),
+      stopTimeout: setTimeout(() => {}, 99999),
+    };
+  }
+
+  it("fades, then stops + disconnects the retired voices after the 50 ms window", () => {
+    const { ve } = makeEngine();
+    const entry = retireEntry();
+    ve.pendingRetire = [entry];
+    (ve as any).killPendingRetire(0);
+    expect(ve.pendingRetire.length).toBe(0);
+    expect(entry.gain.gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 0.03);
+    expect(entry.voices[0].stop).not.toHaveBeenCalled(); // deferred 50 ms
+    vi.advanceTimersByTime(50);
+    for (const v of entry.voices) expect(v.stop).toHaveBeenCalled();
+    expect(entry.gain.disconnect).toHaveBeenCalled();
+    expect(entry.filter.disconnect).toHaveBeenCalled();
+  });
+
+  it("still tears down voices when the anti-click ramp throws (click, never a leak)", () => {
+    // The try/catch around the fast-fade exists for the Chrome clamp edge.
+    // If it ever fires, the +50 ms stop MUST still run — otherwise the
+    // worklet voices keep rendering forever. Degrading to a click is fine.
+    const { ve } = makeEngine();
+    const entry = retireEntry();
+    entry.gain.gain.linearRampToValueAtTime = vi.fn(() => { throw new Error("NotSupportedError"); });
+    ve.pendingRetire = [entry];
+    expect(() => (ve as any).killPendingRetire(0)).not.toThrow();
+    vi.advanceTimersByTime(50);
+    for (const v of entry.voices) expect(v.stop).toHaveBeenCalled();
+    expect(entry.gain.disconnect).toHaveBeenCalled();
+  });
+});

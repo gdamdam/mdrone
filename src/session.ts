@@ -671,13 +671,25 @@ export function saveSessions(sessions: SavedSession[]): boolean {
 
 export function loadCurrentSessionId(): string | null {
   if (!hasLocalStorage()) return null;
-  return localStorage.getItem(STORAGE_KEYS.currentSessionId);
+  // hasLocalStorage() is existence-only; iOS Private/Lockdown mode exposes
+  // localStorage but throws on access, so guard like every other reader.
+  try {
+    return localStorage.getItem(STORAGE_KEYS.currentSessionId);
+  } catch {
+    return null;
+  }
 }
 
 export function saveCurrentSessionId(id: string | null): void {
   if (!hasLocalStorage()) return;
-  if (id) localStorage.setItem(STORAGE_KEYS.currentSessionId, id);
-  else localStorage.removeItem(STORAGE_KEYS.currentSessionId);
+  // Same Private-Mode guard as saveSessions/saveAutosavedScene — a throwing
+  // setItem must not break the session action that triggered it.
+  try {
+    if (id) localStorage.setItem(STORAGE_KEYS.currentSessionId, id);
+    else localStorage.removeItem(STORAGE_KEYS.currentSessionId);
+  } catch (error) {
+    console.warn("mdrone: failed to persist current session id", error);
+  }
 }
 
 export function loadAutosavedScene(): AutosavedScene | null {

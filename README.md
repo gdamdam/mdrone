@@ -78,7 +78,7 @@ Eight authored models with per-voice physicality (jawari nonlinearity, soundboar
 | Voice | Character |
 |---|---|
 | **TANPURA** | Karplus-Strong plucked string with jawari nonlinearity + auto-repluck. Classical tuning options (unison, Sa-Pa, Sa-Ma, Sa-Ni). |
-| **REED** | Harmonium / shruti-box additive reed stack with bellows motion. `shape` selects clarinet / bowed / organ / sine. |
+| **REED** | Harmonium / shruti-box additive reed stack with bellows motion. Per-preset harmonic `shape` (odd / even / balanced / sine). |
 | **METAL** | Inharmonic partial cloud with slow re-excitation — singing-bowl, bell. |
 | **AIR** | Pink-noise resonator for tuned wind, breath, open-pipe texture. |
 | **PIANO** | Long-decay felted sustain layer. |

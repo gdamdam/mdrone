@@ -2,8 +2,17 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.3 — 2026-06-19
+
+- fix(visualizers): cap the CRYSTAL LATTICE facet pool (was unbounded — slow memory growth on hour-long holds)
+- fix(share): bound share-link decompression — abort past 4 MB output, reject payloads over 1 MB (deflate-bomb guard)
+- fix(session): guard saveCurrentSessionId/loadCurrentSessionId in try/catch (iOS Private/Lockdown mode throws on access)
+- docs(readme): correct REED shape names to odd/even/balanced/sine (per-preset, not a user knob)
+- test: lock killPendingRetire teardown + throw-fallback; add share size-guard and current-session-id guard coverage
+
 ## 1.28.2 — 2026-06-19
 
+- fix(rec): correct REC LIVE memory guidance (~22 MB/min, not the stale ~44 MB/10 min) and lower the recommended max take to 15 min (66e0830)
 - fix(engine): review-pass DSP + input-hardening fixes (c22c3f3)
 - docs(readme): restructure into player/internals/dev groups, add Quick start, fix TOC (dd00869)
 

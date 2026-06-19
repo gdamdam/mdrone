@@ -238,3 +238,33 @@ describe("normalizePortableScene defends against bad input", () => {
     expect(s!.customTuning?.degrees[12]).toBe(1200);
   });
 });
+
+describe("decode size guards (deflate-bomb / oversize payload)", () => {
+  // Mint a bomb by compressing raw bytes the same way the codec does.
+  async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
+    const piped = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"));
+    return new Uint8Array(await new Response(piped).arrayBuffer());
+  }
+
+  it("rejects a decompression bomb whose output exceeds the cap (null, not OOM)", async () => {
+    // 6 MB of zeros deflates to a few KB but inflates past the 4 MB ceiling;
+    // the incremental reader must abort before materializing the full output.
+    const payload = bytesToUrlSafeB64(await deflate(new Uint8Array(6 * 1024 * 1024)));
+    const failure: { reason?: "unsupported-compression" | "invalid-payload" } = {};
+    const result = await decodeScenePayload(payload, true, failure);
+    expect(result).toBeNull();
+    expect(failure.reason).toBe("invalid-payload");
+  });
+
+  it("rejects an over-long payload string without attempting to decode it", async () => {
+    const result = await decodeScenePayload("A".repeat(2 * 1024 * 1024), true);
+    expect(result).toBeNull();
+  });
+
+  it("still round-trips a normal compressed scene (guard doesn't break valid links)", async () => {
+    const { key, value } = await encodeScenePayload(freshScene());
+    expect(key).toBe("z");
+    const decoded = await decodeScenePayload(value, true);
+    expect(decoded?.name).toBe("VitestScene");
+  });
+});

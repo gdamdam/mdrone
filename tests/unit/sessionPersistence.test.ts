@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   autosaveSceneTick,
+  loadCurrentSessionId,
   normalizePortableScene,
   resetAllLocalStorage,
   saveAutosavedScene,
+  saveCurrentSessionId,
   saveSessions,
   withSnapshotDefaults,
   type DroneSessionSnapshot,
@@ -187,5 +189,28 @@ describe("normalizePortableScene version gate", () => {
     expect(normalizePortableScene({ drone: {}, mixer: {} })?.version).toBe(1);
     expect(normalizePortableScene({ version: "2", drone: {}, mixer: {} })?.version).toBe(1);
     expect(normalizePortableScene({ version: NaN, drone: {}, mixer: {} })?.version).toBe(1);
+  });
+});
+
+describe("guarded current-session-id helpers (iOS Private/Lockdown mode)", () => {
+  it("saveCurrentSessionId swallows a throwing setItem instead of propagating", () => {
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    });
+    expect(() => saveCurrentSessionId("abc")).not.toThrow();
+  });
+
+  it("loadCurrentSessionId returns null when getItem throws", () => {
+    vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      throw new DOMException("denied", "SecurityError");
+    });
+    expect(loadCurrentSessionId()).toBeNull();
+  });
+
+  it("round-trips a normal id and clears on null", () => {
+    saveCurrentSessionId("xyz");
+    expect(loadCurrentSessionId()).toBe("xyz");
+    saveCurrentSessionId(null);
+    expect(loadCurrentSessionId()).toBeNull();
   });
 });

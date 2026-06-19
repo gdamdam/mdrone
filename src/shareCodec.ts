@@ -2,6 +2,13 @@ import type { PortableScene } from "./session";
 import { normalizePortableScene } from "./session";
 
 const CODEC_TIMEOUT_MS = 2500;
+// Deflate-bomb guards. A real scene JSON (full custom tuning + 200 motion
+// events) is tens of KB and compresses to a few KB, so these ceilings are
+// far above any legitimate link yet far below browser-tab OOM. The timeout
+// above bounds *time*; these bound *bytes* (a ~1000:1 deflate ratio means a
+// small URL can otherwise inflate to hundreds of MB).
+const MAX_DECOMPRESSED_BYTES = 4 * 1024 * 1024; // 4 MB
+const MAX_PAYLOAD_CHARS = 1 * 1024 * 1024;       // 1 MB of base64 input
 
 // Exported (with urlSafeB64ToBytes) so unit tests can verify byte-level
 // encode/decode behavior without going through scene JSON.
@@ -39,15 +46,39 @@ async function compressBytes(input: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(result);
 }
 
-async function decompressBytes(input: Uint8Array): Promise<Uint8Array> {
+async function decompressBytes(input: Uint8Array, maxBytes: number): Promise<Uint8Array> {
   // No silent fallback here: returning the raw deflate bytes would make
   // JSON.parse fail downstream and look like a corrupt link. Callers must
   // check for DecompressionStream support before invoking.
-  const piped = new Blob([new Uint8Array(input)])
+  //
+  // Read the stream incrementally and abort once the running output total
+  // exceeds maxBytes, so a deflate bomb is rejected BEFORE the full
+  // (potentially huge) buffer is materialized — `new Response().arrayBuffer()`
+  // would have allocated all of it first.
+  const reader = new Blob([new Uint8Array(input)])
     .stream()
-    .pipeThrough(new DecompressionStream("deflate"));
-  const result = await new Response(piped).arrayBuffer();
-  return new Uint8Array(result);
+    .pipeThrough(new DecompressionStream("deflate"))
+    .getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error("Decompressed share payload exceeds size limit.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { out.set(chunk, offset); offset += chunk.byteLength; }
+  return out;
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -124,10 +155,16 @@ export async function decodeScenePayload(
     if (failure) failure.reason = "unsupported-compression";
     return null;
   }
+  if (payload.length > MAX_PAYLOAD_CHARS) {
+    // Reject an absurd payload before allocating/decoding it. A real ?z=/?b=
+    // link is a few KB; anything near 1 MB is abuse, not a scene.
+    if (failure) failure.reason = "invalid-payload";
+    return null;
+  }
   try {
     const bytes = urlSafeB64ToBytes(payload);
     const decodedBytes = compressed
-      ? await withTimeout(decompressBytes(bytes), CODEC_TIMEOUT_MS)
+      ? await withTimeout(decompressBytes(bytes, MAX_DECOMPRESSED_BYTES), CODEC_TIMEOUT_MS)
       : bytes;
     const json = new TextDecoder().decode(decodedBytes);
     return normalizePortableScene(JSON.parse(json));
