@@ -88,7 +88,7 @@ import { type Visualizer } from "../components/visualizers";
 import type { PitchClass } from "../types";
 import type { DroneViewHandle } from "../components/DroneView";
 import { applyFxSnapshot, applyMixerSnapshot, capturePortableScene } from "./sceneSnapshots";
-import { saveCustomTuningAtId } from "../microtuning";
+import { isBundledTuningId, saveCustomTuningAtId } from "../microtuning";
 
 export interface ShareSceneBuildResult {
   scene: PortableScene;
@@ -226,7 +226,12 @@ export function useSceneManager({
     // label's slug may not match the bundled id — authored tunings
     // routinely have mismatched slugs (id "custom:31-tet" / label
     // "31-TET (Huygens)").
-    if (scene.customTuning) {
+    if (scene.customTuning && !isBundledTuningId(scene.customTuning.id)) {
+      // Persist the scene's tuning so it resolves + appears in the picker,
+      // but never at a bundled id: a shared (untrusted) link must not be
+      // able to overwrite the recipient's builtin/authored tables. Bundled
+      // ids resolve from the app's own tables, so skipping the write is
+      // lossless for legitimate links.
       const ct = scene.customTuning;
       saveCustomTuningAtId(ct.id, ct.label, ct.degrees);
     }

@@ -237,6 +237,33 @@ describe("normalizePortableScene defends against bad input", () => {
     expect(s!.customTuning?.degrees).toHaveLength(13);
     expect(s!.customTuning?.degrees[12]).toBe(1200);
   });
+
+  it("caps an over-long customTuning label (it bypassed the string cap)", () => {
+    const degrees = Array.from({ length: 13 }, () => 0);
+    const s = normalizePortableScene({
+      drone: {},
+      mixer: {},
+      fx: {},
+      ui: {},
+      customTuning: { id: "custom:big", label: "L".repeat(5000), degrees },
+    });
+    expect(s).not.toBeNull();
+    // MAX_STRING_LEN — same cap the scene name uses.
+    expect(s!.customTuning?.label.length).toBe(1024);
+  });
+
+  it("drops a customTuning whose id is absurdly long", () => {
+    const degrees = Array.from({ length: 13 }, () => 0);
+    const s = normalizePortableScene({
+      drone: {},
+      mixer: {},
+      fx: {},
+      ui: {},
+      customTuning: { id: "custom:" + "x".repeat(5000), label: "X", degrees },
+    });
+    expect(s).not.toBeNull();
+    expect(s!.customTuning).toBeUndefined();
+  });
 });
 
 describe("decode size guards (deflate-bomb / oversize payload)", () => {

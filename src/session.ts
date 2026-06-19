@@ -583,12 +583,18 @@ export function normalizePortableScene(value: unknown, fallbackName = "Shared Sc
     const ct = value.customTuning;
     if (
       typeof ct.id === "string" && ct.id.startsWith("custom:") &&
+      // The id is persisted as a localStorage key; a real one is a short
+      // slug. Reject (rather than truncate) an absurd id so a crafted link
+      // can't smuggle a multi-MB string into storage under a mangled key.
+      ct.id.length <= MAX_STRING_LEN &&
       typeof ct.label === "string" &&
       Array.isArray(ct.degrees) && ct.degrees.length === 13
     ) {
       scene.customTuning = {
         id: ct.id,
-        label: ct.label,
+        // readString caps length (the label lands in the DOM/localStorage),
+        // matching every other normalized string field.
+        label: readString(ct.label, "Custom Tuning"),
         degrees: ct.degrees.map((d) =>
           typeof d === "number" && Number.isFinite(d) ? d : 0,
         ),

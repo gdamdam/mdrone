@@ -2,6 +2,12 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.5 — 2026-06-19
+
+- fix(share): cap a shared-link `customTuning` label (it bypassed the 1 KB string cap) and reject an over-long id — a crafted link could otherwise smuggle a multi-MB string into the DOM/localStorage
+- fix(share): a shared scene can no longer overwrite a builtin/authored tuning in the recipient's store — bundled-id tunings resolve from the app's own tables, so they're never persisted from an untrusted link (genuinely custom tunings still transfer)
+- test: cover the customTuning label/id caps and the new isBundledTuningId override guard
+
 ## 1.28.4 — 2026-06-19
 
 - fix(export): EXPORT AUDIO "Split" toggle showed "30 min" but produced 15-min parts — label, tooltip, and Help text now derive from RECOMMENDED_MAX_TAKE_MINUTES so they can't drift from the actual segment length (regression from 1.28.3's 30→15 max-take change)

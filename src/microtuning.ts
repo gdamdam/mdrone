@@ -683,6 +683,21 @@ export function isValidTuningId(id: unknown): id is TuningId {
   return id.startsWith("custom:");
 }
 
+/** True if `id` belongs to a tuning that ships with the app (builtin or
+ *  authored). These live in the shared lookup map ahead of the user's
+ *  `customTunings`, so a `customTunings` entry written at the same id
+ *  would silently shadow the bundled table. `saveCustomTuning` already
+ *  de-dups new saves against the full map; this predicate lets untrusted
+ *  callers (shared-scene apply) make the same check before persisting a
+ *  scene's bundled-id customTuning — the recipient already has the
+ *  bundled table, so the scene resolves correctly without the write. */
+const BUNDLED_TUNING_IDS = new Set<string>(
+  [...BUILTIN_TUNINGS, ...AUTHORED_TUNINGS].map((t) => t.id),
+);
+export function isBundledTuningId(id: string): boolean {
+  return BUNDLED_TUNING_IDS.has(id);
+}
+
 /** @deprecated Use `isValidTuningId` for validation or
  *  `BUILTIN_TUNING_IDS` when you specifically need builtins. This
  *  constant captures only builtins and is kept for back-compat. */

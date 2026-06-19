@@ -16,6 +16,8 @@ import {
   playedNoteCents,
   mergePlayedIntervals,
   togglePlayedNote,
+  isBundledTuningId,
+  BUILTIN_TUNING_IDS,
 } from "../../src/microtuning";
 
 /**
@@ -23,6 +25,20 @@ import {
  * covered by tests/drone-scene-model.test.mjs — these tests only assert
  * structural properties the node suite doesn't check.
  */
+describe("isBundledTuningId (shared-scene override guard)", () => {
+  it("recognizes builtin and authored ids as bundled", () => {
+    expect(isBundledTuningId(BUILTIN_TUNING_IDS[0])).toBe(true);
+    // Authored tunings ship with the app under `custom:*` ids; a shared
+    // scene must not be allowed to overwrite one in the recipient's store.
+    expect(isBundledTuningId("custom:31-tet")).toBe(true);
+  });
+
+  it("treats genuinely user/unknown ids as non-bundled", () => {
+    expect(isBundledTuningId("custom:totally-novel-xyz")).toBe(false);
+    expect(isBundledTuningId("not-even-a-tuning")).toBe(false);
+  });
+});
+
 describe("TUNINGS", () => {
   it("has at least one tuning and 13-entry DEGREE_LABELS", () => {
     expect(TUNINGS.length).toBeGreaterThan(0);
