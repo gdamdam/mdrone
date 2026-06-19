@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.4 — 2026-06-19
+
+- fix(export): EXPORT AUDIO "Split" toggle showed "30 min" but produced 15-min parts — label, tooltip, and Help text now derive from RECOMMENDED_MAX_TAKE_MINUTES so they can't drift from the actual segment length (regression from 1.28.3's 30→15 max-take change)
+
 ## 1.28.3 — 2026-06-19
 
 - fix(visualizers): cap the CRYSTAL LATTICE facet pool (was unbounded — slow memory growth on hour-long holds)

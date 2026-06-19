@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { RECOMMENDED_MAX_TAKE_MINUTES } from "../engine/MasterRecorder";
 
 /**
  * ExportAudioMenu — header dropdown that consolidates the three audio
@@ -21,8 +22,8 @@ export interface ExportAudioModalProps {
   recordingTitle?: string;
   recTimeMs: number;
   onToggleRec: () => void;
-  /** When on, a long REC LIVE take splits into ~30-min WAV parts so
-   *  peak browser memory stays bounded. Off = single WAV. */
+  /** When on, a long REC LIVE take splits into RECOMMENDED_MAX_TAKE_MINUTES
+   *  WAV parts so peak browser memory stays bounded. Off = single WAV. */
   recSplitEnabled: boolean;
   onToggleRecSplit: () => void;
   // BOUNCE LOOP — mirrors the existing LOOP control + length picker.
@@ -112,9 +113,9 @@ export function ExportAudioModal({
           className={recSplitEnabled ? "export-menu-pill export-menu-pill-active" : "export-menu-pill"}
           onClick={onToggleRecSplit}
           disabled={isRec || recordingBusy}
-          title="Split a long take into ~30-min WAV parts so browser memory stays bounded. Each part downloads as it finishes."
+          title={`Split a long take into ~${RECOMMENDED_MAX_TAKE_MINUTES}-min WAV parts so browser memory stays bounded. Each part downloads as it finishes.`}
         >
-          {recSplitEnabled ? "◼ Split 30 min" : "◻ Split 30 min"}
+          {`${recSplitEnabled ? "◼" : "◻"} Split ${RECOMMENDED_MAX_TAKE_MINUTES} min`}
         </button>
       </div>
 

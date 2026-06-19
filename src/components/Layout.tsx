@@ -91,9 +91,9 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const [isRec, setIsRec] = useState(false);
   const [recTimeMs, setRecTimeMs] = useState(0);
   const [recBusy, setRecBusy] = useState(false);
-  // REC LIVE split — when on, a long take rotates into ~30-min WAV
-  // parts so peak memory stays bounded per segment. Off = single WAV
-  // (legacy behaviour). Can't change mid-take.
+  // REC LIVE split — when on, a long take rotates into
+  // RECOMMENDED_MAX_TAKE_MINUTES WAV parts so peak memory stays bounded
+  // per segment. Off = single WAV (legacy behaviour). Can't change mid-take.
   const [recSplit, setRecSplit] = useState(false);
   // Seamless-loop bounce — parallel to master record, separate state.
   const [loopLengthSec, setLoopLengthSec] = useState(30);
