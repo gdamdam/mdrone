@@ -20,41 +20,41 @@
 
 ---
 
-## What it does
+## Contents
 
-- **Holds a drone in the browser** — pick a tonic, a mode, layer voices, and the sound is there. Open the page, press play, leave it on for an hour.
-- **Shapes sound slowly** — macros, a breathing LFO, a second flicker LFO, and an XY WEATHER pad for brightness and motion.
-- **Builds real texture** — eight authored voice models (TANPURA, REED, METAL, AIR, PIANO, FM, AMP, NOISE) and a 15-effect chain with plate, shimmer, freeze, hall, cistern, granular, and harmonic-bloom HALO engines.
+**The instrument** — [What it does](#what-it-does) · [Quick start](#quick-start) · [Layout](#layout) · [Voices](#voices) · [Effects](#effects) · [Microtuning](#microtuning) · [Motion & Evolution](#motion--evolution) · [Mixer](#mixer) · [Visualizers](#visualizers) · [Sessions, Links, Recording](#sessions-links-recording) · [Keyboard, MIDI & Link](#keyboard-midi--link) · [Accessibility](#accessibility) · [Privacy](#privacy)
+
+**Under the hood** — [Audio Engine](#audio-engine) · [Reliability & Diagnostics](#reliability--diagnostics)
+
+**For developers** — [Going Deeper](#going-deeper) · [License](#license)
+
+---
+
+## The instrument
+
+*What you see, hear, and touch.*
+
+### What it does
+
+- **Holds a drone in the browser** — pick a tonic and mode, layer voices, press play, and leave it on for an hour.
+- **Shapes sound slowly** — six macros, two LFOs (a breathing rate and a faster flicker), and an XY **WEATHER** pad for brightness and motion.
+- **Builds real texture** — eight authored voice models and a 15-effect chain (plate, shimmer, freeze, hall, cistern, granular, harmonic-bloom HALO).
 - **Evolves on its own** — preset morphing, deterministic self-evolution, one-shot mutation, authored multi-phase JOURNEYs, a sympathetic PARTNER voice, and recordable gesture replay.
-- **Tunes microtonally** — 6 built-in tuning tables, 20 curated authored tunings (Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, the house **mdrone Signature** hybrid…), 6 relation presets, a Scale Editor for your own 13-degree tables, per-interval ±25 ¢ fine detune, and an **ATTUNE** one-click guided-randomize.
-- **Visualises** — an inline live-visualizer tile and a fullscreen MEDITATE overlay with 25 authored visualizers (harmonic, landscape, ritual, void) sharing one warm parchment / ember palette.
-- **Mixes** — a master-bus drawer with HPF, EQ, mud trim, glue, drive, look-ahead limiter, parallel cathedral-IR room send, color saturation, M/S width, headphone-safe mode, and LUFS / peak metering.
-- **Saves + links + export** — named local sessions on the **◆** header button (save / load / rename / EXPORT JSON / IMPORT JSON), **LINK** button copies a self-contained scene URL (full scene + optional gesture recording + custom tuning cents; auto-shortened via the `s.mdrone.org` relay), and the **⤓** EXPORT AUDIO dropdown bundles **REC LIVE** (open-ended 24-bit WAV), **BOUNCE LOOP** (sampler-ready loop), and **TIMED REC** (auto-stop at 30 s · 1 m · 3 m · 10 m).
-- **Works offline + installs** — full service worker; once the page loads, you can hold a drone in airplane mode. "Add to home screen" on iOS / "Install" on desktop runs it as a standalone PWA.
+- **Tunes microtonally** — 6 built-in tables, 20 curated authored tunings, 6 relation presets, a Scale Editor for your own 13-degree tables, per-interval ±25 ¢ detune, and one-click **ATTUNE** randomize.
+- **Visualises** — an inline live tile plus a fullscreen **MEDITATE** overlay with 25 authored visualizers across harmonic, landscape, ritual, and void groups.
+- **Mixes** — a master-bus drawer with HPF, EQ, glue, drive, a look-ahead limiter, cathedral-IR room send, color saturation, M/S width, headphone-safe mode, and LUFS / peak metering.
+- **Saves, links, exports** — named local sessions (◆), a **LINK** button that copies a self-contained scene URL, and an **⤓** EXPORT AUDIO menu with live, looped, and timed 24-bit WAV capture.
+- **Works offline + installs** — a full service worker holds the drone in airplane mode once the page has loaded. "Add to home screen" on iOS / "Install" on desktop runs it as a standalone PWA.
 
----
+### Quick start
 
-## Table of Contents
+1. Open **[mdrone.org](https://mdrone.org/)** — no install, no account.
+2. Press **HOLD** (or `Space`) to start the drone.
+3. Pick a **tonic** and **octave**, then drag the **WEATHER** pad to move brightness (X) and motion (Y).
+4. Open **EDIT** to toggle voices and effects; open **ADVANCED** for tuning, the Scale Editor, and LFOs.
+5. Like what you hear? **LINK** copies a shareable URL, and the **◆** button saves the scene locally.
 
-- [Layout](#layout)
-- [Audio Engine](#audio-engine)
-- [Voices](#voices)
-- [Effects](#effects)
-- [Microtuning](#microtuning)
-- [Motion & Evolution](#motion--evolution)
-- [Mixer](#mixer)
-- [Visualizers](#visualizers)
-- [Sessions, Sharing, Recording](#sessions-sharing-recording)
-- [Keyboard, MIDI & Link](#keyboard-midi--link)
-- [Accessibility](#accessibility)
-- [Privacy](#privacy)
-- [Reliability & Diagnostics](#reliability--diagnostics)
-- [Going Deeper](#going-deeper)
-- [License](#license)
-
----
-
-## Layout
+### Layout
 
 mdrone is one screen — the **DRONE** instrument — with two surfaces that slide in on demand:
 
@@ -71,28 +71,7 @@ The DRONE surface itself is a three-tier hierarchy:
 
 On mobile the header collapses to two rows (identity + actions) and hides the standalone help / LIVE SAFE pill — both stay reachable from Settings.
 
----
-
-## Audio Engine
-
-All sound is synthesised in real time with the Web Audio API and AudioWorklet. No samples are loaded for the voices.
-
-- **Voices** are AudioWorklet-backed. Each layer spawns one worklet voice per interval in the selected mode, mixed through per-layer gains. Tonic changes glide; interval changes rebuild with a short crossfade. Each voice carries a sub-Hz pitch-drift LFO so the stack breathes, and is panned across the stereo field for true separation.
-- **Climate** — the WEATHER XY pad drives brightness on X and motion on Y. A user LFO adds slow breathing on voice gain. A second LFO (FLICKER, 0.5–45 Hz) is integer-phase-locked to the breather and offers AM, dichotic L/R detune, or both.
-- **Effect chain** — 15 effects, drag-reorderable, each runnable serial (insert) or parallel (send) per preset.
-- **Master bus** — HPF, 3-band EQ, optional mud trim, glue compression, drive, parallel cathedral-IR room send, color saturation + air exciter, look-ahead brickwall limiter (Chrome / FF; Safari falls back to native compression), bass-mono fold, M/S width, session-level loudness leveling, and pre/post-limiter analyser taps.
-- **Reverbs** — PLATE uses a real EMT 140 IR (Greg Hopkins, CC-BY); HALL and CISTERN are FDN worklets; the master ROOM send uses a recording of Saint-Lawrence Church, Molenbeek-Wersbeek (Public Domain CC).
-- **Determinism** — IR seeds and evolve drift derive from a per-scene PRNG (FNV-1a hash of the preset ID or share-URL seed). Same URL ⇒ same tail.
-- **Recording** — the final post-limiter master is captured to **24-bit stereo WAV** through a dedicated worklet tap (bit-identical, no codec).
-- **Adaptive stability** — when the audio thread is sustainedly struggling (drift between `AudioContext.currentTime` and wall-clock), the engine auto-mitigates in three stages, each gated by a cooldown so the graph isn't flapped on noisy signals:
-  1. **Visuals** — engages a low-power overlay (clamps MEDITATE FPS and the loudness meter). Composed with the user's persisted setting; never overwrites it.
-  2. **Heavy FX** — temporarily suppresses shimmer / granular / graincloud / halo. The FxBar still shows them as ON with a striped "suppressed" cue, since user intent is preserved — autosave, share URLs, and snapshots all read user-intent state, not the runtime overlay.
-  3. **Voice density** — progressively lowers the max active voice layers. The first reduction is decisive (7 → 4); continued struggle steps further (4 → 3) down to a musical floor of 3. The original cap is restored on recovery.
-  Mitigation is fast (~9 s cooldown). Recovery is slow (~20 s cooldown + a 30 s underrun-free window) so a brief lull doesn't bounce a performance back into danger. Stages unwind one at a time. Notifications are calm and infrequent ("Audio under load — simplifying FX.", "Audio recovered."). Saved scenes, share URLs, and persisted settings are never mutated — mitigation is runtime-only.
-
----
-
-## Voices
+### Voices
 
 Eight authored models with per-voice physicality (jawari nonlinearity, soundboard coupling, bellows AM, modal bowls, cabinet shaping, noise colour).
 
@@ -107,9 +86,7 @@ Eight authored models with per-voice physicality (jawari nonlinearity, soundboar
 | **AMP** | Sustained amp / cabinet drone with harmonic body, oversampled drive. |
 | **NOISE** | Coloured noise bed (white → brown) — tape hiss, cistern air, chamber floor. |
 
----
-
-## Effects
+### Effects
 
 15 effects, click to toggle, long-press for the settings modal (AMOUNT + per-effect params). Drag to reorder.
 
@@ -131,9 +108,7 @@ Eight authored models with per-voice physicality (jawari nonlinearity, soundboar
 | **GRAINCLOUD** | Classic 40 ms grain stutter, pitches snapped to scale |
 | **HALO** | Multi-band harmonic-partial bloom — synthesises upper partials over the drone with adjustable tilt |
 
----
-
-## Microtuning
+### Microtuning
 
 - **6 built-in tuning tables** — equal (12-TET), just 5-limit, ¼-comma meantone, harmonic series, maqam rast, slendro.
 - **20 curated authored tunings** — historical (Pythagorean, Kirnberger III, Werckmeister III, Young 7-limit, Just 7-limit, Partch 11-limit), xenharmonic EDOs (15-TET, 17-TET, 19-TET, 22-EDO, 31-TET), world (Yaman, Pelog, Bayati), concept (Otonal 16:32, Spectral Primes, Skewed Pythagorean, Cluster 22-Sruti, Hollow open-fifth), and the house **mdrone Signature** just × 31-TET hybrid.
@@ -142,9 +117,7 @@ Eight authored models with per-voice physicality (jawari nonlinearity, soundboar
 - **ATTUNE** — one-click guided randomize that picks a drone-friendly tuning + relation and adds gentle ±2–5 ¢ detune. Disabled during the 10 s engine-warming window after HOLD, plus a 1.2 s click cooldown after each fire, so retunes can't stack a fresh voice rebuild on top of voices that haven't finished settling.
 - **Scale Editor** — author your own 13-degree table in cents and save it locally; the editor blocks save when a name collides with an existing custom tuning (no silent overwrite) and warns before deleting a tuning referenced by saved sessions or the current scene. Shared URLs bundle the full cents array so recipients reproduce authored microtonality exactly.
 
----
-
-## Motion & Evolution
+### Motion & Evolution
 
 Five systems arranged by timescale. MORPH and EVOLVE are continuous macros; the rest live in the GESTURES panel.
 
@@ -158,15 +131,11 @@ Five systems arranged by timescale. MORPH and EVOLVE are continuous macros; the 
 
 **PARTNER** layers a sympathetic second voice at a fixed musical relation (fifth, octave, beat-detuned). **Undo / redo + A/B slots** keep a 50-entry history with two compare-and-return slots.
 
----
-
-## Mixer
+### Mixer
 
 Master-bus drawer with: **HPF**, **3-band EQ**, **MUD** trim, **GLUE**, **DRIVE**, **LIMITER** (look-ahead worklet on Chrome/FF, native on Safari), **WIDTH** (M/S with bass-mono fold under 120 Hz), **ROOM** (cathedral-IR send), **COLOR** (saturation + air exciter on one knob), **SAFE** headphone-safe mode, **FADE** (30 s → 20 min), pre-limiter **CLIP LED**, **LUFS-S + PEAK** meters, and **VOL**. RND clicks are loudness-aware so a string of random presets reads roughly equal-loudness.
 
----
-
-## Visualizers
+### Visualizers
 
 25 authored visualizers in four function-based groups (B&W first within each):
 
@@ -177,9 +146,7 @@ Master-bus drawer with: **HPF**, **3-band EQ**, **MUD** trim, **GLUE**, **DRIVE*
 
 Drone-native ethos: slow time, matte material, accrete over minutes rather than react per-frame.
 
----
-
-## Sessions, Links, Recording
+### Sessions, Links, Recording
 
 - **Sessions** are named local saves in `localStorage`, reached from the **◆** SESSION button in the header (save / load / rename) plus **EXPORT JSON** / **IMPORT JSON** for portable scene files. They include scene, tuning + detune, voices, macros, climate, both LFOs, effect chain, mixer, evolve seed, journey, partner, and the optional motion recording.
 - **Scene links** — the **LINK** button (header) copies a self-contained URL of the current scene to your clipboard. Auto-shortened by the `s.mdrone.org` relay; falls back to the long self-contained URL if the relay is offline. The recipient opens the link, presses Play, and lands in the same drone landscape on any device. Useful as a personal bookmark too — paste your own link anywhere to come back to a scene later. The Share modal warns when a scene's URL exceeds ~1900 characters (some platforms truncate around 2000) and recommends sticking with the short link or shortening the scene name. No preview card, no social-share image, just the URL.
@@ -189,9 +156,7 @@ Drone-native ethos: slow time, matte material, accrete over minutes rather than 
   - **TIMED REC** — fixed-duration realtime capture (30 s · 1 m · 3 m · 10 m). Recorder runs for the full duration, then auto-stops and downloads. Filename includes the take length: `…-take-1m-<ts>.wav`. Realtime, not offline render.
 - **REC MOTION** is a separate, opt-in capture of your live gestures (60 s / 200 events) that travels inside the share URL — not an audio file. Four captures, four concepts: **REC LIVE** = open-ended audio · **BOUNCE LOOP** = sampler-ready loop · **TIMED REC** = fixed-duration audio · **REC MOTION** = gesture replay encoded into a share link.
 
----
-
-## Keyboard, MIDI & Link
+### Keyboard, MIDI & Link
 
 **Keyboard** — toggle the `⌨` button to enable the QWERTY keyboard, then pick its mode with the **TONIC** / **PLAY** chip beside it:
 
@@ -204,9 +169,7 @@ In TONIC mode, `Z` / `X` transpose the drone root by an octave. In PLAY mode the
 
 **Ableton Link** — the breathing LFO RATE syncs to Link tempo via a small chip (FREE / 1/1 / 1/2 / 1/4 / 1/8 / 1/16). mdrone reuses mpump's [Link Bridge](https://github.com/gdamdam/mpump/releases) — a tiny cross-platform companion that bridges Link (UDP multicast) ↔ browser (localhost WebSocket). Run the bridge, enable Link in Settings, and any Link-enabled app syncs automatically. Nothing leaves your machine.
 
----
-
-## Accessibility
+### Accessibility
 
 - **`prefers-reduced-motion` honoured.** When your OS asks for reduced motion, the **DREAM MACHINE** 10 Hz strobe is replaced by a slow ~0.2 Hz breath, and looping decorative animations (header marquee, MIDI-learn pulses, weather glow) are muted. Audible content is unaffected.
 - **Screen-reader labels** on every icon button and canvas (MEDITATE visualizer, WEATHER pad, VU meter).
@@ -214,13 +177,34 @@ In TONIC mode, `Z` / `X` transpose the drone root by an octave. In PLAY mode the
 - **Top-level error boundary** so a render exception in one panel doesn't blank the whole app.
 - **Low-Power Mode** (Settings → GENERAL → LOW-POWER MODE, off by default) — for older laptops, low-end Windows machines, and weak tablets. Clamps the MEDITATE visualizer to 15 fps, throttles the loudness meter to 5 Hz, and skips the master-bus preset-change duck.
 
-## Privacy
+### Privacy
 
 mdrone has no accounts, no cookies, no ads, no fingerprinting, no third-party trackers. Sessions, custom tunings, and recordings stay on your device. Anonymous, cookieless page-view counting via [GoatCounter](https://goatcounter.com); a handful of feature events are deduped once per page-load. DNT disables all counting. Hosted on GitHub Pages.
 
 ---
 
-## Reliability & Diagnostics
+## Under the hood
+
+*How the sound is made and kept stable.*
+
+### Audio Engine
+
+All sound is synthesised in real time with the Web Audio API and AudioWorklet. No samples are loaded for the voices.
+
+- **Voices** are AudioWorklet-backed. Each layer spawns one worklet voice per interval in the selected mode, mixed through per-layer gains. Tonic changes glide; interval changes rebuild with a short crossfade. Each voice carries a sub-Hz pitch-drift LFO so the stack breathes, and is panned across the stereo field for true separation.
+- **Climate** — the WEATHER XY pad drives brightness on X and motion on Y. A user LFO adds slow breathing on voice gain. A second LFO (FLICKER, 0.5–45 Hz) is integer-phase-locked to the breather and offers AM, dichotic L/R detune, or both.
+- **Effect chain** — 15 effects, drag-reorderable, each runnable serial (insert) or parallel (send) per preset.
+- **Master bus** — HPF, 3-band EQ, optional mud trim, glue compression, drive, parallel cathedral-IR room send, color saturation + air exciter, look-ahead brickwall limiter (Chrome / FF; Safari falls back to native compression), bass-mono fold, M/S width, session-level loudness leveling, and pre/post-limiter analyser taps.
+- **Reverbs** — PLATE uses a real EMT 140 IR (Greg Hopkins, CC-BY); HALL and CISTERN are FDN worklets; the master ROOM send uses a recording of Saint-Lawrence Church, Molenbeek-Wersbeek (Public Domain CC).
+- **Determinism** — IR seeds and evolve drift derive from a per-scene PRNG (FNV-1a hash of the preset ID or share-URL seed). Same URL ⇒ same tail.
+- **Recording** — the final post-limiter master is captured to **24-bit stereo WAV** through a dedicated worklet tap (bit-identical, no codec).
+- **Adaptive stability** — when the audio thread is sustainedly struggling (drift between `AudioContext.currentTime` and wall-clock), the engine auto-mitigates in three stages, each gated by a cooldown so the graph isn't flapped on noisy signals:
+  1. **Visuals** — engages a low-power overlay (clamps MEDITATE FPS and the loudness meter). Composed with the user's persisted setting; never overwrites it.
+  2. **Heavy FX** — temporarily suppresses shimmer / granular / graincloud / halo. The FxBar still shows them as ON with a striped "suppressed" cue, since user intent is preserved — autosave, share URLs, and snapshots all read user-intent state, not the runtime overlay.
+  3. **Voice density** — progressively lowers the max active voice layers. The first reduction is decisive (7 → 4); continued struggle steps further (4 → 3) down to a musical floor of 3. The original cap is restored on recovery.
+  Mitigation is fast (~9 s cooldown). Recovery is slow (~20 s cooldown + a 30 s underrun-free window) so a brief lull doesn't bounce a performance back into danger. Stages unwind one at a time. Notifications are calm and infrequent ("Audio under load — simplifying FX.", "Audio recovered."). Saved scenes, share URLs, and persisted settings are never mutated — mitigation is runtime-only.
+
+### Reliability & Diagnostics
 
 Three layered systems exist for keeping audio stable and debugging it when something slips.
 
@@ -236,7 +220,11 @@ The voice worklet's `sanitizeState()` clamps non-finite feedback state to 0 once
 
 ---
 
-## Going Deeper
+## For developers
+
+*Build, test, and contribute.*
+
+### Going Deeper
 
 If you want to dig past the overview:
 
