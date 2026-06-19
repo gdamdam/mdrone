@@ -31,7 +31,7 @@ const MeditateView = lazy(() =>
 );
 import { trackEvent } from "../analytics";
 import { buildWavFilename, buildTakeWavFilename, buildLoopWavFilename, formatDurationMs } from "../engine/recordingFilename";
-import { segmentFilename, RECOMMENDED_MAX_TAKE_MINUTES } from "../engine/MasterRecorder";
+import { segmentFilename, RECOMMENDED_MAX_TAKE_MINUTES, estimateRecordingBytes } from "../engine/MasterRecorder";
 
 /** Trigger a browser download of a WAV ArrayBuffer. */
 function downloadWavBlob(wav: ArrayBuffer, filename: string): void {
@@ -332,9 +332,9 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // REC timer tick — sync to external timer (Date.now). When isRec flips
   // off, the timer interval is cleared and we reset in the next frame via
   // a cleanup setter to avoid setState-in-effect lint warning.
-  // Staged long-recording warnings (10/20/30 min) — Float32 stereo
-  // chunks live in memory; the recommended max is ~30 min before
-  // browser memory pressure becomes user-visible.
+  // Staged long-recording warnings (5/10/15 min) — Float32 stereo
+  // chunks live in memory; the recommended max is ~15 min (~330 MB)
+  // before browser memory pressure becomes user-visible.
   useEffect(() => {
     if (!isRec) return;
     recStartRef.current = Date.now();
@@ -349,9 +349,9 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           showNotification(message, kind);
         }
       };
-      fire(10, "Recording past 10 min — long takes consume browser memory. Consider segmenting.", "info");
-      fire(20, "Recording past 20 min — approaching the recommended max. Prepare to stop.", "warning");
-      fire(30, "Recording past 30 min — at the recommended max take length. Stop and start a new take to keep memory bounded.", "warning");
+      fire(5, "Recording past 5 min — long takes consume browser memory. Consider segmenting.", "info");
+      fire(10, "Recording past 10 min — approaching the recommended max. Prepare to stop.", "warning");
+      fire(15, "Recording past 15 min — at the recommended max take length. Stop and start a new take to keep memory bounded.", "warning");
     }, 200);
     return () => {
       window.clearInterval(id);
@@ -992,14 +992,17 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   panicRef.current = handlePanic;
 
   const recordingSupport = engine.getRecordingSupport();
-  // Float32 stereo at 48 kHz ≈ 22 MB / 5 min in-memory. Surfaced in the
-  // tooltip so a performer can read live cost without opening devtools.
-  const recApproxMb = ((recTimeMs / 1000) * 48000 * 2 * 4) / (1024 * 1024);
+  // Float32 stereo at the context's sample rate ≈ 22 MB/min in-memory
+  // (≈ 220 MB / 10 min, ≈ 330 MB at the 15 min recommended max). Use the
+  // real sample rate (not a hardcoded 48 kHz, which under-counts 2× at
+  // 96 kHz) and the shared estimator so the tooltip can't drift from the
+  // recorder. Surfaced so a performer can read live cost without devtools.
+  const recApproxMb = estimateRecordingBytes(engine.ctx.sampleRate, recTimeMs) / (1024 * 1024);
   const recordingTitle = !recordingSupport.supported
     ? (recordingSupport.reason ?? "WAV recording is unavailable in this browser.")
     : isRec
-      ? `Stop and download the WAV — ${formatDurationMs(recTimeMs)} captured (~${recApproxMb.toFixed(0)} MB in memory). Recommended max take: 30 min.`
-      : "Record the full master output as a 24-bit WAV file. Starts the drone if it isn't already playing. Recommended max take: 30 min — long sessions are best done as separate takes.";
+      ? `Stop and download the WAV — ${formatDurationMs(recTimeMs)} captured (~${recApproxMb.toFixed(0)} MB in memory). Recommended max take: 15 min.`
+      : "Record the full master output as a 24-bit WAV file. Starts the drone if it isn't already playing. Recommended max take: 15 min — long sessions are best done as separate takes.";
 
   const handleToggleRec = async () => {
     if (recBusy) return;

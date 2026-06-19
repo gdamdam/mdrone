@@ -6,12 +6,15 @@
  * and encodes a 24-bit PCM WAV on stop. No intermediate codec — the
  * captured samples are bit-identical to what the engine produced.
  *
- * Memory note: Float32 stereo at the context's sample rate grows at
- * about 44 MB per 10 minutes at 48 kHz. The browser is not a DAW —
- * for long takes the recommended workflow is segmented recording
- * (see start({ segmentMinutes })), which finalizes a WAV every N
- * minutes and rotates buffers so peak memory is bounded per segment.
- * The single-take path is preserved when segmentMinutes is omitted.
+ * Memory note: the in-memory buffer is Float32 stereo (2 ch × 4 bytes)
+ * at the context's sample rate — about 22 MB per minute at 48 kHz, so
+ * ≈ 220 MB per 10 minutes and ≈ 330 MB for a 15-minute take (the
+ * recommended max) before encode/copy overhead — a 30-minute take would
+ * be ≈ 660 MB. The browser is not a DAW — for long takes the
+ * recommended workflow is segmented recording (see start({ segmentMinutes })),
+ * which finalizes a WAV every N minutes and rotates buffers so peak memory
+ * is bounded per segment. The single-take path is preserved when
+ * segmentMinutes is omitted. See estimateRecordingBytes() for the formula.
  */
 import { encodeWav24 } from "./wavEncoder";
 
@@ -45,9 +48,11 @@ export interface MasterRecorderStartOptions {
 }
 
 /** Recommended max single-take length before peak memory becomes an
- *  issue on typical browsers. Surfaced as UI guidance and as the
- *  default segment length when the user opts in. */
-export const RECOMMENDED_MAX_TAKE_MINUTES = 30;
+ *  issue on typical browsers. At ~22 MB/min (Float32 stereo) a 15-minute
+ *  take peaks at ≈ 330 MB; 30 min would be ≈ 660 MB, which risks OOM on
+ *  mobile / low-end machines. Surfaced as UI guidance and as the default
+ *  segment length when the user opts into split recording. */
+export const RECOMMENDED_MAX_TAKE_MINUTES = 15;
 
 /** Max time to wait for the tap worklet's "done" acknowledgement on
  *  stop/cancel. The worklet posts "done" promptly in the normal case;

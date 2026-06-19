@@ -32,9 +32,9 @@ describe("segmentFilename", () => {
 
 describe("estimateRecordingBytes", () => {
   // 48 kHz × 10 min = 28_800_000 frames; ×2 channels × 4 bytes = 230,400,000 ≈ 219.7 MB.
-  // The README quote is "~44 MB per 10 minutes at 48 kHz" but that was per-channel
-  // mono historically — verify at least the order of magnitude here so the helper
-  // doesn't silently regress.
+  // (Docs/comments used to quote a stale "~44 MB per 10 minutes" — a per-channel
+  // mono-era figure, ~5× low; corrected to ~220 MB.) Verify at least the order of
+  // magnitude here so the helper doesn't silently regress.
   it("returns a positive byte estimate scaling with duration", () => {
     const oneMin = estimateRecordingBytes(48_000, 60_000);
     const tenMin = estimateRecordingBytes(48_000, 600_000);

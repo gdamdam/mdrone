@@ -2,6 +2,11 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.2 — 2026-06-19
+
+- fix(engine): review-pass DSP + input-hardening fixes (c22c3f3)
+- docs(readme): restructure into player/internals/dev groups, add Quick start, fix TOC (dd00869)
+
 ## 1.28.1 — 2026-06-19
 
 - docs(readme): restructure into player/internals/dev groups, add Quick start, fix TOC (dd00869)
