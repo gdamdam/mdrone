@@ -79,13 +79,20 @@ export const BUILTIN_TUNINGS: readonly TuningTable[] = [
   {
     id: "just5",
     label: "Just 5-limit",
-    // 5-limit ratios: 1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 45/32, 3/2, 8/5, 5/3, 16/9, 15/8, 2/1
+    // Ratios: 1/1, 16/15, 9/8, 6/5, 5/4, 4/3, 7/5, 3/2, 8/5, 5/3, 16/9, 15/8, 2/1
+    // The tritone is the 7-limit 7/5 (582.51¢) — smoother than the harsh
+    // 5-limit 45/32 (590.22¢); the rest are standard 5-limit.
     degrees: [0, 111.73, 203.91, 315.64, 386.31, 498.04, 582.51, 701.96, 813.69, 884.36, 996.09, 1088.27, 1200],
   },
   {
     id: "meantone",
     label: "¼-comma Meantone",
-    // 1/4-comma meantone temperament — Malone / Arkbro pipe organs
+    // 1/4-comma meantone temperament — Malone / Arkbro pipe organs.
+    // Degrees follow the 12-key chromatic layout off a chain of fifths, so
+    // the chromatic (sharp) slots read narrow: the "m2" slot is the
+    // chromatic semitone / augmented unison (76.05¢, not the 117¢ diatonic
+    // minor 2nd) and likewise "m6" (772.63¢). Labels name keyboard
+    // positions, not diatonic interval qualities.
     degrees: [0, 76.05, 193.16, 310.26, 386.31, 503.42, 579.47, 696.58, 772.63, 889.74, 1006.84, 1082.89, 1200],
   },
   {
