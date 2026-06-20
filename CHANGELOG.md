@@ -2,6 +2,11 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.29.0 — 2026-06-20
+
+- fix(microtonal): correct just5 tritone comment + clarify meantone labels (cb34ef8)
+- feat(engine): seed per-voice build RNG from the scene so shared scenes reproduce per-voice micro-timbre (5d7c336)
+
 ## 1.28.9 — 2026-06-20
 
 - fix(microtonal): the "intended but capped" voice cue now refreshes on adaptive-stability cap changes — it subscribed only to LIVE SAFE, so a stage-3 voice-density reduction (or its recovery) could leave the cue stale until an unrelated re-render
