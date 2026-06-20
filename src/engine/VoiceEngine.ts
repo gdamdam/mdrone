@@ -1,6 +1,6 @@
 import { FxChain } from "./FxChain";
 import type { PresetMaterialProfile } from "./presets";
-import { DEFAULT_PRESET_MATERIAL_PROFILE } from "./presets";
+import { DEFAULT_PRESET_MATERIAL_PROFILE, mulberry32 } from "./presets";
 import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type TanpuraTuningId, type Voice, type VoiceType } from "./VoiceBuilder";
 import { LAYER_FILTER_MAX_HZ, LAYER_FILTER_MIN_HZ, registerLayerFilterWalk } from "./MotionEngine";
 import { readAudioDebugFlags } from "./audioDebug";
@@ -168,7 +168,7 @@ export class VoiceEngine {
    *  typical mobile / small laptops) cap at 4 to prevent audio-thread
    *  overload when a preset asks for 6-7 simultaneous voices. Default
    *  is derived from `navigator.hardwareConcurrency` at construction.
-   *  Setting this field to `ALL_VOICE_TYPES.length` (7) disables the
+   *  Setting this field to `ALL_VOICE_TYPES.length` (8) disables the
    *  cap for desktop / high-core systems. P3 — mobile auto-degrader. */
   private maxVoiceLayers: number = VoiceEngine.detectMaxVoiceLayers();
   private static detectMaxVoiceLayers(): number {
@@ -176,6 +176,14 @@ export class VoiceEngine {
     const cores = navigator.hardwareConcurrency;
     if (typeof cores === "number" && cores > 0 && cores <= 4) return 4;
     return ALL_VOICE_TYPES.length;
+  }
+  /** Build the per-voice material phase-offset table from an RNG. Static
+   *  so it can run from a field initializer and be re-run by
+   *  setMaterialSeed() with a seeded source. */
+  private static makeMaterialPhaseOffsets(rng: () => number): Record<VoiceType, number> {
+    const offsets = {} as Record<VoiceType, number>;
+    for (const type of ALL_VOICE_TYPES) offsets[type] = rng() * Math.PI * 2;
+    return offsets;
   }
   /** Priority order for auto-degradation — cheapest voices first so
    *  they survive when the cap is applied. Matches the relative CPU
@@ -223,16 +231,14 @@ export class VoiceEngine {
   private materialDriftScales: Record<VoiceType, number> = {
     tanpura: 1, reed: 1, metal: 1, air: 1, piano: 1, fm: 1, amp: 1, noise: 1,
   };
-  private readonly materialPhaseOffsets: Record<VoiceType, number> = {
-    tanpura: Math.random() * Math.PI * 2,
-    reed: Math.random() * Math.PI * 2,
-    metal: Math.random() * Math.PI * 2,
-    air: Math.random() * Math.PI * 2,
-    piano: Math.random() * Math.PI * 2,
-    fm: Math.random() * Math.PI * 2,
-    amp: Math.random() * Math.PI * 2,
-    noise: Math.random() * Math.PI * 2,
-  };
+  /** RNG for per-voice material motion (the phase offsets below + the
+   *  per-tick nudge in computeMaterialState). Defaults to Math.random so
+   *  ad-hoc playback stays naturally varied; setMaterialSeed() swaps in a
+   *  seeded mulberry32 so a shared scene reproduces the same subtle layer
+   *  motion on every load — matching the already-seeded evolve walk. */
+  private materialRng: () => number = Math.random;
+  private materialPhaseOffsets: Record<VoiceType, number> =
+    VoiceEngine.makeMaterialPhaseOffsets(this.materialRng);
   private materialPluckFactor = 1;
   private materialSubFactor = 1;
 
@@ -706,14 +712,31 @@ export class VoiceEngine {
 
   getFmFeedback(): number { return this.fmFeedback; }
 
-  /** Max active voice layers. Set to 7 on desktop, 4 on low-core
-   *  devices. Called by AudioEngine once at construction and by the
-   *  UI if the user overrides the auto-detected value. */
+  /** Max active voice layers. Set to 8 (all voices) on desktop, 4 on
+   *  low-core devices. Called by AudioEngine once at construction and by
+   *  the UI if the user overrides the auto-detected value. */
   setMaxVoiceLayers(n: number): void {
     this.maxVoiceLayers = Math.max(1, Math.min(ALL_VOICE_TYPES.length, Math.floor(n)));
     this.scheduleVoiceRebuild();
   }
   getMaxVoiceLayers(): number { return this.maxVoiceLayers; }
+
+  /** Intended voices (scene/user-enabled) that the active voice cap is
+   *  currently silencing — drives the "intended but capped" UI cue.
+   *  Mirrors the FX suppressed-by-protection treatment in FxBar. */
+  getSuppressedVoices(): VoiceType[] {
+    const capped = this.capLayers(this.voiceLayers);
+    return ALL_VOICE_TYPES.filter((t) => this.voiceLayers[t] && !capped[t]);
+  }
+
+  /** Seed the material-motion RNG from the scene so per-voice phase
+   *  offsets + per-tick nudges reproduce across loads of a shared scene.
+   *  Decorrelated from the evolve seed (XOR a constant) so the two seeded
+   *  streams don't lock-step. Mirrors AudioEngine.setEvolveSeed. */
+  setMaterialSeed(seed: number): void {
+    this.materialRng = mulberry32((seed ^ 0x9e3779b9) >>> 0);
+    this.materialPhaseOffsets = VoiceEngine.makeMaterialPhaseOffsets(this.materialRng);
+  }
 
   setTanpuraTuning(id: TanpuraTuningId): void {
     if (this.tanpuraTuning === id) return;
@@ -1249,7 +1272,7 @@ export class VoiceEngine {
     for (const type of ALL_VOICE_TYPES) {
       const wobble = profile.levelWobble[type] ?? 0;
       const phase = this.materialPhaseOffsets[type] + this.materialStep * profile.wobbleRate;
-      const randomNudge = (Math.random() - 0.5) * wobble * 0.4 * intensity;
+      const randomNudge = (this.materialRng() - 0.5) * wobble * 0.4 * intensity;
       this.materialLevelOffsets[type] = Math.max(
         -wobble,
         Math.min(wobble, Math.sin(phase) * wobble * intensity + randomNudge),

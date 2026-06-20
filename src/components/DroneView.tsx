@@ -218,7 +218,7 @@ function VoiceMeter({
 }
 
 /**
- * Four authored voices — each is a physical / spectral model running
+ * Eight authored voices — each is a physical / spectral model running
  * in the DroneVoiceProcessor AudioWorklet. Not generic waveform options;
  * each has its own sonic logic and sits in a different musical register.
  */
@@ -939,6 +939,24 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     () => new Set<EffectId>([...adaptiveBypassed, ...liveSafeBypassed]),
     [adaptiveBypassed, liveSafeBypassed],
   );
+
+  // Voices the active voice-cap (low-core auto-degrade and/or LIVE SAFE)
+  // is silencing while the scene still intends them. Shown dimmed so the
+  // tile row doesn't claim a capped voice is sounding — mirrors how FX
+  // suppressed by audio protection are rendered. Recomputed when the
+  // intended layers change or LIVE SAFE adjusts the cap at runtime.
+  const [suppressedVoices, setSuppressedVoices] = useState<ReadonlySet<VoiceType>>(
+    () => new Set<VoiceType>(),
+  );
+  useEffect(() => {
+    if (!engine) {
+      setSuppressedVoices(new Set<VoiceType>());
+      return;
+    }
+    const sync = () => setSuppressedVoices(new Set<VoiceType>(engine.getSuppressedVoices()));
+    sync();
+    return engine.subscribeLiveSafe(sync);
+  }, [engine, state.voiceLayers]);
 
   // Tanpura string-tuning picker. Shown in the SHAPE panel only when
   // the tanpura voice is active. Persisted so reloads keep the choice.
@@ -2177,12 +2195,19 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                 }
                 return (
                   <div className="timbre-active-flow" title="Voices currently sounding">
-                    {activeVoices.map((v, i) => (
-                      <span key={v.id} className="timbre-active-step">
-                        {i > 0 && <span className="timbre-active-sep">+</span>}
-                        {v.label}
-                      </span>
-                    ))}
+                    {activeVoices.map((v, i) => {
+                      const capped = suppressedVoices.has(v.id);
+                      return (
+                        <span
+                          key={v.id}
+                          className={capped ? "timbre-active-step timbre-active-capped" : "timbre-active-step"}
+                          title={capped ? "Capped by your device — your setting is preserved." : undefined}
+                        >
+                          {i > 0 && <span className="timbre-active-sep">+</span>}
+                          {v.label}
+                        </span>
+                      );
+                    })}
                   </div>
                 );
               })()}

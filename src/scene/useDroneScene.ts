@@ -734,6 +734,10 @@ export function useDroneScene({
     // after the rate/amount so the lock takes effect over the manual
     // rate when non-zero.
     engine.setEvolveSeed(snapshot.seed);
+    // Seed the per-voice material motion from the same scene so subtle
+    // layer gain/drift/pluck motion reproduces too — decorrelated from the
+    // evolve stream inside setMaterialSeed so they don't lock-step.
+    engine.setMaterialSeed(snapshot.seed);
     if (typeof snapshot.lfoDivision === "number") {
       engine.setLfoDivision(snapshot.lfoDivision);
     } else {

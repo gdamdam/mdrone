@@ -60,9 +60,6 @@ The worker emits structured `console.warn` calls; tail them with Wrangler.
 cd worker
 npx wrangler tail mdrone-share --format pretty
 
-# only slow OG renders (>8ms)
-npx wrangler tail mdrone-share --search SLOW_OG
-
 # only errors (5xx)
 npx wrangler tail mdrone-share --status error
 
@@ -72,8 +69,6 @@ npx wrangler tail mdrone-share --method POST
 
 Currently emitted log events:
 
-- **`SLOW_OG`** — `{ duration_ms, path }`. Logged whenever an OG HTML or PNG
-  render exceeds 8ms. Useful for spotting resvg/wasm regressions.
 - **Unhandled exceptions** — surface as red entries in `tail` with a stack
   trace pointing at compiled `worker.js` (no source maps yet, see below).
 
@@ -133,12 +128,6 @@ npx wrangler dev --remote      # runs on the edge, logs stream to your shell
 
 ## Implementation notes
 
-- The PNG card is built by `src/shareCard/svgBuilder.ts` and rasterised by
-  `@resvg/resvg-wasm`. The wasm module is bundled as a `CompiledWasm` binding
-  (see `wrangler.toml`-adjacent comment in `worker.ts`) so init is one-shot
-  and cached across requests.
-- resvg-wasm cannot see host fonts; it falls back to its internal defaults
-  for "Georgia, serif" and "ui-monospace, monospace".
 - KV namespace `SHORT` uses the same id for prod and `preview_id` — create a
   separate one with `wrangler kv namespace create SHORT --preview` if you
   want dev/prod isolation.

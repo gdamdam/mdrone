@@ -4125,6 +4125,14 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   color: color-mix(in srgb, var(--preview) 55%, var(--text-dim));
   opacity: 0.85;
 }
+/* Voice intended by the scene but silenced by the device voice-cap.
+   Dimmed + struck through to read as "set but not sounding" — the same
+   suppressed-by-protection language as .fx-btn-suppressed. */
+.timbre-active-capped {
+  opacity: 0.5;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
 
 .timbre-stack {
   display: flex;

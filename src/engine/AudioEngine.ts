@@ -930,6 +930,8 @@ export class AudioEngine {
 
   /** Seed the evolve PRNG — makes evolve reproducible across loads. */
   setEvolveSeed(seed: number): void { this.motionEngine.setEvolveSeed(seed); }
+  setMaterialSeed(seed: number): void { this.voiceEngine.setMaterialSeed(seed); }
+  getSuppressedVoices(): VoiceType[] { return this.voiceEngine.getSuppressedVoices(); }
 
   /** Subscribe to LUFS-S + true-peak readings from the loudness
    *  worklet. Returns an unsubscribe function. The callback fires at

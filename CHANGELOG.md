@@ -2,6 +2,15 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.6 — 2026-06-20
+
+- fix(engine): seed per-voice material motion from the scene so a shared scene reproduces its subtle layer gain/drift/pluck motion, not just the macro evolve drift — adds `VoiceEngine.setMaterialSeed` (decorrelated from the evolve seed), called on scene load alongside `setEvolveSeed`
+- feat(ui): voice tiles now show an "intended but capped" cue (dimmed + struck through, with a tooltip) when the device voice-cap silences a scene-requested voice, mirroring the FX suppressed-by-protection treatment — adds `VoiceEngine.getSuppressedVoices`
+- chore: remove 5 orphaned demo preview pairs (doom, endless, khoomei, sarangi, time-machines) — unreferenced by about.html
+- docs(worker): drop stale OG-card diagnostics (SLOW_OG tail filter + event, resvg/PNG internals) left over after OG card rendering was removed in 1.20.32
+- docs: correct stale voice-count comments (VoiceBuilder/VoiceEngine/DroneView said four/seven — there are eight voices) and clarify that `docs/parameters.md` is generated locally
+- test: cover `setMaterialSeed` determinism and `getSuppressedVoices` cap logic
+
 ## 1.28.5 — 2026-06-19
 
 - fix(share): cap a shared-link `customTuning` label (it bypassed the 1 KB string cap) and reject an over-long id — a crafted link could otherwise smuggle a multi-MB string into the DOM/localStorage

@@ -3,7 +3,7 @@
  *
  * Each voice is a single AudioWorkletNode running the DroneVoiceProcessor
  * (see droneVoiceProcessor.js) with a `voiceType` processor option
- * selecting one of four physical/spectral models:
+ * selecting one of eight physical/spectral models:
  *
  *   TANPURA — Karplus-Strong string with jawari nonlinearity and
  *             auto-repluck cycle. Stereo via two offset delay lines.
@@ -14,6 +14,13 @@
  *             amplitude random walks and detune drift, each panned.
  *   AIR     — pink noise through 3 state-variable bandpass resonators
  *             at harmonic ratios with Q random walks.
+ *   PIANO   — stretched-harmonic partial stack (14 partials, slight
+ *             inharmonic stretch) with soundboard body + strike transient.
+ *   FM      — 2-operator FM with a slow modulation-index envelope and
+ *             modulator self-feedback for richer / grittier spectra.
+ *   AMP     — tube-bias guitar-cabinet model with speaker feedback.
+ *   NOISE   — untuned, tonic-independent broadband bed with a single
+ *             COLOR knob (hiss / wind / rumble); does not pitch-track.
  *
  * The Voice interface is the same shape the engine used before the
  * worklet refactor so AudioEngine's orchestration didn't have to
