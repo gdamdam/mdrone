@@ -2,6 +2,13 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.7 — 2026-06-20
+
+- feat(midi): soft-takeover (pickup) for continuous MIDI CC — a mapped knob/fader only takes over once its hardware value catches (within ~3/127) or crosses the current on-screen value, so a parked controller can't jump the mix on first touch after a scene/preset/random/mutate load
+- feat(midi): short ~20 ms slew on continuous CC targets after pickup so 7-bit steps don't sound zippery; trigger targets (HOLD/PANIC/RND/MUTATE/preset cycle) and the formant-vowel enum keep their immediate response
+- refactor(midi): extract the continuous-CC dispatch into `dispatchContinuous` + add `readTargetNorm` (inverse value map) in Layout; pure pickup-decision logic lives in new `src/engine/midiPickup.ts`
+- test: unit-cover the pickup decision (hold-when-far, catch-on-cross/near, pass-through-once-armed, unreadable-value fallback)
+
 ## 1.28.6 — 2026-06-20
 
 - fix(engine): seed per-voice material motion from the scene so a shared scene reproduces its subtle layer gain/drift/pluck motion, not just the macro evolve drift — adds `VoiceEngine.setMaterialSeed` (decorrelated from the evolve seed), called on scene load alongside `setEvolveSeed`

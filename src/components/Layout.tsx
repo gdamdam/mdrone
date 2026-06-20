@@ -1,6 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { useMidiInput, midiNoteToPitch } from "../engine/midiInput";
 import { loadCcMap, saveCcMap, assignCc, resetCcMap, ccForTarget, MIDI_TARGETS_BY_ID, enumIndexFromCc, type CcMap } from "../engine/midiMapping";
+import { decidePickup, initialPickupState, type PickupState } from "../engine/midiPickup";
+import type { EffectId } from "../engine/FxChain";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION, STORAGE_KEYS, type WeatherVisual } from "../config";
@@ -315,6 +317,15 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   });
   const handlePresetNameChange = sceneManager.handlePresetNameChange;
 
+  // MIDI soft-takeover (pickup) + per-target slew state. Declared above
+  // the preset-change handler that resets them so there's no
+  // use-before-define. Pickup: a mapped continuous CC only takes over
+  // once its hardware value catches the on-screen value, so a parked
+  // knob can't jump the mix on first touch after a load. Slew: a short
+  // ramp (~20 ms) so 7-bit CC steps don't sound zippery.
+  const ccPickupRef = useRef<PickupState>(initialPickupState());
+  const ccSlewRef = useRef<Map<string, { current: number; target: number; raf: number | null }>>(new Map());
+
   // Memoize the onPresetChange wrapper so DroneView's effect that
   // watches it (useDroneScene:319) only re-fires when the preset
   // actually changes. Without this, the inline arrow was a fresh
@@ -325,6 +336,11 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   const handlePresetChange = useCallback(
     (presetId: string | null, presetName: string | null) => {
       handlePresetNameChange(presetId, presetName);
+      // A fresh preset/scene moves on-screen values, so every mapped
+      // continuous knob must re-catch (pickup) before taking over again.
+      ccPickupRef.current = initialPickupState();
+      ccSlewRef.current.forEach((s) => { if (s.raf != null) cancelAnimationFrame(s.raf); });
+      ccSlewRef.current.clear();
     },
     [handlePresetNameChange],
   );
@@ -624,85 +640,34 @@ export function Layout({ engine, startupMode }: LayoutProps) {
   // while the controller sustains a held button.
   const triggerOnRef = useRef<Set<number>>(new Set());
 
-  const handleMidiCc = useCallback((cc: number, value: number) => {
-    // Learn mode: assign this CC to the pending target id.
-    if (midiLearnRef.current) {
-      const next = assignCc(ccMapRef.current, cc, midiLearnRef.current);
-      setCcMap(next);
-      saveCcMap(next);
-      setMidiLearnTarget(null);
-      return;
-    }
-
-    const targetId = ccMapRef.current[cc];
-    if (!targetId) return;
-    const target = MIDI_TARGETS_BY_ID.get(targetId);
-    if (!target) return;
-
-    // ── Triggers — fire on rising edge, except HOLD which behaves
-    //    like a sustain pedal (tracks state, not edges). ──────────
-    if (target.kind === "trigger") {
-      const isOn = value >= 64;
-      const wasOn = triggerOnRef.current.has(cc);
-      if (isOn) triggerOnRef.current.add(cc);
-      else triggerOnRef.current.delete(cc);
-
-      if (targetId === "hold") {
-        // Sustain-pedal semantics: on ⇒ ensure playing, off ⇒ ensure stopped.
-        if (isOn && !engine?.isPlaying()) holdToggleRef.current?.();
-        else if (!isOn && engine?.isPlaying()) holdToggleRef.current?.();
-        return;
-      }
-      if (!isOn || wasOn) return; // one-shot on rising edge only
-      switch (targetId) {
-        case "panic":  panicRef.current(); break;
-        case "rnd":    randomSceneRef.current(); break;
-        case "mutate": mutateSceneRef.current(0.25); break;
-        case "preset.prev":       cyclePresetAllRef.current(-1); break;
-        case "preset.next":       cyclePresetAllRef.current(1);  break;
-        case "preset.group.prev": cyclePresetGroupRef.current(-1); break;
-        case "preset.group.next": cyclePresetGroupRef.current(1);  break;
-      }
-      return;
-    }
-
-    // ── Enum — band-split CC value into N option indices and dispatch. ──
-    if (target.kind === "enum") {
-      const opts = target.options ?? [];
-      if (!opts.length) return;
-      const idx = enumIndexFromCc(value, opts.length);
-      switch (targetId) {
-        case "fx.formant.vowel": engine?.getFxChain?.().setFormantVowel(idx); break;
-      }
-      return;
-    }
-
-    // ── Continuous dispatch — `norm` is 0..1. Most targets are
-    //    nominally 0..1; those that aren't remap inside the case. ─
-    const norm = value / 127;
+  // Apply a continuous CC target's normalized 0..1 value to the engine /
+  // drone view. Extracted from handleMidiCc so the slew can re-call it
+  // with interpolated values. `record` gates undo-history capture: slew
+  // frames pass false; only the settled value records (true).
+  const dispatchContinuous = useCallback((targetId: string, norm: number, record: boolean) => {
     const dv = droneViewRef.current;
     const eng = engine;
     switch (targetId) {
       // Macros (voice + motion)
-      case "drift":  dv?.applyLivePatch?.({ drift:  norm }, { record: true }); break;
-      case "air":    dv?.applyLivePatch?.({ air:    norm }, { record: true }); break;
-      case "time":   dv?.applyLivePatch?.({ time:   norm }, { record: true }); break;
-      case "sub":    dv?.applyLivePatch?.({ sub:    norm }, { record: true }); break;
-      case "bloom":  dv?.applyLivePatch?.({ bloom:  norm }, { record: true }); break;
-      case "glide":  dv?.applyLivePatch?.({ glide:  norm }, { record: true }); break;
-      case "morph":  dv?.applyLivePatch?.({ presetMorph: norm }, { record: true }); break;
-      case "evolve": dv?.applyLivePatch?.({ evolve: norm }, { record: true }); break;
-      case "couple": dv?.applyLivePatch?.({ coupleAmount: norm }, { record: true }); break;
-      case "pluck":  dv?.applyLivePatch?.({ pluckRate: norm * 2 }, { record: true }); break;
+      case "drift":  dv?.applyLivePatch?.({ drift:  norm }, { record }); break;
+      case "air":    dv?.applyLivePatch?.({ air:    norm }, { record }); break;
+      case "time":   dv?.applyLivePatch?.({ time:   norm }, { record }); break;
+      case "sub":    dv?.applyLivePatch?.({ sub:    norm }, { record }); break;
+      case "bloom":  dv?.applyLivePatch?.({ bloom:  norm }, { record }); break;
+      case "glide":  dv?.applyLivePatch?.({ glide:  norm }, { record }); break;
+      case "morph":  dv?.applyLivePatch?.({ presetMorph: norm }, { record }); break;
+      case "evolve": dv?.applyLivePatch?.({ evolve: norm }, { record }); break;
+      case "couple": dv?.applyLivePatch?.({ coupleAmount: norm }, { record }); break;
+      case "pluck":  dv?.applyLivePatch?.({ pluckRate: norm * 2 }, { record }); break;
       case "tilt":   eng?.setTilt?.((norm - 0.5) * 2); break;          // -1..+1
       case "width":  eng?.setWidth?.(0.4 + norm * 1.2); break;          // 0.4..1.6
 
       // Weather + LFO
-      case "weatherX":  dv?.applyLivePatch?.({ climateX: norm }, { record: true }); break;
-      case "weatherY":  dv?.applyLivePatch?.({ climateY: norm }, { record: true }); break;
+      case "weatherX":  dv?.applyLivePatch?.({ climateX: norm }, { record }); break;
+      case "weatherY":  dv?.applyLivePatch?.({ climateY: norm }, { record }); break;
       // LFO rate log-scaled 0.05..8 Hz to match the SHAPE panel's RATE macro.
-      case "lfoRate":   dv?.applyLivePatch?.({ lfoRate: 0.05 * Math.pow(160, norm) }, { record: true }); break;
-      case "lfoAmount": dv?.applyLivePatch?.({ lfoAmount: norm }, { record: true }); break;
+      case "lfoRate":   dv?.applyLivePatch?.({ lfoRate: 0.05 * Math.pow(160, norm) }, { record }); break;
+      case "lfoAmount": dv?.applyLivePatch?.({ lfoAmount: norm }, { record }); break;
 
       // Mixer
       case "volume":  eng?.setMasterVolume?.(norm * 1.5); break;
@@ -747,6 +712,156 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     }
   }, [engine]);
 
+  // Current normalized 0..1 value of a continuous target, or null if it
+  // can't be read safely (→ caller falls back to immediate dispatch).
+  // Inverse of the dispatchContinuous mappings.
+  const readTargetNorm = useCallback((targetId: string): number | null => {
+    const eng = engine;
+    const c = (x: number | undefined | null): number | null =>
+      x == null || Number.isNaN(x) ? null : Math.max(0, Math.min(1, x));
+    switch (targetId) {
+      case "tilt":    { const v = eng?.getTilt?.();           return v == null ? null : c((v + 1) / 2); }
+      case "width":   { const v = eng?.getWidth?.();          return v == null ? null : c((v - 0.4) / 1.2); }
+      case "volume":  { const v = eng?.getMasterVolume?.();   return v == null ? null : c(v / 1.5); }
+      case "hpf":     { const v = eng?.getHpfFreq?.();        return v == null ? null : c(v / 60); }
+      case "eqLow":   { const g = eng?.getEqLow?.();   return g ? c((g.gain.value + 12) / 24) : null; }
+      case "eqMid":   { const g = eng?.getEqMid?.();   return g ? c((g.gain.value + 12) / 24) : null; }
+      case "eqHigh":  { const g = eng?.getEqHigh?.();  return g ? c((g.gain.value + 12) / 24) : null; }
+      case "glue":    { const v = eng?.getGlueAmount?.();     return v == null ? null : c(v); }
+      case "drive":   { const v = eng?.getDrive?.();          return v == null ? null : c((v - 1) / 3); }
+      case "ceiling": { const v = eng?.getLimiterCeiling?.(); return v == null ? null : c((v + 6) / 6); }
+    }
+    if (targetId.startsWith("fx.")) {
+      if (targetId === "fx.formant.vowel") return null; // enum, not continuous
+      const fx = eng?.getFxChain?.();
+      return fx ? c(fx.getEffectLevel(targetId.slice(3) as EffectId)) : null;
+    }
+    const snap = droneViewRef.current?.getSnapshot();
+    if (!snap) return null;
+    switch (targetId) {
+      case "drift":     return c(snap.drift);
+      case "air":       return c(snap.air);
+      case "time":      return c(snap.time);
+      case "sub":       return c(snap.sub);
+      case "bloom":     return c(snap.bloom);
+      case "glide":     return c(snap.glide);
+      case "morph":     return c(snap.presetMorph);
+      case "evolve":    return c(snap.evolve);
+      case "couple":    return c(snap.coupleAmount ?? 0);
+      case "pluck":     return c(snap.pluckRate / 2);
+      case "weatherX":  return c(snap.climateX);
+      case "weatherY":  return c(snap.climateY);
+      case "lfoRate":   return snap.lfoRate > 0 ? c(Math.log(snap.lfoRate / 0.05) / Math.log(160)) : 0;
+      case "lfoAmount": return c(snap.lfoAmount);
+      case "voice.tanpura": return c(snap.voiceLevels.tanpura);
+      case "voice.reed":    return c(snap.voiceLevels.reed);
+      case "voice.metal":   return c(snap.voiceLevels.metal);
+      case "voice.air":     return c(snap.voiceLevels.air);
+      case "voice.piano":   return c(snap.voiceLevels.piano);
+      case "voice.fm":      return c(snap.voiceLevels.fm);
+      case "voice.amp":     return c(snap.voiceLevels.amp);
+    }
+    return null;
+  }, [engine]);
+
+  // Short per-target slew: ease the dispatched value toward the latest CC
+  // value over ~20 ms so 7-bit steps don't zipper. One rAF per target
+  // chases a moving target and settles (recording once) when it arrives.
+  const ccSlewTo = useCallback((targetId: string, norm: number) => {
+    const slews = ccSlewRef.current;
+    let s = slews.get(targetId);
+    if (!s) { s = { current: norm, target: norm, raf: null }; slews.set(targetId, s); }
+    s.target = norm;
+    if (s.raf != null) return; // a ramp is already chasing the moving target
+    let last = performance.now();
+    const SLEW_MS = 20;
+    const tick = (now: number) => {
+      const cur = slews.get(targetId);
+      if (!cur) return;
+      const dt = Math.max(0, now - last); last = now;
+      const maxStep = dt / SLEW_MS; // linear: full 0..1 traversal in SLEW_MS
+      const diff = cur.target - cur.current;
+      if (Math.abs(diff) <= maxStep || Math.abs(diff) < 1e-4) {
+        cur.current = cur.target;
+        dispatchContinuous(targetId, cur.current, true); // settled → record
+        cur.raf = null;
+        return;
+      }
+      cur.current += Math.sign(diff) * maxStep;
+      dispatchContinuous(targetId, cur.current, false);  // mid-ramp → no record
+      cur.raf = requestAnimationFrame(tick);
+    };
+    s.raf = requestAnimationFrame(tick);
+  }, [dispatchContinuous]);
+
+  const handleMidiCc = useCallback((cc: number, value: number) => {
+    // Learn mode: assign this CC to the pending target id.
+    if (midiLearnRef.current) {
+      const next = assignCc(ccMapRef.current, cc, midiLearnRef.current);
+      setCcMap(next);
+      saveCcMap(next);
+      setMidiLearnTarget(null);
+      return;
+    }
+
+    const targetId = ccMapRef.current[cc];
+    if (!targetId) return;
+    const target = MIDI_TARGETS_BY_ID.get(targetId);
+    if (!target) return;
+
+    // ── Triggers — fire on rising edge, except HOLD which behaves
+    //    like a sustain pedal (tracks state, not edges). ──────────
+    if (target.kind === "trigger") {
+      const isOn = value >= 64;
+      const wasOn = triggerOnRef.current.has(cc);
+      if (isOn) triggerOnRef.current.add(cc);
+      else triggerOnRef.current.delete(cc);
+
+      if (targetId === "hold") {
+        // Sustain-pedal semantics: on ⇒ ensure playing, off ⇒ ensure stopped.
+        if (isOn && !engine?.isPlaying()) holdToggleRef.current?.();
+        else if (!isOn && engine?.isPlaying()) holdToggleRef.current?.();
+        return;
+      }
+      if (!isOn || wasOn) return; // one-shot on rising edge only
+      switch (targetId) {
+        case "panic":  panicRef.current(); break;
+        // RND/MUTATE reshuffle scene values without changing the active
+        // preset id (so onPresetChange won't fire) — reset pickup here so
+        // a parked knob can't jump the new values on next touch.
+        case "rnd":    randomSceneRef.current(); ccPickupRef.current = initialPickupState(); break;
+        case "mutate": mutateSceneRef.current(0.25); ccPickupRef.current = initialPickupState(); break;
+        case "preset.prev":       cyclePresetAllRef.current(-1); break;
+        case "preset.next":       cyclePresetAllRef.current(1);  break;
+        case "preset.group.prev": cyclePresetGroupRef.current(-1); break;
+        case "preset.group.next": cyclePresetGroupRef.current(1);  break;
+      }
+      return;
+    }
+
+    // ── Enum — band-split CC value into N option indices and dispatch. ──
+    if (target.kind === "enum") {
+      const opts = target.options ?? [];
+      if (!opts.length) return;
+      const idx = enumIndexFromCc(value, opts.length);
+      switch (targetId) {
+        case "fx.formant.vowel": engine?.getFxChain?.().setFormantVowel(idx); break;
+      }
+      return;
+    }
+
+    // ── Continuous — soft-takeover (pickup), then a short slew. ─────
+    const norm = value / 127;
+    const prev = ccPickupRef.current[targetId];
+    // Read the current software value only while still chasing pickup;
+    // once armed the decision ignores it (and getSnapshot is skipped).
+    const sw = prev?.armed ? null : readTargetNorm(targetId);
+    const decision = decidePickup(prev, norm, sw);
+    ccPickupRef.current[targetId] = decision.entry;
+    if (!decision.dispatch) return; // held — hardware hasn't caught up yet
+    ccSlewTo(targetId, norm);
+  }, [engine, readTargetNorm, ccSlewTo]);
+
   // Ref sync for handlers referenced by handleMidiCc's trigger branch.
   // Done after the handlers are declared (see below) to avoid TDZ.
   randomSceneRef.current = sceneManager.handleRandomScene;
@@ -756,6 +871,16 @@ export function Layout({ engine, startupMode }: LayoutProps) {
 
   // Exposed for the Settings modal's MIDI section
   const handleResetCcMap = useCallback(() => { setCcMap(resetCcMap()); }, []);
+
+  // Cancel any in-flight MIDI CC slew rAFs on unmount so we don't leak
+  // frames running against a torn-down engine.
+  useEffect(() => {
+    const slews = ccSlewRef.current;
+    return () => {
+      slews.forEach((s) => { if (s.raf != null) cancelAnimationFrame(s.raf); });
+      slews.clear();
+    };
+  }, []);
 
   const midi = useMidiInput(handleMidiNote, handleMidiCc);
 
