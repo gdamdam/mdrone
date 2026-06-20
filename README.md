@@ -242,7 +242,7 @@ If you want to dig past the overview:
   git tag vX.Y.Z
   git push origin main --tags
   ```
-  The `--tags` push triggers `.github/workflows/deploy.yml`, which re-runs every CI check and only then publishes `dist/` to the `gh-pages` branch (mdrone.org). Push to `main` without a tag never deploys — every commit is *checked* but doesn't ship until you cut a release. `npm run deploy` still exists as a manual escape hatch from a developer machine.
+  The `--tags` push triggers `.github/workflows/deploy.yml`, which re-runs the core checks — lint, typecheck, the unit suites, and the build (the slower Playwright E2E run stays on CI for `main`/PRs) — and only then publishes `dist/` to the `gh-pages` branch (mdrone.org). Push to `main` without a tag never deploys — every commit is *checked* but doesn't ship until you cut a release. `npm run deploy` still exists as a manual escape hatch from a developer machine.
 - **Code** — full source on [GitHub](https://github.com/gdamdam/mdrone).
 
 ---
