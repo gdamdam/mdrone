@@ -38,6 +38,10 @@ export interface DroneLivePatch {
   root?: PitchClass;
   octave?: number;
   voiceLevels?: LiveDroneSceneState["voiceLevels"];
+  /** Full voiceLayers map (the reducer merge is shallow, so callers pass
+   *  the complete set). Used by the MICROTONAL "apply suggested voicing"
+   *  action so the on/off changes land as one undoable patch. */
+  voiceLayers?: LiveDroneSceneState["voiceLayers"];
   drift?: number;
   air?: number;
   time?: number;
@@ -606,6 +610,13 @@ export function useDroneScene({
       for (const type of ALL_VOICE_TYPES) {
         if (patch.voiceLevels[type] !== current.voiceLevels[type]) {
           engine.setVoiceLevel(type, patch.voiceLevels[type]);
+        }
+      }
+    }
+    if (patch.voiceLayers) {
+      for (const type of ALL_VOICE_TYPES) {
+        if (patch.voiceLayers[type] !== current.voiceLayers[type]) {
+          engine.setVoiceLayer(type, patch.voiceLayers[type]);
         }
       }
     }

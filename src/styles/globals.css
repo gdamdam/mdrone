@@ -3876,6 +3876,45 @@ body.midi-learn-on .climate-axis[data-midi-cc]::after {
   font-variant-numeric: tabular-nums;
 }
 
+/* Known just-intonation ratio for a degree (e.g. 3/2, 5/4). Only shown
+   where the tuning is genuinely just — see ratioForDegree. */
+.intonation-chip-ratio {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--preview);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+/* Readout chips are tap-to-audition buttons; reset native button chrome
+   so they keep the chip look, and add a clear tappable affordance. */
+button.intonation-chip {
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.06s ease;
+}
+button.intonation-chip:hover { border-color: var(--preview); }
+button.intonation-chip:active { transform: translateY(0.5px); }
+
+/* Explicit "apply suggested voicing" button beside the tuning pickers. */
+.intonation-voicing-btn {
+  margin: 2px 0 6px;
+  padding: 7px 10px;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-cell);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.intonation-voicing-btn:hover { border-color: var(--preview); }
+
 .intonation-offsets {
   margin-top: 8px;
   display: flex;

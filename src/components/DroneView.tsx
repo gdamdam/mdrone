@@ -59,7 +59,7 @@ import {
   type TanpuraTuningId,
 } from "../engine/VoiceBuilder";
 import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
-import { relationLabels, relationForTuningPick, resolveTuning, TUNINGS, RELATIONS, DEGREE_LABELS } from "../microtuning";
+import { relationLabels, relationForTuningPick, resolveTuning, resolveTuningRows, planSuggestedVoicing, TUNINGS, RELATIONS, DEGREE_LABELS } from "../microtuning";
 import { sampleGoodDrone } from "../goodDrone";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
 import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from "../engine/linkBridge";
@@ -1161,6 +1161,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     state.tuningId && state.relationId
       ? relationLabels(state.relationId)
       : [];
+  // Per-degree display rows (label + cents + known ratio) in the same
+  // pick order as microtunedBaseIntervals — used to annotate the readout
+  // chips with ratios where the tuning is just-intonation.
+  const microtunedRatioRows =
+    state.tuningId && state.relationId
+      ? resolveTuningRows(state.tuningId, state.relationId)
+      : [];
   const fineDetuneRows = microtunedBaseIntervals
     .map((base, index) => ({
       index,
@@ -1177,8 +1184,28 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       label: microtunedLabels[index] ?? `INT ${index + 1}`,
       final,
       offset,
+      ratio: microtunedRatioRows[index]?.ratio ?? null,
     };
   });
+  // Suggested voicing for the selected tuning — drives the explicit
+  // "apply voicing" button (never auto-applied on a tuning pick).
+  const selectedTuning = state.tuningId ? TUNINGS.find((t) => t.id === state.tuningId) : undefined;
+  const suggestedVoicing = selectedTuning?.suggestedVoicing ?? null;
+  const suggestedVoicingLabel = (suggestedVoicing ?? [])
+    .map((id) => VOICES.find((v) => v.id === id)?.label ?? id.toUpperCase())
+    .join(" + ");
+  const applySuggestedVoicing = () => {
+    if (!suggestedVoicing || suggestedVoicing.length === 0) return;
+    const plan = planSuggestedVoicing(VOICES.map((v) => v.id), suggestedVoicing, state.voiceLevels);
+    // One recorded patch → a single undoable voice-mix change. Turns the
+    // suggested voices on (preserving audible levels) and the rest off;
+    // leaves the tuning/relation untouched.
+    applyLivePatch({
+      voiceLayers: plan.layers as Record<VoiceType, boolean>,
+      voiceLevels: { ...state.voiceLevels, ...plan.levels } as Record<VoiceType, number>,
+    });
+    trackEvent("tuning/apply-voicing");
+  };
   // Microtonal mode is active when both a tuning and a relation are
   // set — the same condition that gates `resolveTuning` above. Kept
   // as a single derived boolean so the MODE tab UI and the downstream
@@ -2528,24 +2555,41 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                     title="Interval relation — which degrees from the tuning to sound"
                   />
                 </div>
+                {suggestedVoicing && suggestedVoicing.length > 0 && (
+                  <button
+                    type="button"
+                    className="intonation-voicing-btn"
+                    onClick={applySuggestedVoicing}
+                    title="Set the voice mix this tuning was written for. Does not change the tuning; undoable."
+                  >
+                    APPLY VOICING · {suggestedVoicingLabel}
+                  </button>
+                )}
                 <PitchWheel
                   intervalsCents={intervalReadoutRows.map((r) => r.final)}
                   labels={intervalReadoutRows.map((r) => r.label)}
                 />
                 {intervalReadoutRows.length > 0 && (
                   <div className="intonation-readout">
-                    <div className="panel-hint">INTERVALS · resolved cents</div>
+                    <div className="panel-hint">INTERVALS · tap to hear · cents / ratio</div>
                     <div className="intonation-chip-grid">
                       {intervalReadoutRows.map((row) => (
-                        <div key={`${row.label}-${row.index}`} className="intonation-chip">
+                        <button
+                          type="button"
+                          key={`${row.label}-${row.index}`}
+                          className="intonation-chip intonation-chip-audition"
+                          onClick={() => engine?.auditionPitch(row.final)}
+                          title={`Tap to hear ${row.label}${row.ratio ? ` · ${row.ratio}` : ""} · ${row.final.toFixed(2)}¢`}
+                        >
                           <span className="intonation-chip-label">{row.label}</span>
                           <span className="intonation-chip-value">{row.final.toFixed(2)}c</span>
+                          {row.ratio && <span className="intonation-chip-ratio">{row.ratio}</span>}
                           {row.index > 0 && row.offset !== 0 && (
                             <span className="intonation-chip-offset">
                               {row.offset > 0 ? "+" : ""}{row.offset.toFixed(1)}
                             </span>
                           )}
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>

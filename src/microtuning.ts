@@ -654,6 +654,116 @@ export function resolveTuning(tuningId: TuningId, relationId: RelationId): numbe
   return relation.picks.map((idx) => tuning.degrees[idx] ?? 0);
 }
 
+// ── Ratio metadata + display rows ────────────────────────────────────
+//
+// Degrees are stored as cents. Rather than hand-transcribe a ratio string
+// per slot (error-prone — e.g. just5's tritone is authored at 582.51¢ =
+// 7/5, not the 45/32 its source comment names), we DERIVE the ratio by
+// matching a degree's cents against a canonical just-ratio table within a
+// tight tolerance, and only for tunings that are genuinely just/rational.
+// So we never print a ratio for a tempered/EDO degree and never invent
+// one; EDOs, well-temperaments, maqam and gamelan always return null.
+
+const RATIO_TOLERANCE_CENTS = 1.5;
+
+const JUST_INTONATION_TUNINGS: ReadonlySet<TuningId> = new Set<TuningId>([
+  "just5",
+  "harmonics",
+  "custom:just7" as CustomTuningId,
+  "custom:partch-11" as CustomTuningId,
+  "custom:pythagorean" as CustomTuningId,
+  "custom:mdrone-signature" as CustomTuningId,
+]);
+
+/** Canonical small-integer ratios with their cents. A just-tuning degree
+ *  shows a ratio only when its cents land within RATIO_TOLERANCE_CENTS of
+ *  one of these; the entries are all >3¢ apart, so a match is unambiguous. */
+const JI_RATIOS: ReadonlyArray<{ ratio: string; cents: number }> = (
+  [
+    ["1", "1"], ["256", "243"], ["17", "16"], ["16", "15"], ["11", "10"],
+    ["10", "9"], ["9", "8"], ["7", "6"], ["32", "27"], ["6", "5"],
+    ["5", "4"], ["81", "64"], ["4", "3"], ["11", "8"], ["7", "5"],
+    ["729", "512"], ["3", "2"], ["11", "7"], ["128", "81"], ["8", "5"],
+    ["5", "3"], ["27", "16"], ["7", "4"], ["16", "9"], ["11", "6"],
+    ["15", "8"], ["243", "128"], ["2", "1"],
+  ] as ReadonlyArray<readonly [string, string]>
+).map(([n, d]) => ({ ratio: `${n}/${d}`, cents: 1200 * Math.log2(Number(n) / Number(d)) }));
+
+/** Known just-intonation ratio string for a tuning degree, or null when
+ *  the tuning isn't just, the degree is tempered, or the index is out of
+ *  range. Conservative: never approximates an EDO degree. */
+export function ratioForDegree(tuningId: TuningId, degreeIndex: number): string | null {
+  if (!JUST_INTONATION_TUNINGS.has(tuningId)) return null;
+  const cents = tuningById(tuningId).degrees[degreeIndex];
+  if (cents == null || !Number.isFinite(cents)) return null;
+  let best: { ratio: string; delta: number } | null = null;
+  for (const { ratio, cents: rc } of JI_RATIOS) {
+    const delta = Math.abs(rc - cents);
+    if (delta <= RATIO_TOLERANCE_CENTS && (best === null || delta < best.delta)) {
+      best = { ratio, delta };
+    }
+  }
+  return best?.ratio ?? null;
+}
+
+/** One resolved degree of a tuning+relation, ready for compact display:
+ *  degree label (P1/m3/P5…), cents, and the known ratio (or null). */
+export interface TuningDegreeRow {
+  degreeIndex: number;
+  label: string;
+  cents: number;
+  ratio: string | null;
+}
+
+/** Resolve a tuning+relation to display rows — the same picks as
+ *  resolveTuning(), enriched with degree label + known ratio. */
+export function resolveTuningRows(tuningId: TuningId, relationId: RelationId): TuningDegreeRow[] {
+  const tuning = tuningById(tuningId);
+  const relation = relationById(relationId);
+  return relation.picks.map((idx) => ({
+    degreeIndex: idx,
+    label: DEGREE_LABELS[idx] ?? `°${idx}`,
+    cents: tuning.degrees[idx] ?? 0,
+    ratio: ratioForDegree(tuningId, idx),
+  }));
+}
+
+// ── Suggested voicing ────────────────────────────────────────────────
+
+export interface VoicingPlan {
+  /** Full voiceLayers map: suggested voices on, all others off. */
+  layers: Record<string, boolean>;
+  /** Levels to set — only for the suggested voices (preserving an
+   *  existing audible level, or a sensible default when near-silent).
+   *  Non-suggested voices are left untouched, just switched off. */
+  levels: Record<string, number>;
+}
+
+/** Plan the voice changes for the "apply suggested voicing" button. Pure:
+ *  the caller applies the result as a single recorded (undoable) patch.
+ *  Unknown ids in `suggested` are ignored. */
+export function planSuggestedVoicing(
+  allVoiceIds: readonly string[],
+  suggested: readonly string[],
+  currentLevels: Readonly<Record<string, number>>,
+  opts?: { defaultLevel?: number; minLevel?: number },
+): VoicingPlan {
+  const defaultLevel = opts?.defaultLevel ?? 0.7;
+  const minLevel = opts?.minLevel ?? 0.05;
+  const wanted = new Set(suggested.filter((id) => allVoiceIds.includes(id)));
+  const layers: Record<string, boolean> = {};
+  const levels: Record<string, number> = {};
+  for (const id of allVoiceIds) {
+    const on = wanted.has(id);
+    layers[id] = on;
+    if (on) {
+      const cur = currentLevels[id] ?? 0;
+      levels[id] = cur > minLevel ? cur : defaultLevel;
+    }
+  }
+  return { layers, levels };
+}
+
 export function relationLabels(relationId: RelationId): string[] {
   return relationById(relationId).picks.map((idx) => DEGREE_LABELS[idx] ?? `#${idx}`);
 }

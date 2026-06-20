@@ -2,6 +2,14 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.8 — 2026-06-20
+
+- feat(microtonal): tap any resolved interval in ADVANCED → MICROTONAL to audition that degree — a brief, isolated preview tone through the master bus (no scene/HOLD/share change) via the new `AudioEngine.auditionPitch`
+- feat(microtonal): interval chips now show cents + the just-intonation ratio where known (3/2, 5/4, 7/4…), derived by matching each degree's cents to a canonical ratio table within ~1.5¢ and gated to just-intonation tunings — never invents a ratio for EDO/tempered systems
+- feat(microtonal): explicit APPLY VOICING button for tunings carrying a `suggestedVoicing` — applies the suggested voice mix as a single undoable patch (preserves existing levels, switches others off); picking a tuning alone still never changes voices
+- docs: note the audition / ratio / apply-voicing affordances in HELP, README, and the about page
+- test: `ratioForDegree` (incl. a cents↔ratio consistency guard), `resolveTuningRows`, and `planSuggestedVoicing`
+
 ## 1.28.7 — 2026-06-20
 
 - feat(midi): soft-takeover (pickup) for continuous MIDI CC — a mapped knob/fader only takes over once its hardware value catches (within ~3/127) or crosses the current on-screen value, so a parked controller can't jump the mix on first touch after a scene/preset/random/mutate load

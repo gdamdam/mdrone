@@ -203,6 +203,7 @@ function ReferenceTab() {
       <ul className="help-list">
         <li><strong>Tonic</strong> — the root pitch everything colours.</li>
         <li><strong>MODE</strong> — SCALE stacks a diatonic mode; MICROTONAL swaps the whole tuning system (Pythagorean, Kirnberger III, 31-TET, Yaman, Bayati, Signature, …).</li>
+        <li><strong>Tuning intervals</strong> — in MICROTONAL, each resolved interval chip shows its cents and, for just-intonation tunings, its ratio (3/2, 5/4, 7/4…); tap a chip to audition that degree. When a tuning suggests a voicing, an <strong>APPLY VOICING</strong> button sets that voice mix — picking the tuning alone never changes your voices.</li>
         <li><strong>SHAPE macros</strong> — MOTION (MORPH · EVOLVE · TIME), BODY (DRIFT · AIR · SUB · BLOOM · GLIDE). The ? in the SHAPE header toggles inline hints.</li>
         <li><strong>Voices</strong> — TANPURA · REED · METAL · AIR · PIANO · FM · AMP · NOISE. Each active tile carries a halo gauge for level, an RMS meter strip, and M / S chips. The level slider sits column-anchored under each tile; voice-specific shape params (e.g. NOISE COLOR) live in a dedicated secondary row. Each voice carries a sub-Hz pitch-drift LFO (~±2 cents) so stacks breathe; multiple intervals per layer are spread across the stereo field for true ensemble width.</li>
         <li><strong>Tanpura tuning</strong> — when TANPURA is active: Unison · Sa Pa · Sa Ma · Sa Ni. Rebuilds smoothly over a short crossfade.</li>

@@ -338,6 +338,34 @@ export class AudioEngine {
   getRootFreq(): number { return this.voiceEngine.getRootFreq(); }
   getIntervalsCents(): readonly number[] { return this.voiceEngine.getIntervalsCents(); }
 
+  /** Briefly sound a single pitch `cents` above the current drone root —
+   *  for auditioning a tuning degree in ADVANCED → MICROTONAL. Fully
+   *  transient: a one-shot oscillator through the master bus that does
+   *  NOT touch the voice graph, HOLD, intervals, or scene/share state.
+   *  No-op when the context isn't running (audio not started yet). */
+  auditionPitch(cents: number, durationMs = 450): void {
+    if (this.ctx.state !== "running") return;
+    if (!Number.isFinite(cents)) return;
+    const freq = this.voiceEngine.getRootFreq() * Math.pow(2, cents / 1200);
+    if (!Number.isFinite(freq) || freq <= 0) return;
+    const now = this.ctx.currentTime;
+    const dur = Math.max(0.08, Math.min(2, durationMs / 1000));
+    const osc = this.ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(freq, now);
+    const g = this.ctx.createGain();
+    const peak = 0.16;
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(peak, now + 0.015);   // soft attack
+    g.gain.setValueAtTime(peak, now + dur * 0.6);
+    g.gain.exponentialRampToValueAtTime(0.0006, now + dur);   // gentle decay
+    osc.connect(g);
+    this.masterBus.connectInput(g);
+    osc.start(now);
+    osc.stop(now + dur + 0.05);
+    osc.onended = () => { try { osc.disconnect(); g.disconnect(); } catch { /* noop */ } };
+  }
+
   isPlaying(): boolean { return this.voiceEngine.isPlaying(); }
 
   /** Diagnostic snapshot for iOS suspend/resume debugging.
