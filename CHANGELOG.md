@@ -2,6 +2,11 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.28.9 — 2026-06-20
+
+- fix(microtonal): the "intended but capped" voice cue now refreshes on adaptive-stability cap changes — it subscribed only to LIVE SAFE, so a stage-3 voice-density reduction (or its recovery) could leave the cue stale until an unrelated re-render
+- fix(microtonal): show the capped cue on the actual voice tile (dashed border + struck label + tooltip), not just the active-voices summary; correct the summary title from "Voices currently sounding" to "Voices the scene intends — dimmed = capped by your device"
+
 ## 1.28.8 — 2026-06-20
 
 - feat(microtonal): tap any resolved interval in ADVANCED → MICROTONAL to audition that degree — a brief, isolated preview tone through the master bus (no scene/HOLD/share change) via the new `AudioEngine.auditionPitch`

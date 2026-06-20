@@ -944,7 +944,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // is silencing while the scene still intends them. Shown dimmed so the
   // tile row doesn't claim a capped voice is sounding — mirrors how FX
   // suppressed by audio protection are rendered. Recomputed when the
-  // intended layers change or LIVE SAFE adjusts the cap at runtime.
+  // intended layers change or either subsystem adjusts the cap at runtime.
   const [suppressedVoices, setSuppressedVoices] = useState<ReadonlySet<VoiceType>>(
     () => new Set<VoiceType>(),
   );
@@ -955,7 +955,13 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     }
     const sync = () => setSuppressedVoices(new Set<VoiceType>(engine.getSuppressedVoices()));
     sync();
-    return engine.subscribeLiveSafe(sync);
+    // Two subsystems move the active voice cap: LIVE SAFE clamps it
+    // explicitly, and adaptive stability lowers it under sustained load
+    // (stage-3 voice-density mitigation, then restores on recovery).
+    // Subscribe to both so the cue can't go stale on an adaptive change.
+    const offLiveSafe = engine.subscribeLiveSafe(sync);
+    const offAdaptive = engine.subscribeAdaptiveStability(sync);
+    return () => { offLiveSafe(); offAdaptive(); };
   }, [engine, state.voiceLayers]);
 
   // Tanpura string-tuning picker. Shown in the SHAPE panel only when
@@ -2221,7 +2227,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   );
                 }
                 return (
-                  <div className="timbre-active-flow" title="Voices currently sounding">
+                  <div className="timbre-active-flow" title="Voices the scene intends — dimmed = capped by your device">
                     {activeVoices.map((v, i) => {
                       const capped = suppressedVoices.has(v.id);
                       return (
@@ -2266,6 +2272,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                           const muted = mutedVoices.has(v.id);
                           const soloed = soloVoice === v.id;
                           const soloedOut = soloVoice !== null && soloVoice !== v.id && active;
+                          // Intended by the scene but silenced by the device
+                          // voice-cap (adaptive load and/or LIVE SAFE).
+                          const capped = active && suppressedVoices.has(v.id);
                           const level = active ? Math.round(state.voiceLevels[v.id] * 100) : 0;
                           // Halo reflects the user's *intended* level, not the
                           // engine value — when muted or soloed-out, the bus is
@@ -2294,9 +2303,10 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                                 (active ? " timbre-btn-active" : "") +
                                 (muted ? " timbre-btn-muted" : "") +
                                 (soloed ? " timbre-btn-soloed" : "") +
-                                (soloedOut ? " timbre-btn-soloed-out" : "")
+                                (soloedOut ? " timbre-btn-soloed-out" : "") +
+                                (capped ? " timbre-btn-capped" : "")
                               }
-                              title={v.hint}
+                              title={capped ? `${v.label} — intended, but capped by your device. Your setting is preserved.` : v.hint}
                             >
                               <span className="timbre-btn-icon-wrap">
                                 {active && <LevelHalo level={haloLevel} />}

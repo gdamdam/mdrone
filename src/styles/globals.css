@@ -4173,6 +4173,18 @@ button.intonation-chip:active { transform: translateY(0.5px); }
   text-decoration-thickness: 1px;
 }
 
+/* A voice tile the scene intends but the device voice-cap (adaptive load
+   and/or LIVE SAFE) is currently silencing — "set, but not sounding".
+   Dashed accent border + struck label, distinct from the active glow. */
+.timbre-btn-active.timbre-btn-capped {
+  border-style: dashed;
+  border-color: var(--preview);
+}
+.timbre-btn-active.timbre-btn-capped .timbre-btn-label {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
 .timbre-stack {
   display: flex;
   flex-direction: column;
