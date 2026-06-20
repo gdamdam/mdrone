@@ -57,6 +57,49 @@ export const TANPURA_TUNING_LABELS: Record<TanpuraTuningId, string> = {
 
 export const ALL_VOICE_TYPES: readonly VoiceType[] = ["tanpura", "reed", "metal", "air", "piano", "fm", "amp", "noise"] as const;
 
+/** Small deterministic PRNG — same algorithm as presets.mulberry32 and the
+ *  audit harness. Inlined rather than imported so VoiceBuilder stays free of
+ *  a presets.ts dependency: presets.ts already imports VoiceBuilder, so
+ *  importing back would create a module cycle. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** FNV-1a hash of a voice-type name. Decorrelates per-voice seeds by type
+ *  without the collisions a first-character scheme would hit ("air"/"amp"
+ *  both start with 'a'), so two active layers at the same stack index never
+ *  share an RNG stream. */
+function hashVoiceType(type: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < type.length; i++) {
+    h = Math.imul(h ^ type.charCodeAt(i), 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/** Derive a stable per-voice PRNG seed from the scene's stored seed, the
+ *  voice type, and the stack index — so a shared scene reproduces the same
+ *  per-voice micro-timbre (worklet RNG seed + drift-LFO rate) on every load,
+ *  matching the already-seeded evolve/material walks. Returns undefined when
+ *  sceneSeed is 0 ("no explicit seed", the initial default) so ad-hoc
+ *  playback stays naturally varied via Math.random. */
+export function deriveVoiceSeed(
+  sceneSeed: number,
+  type: VoiceType,
+  index: number,
+): number | undefined {
+  if (!sceneSeed) return undefined;
+  const s = (sceneSeed ^ Math.imul(index + 1, 0x9e3779b1) ^ hashVoiceType(type)) >>> 0;
+  return s === 0 ? 1 : s;
+}
+
 export interface Voice {
   setFreq(hz: number, glideSec: number): void;
   /** 0..1 normalized drift amount — mapped to per-voice depth internally. */
@@ -96,8 +139,17 @@ export function buildVoice(
   fmFeedback = 0,
   tanpuraTuning: TanpuraTuningId = "classic",
   pan: number = 0,
+  seed?: number,
 ): Voice {
   const targetFreq = rootFreq * Math.pow(2, intervalCents / 1200);
+
+  // Per-voice build randomness. With an explicit scene seed (via
+  // deriveVoiceSeed) the worklet RNG seed and the drift-LFO rate are drawn
+  // from a seeded PRNG so a shared scene reproduces the same micro-timbre on
+  // every load; otherwise fall back to Math.random for naturally-varied
+  // ad-hoc playback. The two draws happen in a fixed order (worklet seed
+  // first, drift-LFO rate second) so determinism holds.
+  const rng = seed != null ? mulberry32(seed) : Math.random;
 
   const node = new AudioWorkletNode(ctx, "drone-voice", {
     numberOfInputs: 0,
@@ -105,7 +157,7 @@ export function buildVoice(
     outputChannelCount: [2],
     processorOptions: {
       voiceType: type,
-      seed: Math.floor(Math.random() * 0x7fffffff) + 1,
+      seed: Math.floor(rng() * 0x7fffffff) + 1,
       reedShape,
       fmRatio,
       fmIndex,
@@ -146,7 +198,7 @@ export function buildVoice(
   // this builds the "alive, not frozen" character pro drones depend
   // on. Depth is scaled to the *current* voice frequency in Hz so
   // ±2 cents stays musically constant after glides.
-  const lfoHz = 0.05 + Math.random() * 0.25; // 0.05–0.30 Hz
+  const lfoHz = 0.05 + rng() * 0.25; // 0.05–0.30 Hz
   const pitchLfo = ctx.createOscillator();
   pitchLfo.type = "sine";
   pitchLfo.frequency.value = lfoHz;

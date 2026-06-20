@@ -1,7 +1,7 @@
 import { FxChain } from "./FxChain";
 import type { PresetMaterialProfile } from "./presets";
 import { DEFAULT_PRESET_MATERIAL_PROFILE, mulberry32 } from "./presets";
-import { buildVoice, ALL_VOICE_TYPES, type ReedShape, type TanpuraTuningId, type Voice, type VoiceType } from "./VoiceBuilder";
+import { buildVoice, deriveVoiceSeed, ALL_VOICE_TYPES, type ReedShape, type TanpuraTuningId, type Voice, type VoiceType } from "./VoiceBuilder";
 import { LAYER_FILTER_MAX_HZ, LAYER_FILTER_MIN_HZ, registerLayerFilterWalk } from "./MotionEngine";
 import { readAudioDebugFlags } from "./audioDebug";
 import { trace } from "./audioTrace";
@@ -239,6 +239,11 @@ export class VoiceEngine {
   private materialRng: () => number = Math.random;
   private materialPhaseOffsets: Record<VoiceType, number> =
     VoiceEngine.makeMaterialPhaseOffsets(this.materialRng);
+  /** Scene PRNG seed (0 = none). Set by setMaterialSeed from the scene
+   *  snapshot and threaded into buildVoice via deriveVoiceSeed so per-voice
+   *  build randomness (worklet RNG seed + drift-LFO rate) and the sub-pair
+   *  phase stagger reproduce across loads of a shared scene. */
+  private sceneSeed = 0;
   private materialPluckFactor = 1;
   private materialSubFactor = 1;
 
@@ -303,7 +308,7 @@ export class VoiceEngine {
       for (let i = 0; i < intervals.length; i++) {
         const c = intervals[i];
         const pan = layerVoicePan(i, intervals.length);
-        const voice = buildVoice(type, this.ctx, layerFilter, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan);
+        const voice = buildVoice(type, this.ctx, layerFilter, freq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan, deriveVoiceSeed(this.sceneSeed, type, i));
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
@@ -732,8 +737,11 @@ export class VoiceEngine {
   /** Seed the material-motion RNG from the scene so per-voice phase
    *  offsets + per-tick nudges reproduce across loads of a shared scene.
    *  Decorrelated from the evolve seed (XOR a constant) so the two seeded
-   *  streams don't lock-step. Mirrors AudioEngine.setEvolveSeed. */
+   *  streams don't lock-step. Mirrors AudioEngine.setEvolveSeed. Also
+   *  records the raw scene seed so buildVoice (via deriveVoiceSeed) and the
+   *  sub-pair stagger reproduce per-voice build randomness across loads. */
   setMaterialSeed(seed: number): void {
+    this.sceneSeed = seed >>> 0;
     this.materialRng = mulberry32((seed ^ 0x9e3779b9) >>> 0);
     this.materialPhaseOffsets = VoiceEngine.makeMaterialPhaseOffsets(this.materialRng);
   }
@@ -886,7 +894,7 @@ export class VoiceEngine {
       for (let i = 0; i < intervals.length; i++) {
         const c = intervals[i];
         const pan = layerVoicePan(i, intervals.length);
-        const voice = buildVoice(type, this.ctx, layerFilter, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan);
+        const voice = buildVoice(type, this.ctx, layerFilter, this.droneRootFreq, c, this.drift, now, this.reedShape, this.fmRatio, this.fmIndex, this.fmFeedback, this.tanpuraTuning, pan, deriveVoiceSeed(this.sceneSeed, type, i));
         if (type === "tanpura") voice.setPluckRate(this.effectivePluckRate());
         if (type === "noise") voice.setColor(this.noiseColor);
         voice.setDrift(this.effectiveLayerDrift(type));
@@ -1131,10 +1139,13 @@ export class VoiceEngine {
     // simulate phase randomization by offsetting `b` by 0..1/freq
     // seconds (one full cycle of jitter). At sub frequencies this
     // is a few milliseconds — perceptually instant, sonically
-    // a fresh phase relationship every time.
+    // a fresh phase relationship every time. Seeded from the scene
+    // (decorrelated from the material/evolve streams) so a shared
+    // scene reproduces the same stagger; Math.random when unseeded.
+    const subRng = this.sceneSeed ? mulberry32((this.sceneSeed ^ 0x85ebca6b) >>> 0) : Math.random;
     const period = 1 / Math.max(freq, 1);
-    a.start(startAt + Math.random() * period);
-    b.start(startAt + Math.random() * period);
+    a.start(startAt + subRng() * period);
+    b.start(startAt + subRng() * period);
     return { a, b };
   }
 
