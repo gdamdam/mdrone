@@ -1297,7 +1297,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     // force-rebuild the voice graph since AudioWorklet voices can
     // end up in a zombie state where the context is "running" but
     // no samples reach the speakers. Post-cert finding #1 — see
-    // probeAudioPresence diagnostics in 1.20.23.
+    // the probeAudioPresence diagnostics.
     if (headerHolding && engine.ctx.state !== "running") {
       void engine.resume().then(() => {
         droneViewRef.current?.restartDrone();

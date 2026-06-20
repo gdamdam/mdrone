@@ -228,7 +228,7 @@ The voice worklet's `sanitizeState()` clamps non-finite feedback state to 0 once
 
 If you want to dig past the overview:
 
-- **Parameter reference** — `docs/parameters.md` is auto-generated; regenerate via `npm run docs:params`.
+- **Parameter reference** — run `npm run docs:params` to generate `docs/parameters.md` locally (gitignored, not committed).
 - **Source layout** — `src/components/` (React UI), `src/engine/` (audio engine, voices, FX, worklets, presets, MIDI), `src/scene/` (scene model, share/snapshot codec), `src/microtuning.ts` (tuning tables + custom registry), `scripts/` (worklet bundle, doc + version generators), `tests/` (node:test suites).
 - **Local dev** — standard Vite app: `npm run dev` for the dev server, `npm run build` for a production bundle, `npm run test` / `npm run test:unit` / `npm run test:e2e` for the three test suites. Optional local checks: `npm run test:e2e:all` (cross-browser), `npm run test:e2e:long` (long-hold audio burn-in), `npm run audit:presets` (offline LUFS / peak / band-energy per preset), `npm run audit:certify` (merge offline audit + runtime cert into one Markdown report).
 - **Debug mode** — dev console tools are gated. Enable by appending `?debug` to the URL or running `localStorage.setItem("mdrone-debug", "1")` then reloading. While debug mode is on, `__engine`, `__measureAllPresets`, `__auditArrival`, and `__presetCert` are exposed on `window`. `__mdroneAudioReport` remains available outside debug mode.
