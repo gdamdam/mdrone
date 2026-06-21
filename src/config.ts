@@ -31,8 +31,14 @@ export const STORAGE_KEYS = {
    *  client keeps retrying until connected. Auto-detect still runs
    *  at startup regardless. */
   linkEnabled: "mdrone-link-enabled",
-  /** LFO rate sync mode. "free" | "1/1" | "1/2" | "1/4" | "1/8" | "1/16". */
+  /** LFO rate sync mode. "free" | bar multiples ("8/1".."2/1") |
+   *  "1/1".."1/16". */
   lfoSyncMode: "mdrone-lfo-sync-mode",
+  /** Grid-quantize changes to the Link grid. "off" | "beat" | "bar" |
+   *  "2bar". Opt-in; default off keeps the immediate behaviour. Only the
+   *  performance-grid changes (root/chord/preset/sync-mode + drone start)
+   *  are deferred to the boundary; emergency controls never are. */
+  quantizeGrid: "mdrone-quantize-grid",
   /** Low-power mode opt-in. When true: MEDITATE clamps to 15 fps,
    *  the LUFS meter publishes at ~5 Hz instead of ~30 Hz, and the
    *  master-bus duck on preset change is skipped. Off by default. */

@@ -80,6 +80,10 @@ export class MotionEngine {
 
   private lfo: OscillatorNode | null = null;
   private userLfo: OscillatorNode | null = null;
+  /** Per-oscillator gain between the active user LFO and userLfoDepth, so
+   *  a re-anchored oscillator can be crossfaded in without a phase-jump
+   *  click (userLfoDepth itself is the user *amount* control). */
+  private userLfoOscGain: GainNode | null = null;
   /** ENTRAIN AM path — a second amplitude modulator that sums into
    *  droneVoiceGain.gain alongside the breathing LFO. Frequency is
    *  integer-locked to the breathing LFO (k = round(rate / breath))
@@ -164,10 +168,14 @@ export class MotionEngine {
     this.lfo.connect(this.lfoDepth);
     this.lfo.start();
 
+    this.userLfoOscGain = this.ctx.createGain();
+    this.userLfoOscGain.gain.value = 1;
+    this.userLfoOscGain.connect(this.userLfoDepth);
+
     this.userLfo = this.ctx.createOscillator();
     this.userLfo.type = this.userLfoShape;
     this.userLfo.frequency.value = this.userLfoRate;
-    this.userLfo.connect(this.userLfoDepth);
+    this.userLfo.connect(this.userLfoOscGain);
     this.userLfo.start();
 
     // ENTRAIN AM — parallel oscillator whose output sums into the
@@ -420,6 +428,45 @@ export class MotionEngine {
   }
 
   getLfoRate(): number { return this.userLfoRate; }
+
+  /** Re-anchor the user LFO so its waveform peak lands on the Link grid
+   *  downbeat. The phase of an OscillatorNode can't be set, so we spin up
+   *  a fresh oscillator scheduled to `startTime` (computed by the caller
+   *  via linkClock.nextPeakAnchor) and crossfade the old one out over a
+   *  short window — the new oscillator begins at a zero-crossing, so the
+   *  fade is click-free. Rare event (sync engage / tempo settle), so the
+   *  node churn is negligible. No-op until the LFO graph exists. */
+  reanchorUserLfo(startTime: number): void {
+    if (!this.userLfo || !this.userLfoOscGain) return;
+    const now = this.ctx.currentTime;
+    const t = Math.max(now + 0.005, startTime);
+    const FADE = 0.04;
+
+    const osc = this.ctx.createOscillator();
+    osc.type = this.userLfoShape;
+    // Match the current rate exactly (no ramp) — phase-lock relies on the
+    // frequency equalling the grid rate from the anchor instant.
+    osc.frequency.value = this.userLfoRate;
+    const g = this.ctx.createGain();
+    g.gain.value = 0;
+    osc.connect(g);
+    g.connect(this.userLfoDepth);
+    osc.start(t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(1, t + FADE);
+
+    const oldOsc = this.userLfo;
+    const oldGain = this.userLfoOscGain;
+    oldGain.gain.setValueAtTime(oldGain.gain.value, t);
+    oldGain.gain.linearRampToValueAtTime(0, t + FADE);
+    oldOsc.stop(t + FADE + 0.02);
+    oldOsc.onended = () => {
+      try { oldOsc.disconnect(); oldGain.disconnect(); } catch { /* already gone */ }
+    };
+
+    this.userLfo = osc;
+    this.userLfoOscGain = g;
+  }
 
   /** Push the full ENTRAIN state in one call. Keeps the engine-side
    *  policy (when to modulate, how to quantize the rate) in one

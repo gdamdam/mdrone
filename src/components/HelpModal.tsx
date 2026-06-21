@@ -212,7 +212,7 @@ function ReferenceTab() {
       <div className="fx-modal-divider" />
       <div className="fx-modal-section-label">MOTION</div>
       <ul className="help-list">
-        <li><strong>LFO</strong> (ADVANCED) — breathing volume swell. Pick a waveform, set RATE, DEPTH. SYNC chip locks to Ableton Link tempo; ÷N chip locks rate to tonic Hz.</li>
+        <li><strong>LFO</strong> (ADVANCED) — breathing volume swell. Pick a waveform, set RATE, DEPTH. SYNC chip locks the rate to Ableton Link tempo (8/1–1/16; when connected the swell phase-locks to the downbeat); ÷N chip locks rate to tonic Hz.</li>
         <li><strong>LFO 2 · FLICKER</strong> — second modulator from 0.5 Hz (swell) to 45 Hz (gamma buzz). AM / DICHOTIC / BOTH modes. Integer-locked to LFO 1 for constant relative phase.</li>
         <li><strong>WEATHER</strong> pad — X = DARK ↔ BRIGHT, Y = STILL ↔ MOVING. Three visual styles (Waveform · Flow Field · Minimal) in Settings → APPEARANCE.</li>
         <li><strong>JOURNEY</strong> — authored multi-phase arc (arrival → bloom → suspension → dissolve). Deterministic from share URL.</li>
@@ -258,7 +258,7 @@ function ReferenceTab() {
       <div className="fx-modal-section-label">CONTROL</div>
       <ul className="help-list">
         <li><strong>MIDI</strong> — header <kbd>MIDI ▾</kbd> dropdown: toggle <em>MIDI INPUT</em>, toggle <em>LEARN MODE</em>, or open <em>MAPPING</em>. In learn mode every mappable control glows — click one then move a CC. Multiple CCs can drive the same target; the × on each chip removes one. The mapping modal owns the table, named templates, and JSON import / export. ~52 targets across Macros / Weather / Mixer / Voices / Effects / Triggers / Presets. Defaults: CC1 WEATHER Y, CC2 WEATHER X, CC64 HOLD, CC71-76 macros. Note-on → tonic / octave.</li>
-        <li><strong>Ableton Link</strong> — sync the LFO RATE to Link tempo. Needs the{" "}
+        <li><strong>Ableton Link</strong> — sync the LFO RATE to Link tempo (incl. bar-multiple modes 8/1–2/1 for multi-bar breaths). When synced + connected the breath <em>phase-locks</em> so its peak lands on the downbeat (tight on slow modes, looser on 1/8–1/16). Optionally <em>Quantize changes to Link grid</em> (Settings → tempo; off by default) defers root / chord / preset / sync-mode changes and the drone's start to the next 1-beat / 1-bar / 2-bar boundary — changes only, not transport. Needs the{" "}
           <a href="https://github.com/gdamdam/mpump/releases" target="_blank" rel="noopener noreferrer">
             mpump bridge
           </a>{" "}(tiny local helper).
@@ -367,7 +367,8 @@ function ConceptsTab() {
         A networked clock that keeps DAWs and apps on the same local network in
         tempo sync. mdrone uses it (via the mpump bridge) to lock the LFO rate
         to a Live / Logic / Bitwig session so the drone breathes in time with
-        whatever else is playing.{" "}
+        whatever else is playing — phase-locked to the downbeat, with optional
+        grid-quantizing of root / chord / preset changes.{" "}
         <W slug="Ableton_Link">Wikipedia · Ableton Link</W>
       </p>
 

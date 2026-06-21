@@ -64,6 +64,14 @@ import { sampleGoodDrone } from "../goodDrone";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
 import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from "../engine/linkBridge";
 import {
+  lfoSyncedHz,
+  makeLinkClockSnapshot,
+  nextPeakAnchor,
+  quantizeDelaySec,
+  type LinkClockSnapshot,
+  type QuantizeGrid,
+} from "../engine/linkClock";
+import {
   isFlowDone,
   onExpandAdvancedRequested,
   onExpandEditRequested,
@@ -72,9 +80,12 @@ import {
 
 /** LFO sync modes. "free" runs the user's manual rate; every other
  *  option locks the LFO period to a note-value at the current Link
- *  tempo, so the drone's breathing aligns with the host DAW's grid. */
-type LfoSyncMode = "free" | "1/1" | "1/2" | "1/4" | "1/8" | "1/16";
-const LFO_SYNC_MODES: readonly LfoSyncMode[] = ["free", "1/1", "1/2", "1/4", "1/8", "1/16"];
+ *  tempo, so the drone's breathing aligns with the host DAW's grid.
+ *  Bar multiples (8/1..2/1) give breath cycles spanning several bars;
+ *  they sit before 1/1 so the cycle runs slowest → fastest. The
+ *  rate math (lfoSyncedHz) lives in linkClock for unit testing. */
+type LfoSyncMode = "free" | "8/1" | "4/1" | "2/1" | "1/1" | "1/2" | "1/4" | "1/8" | "1/16";
+const LFO_SYNC_MODES: readonly LfoSyncMode[] = ["free", "8/1", "4/1", "2/1", "1/1", "1/2", "1/4", "1/8", "1/16"];
 
 function loadLfoSyncMode(): LfoSyncMode {
   try {
@@ -84,15 +95,6 @@ function loadLfoSyncMode(): LfoSyncMode {
     if ((LFO_SYNC_MODES as readonly string[]).includes(raw)) return raw as LfoSyncMode;
   } catch { /* noop */ }
   return "free";
-}
-
-/** One LFO cycle per 1/n note at the given BPM.
- *  duration(1/n) = 60/BPM × (4/n) seconds → freq = BPM × n / 240 Hz. */
-function lfoSyncedHz(mode: LfoSyncMode, bpm: number): number {
-  if (mode === "free") return 0;
-  const n = Number(mode.split("/")[1]);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return (bpm * n) / 240;
 }
 
 /** Voice timbre list — each entry has an id, label, hint, and inline SVG.
@@ -335,6 +337,10 @@ const VOICES: VoiceDef[] = [
 
 interface DroneViewProps {
   engine: AudioEngine | null;
+  /** Quantize performance-grid changes (root/chord/preset/sync-mode) to
+   *  the Link grid. "off" keeps the immediate behaviour. Owned by Layout,
+   *  set from the Settings → tempo tab. */
+  quantizeGrid?: QuantizeGrid | "off";
   onTransportChange?: (playing: boolean) => void;
   onTonicChange?: (root: PitchClass, octave: number) => void;
   onPresetChange?: (presetId: string | null, presetName: string | null) => void;
@@ -453,7 +459,7 @@ export interface DroneViewHandle {
  * Tap the tonic pitch to start/retune; tap again to stop.
  */
 export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function DroneView(
-  { engine, onTransportChange, onTonicChange, onPresetChange, onMutateScene, showEvolveIndicator = false, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, kbdPlayMode = false, onToggleKbdPlay, warming = false, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
+  { engine, quantizeGrid = "off", onTransportChange, onTonicChange, onPresetChange, onMutateScene, showEvolveIndicator = false, onTuneOffsetChange, onParamRecord, isRecordingMotion, onToggleMotionRecord, motionRecEnabled, weatherVisual, kbdActive, onToggleKbd, kbdPlayMode = false, onToggleKbdPlay, warming = false, mutateIntensity: mutateIntensityProp, meditateVisualizer, onOpenMeditate, onChangeMeditateVisualizer, meditatePreviewPaused, visualPreviewOn }: DroneViewProps,
   ref,
 ) {
   const {
@@ -866,12 +872,30 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // reloads.
   const [lfoSyncMode, setLfoSyncMode] = useState<LfoSyncMode>(() => loadLfoSyncMode());
   const [linkState, setLinkState] = useState<LinkState>(() => getLinkState());
+  // Refs read by the (stable) phase-lock / quantize callbacks so they
+  // see the latest engine, snapshot, mode, and grid without re-binding.
+  const engineRef = useRef(engine);
+  useEffect(() => { engineRef.current = engine; }, [engine]);
+  const lfoSyncModeRef = useRef(lfoSyncMode);
+  useEffect(() => { lfoSyncModeRef.current = lfoSyncMode; }, [lfoSyncMode]);
+  const quantizeGridRef = useRef<QuantizeGrid | "off">(quantizeGrid);
+  useEffect(() => { quantizeGridRef.current = quantizeGrid; }, [quantizeGrid]);
+  // Latest Link timing snapshot, stamped against the audio clock at
+  // message arrival. Null whenever Link is disconnected → phase-lock and
+  // quantize fall back to their immediate behaviour.
+  const snapshotRef = useRef<LinkClockSnapshot | null>(null);
   useEffect(() => {
     // Silent auto-detect on mount — if the bridge isn't running,
     // nothing happens. Explicit enable (with retries) is driven
     // from Settings via enableLinkBridge().
     autoDetectLinkBridge();
-    const unsub = onLinkState((s) => setLinkState(s));
+    const unsub = onLinkState((s) => {
+      setLinkState(s);
+      const eng = engineRef.current;
+      snapshotRef.current = eng && s.connected
+        ? makeLinkClockSnapshot(s, eng.now())
+        : null;
+    });
     return unsub;
   }, []);
   useEffect(() => {
@@ -887,9 +911,57 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setLfoRate(hz);
   }, [lfoSyncMode, linkState.tempo, setLfoRate]);
   const lfoSyncActive = lfoSyncMode !== "free";
-  const cycleLfoSyncMode = useCallback(() => {
-    setLfoSyncMode((cur) => LFO_SYNC_MODES[(LFO_SYNC_MODES.indexOf(cur) + 1) % LFO_SYNC_MODES.length]);
+
+  // ── Phase-lock: peak-on-downbeat ─────────────────────────────────
+  // Re-anchor the breathing LFO so its peak lands on the next viable
+  // downbeat. An OscillatorNode's phase can't be set, so the engine
+  // crossfades in a fresh oscillator started at the computed time. Phase
+  // only needs (re)setting on discrete events because at constant tempo
+  // the offset is fixed; we trigger on sync engage/mode change and after
+  // a tempo change settles. Stable (reads refs) so the trigger effects
+  // don't re-bind. No-op while free or disconnected (snapshot null).
+  const reanchorLfoToGrid = useCallback(() => {
+    const eng = engineRef.current;
+    const snap = snapshotRef.current;
+    const mode = lfoSyncModeRef.current;
+    if (!eng || !snap || mode === "free") return;
+    const hz = Math.max(0.05, Math.min(8, lfoSyncedHz(mode, snap.bpm)));
+    const { startTime } = nextPeakAnchor(snap, hz, eng.now());
+    eng.reanchorLfo(startTime);
   }, []);
+  // Engage / mode change → re-anchor immediately. `engine` is a dep so a
+  // sync mode that was already active when the audio engine boots (or
+  // Link connects) still anchors once the engine exists.
+  useEffect(() => {
+    if (lfoSyncMode === "free" || !linkState.connected || !engine) return;
+    reanchorLfoToGrid();
+  }, [lfoSyncMode, linkState.connected, engine, reanchorLfoToGrid]);
+  // Tempo change → re-anchor after tempo is stable ~400 ms. A newer tempo
+  // (or unmount) cancels the pending re-anchor via cleanup, so superseded
+  // anchors never fire. Guards inside cover free/disconnected.
+  useEffect(() => {
+    const id = window.setTimeout(reanchorLfoToGrid, 400);
+    return () => window.clearTimeout(id);
+  }, [linkState.tempo, reanchorLfoToGrid]);
+
+  // ── Grid-quantize (opt-in) ───────────────────────────────────────
+  // Defer a performance-grid change to the next Link boundary when
+  // quantize is on AND Link is connected; otherwise run it now (also the
+  // fallback if Link drops). If the user changes the same target twice
+  // before the boundary, both fire in order and the latest wins.
+  const quantizeApply = useCallback((fn: () => void) => {
+    const eng = engineRef.current;
+    const snap = snapshotRef.current;
+    const delay = eng
+      ? quantizeDelaySec(snap, quantizeGridRef.current, snap != null, eng.now())
+      : 0;
+    if (delay <= 0) { fn(); return; }
+    window.setTimeout(fn, delay * 1000);
+  }, []);
+
+  const cycleLfoSyncMode = useCallback(() => {
+    quantizeApply(() => setLfoSyncMode((cur) => LFO_SYNC_MODES[(LFO_SYNC_MODES.indexOf(cur) + 1) % LFO_SYNC_MODES.length]));
+  }, [quantizeApply]);
   // User-customised effect chain order, persisted in localStorage.
   // Hydrated from storage on mount; any invalid / missing value falls
   // back to the canonical EFFECT_ORDER. Every change is pushed to the
@@ -1143,14 +1215,17 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       : `${Math.round(morphSeconds / 60)}m`;
   const onPresetClick = useCallback((presetId: string, group: PresetGroup) => {
     // Presets are loads too: reset mute/solo so the preset sounds as
-    // authored instead of inheriting stale mute flags/stash.
+    // authored instead of inheriting stale mute flags/stash. The whole
+    // load (incl. any morph) is quantized to the Link grid when enabled.
     const run = () => { clearMuteSoloForLoad(); handlePreset(presetId); setTabOverride({ group, presetId }); };
-    if (morphSeconds > 0 && engine) {
-      engine.morphRun(run, morphSeconds);
-    } else {
-      run();
-    }
-  }, [engine, handlePreset, morphSeconds, clearMuteSoloForLoad]);
+    quantizeApply(() => {
+      if (morphSeconds > 0 && engine) {
+        engine.morphRun(run, morphSeconds);
+      } else {
+        run();
+      }
+    });
+  }, [engine, handlePreset, morphSeconds, clearMuteSoloForLoad, quantizeApply]);
   const presetTab =
     tabOverride && tabOverride.presetId === state.activePresetId
       ? tabOverride.group
@@ -1255,9 +1330,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // Those still use the raw `setRoot` so loading a scene with a
   // different root never accidentally advances ARRIVE.
   const setRootFromUser = useCallback<typeof setRoot>((pc) => {
-    setRoot(pc);
+    // Quantize the pitch change to the Link grid (also the implicit drone
+    // start — the drone is on whenever a root is set). The tutorial
+    // advance fires immediately, not on the boundary.
+    quantizeApply(() => setRoot(pc));
     advanceArrive("tonic");
-  }, [setRoot, advanceArrive]);
+  }, [setRoot, advanceArrive, quantizeApply]);
 
   // Wrap getSnapshot/applySnapshot so tanpuraTuning — which lives in
   // DroneView state rather than the scene reducer — round-trips
@@ -2513,7 +2591,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
                   {SCALES.map((s) => (
                     <button
                       key={s.id}
-                      onClick={() => setScale(s.id)}
+                      onClick={() => quantizeApply(() => setScale(s.id))}
                       className={s.id === state.scale ? "scale-btn scale-btn-active" : "scale-btn"}
                       title={`Modal set: ${s.label} — biases the harmonic voices that fit the tonic`}
                     >

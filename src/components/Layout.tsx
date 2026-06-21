@@ -6,6 +6,7 @@ import type { EffectId } from "../engine/FxChain";
 import type { AudioEngine } from "../engine/AudioEngine";
 import type { PitchClass, ViewMode } from "../types";
 import { APP_VERSION, STORAGE_KEYS, type WeatherVisual } from "../config";
+import type { QuantizeGrid } from "../engine/linkClock";
 import { PLAY_KEY_TO_DEGREE } from "../microtuning";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
@@ -946,6 +947,21 @@ export function Layout({ engine, startupMode }: LayoutProps) {
     catch { /* noop */ }
   }, []);
 
+  // Grid-quantize changes to the Link grid (opt-in, default off). Owned
+  // here because the toggle lives in Header (tempo tab) but the wrapped
+  // handlers live in DroneView — both are siblings of Layout.
+  const [quantizeGrid, setQuantizeGridState] = useState<QuantizeGrid | "off">(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.quantizeGrid);
+      return raw === "beat" || raw === "bar" || raw === "2bar" ? raw : "off";
+    } catch { return "off"; }
+  });
+  const setQuantizeGrid = useCallback((g: QuantizeGrid | "off") => {
+    setQuantizeGridState(g);
+    try { localStorage.setItem(STORAGE_KEYS.quantizeGrid, g); }
+    catch { /* noop */ }
+  }, []);
+
   // LIVE SAFE — explicit user-facing stability mode. Persisted; pushed
   // to the engine on hydrate and on every toggle. The engine controller
   // is idempotent so re-pushing the same value is a no-op.
@@ -1482,6 +1498,8 @@ export function Layout({ engine, startupMode }: LayoutProps) {
       <Header
         viewMode={viewMode}
         setViewMode={setViewMode}
+        quantizeGrid={quantizeGrid}
+        onQuantizeGridChange={setQuantizeGrid}
         sessions={sceneManager.savedSessions}
         currentSessionId={sceneManager.currentSessionId}
         currentSessionName={sceneManager.currentSessionName}
@@ -1617,6 +1635,7 @@ export function Layout({ engine, startupMode }: LayoutProps) {
           <DroneView
             ref={droneViewRef}
             engine={engine}
+            quantizeGrid={quantizeGrid}
             onTransportChange={setHeaderHolding}
             onTonicChange={(root, octave) => {
               setHeaderTonic(root);

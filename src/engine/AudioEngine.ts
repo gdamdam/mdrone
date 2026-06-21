@@ -747,6 +747,18 @@ export class AudioEngine {
 
   getLfoRate(): number { return this.motionEngine.getLfoRate(); }
 
+  /** AudioContext clock — used by the Link phase-lock / quantize glue to
+   *  stamp snapshots and schedule against the same timeline the LFO runs
+   *  on. */
+  now(): number { return this.ctx.currentTime; }
+
+  /** Re-anchor the breathing LFO so its peak lands on the Link grid
+   *  downbeat at `startTime` (an AudioContext time from
+   *  linkClock.nextPeakAnchor). See MotionEngine.reanchorUserLfo. */
+  reanchorLfo(startTime: number): void {
+    this.motionEngine.reanchorUserLfo(startTime);
+  }
+
   setLfoAmount(amt: number): void {
     this.motionEngine.setLfoAmount(amt);
   }

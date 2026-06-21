@@ -15,6 +15,7 @@ import {
 import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } from "../themes";
 import { loadLabelMode, saveLabelMode, applyLabelMode, type LabelMode } from "../labelMode";
 import { enableLinkBridge, onLinkState, getLinkState, type LinkState } from "../engine/linkBridge";
+import type { QuantizeGrid } from "../engine/linkClock";
 import type { AudioLoadMonitor } from "../engine/AudioLoadMonitor";
 import { CpuWarning } from "./CpuWarning";
 import { hasAudioDebugFlag } from "../engine/audioDebug";
@@ -37,6 +38,9 @@ const LOGO = "█▀▄▀█ █▀▄ █▀█ █▀█ █▄ █ █▀▀
 interface HeaderProps {
   viewMode: ViewMode;
   setViewMode: (m: ViewMode) => void;
+  /** Grid-quantize setting (Link). "off" keeps immediate behaviour. */
+  quantizeGrid: QuantizeGrid | "off";
+  onQuantizeGridChange: (g: QuantizeGrid | "off") => void;
   sessions: SavedSession[];
   currentSessionId: string | null;
   currentSessionName: string;
@@ -163,6 +167,8 @@ interface HeaderProps {
 export function Header({
   viewMode,
   setViewMode,
+  quantizeGrid,
+  onQuantizeGridChange,
   sessions,
   currentSessionId,
   currentSessionName,
@@ -1313,6 +1319,31 @@ export function Header({
                       ? "Searching for Link Bridge…"
                       : "Bridge not connected"}
                 </span>
+              </div>
+
+              <div className="fx-modal-section-label">QUANTIZE CHANGES TO LINK GRID</div>
+              <p className="fx-modal-desc">
+                Defer root, chord, preset, and sync-mode changes (and the
+                drone's start) to the next grid boundary, so they land in
+                time with the other instruments. This quantizes changes
+                only — it is not full transport sync. Off keeps changes
+                immediate. Falls back to immediate when Link is offline.
+              </p>
+              <div className="fx-modal-actions">
+                {([["off", "OFF"], ["beat", "1 BEAT"], ["bar", "1 BAR"], ["2bar", "2 BARS"]] as const).map(
+                  ([value, label]) => (
+                    <button
+                      key={value}
+                      className={quantizeGrid === value ? "header-btn header-btn-midi-on" : "header-btn"}
+                      onClick={() => onQuantizeGridChange(value)}
+                      title={value === "off"
+                        ? "Apply changes immediately (default)"
+                        : `Quantize changes to the next ${label.toLowerCase()} of the Link grid`}
+                    >
+                      {label}
+                    </button>
+                  ),
+                )}
               </div>
 
               </>)}
