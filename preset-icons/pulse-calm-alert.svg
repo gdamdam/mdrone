@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Gentle multi-cycle sine above a steady pulse-tick line.
+       Alpha / relaxed-wakeful: regular, clean, not fast. -->
+  <path d="M2 11 Q4 6 6 11 T10 11 T14 11 T18 11 T22 11 T26 11 T30 11"/>
+  <!-- Pulse ticks along a lower baseline — like a metronome at rest -->
+  <path d="M2 23 L30 23" stroke-width="0.8" opacity="0.35"/>
+  <circle cx="6"  cy="23" r="1.2" fill="#000" stroke="none"/>
+  <circle cx="14" cy="23" r="1.2" fill="#000" stroke="none"/>
+  <circle cx="22" cy="23" r="1.2" fill="#000" stroke="none"/>
+  <circle cx="30" cy="23" r="1.2" fill="#000" stroke="none"/>
+</svg>
