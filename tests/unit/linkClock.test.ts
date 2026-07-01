@@ -14,6 +14,9 @@ import {
   nextPeakAnchor,
   lfoSyncedHz,
   quantizeDelaySec,
+  followTransportDecision,
+  shouldSendPlaying,
+  holdStartDelaySec,
   type LinkClockSnapshot,
 } from "../../src/engine/linkClock";
 import type { LinkState } from "../../src/engine/linkBridge";
@@ -99,3 +102,67 @@ describe("quantizeDelaySec", () => {
     expect(quantizeDelaySec(s, "beat", true, 10)).toBeCloseTo(0.5, 6);
   });
 });
+
+describe("followTransportDecision (remote transport)", () => {
+  it("connect/stay stopped → none (never auto-starts)", () => {
+    expect(followTransportDecision(false, false)).toBe("none");
+  });
+  it("stopped → playing → start (join / remote start)", () => {
+    expect(followTransportDecision(false, true)).toBe("start");
+  });
+  it("playing → stopped → stop (remote stop)", () => {
+    expect(followTransportDecision(true, false)).toBe("stop");
+  });
+  it("already playing → none, so a stream of 20Hz updates never re-toggles", () => {
+    expect(followTransportDecision(true, true)).toBe("none");
+  });
+});
+
+describe("shouldSendPlaying (echo guard)", () => {
+  it("sends a genuine local change while connected", () => {
+    expect(shouldSendPlaying(true, false, true)).toBe(true);   // local Play, session stopped
+    expect(shouldSendPlaying(false, true, true)).toBe(true);   // local Stop, session playing
+  });
+  it("sends nothing when our intent already matches the session", () => {
+    expect(shouldSendPlaying(true, true, true)).toBe(false);   // local Play while already playing
+    expect(shouldSendPlaying(false, false, true)).toBe(false);
+  });
+  it("never sends while disconnected", () => {
+    expect(shouldSendPlaying(true, false, false)).toBe(false);
+    expect(shouldSendPlaying(false, true, false)).toBe(false);
+  });
+});
+
+describe("holdStartDelaySec (boundary-aligned HOLD start)", () => {
+  it("falls back to the bar grid when quantize is off (next safe shared bar)", () => {
+    // unlike quantizeDelaySec, 'off' does NOT mean immediate for a start
+    expect(holdStartDelaySec(s, "off", true, 10)).toBeCloseTo(1.5, 6);
+    expect(quantizeDelaySec(s, "off", true, 10)).toBe(0);
+  });
+  it("honours an explicit selected grid", () => {
+    expect(holdStartDelaySec(s, "bar", true, 10)).toBeCloseTo(1.5, 6);
+    expect(holdStartDelaySec(s, "beat", true, 10)).toBeCloseTo(0.5, 6);
+    expect(holdStartDelaySec(s, "2bar", true, 10)).toBeCloseTo(3.5, 6);
+  });
+  it("is immediate (0) when disconnected or without a snapshot — offline HOLD unchanged", () => {
+    expect(holdStartDelaySec(s, "bar", false, 10)).toBe(0);
+    expect(holdStartDelaySec(null, "bar", true, 10)).toBe(0);
+  });
+  it("jumps forward to the next single boundary — never a backlog of missed bars", () => {
+    // now is ~2.25 bars past the snapshot; result is the ONE next bar,
+    // strictly < one barSec, i.e. no catch-up burst of skipped boundaries.
+    const d = holdStartDelaySec(s, "bar", true, 16);
+    expect(d).toBeCloseTo(1.5, 6);         // boundaries 11.5/13.5/15.5/17.5 → 17.5
+    expect(d).toBeLessThan(barSecOf(s));
+  });
+  it("keeps fractional Link tempo exact for the shared-bar math", () => {
+    const frac: LinkClockSnapshot = { bpm: 128.5, beat: 0, phase: 0, quantum: 4, tAtMsg: 0 };
+    const bar = barSecOf(frac);
+    // phase 0 at tAtMsg 0 → next downbeat exactly one bar ahead
+    expect(holdStartDelaySec(frac, "bar", true, 0)).toBeCloseTo(bar, 9);
+  });
+});
+
+function barSecOf(snap: LinkClockSnapshot): number {
+  return snap.quantum * (60 / snap.bpm);
+}

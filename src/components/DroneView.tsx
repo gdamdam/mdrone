@@ -62,12 +62,15 @@ import { PITCH_CLASSES, SCALES } from "../scene/droneSceneModel";
 import { relationLabels, relationForTuningPick, resolveTuning, resolveTuningRows, planSuggestedVoicing, TUNINGS, RELATIONS, DEGREE_LABELS } from "../microtuning";
 import { sampleGoodDrone } from "../goodDrone";
 import { useDroneScene, type DroneLivePatch } from "../scene/useDroneScene";
-import { autoDetectLinkBridge, getLinkState, onLinkState, type LinkState } from "../engine/linkBridge";
+import { autoDetectLinkBridge, getLinkState, onLinkState, sendLinkPlaying, type LinkState } from "../engine/linkBridge";
 import {
+  followTransportDecision,
+  holdStartDelaySec,
   lfoSyncedHz,
   makeLinkClockSnapshot,
   nextPeakAnchor,
   quantizeDelaySec,
+  shouldSendPlaying,
   type LinkClockSnapshot,
   type QuantizeGrid,
 } from "../engine/linkClock";
@@ -884,6 +887,83 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
   // message arrival. Null whenever Link is disconnected → phase-lock and
   // quantize fall back to their immediate behaviour.
   const snapshotRef = useRef<LinkClockSnapshot | null>(null);
+
+  // ── Transport (HOLD) ↔ Link ──────────────────────────────────────
+  // HOLD is mdrone's transport. When Link is connected, a start (local
+  // or peer-driven) lands on the next shared boundary instead of firing
+  // immediately, and we follow the session's play/stop. Refs mirror the
+  // reactive bits so the (mount-once) Link subscription and the stable
+  // toggle callbacks see the latest values without re-binding.
+  const playingRef = useRef(state.playing);
+  useEffect(() => { playingRef.current = state.playing; }, [state.playing]);
+  const togglePlayRef = useRef(togglePlay);
+  useEffect(() => { togglePlayRef.current = togglePlay; }, [togglePlay]);
+  const linkStateRef = useRef(linkState);
+  useEffect(() => { linkStateRef.current = linkState; }, [linkState]);
+  // Pending boundary-aligned HOLD start (armed but not yet sounding).
+  const holdTimerRef = useRef<number | null>(null);
+  // Last play flag we acted on — the echo guard. Edge-detected so a
+  // stream of identical 20 Hz updates never re-toggles the transport,
+  // and our own set_playing coming back as a broadcast is absorbed.
+  const lastLinkPlayingRef = useRef<boolean>(getLinkState().playing);
+
+  const clearHoldTimer = useCallback(() => {
+    if (holdTimerRef.current != null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }, []);
+  const isEngagedOrArmed = useCallback(
+    () => playingRef.current || holdTimerRef.current != null,
+    [],
+  );
+  // Start the drone on the next shared boundary; immediately when Link is
+  // offline (no snapshot) so disconnected HOLD behaves exactly as before.
+  const engageHoldAtBoundary = useCallback(() => {
+    clearHoldTimer();
+    if (playingRef.current) return;
+    const eng = engineRef.current;
+    const snap = snapshotRef.current;
+    const delay = eng ? holdStartDelaySec(snap, quantizeGridRef.current, snap != null, eng.now()) : 0;
+    if (delay <= 0) { togglePlayRef.current(); return; }
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      if (!playingRef.current) togglePlayRef.current();
+    }, delay * 1000);
+  }, [clearHoldTimer]);
+  // Stop now and cancel any pending arm. engine.stopDrone (inside
+  // togglePlay) releases the voices — the drone's equivalent of a flush.
+  const stopHoldNow = useCallback(() => {
+    clearHoldTimer();
+    if (playingRef.current) togglePlayRef.current();
+  }, [clearHoldTimer]);
+  // Local HOLD press: mirror intent to the session (once, only on a real
+  // change so joining a playing session sends nothing), then start on the
+  // shared boundary / stop immediately.
+  const handleHoldToggle = useCallback(() => {
+    const { playing: linkPlaying, connected } = linkStateRef.current;
+    if (isEngagedOrArmed()) {
+      if (shouldSendPlaying(false, linkPlaying, connected)) sendLinkPlaying(false);
+      stopHoldNow();
+    } else {
+      if (shouldSendPlaying(true, linkPlaying, connected)) sendLinkPlaying(true);
+      engageHoldAtBoundary();
+    }
+  }, [isEngagedOrArmed, stopHoldNow, engageHoldAtBoundary]);
+  // Peer-driven transport: follow genuine start/stop edges only. Never
+  // sends set_playing back (that's the echo). A disconnect resets the
+  // guard (so reconnecting to a live session re-joins) but never stops
+  // the drone — offline HOLD keeps sounding.
+  const followRemoteTransport = useCallback((s: LinkState) => {
+    if (!s.connected) { lastLinkPlayingRef.current = false; return; }
+    const action = followTransportDecision(lastLinkPlayingRef.current, s.playing);
+    lastLinkPlayingRef.current = s.playing;
+    if (action === "start" && !isEngagedOrArmed()) engageHoldAtBoundary();
+    else if (action === "stop" && isEngagedOrArmed()) stopHoldNow();
+  }, [isEngagedOrArmed, engageHoldAtBoundary, stopHoldNow]);
+  const followRemoteTransportRef = useRef(followRemoteTransport);
+  useEffect(() => { followRemoteTransportRef.current = followRemoteTransport; }, [followRemoteTransport]);
+
   useEffect(() => {
     // Silent auto-detect on mount — if the bridge isn't running,
     // nothing happens. Explicit enable (with retries) is driven
@@ -895,9 +975,12 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
       snapshotRef.current = eng && s.connected
         ? makeLinkClockSnapshot(s, eng.now())
         : null;
+      followRemoteTransportRef.current(s);
     });
     return unsub;
   }, []);
+  // Cancel a pending armed start if the component unmounts mid-arm.
+  useEffect(() => clearHoldTimer, [clearHoldTimer]);
   useEffect(() => {
     try { window.localStorage?.setItem(STORAGE_KEYS.lfoSyncMode, lfoSyncMode); } catch { /* noop */ }
   }, [lfoSyncMode]);
@@ -1309,7 +1392,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
           return;
         }
         e.preventDefault();
-        togglePlay();
+        handleHoldToggle();
         return;
       }
       const mod = e.metaKey || e.ctrlKey;
@@ -1320,7 +1403,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay, undo, redo]);
+  }, [handleHoldToggle, undo, redo]);
 
   const dismissWeatherIntro = useCallback(() => advanceArrive("weather"), [advanceArrive]);
 
@@ -1374,7 +1457,9 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     applySnapshot: applySnapshotWithLocals,
     applyLivePatch,
     setVoiceLevel,
-    togglePlay,
+    // Link-aware HOLD: starts on the shared boundary and follows the
+    // session when connected; identical to raw togglePlay when offline.
+    togglePlay: handleHoldToggle,
     restartDrone,
     setRoot,
     setRootFromUser,
@@ -1401,7 +1486,7 @@ export const DroneView = forwardRef<DroneViewHandle, DroneViewProps>(function Dr
     setRoot,
     setRootFromUser,
     startImmediate,
-    togglePlay,
+    handleHoldToggle,
     restartDrone,
     handlePreset,
     handleEffectReorder,

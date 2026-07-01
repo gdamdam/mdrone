@@ -128,3 +128,49 @@ export function quantizeDelaySec(
   if (grid === "off" || !connected || !snapshot) return 0;
   return Math.max(0, nextBoundaryTime(snapshot, grid, now) - now);
 }
+
+// ── Transport (HOLD) ↔ Link start/stop ───────────────────────────────
+// Pure decisions that keep the drone's HOLD in sync with the shared Link
+// transport without echo loops. The stateful glue (DroneView) tracks the
+// last-seen playing flag and calls these; nothing is stored here.
+
+export type TransportAction = "start" | "stop" | "none";
+
+/** Edge-detect a Link playing-state change. Only genuine transitions map
+ *  to an action, so a stream of identical 20 Hz updates is a no-op — we
+ *  never restart or re-toggle on every tick. Mirrors the bridge's own
+ *  idempotent decide_transport. */
+export function followTransportDecision(prev: boolean, next: boolean): TransportAction {
+  if (!prev && next) return "start";
+  if (prev && !next) return "stop";
+  return "none";
+}
+
+/** Whether to push a `set_playing` to the bridge for a *local* HOLD
+ *  change. Send only when connected and our intent differs from the
+ *  session's current state — so joining an already-playing session (or a
+ *  change we're only mirroring from a peer) sends nothing, breaking the
+ *  command→broadcast→command echo loop. */
+export function shouldSendPlaying(
+  localWantsPlaying: boolean,
+  linkPlaying: boolean,
+  connected: boolean,
+): boolean {
+  return connected && localWantsPlaying !== linkPlaying;
+}
+
+/** Seconds to defer a HOLD *start* so the drone begins on a shared
+ *  boundary. Like quantizeDelaySec, but the grid falls back to `bar` when
+ *  quantize is off: a transport start (local or remote-driven) always
+ *  lands on the "next safe shared bar" rather than mid-bar. Disconnected
+ *  or no-snapshot → 0 (start immediately, preserving offline behaviour). */
+export function holdStartDelaySec(
+  snapshot: LinkClockSnapshot | null,
+  grid: QuantizeGrid | "off",
+  connected: boolean,
+  now: number,
+): number {
+  if (!connected || !snapshot) return 0;
+  const g: QuantizeGrid = grid === "off" ? "bar" : grid;
+  return Math.max(0, nextBoundaryTime(snapshot, g, now) - now);
+}
