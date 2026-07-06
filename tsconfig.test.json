@@ -23,6 +23,8 @@
     "src/engine/presets.ts",
     "src/scene/droneSceneModel.ts",
     "src/scene/sceneSnapshots.ts",
-    "src/goodDrone.ts"
+    "src/goodDrone.ts",
+    "src/transport/mbus/client.ts",
+    "src/transport/mbus/protocol.ts"
   ]
 }

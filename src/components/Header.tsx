@@ -15,6 +15,7 @@ import {
 import { PALETTES, applyPalette, loadPaletteId, savePaletteId, type PaletteId } from "../themes";
 import { loadLabelMode, saveLabelMode, applyLabelMode, type LabelMode } from "../labelMode";
 import { enableLinkBridge, onLinkState, getLinkState, type LinkState } from "../engine/linkBridge";
+import { enableMbusPublish, isMbusPublishEnabled } from "../engine/mbusPublish";
 import type { QuantizeGrid } from "../engine/linkClock";
 import type { AudioLoadMonitor } from "../engine/AudioLoadMonitor";
 import { CpuWarning } from "./CpuWarning";
@@ -426,6 +427,10 @@ export function Header({
     catch { return false; }
   });
   const [linkState, setLinkState] = useState<LinkState>(() => getLinkState());
+  // mbus publish intent. Deliberately NOT persisted (unlike linkEnabled):
+  // publishing audio is off-by-default per session. Seeded from the module
+  // singleton so a Header remount reflects the live state.
+  const [busEnabled, setBusEnabled] = useState<boolean>(() => isMbusPublishEnabled());
   const prevLinkConnectedRef = useRef(linkState.connected);
   useEffect(() => {
     const unsub = onLinkState((s) => setLinkState(s));
@@ -1319,6 +1324,31 @@ export function Header({
                       ? "Searching for Link Bridge…"
                       : "Bridge not connected"}
                 </span>
+              </div>
+
+              <div className="fx-modal-section-label">PUBLISH TO MBUS</div>
+              <p className="fx-modal-desc">
+                Offer the drone's master output to the{" "}
+                <a href="https://mbus.mpump.live" target="_blank" rel="noopener noreferrer">mbus</a>{" "}
+                patchbay as a source named <code>mdrone</code> — tab-to-tab
+                WebRTC via the same bridge, peer-to-peer, no server. Off by
+                default; harmless without the bridge.
+              </p>
+              <div className="fx-modal-actions">
+                <button
+                  className={busEnabled ? "header-btn header-btn-midi-on" : "header-btn"}
+                  onClick={() => setBusEnabled((v) => {
+                    const next = !v;
+                    enableMbusPublish(next);
+                    if (next) trackEvent("feature/mbus");
+                    return next;
+                  })}
+                  title={busEnabled
+                    ? "Stop publishing to the mbus patchbay"
+                    : "Publish the master output to the mbus patchbay (needs the local link-bridge)"}
+                >
+                  {busEnabled ? "● BUS ON" : "BUS OFF"}
+                </button>
               </div>
 
               <div className="fx-modal-section-label">QUANTIZE CHANGES TO LINK GRID</div>

@@ -28,6 +28,7 @@ import fxWorkletUrl from "./fxChainProcessor.js?url";
 import { showNotification } from "../notifications";
 import { readAudioDebugFlags } from "./audioDebug";
 import { setTraceContext, trace, wireTraceToLoadMonitor } from "./audioTrace";
+import { registerMbusTap } from "./mbusPublish";
 
 export type { EngineSceneMutation } from "./EngineSceneMutation";
 
@@ -145,6 +146,9 @@ export class AudioEngine {
 
     this.masterRecorder = new MasterRecorder(this.ctx, this.masterBus.getAnalyser());
     this.loopBouncer = new LoopBouncer(this.ctx, this.masterBus.getAnalyser());
+    // Same tap the recorder/bouncer capture from, offered to the mbus
+    // patchbay when the user enables the Header's BUS button.
+    registerMbusTap(this.masterBus.getAnalyser());
 
     // Adaptive stability — staged mitigation under sustained audio load.
     // The controller keeps its own runtime overlay; the engine composes
@@ -993,6 +997,7 @@ export class AudioEngine {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    registerMbusTap(null);
     for (const fn of this.teardown.splice(0)) {
       try { fn(); } catch { /* best-effort teardown */ }
     }
