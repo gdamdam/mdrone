@@ -43,6 +43,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # packages.microsoft.com intermittently serves unsigned apt indexes on
+      # the hosted runners; --with-deps runs apt-get update as root and hard-
+      # fails on them. Neither repo is needed to install chromium's deps.
+      - name: Drop flaky Microsoft apt repos
+        run: sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli*
+
       - name: Install Playwright (chromium only)
         run: npx playwright install --with-deps chromium
 
