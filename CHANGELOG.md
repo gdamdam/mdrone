@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.31.3 — 2026-07-07
+
+- chore(release): bump to 1.31.3
+
 ## 1.30.0 — 2026-06-21
 
 - feat(link): phase-lock breathing LFO to downbeat, bar-multiple sync divisions, opt-in grid-quantized changes (e4227ab)
