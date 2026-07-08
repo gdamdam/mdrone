@@ -5,9 +5,11 @@ import {
   tuningTableToPortable,
   sclToTuningTableDegrees,
   BUILTIN_PORTABLE_TUNINGS,
+  AUTHORED_PORTABLE_TUNINGS,
   DEFAULT_TONIC_HZ,
 } from "../.test-dist/tuning/builtins.js";
 import { parseScl } from "../.test-dist/tuning/scala.js";
+import { BUILTIN_TUNINGS, AUTHORED_TUNINGS } from "../.test-dist/microtuning.js";
 import { degreeToHz, isValidTuning } from "../.test-dist/tuning/model.js";
 
 test("tuningTableToPortable maps a 13-slot octave table to a 12-note PortableTuning", () => {
@@ -75,4 +77,29 @@ test("sclToTuningTableDegrees flags a non-octave .scl as lossy", () => {
   const { degrees, lossy } = sclToTuningTableDegrees(scl);
   assert.equal(degrees.length, 13);
   assert.equal(lossy, true);
+});
+
+// ── Drift guard ──────────────────────────────────────────────────────
+// builtins.ts now inlines its own copy of the library so it can be
+// vendored without importing microtuning.ts. These tests fail if the
+// two builtin sets ever diverge (name / cents / period), so the inlined
+// vendor copy can't silently drift from mdrone's authoritative tables.
+
+function assertAgree(portable, tables) {
+  assert.equal(portable.length, tables.length);
+  for (let i = 0; i < tables.length; i++) {
+    const p = portable[i];
+    const t = tables[i];
+    assert.equal(p.name, t.label, `name at ${i}`);
+    assert.equal(p.period, t.degrees[12], `period at ${i} (${t.label})`);
+    assert.deepEqual(p.scaleCents, t.degrees.slice(0, 12), `cents at ${i} (${t.label})`);
+  }
+}
+
+test("BUILTIN_PORTABLE_TUNINGS agree cents-for-cents with microtuning BUILTIN_TUNINGS", () => {
+  assertAgree(BUILTIN_PORTABLE_TUNINGS, BUILTIN_TUNINGS);
+});
+
+test("AUTHORED_PORTABLE_TUNINGS agree cents-for-cents with microtuning AUTHORED_TUNINGS", () => {
+  assertAgree(AUTHORED_PORTABLE_TUNINGS, AUTHORED_TUNINGS);
 });
