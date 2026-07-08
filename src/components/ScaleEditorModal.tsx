@@ -27,6 +27,8 @@ import {
   type TuningTable,
 } from "../microtuning";
 import { loadSessions } from "../session";
+import { parseScl, formatScl, portableToScl, parseKbm } from "../tuning/scala";
+import { tuningTableToPortable, sclToTuningTableDegrees } from "../tuning/builtins";
 
 interface ScaleEditorModalProps {
   /** Currently active tuning id — shown pre-selected in "COPY FROM".
@@ -72,6 +74,7 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
   const [degrees, setDegrees] = useState<number[]>(() => [...initialBase.degrees]);
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -105,6 +108,63 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
       next[index] = clamped;
       return next;
     });
+  };
+
+  // Export the degrees currently in the grid as a Scala `.scl` file.
+  const handleExportScl = () => {
+    const scl = portableToScl(
+      tuningTableToPortable({ label: name.trim() || "tuning", degrees }),
+    );
+    const text = formatScl(scl);
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(name.trim() || "tuning").replace(/\s+/g, "-")}.scl`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import a `.scl` scale (or parse a `.kbm` keyboard map) from disk.
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-selected later
+    if (!file) return;
+    try {
+      const text = await file.text();
+      if (file.name.toLowerCase().endsWith(".kbm")) {
+        // A .kbm carries a key→degree mapping and a reference pitch, not
+        // scale steps — the editor stores scale cents only, so there is
+        // nothing to write. Parse it (validating the file) and explain.
+        const kbm = parseKbm(text);
+        window.alert(
+          `Parsed keyboard map: ${kbm.mapSize} keys, reference ${kbm.refFreq} Hz at note ${kbm.refNote}.\n\n` +
+            "A .kbm defines a key→degree mapping and reference pitch, not scale steps. Import a .scl to author a tuning.",
+        );
+        return;
+      }
+      const scl = parseScl(text);
+      const { degrees: imported, lossy } = sclToTuningTableDegrees(scl);
+      if (lossy) {
+        const ok = window.confirm(
+          `"${scl.name}" has ${scl.cents.length} notes per period (period ${scl.period.toFixed(1)}¢).\n\n` +
+            "mdrone's 13-slot table stores 12-note octave scales. Importing will drop notes past the 12th and clamp to an octave.\n\nImport anyway?",
+        );
+        if (!ok) return;
+      }
+      setDegrees(
+        imported.map((c) =>
+          Math.max(DEGREE_CLAMP_MIN, Math.min(DEGREE_CLAMP_MAX, c)),
+        ),
+      );
+      if (scl.name && !name.trim()) setName(scl.name);
+    } catch (err) {
+      window.alert(
+        `Could not import "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   };
 
   const customs = getCustomTunings();
@@ -215,6 +275,31 @@ export function ScaleEditorModal({ currentTuningId, onApply, onClose }: ScaleEdi
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. my-pythagorean"
             maxLength={40}
+          />
+        </div>
+
+        <div className="scale-editor-row">
+          <label className="scale-editor-label">SCALA</label>
+          <button
+            className="scale-editor-small-btn"
+            onClick={() => fileInputRef.current?.click()}
+            title="Import a Scala .scl scale (or parse a .kbm keyboard map)"
+          >
+            IMPORT .scl/.kbm
+          </button>
+          <button
+            className="scale-editor-small-btn"
+            onClick={handleExportScl}
+            title="Export the current degrees as a Scala .scl file"
+          >
+            EXPORT .scl
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".scl,.kbm"
+            style={{ display: "none" }}
+            onChange={handleImportFile}
           />
         </div>
 
