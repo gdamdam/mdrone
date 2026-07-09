@@ -12,6 +12,8 @@ const {
 } = await import("../.test-dist/shareCodec.js");
 const { PRESETS, applyPreset, getPresetMaterialProfile, createWelcomeScene } = await import("../.test-dist/engine/presets.js");
 const { saveCustomTuningAtId, tuningById, resolveTuning } = await import("../.test-dist/microtuning.js");
+const { tuningTableToPortable } = await import("../.test-dist/tuning/builtins.js");
+const { isValidTuning, periodCents, normalizeTuning } = await import("../.test-dist/tuning/model.js");
 
 test("normalizePortableScene clamps and sanitizes decoded scene data", () => {
   const scene = normalizePortableScene({
@@ -234,6 +236,115 @@ test("share codec round-trips a scene carrying a custom tuning table", async () 
   // Scene's drone-triad relation picks slots [0,4,7] = 0, bundled[4], bundled[7]
   const resolved = resolveTuning("custom:foreign-scale", "drone-triad");
   assert.deepEqual(resolved, [bundledDegrees[0], bundledDegrees[4], bundledDegrees[7]]);
+});
+
+// ── Phase 0: canonical, lossless tuning over the share URL ───────────
+// mraga/mkeys import tunings from mdrone share links, so the scene must
+// carry the tuning without loss and the wire form must resolve to a
+// VALID canonical PortableTuning (scaleCents[0]===0, strictly ascending,
+// explicit period). The tuning travels as the legacy 13-slot `degrees`
+// array `[scaleCents…, period]` — slot 12 is the repeat period, which is
+// what makes non-octave scales survive. These lock that contract so a
+// consumer's `tuningTableToPortable(decoded.degrees)` is always sound.
+test("share codec round-trips a NON-OCTAVE tuning (period ≠ 1200) without loss", async () => {
+  // Bohlen-Pierce repeats at the tritave 3/1 = 1901.955¢, not the octave.
+  // Slots 0..11 hold 12 sounding BP degrees; slot 12 holds the period.
+  const bpPeriod = 1901.955;
+  const bpDegrees = [
+    0, 133.238, 301.847, 435.084, 546.815, 736.931, 848.663,
+    1017.272, 1150.510, 1319.119, 1466.871, 1600.108, bpPeriod,
+  ];
+  const source = normalizePortableScene({
+    name: "Bohlen-Pierce Room",
+    drone: {
+      root: "A", octave: 4, scale: "drone",
+      tuningId: "custom:bohlen-pierce", relationId: "unison",
+      voiceLayers: { reed: true }, voiceLevels: { reed: 1 },
+      effects: {},
+      drift: 0, air: 0, time: 0, sub: 0, bloom: 0, glide: 0,
+      climateX: 0.5, climateY: 0.5,
+      lfoShape: "sine", lfoRate: 0.2, lfoAmount: 0,
+      presetMorph: 0, evolve: 0, pluckRate: 1, noiseColor: 0.3,
+      presetTrim: 1, fmRatio: 2, fmIndex: 0, fmFeedback: 0, seed: 1,
+    },
+    mixer: {
+      hpfHz: 30, low: 0, mid: 0, high: 0, glue: 0, drive: 0,
+      limiterOn: true, ceiling: -1, volume: 0, headphoneSafe: false, width: 0,
+    },
+    fx: { enabled: {}, levels: {}, freezeOn: false, freezeMix: 0, freezeBlur: 0 },
+    ui: { paletteId: "ember", visualizer: "phasePortrait" },
+    customTuning: {
+      id: "custom:bohlen-pierce",
+      label: "Bohlen-Pierce (tritave)",
+      degrees: bpDegrees,
+    },
+  });
+  assert.ok(source.customTuning, "normalizer preserves the non-octave customTuning");
+
+  const encoded = await encodeScenePayload(source);
+  const extracted = extractScenePayloadFromUrl(`https://mdrone.org/?${encoded.key}=${encoded.value}`);
+  const decoded = await decodeScenePayload(extracted.payload, extracted.compressed);
+
+  // No loss, no truncation: every degree survives byte-identical, the
+  // period is NOT coerced back to 1200.
+  assert.deepEqual(decoded.customTuning.degrees, bpDegrees);
+  assert.equal(decoded.customTuning.degrees.length, 13);
+  assert.equal(decoded.customTuning.degrees[12], bpPeriod);
+
+  // On the way out: the wire form resolves to a canonical PortableTuning
+  // with the real period preserved and a valid, ascending scale rooted at 0.
+  const portable = tuningTableToPortable(
+    { id: decoded.customTuning.id, label: decoded.customTuning.label, degrees: decoded.customTuning.degrees },
+    440,
+  );
+  assert.equal(portable.scaleCents[0], 0, "scaleCents[0] === 0");
+  assert.equal(portable.scaleCents.length, 12, "12 sounding degrees, period peeled off");
+  assert.ok(Math.abs(portable.period - bpPeriod) < 1e-6, "period is the tritave, not 1200");
+  assert.notEqual(periodCents(portable), 1200, "non-octave period is NOT re-stacked at the octave");
+  assert.ok(isValidTuning(portable), "resolves to a valid canonical PortableTuning");
+  // normalizeTuning must accept it (strictly ascending, root at 0).
+  const normalized = normalizeTuning(portable);
+  assert.deepEqual(normalized.scaleCents, portable.scaleCents);
+  assert.equal(normalized.period, portable.period);
+});
+
+test("share codec round-trips an octave tuning to a valid 12-note canonical form", async () => {
+  // Regression: the ordinary octave path stays canonical too — period
+  // peels to exactly 1200 and the 12 sounding degrees stay ascending.
+  const degrees = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
+  const source = normalizePortableScene({
+    name: "Equal Room",
+    drone: {
+      root: "C", octave: 4, scale: "drone",
+      tuningId: "custom:equal-copy", relationId: "unison",
+      voiceLayers: { reed: true }, voiceLevels: { reed: 1 }, effects: {},
+      drift: 0, air: 0, time: 0, sub: 0, bloom: 0, glide: 0,
+      climateX: 0.5, climateY: 0.5,
+      lfoShape: "sine", lfoRate: 0.2, lfoAmount: 0,
+      presetMorph: 0, evolve: 0, pluckRate: 1, noiseColor: 0.3,
+      presetTrim: 1, fmRatio: 2, fmIndex: 0, fmFeedback: 0, seed: 1,
+    },
+    mixer: {
+      hpfHz: 30, low: 0, mid: 0, high: 0, glue: 0, drive: 0,
+      limiterOn: true, ceiling: -1, volume: 0, headphoneSafe: false, width: 0,
+    },
+    fx: { enabled: {}, levels: {}, freezeOn: false, freezeMix: 0, freezeBlur: 0 },
+    ui: { paletteId: "ember", visualizer: "phasePortrait" },
+    customTuning: { id: "custom:equal-copy", label: "Equal copy", degrees },
+  });
+  const encoded = await encodeScenePayload(source);
+  const extracted = extractScenePayloadFromUrl(`https://mdrone.org/?${encoded.key}=${encoded.value}`);
+  const decoded = await decodeScenePayload(extracted.payload, extracted.compressed);
+  assert.deepEqual(decoded.customTuning.degrees, degrees);
+
+  const portable = tuningTableToPortable(
+    { id: decoded.customTuning.id, label: decoded.customTuning.label, degrees: decoded.customTuning.degrees },
+    440,
+  );
+  assert.equal(portable.period, 1200);
+  assert.equal(portable.scaleCents.length, 12);
+  assert.equal(portable.scaleCents[0], 0);
+  assert.ok(isValidTuning(portable));
 });
 
 test("autosaved scene round-trips through localStorage", () => {
