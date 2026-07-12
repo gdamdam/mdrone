@@ -83,12 +83,20 @@ DroneVoiceProcessor.prototype.pianoProcess = function(L, R, n, freq, drift, amp)
 
         const wobble = Math.sin(this.pianoLfoPhase * (1 + p * 0.13)) * detuneDepth;
         const partialFreq = freq * this.pianoRatios[p] * (1 + wobble);
-        if (partialFreq > nyquist) continue;
         this.pianoPhasesL[p] += twoPi * partialFreq * invSr;
         this.pianoPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.45) * this.dichoticMulR;
-        if (this.pianoPhasesL[p] > twoPi) this.pianoPhasesL[p] -= twoPi;
-        if (this.pianoPhasesR[p] > twoPi) this.pianoPhasesR[p] -= twoPi;
+        // %= (not -= twoPi): a gated partial above Nyquist can step
+        // more than one cycle per sample (freq max 8 kHz × ratio 14.39),
+        // and a leaked phase would drift into float-precision loss.
+        if (this.pianoPhasesL[p] > twoPi) this.pianoPhasesL[p] %= twoPi;
+        if (this.pianoPhasesR[p] > twoPi) this.pianoPhasesR[p] %= twoPi;
 
+        // Nyquist guard gates only the *output* — phases above still
+        // advance every sample so a high partial re-entering below
+        // Nyquist on a downward pitch change resumes with current
+        // (not stale) phase. Gating the advance itself caused a
+        // discontinuity click on re-entry.
+        if (partialFreq > nyquist) continue;
         const a = this.pianoAmps[p] * breath * decayEnv;
         l += fastSin(this.pianoPhasesL[p]) * a;
         r += fastSin(this.pianoPhasesR[p]) * a;

@@ -2,6 +2,12 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.32.2 — 2026-07-13
+
+- fix(engine): REED/PIANO partials above Nyquist now keep their oscillator phase advancing while muted — re-entering the audible band on a downward pitch change no longer clicks from a stale phase
+- fix(engine): TANPURA Karplus-Strong read index is folded back into the delay when a pitch change shrinks the loop between blocks — removes a one-sample interpolation glitch
+- fix(microtonal): played-note merge now dedupes on a true ±1¢ window instead of Math.round buckets (0.4¢ vs 0.6¢ no longer spawn duplicate voices; the "within 1¢" contract holds from both sides)
+
 ## 1.31.5 — 2026-07-07
 
 _No user-visible changes._

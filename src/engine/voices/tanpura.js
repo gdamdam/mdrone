@@ -194,6 +194,12 @@ DroneVoiceProcessor.prototype.tanpuraProcess = function(L, R, n, freq, drift, am
       const exactR = Math.min(this.ksMax - 2, Math.max(8, baseLen / (dt * 1.003 * this.dichoticMulR)));
       delayLensR[s] = Math.floor(exactR);
       fracsR[s] = exactR - delayLensR[s];
+      // If the delay shrank between blocks (upward pitch change), a
+      // stale read index ≥ the new length would read one sample from
+      // outside the active loop region while its `(idx+1)%dLen`
+      // neighbour wraps — an interpolation glitch. Fold it back in.
+      if (this.ksIdxs[s] >= delayLens[s]) this.ksIdxs[s] %= delayLens[s];
+      if (this.ksIdxsR[s] >= delayLensR[s]) this.ksIdxsR[s] %= delayLensR[s];
     }
 
     for (let i = 0; i < n; i++) {

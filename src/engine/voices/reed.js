@@ -165,14 +165,22 @@ DroneVoiceProcessor.prototype.reedProcess = function(L, R, n, freq, drift, amp) 
           const wobble = Math.sin(this.reedLfoPhases[p]) * detuneDepth;
 
           const partialFreq = freq * (p + 1) * (1 + wobble);
-          if (partialFreq > nyquist) continue;
           this.reedPhasesL[p] += twoPi * partialFreq * invSr;
           this.reedPhasesR[p] += twoPi * partialFreq * invSr * (1 + detuneDepth * 0.5) * this.dichoticMulR;
-          if (this.reedPhasesL[p] > twoPi) this.reedPhasesL[p] -= twoPi;
-          if (this.reedPhasesR[p] > twoPi) this.reedPhasesR[p] -= twoPi;
+          // %= (not -= twoPi): a gated partial above Nyquist can step
+          // more than one cycle per sample (freq max 8 kHz × partial 12),
+          // and a leaked phase would drift into float-precision loss.
+          if (this.reedPhasesL[p] > twoPi) this.reedPhasesL[p] %= twoPi;
+          if (this.reedPhasesR[p] > twoPi) this.reedPhasesR[p] %= twoPi;
 
           this.reedAmpJitterPhases[p] += twoPi * this.reedAmpJitterRates[p] * invSr;
           if (this.reedAmpJitterPhases[p] > twoPi) this.reedAmpJitterPhases[p] -= twoPi;
+          // Nyquist guard gates only the *output* — phases above still
+          // advance every sample so a high partial re-entering below
+          // Nyquist on a downward pitch change resumes with current
+          // (not stale) phase. Gating the advance itself caused a
+          // discontinuity click on re-entry.
+          if (partialFreq > nyquist) continue;
           const jitter = 1 + Math.sin(this.reedAmpJitterPhases[p]) * 0.08;
           const amp_p = this.reedAmps[p] * bellows * jitter;
           const pan = (p % 2 === 0) ? 1 : 0.85;

@@ -891,12 +891,15 @@ export function mergePlayedIntervals(
   playedCents: readonly number[],
 ): number[] {
   const out = base.slice();
-  const seen = new Set(out.map((c) => Math.round(c)));
+  // True ±1¢ window against every retained value — the old
+  // Math.round() bucketing kept 0.4 vs 0.6 distinct (same pitch)
+  // yet merged 0.6 vs 1.4 (different buckets away by >1¢); the
+  // "within 1¢" contract above is the spec.
+  const kept = out.slice();
   const additions: number[] = [];
   for (const c of [...playedCents].sort((a, b) => a - b)) {
-    const key = Math.round(c);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (kept.some((k) => Math.abs(k - c) < 1)) continue;
+    kept.push(c);
     additions.push(c);
     if (additions.length >= MAX_PLAYED_NOTES) break;
   }
