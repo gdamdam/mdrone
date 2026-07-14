@@ -157,7 +157,7 @@ export const AUTHORED_TUNINGS: readonly TuningTable[] = [
   },
   {
     id: "custom:15-tet" as CustomTuningId,
-    label: "15-TET (Catler)",
+    label: "Catler 12-of-15",
     // 15-tone equal temperament — 80-cent steps. Used by Jon Catler
     // and others for microtonal guitar / pentadecaphonic harmony.
     // 13 ascending degrees from the 15-step ladder, bound to the
