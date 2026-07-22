@@ -2,6 +2,10 @@
 
 All notable changes to mdrone. Generated from git history by `scripts/release.mjs`.
 
+## 1.32.5 — 2026-07-22
+
+- fix(tuning): reject malformed Scala tokens instead of parsing to garbage (27fead9)
+
 ## 1.32.2 — 2026-07-13
 
 - fix(engine): REED/PIANO partials above Nyquist now keep their oscillator phase advancing while muted — re-entering the audible band on a downward pitch change no longer clicks from a stale phase
