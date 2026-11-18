@@ -18,6 +18,10 @@ import {
   togglePlayedNote,
   isBundledTuningId,
   BUILTIN_TUNING_IDS,
+  importCustomTuning,
+  saveCustomTuningAtId,
+  CUSTOM_DEGREE_MAX,
+  CUSTOM_DEGREE_MIN,
 } from "../../src/microtuning";
 
 /**
@@ -203,6 +207,58 @@ describe("saveOrUpdateCustomTuning (scale editor save flow)", () => {
       expect(tuningById(saved.id).label).toBe("Editor Probe");
     } finally {
       deleteCustomTuning(saved.id);
+    }
+  });
+});
+
+describe("importCustomTuning (external scenes never overwrite local tunings)", () => {
+  const local = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
+  const foreign = local.map((d, i) => (i === 3 ? 316 : d));
+
+  it("stores at the requested id when it is free", () => {
+    const t = importCustomTuning("custom:imp-free", "Free", foreign)!;
+    try {
+      expect(t.id).toBe("custom:imp-free");
+    } finally {
+      deleteCustomTuning(t.id);
+    }
+  });
+
+  it("keeps the local table and stores a clashing one at the next free id", () => {
+    const mine = saveCustomTuningAtId("custom:imp-clash", "Mine", local)!;
+    const theirs = importCustomTuning("custom:imp-clash", "Theirs", foreign)!;
+    try {
+      expect(theirs.id).toBe("custom:imp-clash-2");
+      expect(tuningById("custom:imp-clash" as never).degrees).toEqual(local);
+      expect(tuningById(theirs.id).degrees).toEqual(foreign);
+    } finally {
+      deleteCustomTuning(mine.id);
+      deleteCustomTuning(theirs.id);
+    }
+  });
+
+  it("reuses the existing entry when the degrees are the same", () => {
+    const mine = saveCustomTuningAtId("custom:imp-same", "Mine", local)!;
+    try {
+      const again = importCustomTuning("custom:imp-same", "Other label", local)!;
+      expect(again.id).toBe("custom:imp-same");
+      expect(again.label).toBe("Mine");
+    } finally {
+      deleteCustomTuning(mine.id);
+    }
+  });
+});
+
+describe("custom tuning degree range", () => {
+  it("clamps absurd finite degrees instead of storing them", () => {
+    const degrees = [0, 1e9, -1e9, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
+    const t = saveCustomTuningAtId("custom:imp-range", "Range", degrees)!;
+    try {
+      expect(t.degrees[1]).toBe(CUSTOM_DEGREE_MAX);
+      expect(t.degrees[2]).toBe(CUSTOM_DEGREE_MIN);
+      expect(t.degrees[3]).toBe(300);
+    } finally {
+      deleteCustomTuning(t.id);
     }
   });
 });

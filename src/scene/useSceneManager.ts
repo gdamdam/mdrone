@@ -88,7 +88,7 @@ import { type Visualizer } from "../components/visualizers";
 import type { PitchClass } from "../types";
 import type { DroneViewHandle } from "../components/DroneView";
 import { applyFxSnapshot, applyMixerSnapshot, capturePortableScene } from "./sceneSnapshots";
-import { isBundledTuningId, saveCustomTuningAtId } from "../microtuning";
+import { importCustomTuning, isBundledTuningId, saveCustomTuningAtId } from "../microtuning";
 
 export interface ShareSceneBuildResult {
   scene: PortableScene;
@@ -212,8 +212,11 @@ export function useSceneManager({
 
   const applyPortableScene = useCallback((
     scene: PortableScene,
-    options?: { sessionId?: string | null },
+    // `source` marks scenes that came from outside this browser's own
+    // storage: "link" = share URL, "import" = user-picked JSON file.
+    options?: { sessionId?: string | null; source?: "link" | "import" },
   ) => {
+    const external = options?.source !== undefined;
     const palette = getPaletteById(scene.ui.paletteId) ?? getPaletteById(loadPaletteId());
     if (palette) {
       applyPalette(palette);
@@ -233,12 +236,29 @@ export function useSceneManager({
       // ids resolve from the app's own tables, so skipping the write is
       // lossless for legitimate links.
       const ct = scene.customTuning;
-      saveCustomTuningAtId(ct.id, ct.label, ct.degrees);
+      if (external) {
+        // An external scene must not replace a tuning the recipient
+        // already has under the same id — store it beside the local one
+        // and point this scene at wherever it landed.
+        const stored = importCustomTuning(ct.id, ct.label, ct.degrees);
+        if (stored && stored.id !== ct.id && scene.drone.tuningId === ct.id) {
+          scene = { ...scene, drone: { ...scene.drone, tuningId: stored.id } };
+        }
+      } else {
+        saveCustomTuningAtId(ct.id, ct.label, ct.degrees);
+      }
     }
     setMeditateVisualizer(scene.ui.visualizer);
     ignoreNextPresetNameRef.current = true;
     droneViewRef.current?.applySnapshot(scene.drone);
-    applyMixerSnapshot(engine, scene.mixer);
+    if (options?.source === "link") {
+      // A share link is untrusted and may auto-play: it must not lower
+      // the listener's protection. Drop headphoneSafe so the receiver's
+      // own toggle stands, and never let a link switch the limiter off.
+      applyMixerSnapshot(engine, { ...scene.mixer, headphoneSafe: undefined, limiterOn: true });
+    } else {
+      applyMixerSnapshot(engine, scene.mixer);
+    }
     applyFxSnapshot(engine, scene.fx);
     // FX chain order lives in DroneView state (hydrated from
     // localStorage) which pushes to the engine on every render, so
@@ -296,7 +316,7 @@ export function useSceneManager({
         applyPortableScene({
           ...sharedScene,
           drone: { ...sharedScene.drone, playing: true },
-        });
+        }, { source: "link" });
         return;
       }
 
@@ -506,7 +526,7 @@ export function useSceneManager({
     }
     const scene = normalizePortableScene(parsed);
     if (!scene) return false;
-    applyPortableScene(scene);
+    applyPortableScene(scene, { source: "import" });
     setCurrentSessionId(null);
     setCurrentSessionName(scene.name?.trim() || DEFAULT_SESSION_NAME);
     saveCurrentSessionId(null);

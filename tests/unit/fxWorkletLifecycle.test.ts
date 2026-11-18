@@ -136,6 +136,54 @@ describe("FxChain.swapFdnReverb stale-node teardown", () => {
   });
 });
 
+describe("FxChain.swapFdnReverb restores the wet level it muted", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("ramps wetGain back to the enabled target after an audible swap", async () => {
+    vi.useFakeTimers();
+    const { FxChain } = await import("../../src/engine/FxChain");
+    class FakeWorkletNode {
+      port = { postMessage: vi.fn(), onmessage: null };
+      parameters = { get: () => undefined };
+      connect = vi.fn();
+      disconnect = vi.fn();
+    }
+    (globalThis as any).AudioWorkletNode = FakeWorkletNode;
+    const wetGainParam = {
+      value: 0.5, // audible → fade-out, deferred swap
+      cancelScheduledValues: vi.fn(),
+      setValueAtTime: vi.fn(),
+      linearRampToValueAtTime: vi.fn(),
+      setTargetAtTime: vi.fn(),
+    };
+    const self: any = {
+      ctx: { currentTime: 0 },
+      reverbSeed: 42,
+      hallWorklet: new FakeWorkletNode(),
+      hallSerialTrim: { connect: vi.fn() },
+      pendingTimers: new Set(),
+      enabled: { hall: true },
+      wetTargetFor: () => 0.7,
+      xfadeTC: 0.05,
+      inserts: {
+        hall: {
+          wetGain: { gain: wetGainParam },
+          insertIn: { connect: vi.fn(), disconnect: vi.fn() },
+        },
+      },
+    };
+
+    (FxChain.prototype as any).swapFdnReverb.call(self, "hall");
+    expect(wetGainParam.linearRampToValueAtTime).toHaveBeenCalledWith(0, expect.any(Number));
+    expect(wetGainParam.setTargetAtTime).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(100);
+    // Without this the hall stays muted when the next preset also has it
+    // on (setEffect early-returns on an unchanged state).
+    expect(wetGainParam.setTargetAtTime).toHaveBeenCalledWith(0.7, 0, 0.05);
+  });
+});
+
 // --- BUG 2: recorder tap must terminate after stop/finalize ----------------
 
 describe("RecorderTapProcessor stop lifecycle", () => {

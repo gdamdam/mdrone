@@ -83,6 +83,10 @@ export function useMidiInput(
   const onNoteRef = useRef(onNote);
   const onCcRef = useRef(onCc);
   const enabledRef = useRef(enabled);
+  // Latest requested on/off state and unmount flag, read when a slow
+  // requestMIDIAccess() finally settles.
+  const wantEnabledRef = useRef(false);
+  const unmountedRef = useRef(false);
   useEffect(() => { onNoteRef.current = onNote; });
   useEffect(() => { onCcRef.current = onCc; });
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
@@ -140,11 +144,18 @@ export function useMidiInput(
         const accessPromise = (navigator as Navigator & {
           requestMIDIAccess: () => Promise<MidiAccessLike>;
         }).requestMIDIAccess();
-        const timeout = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("MIDI access timed out")), 5000);
-        });
-        Promise.race([accessPromise, timeout])
+        // The timeout only reports — it must not discard the request.
+        // The same promise also stays pending while the user reads the
+        // browser's permission prompt, and a grant that lands after 5 s
+        // has to be honoured rather than dropped.
+        wantEnabledRef.current = true;
+        const timer = setTimeout(() => setError("MIDI access timed out"), 5000);
+        accessPromise
           .then((access) => {
+            clearTimeout(timer);
+            // Unmounted while waiting: the cleanup effect already ran, so
+            // attaching handlers now would leak them.
+            if (unmountedRef.current) return;
             // Browser MIDIAccess uses richer types than our minimal
             // local interface; cast through unknown to bypass the
             // structural mismatch (onmidimessage event shape, etc.).
@@ -154,16 +165,22 @@ export function useMidiInput(
               if (enabledRef.current) attachListeners();
             };
             refreshDevices();
+            setError(null);
+            // Toggled off again before access arrived — keep the access
+            // for next time but stay disabled.
+            if (!wantEnabledRef.current) return;
             attachListeners();
             setEnabledState(true);
-            setError(null);
           })
           .catch((e: Error) => {
+            clearTimeout(timer);
+            if (unmountedRef.current) return;
             setError(e?.message ?? "MIDI access denied");
             setEnabledState(false);
           });
         return;
       }
+      wantEnabledRef.current = on;
       if (on) {
         attachListeners();
         setEnabledState(true);
@@ -176,7 +193,11 @@ export function useMidiInput(
   );
 
   useEffect(() => {
+    // Reset on (re)mount so StrictMode's mount → cleanup → mount cycle
+    // doesn't leave the flag stuck.
+    unmountedRef.current = false;
     return () => {
+      unmountedRef.current = true;
       const a = accessRef.current;
       if (a) {
         a.inputs.forEach((inp) => { inp.onmidimessage = null; });

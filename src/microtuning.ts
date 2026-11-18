@@ -432,15 +432,26 @@ export const RELATIONS: readonly Relation[] = [
 
 const CUSTOM_STORAGE_KEY = "mdrone.customTunings";
 
+/** Range a stored/shared custom-tuning degree is clamped to (cents).
+ *  Matches the Scale Editor's own limits. Finite-but-absurd values
+ *  (e.g. 1e9 from a crafted share link) otherwise reach
+ *  `root * 2^(cents/1200)` and produce an infinite frequency. */
+export const CUSTOM_DEGREE_MIN = -100;
+export const CUSTOM_DEGREE_MAX = 1300;
+
+/** Coerce one untrusted degree to a finite, in-range cents value. */
+export function sanitizeTuningDegree(d: unknown): number {
+  if (typeof d !== "number" || !Number.isFinite(d)) return 0;
+  return Math.max(CUSTOM_DEGREE_MIN, Math.min(CUSTOM_DEGREE_MAX, d));
+}
+
 function sanitizeTuningTable(raw: unknown): TuningTable | null {
   if (typeof raw !== "object" || raw === null) return null;
   const r = raw as { id?: unknown; label?: unknown; degrees?: unknown };
   if (typeof r.id !== "string" || !r.id.startsWith("custom:")) return null;
   if (typeof r.label !== "string") return null;
   if (!Array.isArray(r.degrees) || r.degrees.length !== 13) return null;
-  const degrees = r.degrees.map((d) =>
-    typeof d === "number" && Number.isFinite(d) ? d : 0,
-  );
+  const degrees = r.degrees.map(sanitizeTuningDegree);
   return { id: r.id as CustomTuningId, label: r.label, degrees };
 }
 
@@ -508,7 +519,7 @@ export function saveCustomTuningAtId(
   if (!Array.isArray(degrees) || degrees.length !== 13) return null;
   const customId = id as CustomTuningId;
   const cleanLabel = (typeof label === "string" && label.trim()) || "Untitled";
-  const cleanDegrees = degrees.map((d) => (typeof d === "number" && Number.isFinite(d) ? d : 0));
+  const cleanDegrees = degrees.map(sanitizeTuningDegree);
   const table: TuningTable = { id: customId, label: cleanLabel, degrees: cleanDegrees };
   const existingIdx = customTunings.findIndex((t) => t.id === customId);
   if (existingIdx >= 0) customTunings[existingIdx] = table;
@@ -517,6 +528,34 @@ export function saveCustomTuningAtId(
   persistCustomTunings();
   notifySubscribers();
   return table;
+}
+
+/** Add a custom tuning that arrived from OUTSIDE this browser (share
+ *  link, imported JSON) without ever replacing a table the user already
+ *  has. If `id` is free it is stored there; if a tuning with the same
+ *  degrees already sits at `id` that entry is reused; otherwise the
+ *  incoming table is stored at the next free `-2`, `-3`, … id. Callers
+ *  must point the scene's `tuningId` at the returned table's id. Returns
+ *  null on the same invalid input `saveCustomTuningAtId` rejects. */
+export function importCustomTuning(
+  id: string,
+  label: string,
+  degrees: readonly number[],
+): TuningTable | null {
+  if (typeof id !== "string" || !id.startsWith("custom:")) return null;
+  if (!Array.isArray(degrees) || degrees.length !== 13) return null;
+  const incoming = degrees.map(sanitizeTuningDegree);
+  let targetId = id;
+  for (let n = 2; ; n++) {
+    const existing = tuningMap.get(targetId);
+    if (!existing) break;
+    // 0.01¢ tolerance absorbs share-codec rounding of the same table.
+    if (existing.degrees.every((d, i) => Math.abs(d - incoming[i]) < 0.01)) {
+      return existing;
+    }
+    targetId = `${id}-${n}`;
+  }
+  return saveCustomTuningAtId(targetId, label, incoming);
 }
 
 /** Save or replace a custom tuning. The supplied `name` becomes both

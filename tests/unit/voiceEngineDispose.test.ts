@@ -111,3 +111,31 @@ describe("VoiceEngine.dispose()", () => {
     expect(() => ve.dispose()).not.toThrow();
   });
 });
+
+describe("VoiceEngine.stopDrone() overlapping stops", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("still stops the first batch when a second stop lands inside the release window", () => {
+    const { ctx } = makeFakeCtx();
+    const fx = { releaseTails: vi.fn() };
+    const ve = new VoiceEngine(ctx as any, fx as any, makeGain() as any);
+    const first = { stop: vi.fn() };
+    const second = { stop: vi.fn() };
+
+    (ve as any).droneVoicesByLayer.set("a", [first]);
+    (ve as any).droneOn = true;
+    ve.stopDrone();
+
+    // Restart + stop again before the first 700 ms stop timeout fires.
+    vi.advanceTimersByTime(200);
+    (ve as any).droneVoicesByLayer.set("a", [second]);
+    (ve as any).droneOn = true;
+    ve.stopDrone();
+
+    vi.advanceTimersByTime(1000);
+    expect(first.stop).toHaveBeenCalledTimes(1);
+    expect(second.stop).toHaveBeenCalledTimes(1);
+  });
+});
+

@@ -384,6 +384,9 @@ export function createMbusClient(options: MbusClientOptions = {}): MbusClient {
     }
 
     socket.onclose = () => {
+      // A socket retired by disconnect() closes asynchronously; if connect()
+      // already opened a replacement, this late close must not clobber it.
+      if (ws !== null && ws !== socket) return
       ws = null
       if (helloTimer) {
         clearTimeout(helloTimer)

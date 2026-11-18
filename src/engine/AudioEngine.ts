@@ -922,6 +922,9 @@ export class AudioEngine {
   cancelMasterFade(): void { this.motionEngine.cancelFade(); }
 
   private morphTimeout: ReturnType<typeof setTimeout> | null = null;
+  /** Master level the in-flight morph will land on, and the context
+   *  time its fade-in finishes (Infinity until the midpoint swap). */
+  private morphRestore: { level: number; until: number } | null = null;
 
   /** Scene-chain crossfade: fade outputTrim to silence over the first
    *  half of `seconds`, snap-apply the caller's scene change at the
@@ -935,7 +938,13 @@ export class AudioEngine {
     const dur = Math.max(1, Math.min(300, seconds));
     const half = dur / 2;
     const trim = this.masterBus.getOutputTrim().gain;
-    const savedLinear = trim.value;
+    // While an earlier morph is still fading (out or back in) the trim
+    // sits at a transient level — restoring to that would leave the
+    // master quiet or silent. Reuse the level that morph was heading for.
+    const inFlight = this.morphRestore !== null &&
+      this.ctx.currentTime < this.morphRestore.until;
+    const savedLinear = inFlight ? this.morphRestore!.level : trim.value;
+    this.morphRestore = { level: savedLinear, until: Infinity };
     if (this.morphTimeout !== null) {
       clearTimeout(this.morphTimeout);
       this.morphTimeout = null;
@@ -960,6 +969,7 @@ export class AudioEngine {
       let target = trim.value;
       if (target < 0.01) target = savedLinear;
       const now = this.ctx.currentTime;
+      this.morphRestore = { level: target, until: now + half };
       try { trim.cancelScheduledValues(now); } catch { /* noop */ }
       try {
         trim.setValueAtTime(0, now);

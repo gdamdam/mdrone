@@ -193,8 +193,11 @@ function requireBasicAuth(request: Request, env: Env): Response | null {
   const header = request.headers.get("Authorization") ?? "";
   if (header.startsWith("Basic ")) {
     try {
-      const [u, p] = atob(header.slice(6)).split(":");
-      if (u === user && p === pass) return null;
+      // RFC 7617: only the first colon separates user from password —
+      // the password itself may contain colons.
+      const decoded = atob(header.slice(6));
+      const sep = decoded.indexOf(":");
+      if (sep >= 0 && decoded.slice(0, sep) === user && decoded.slice(sep + 1) === pass) return null;
     } catch {
       // fall through to 401
     }

@@ -129,6 +129,11 @@ export class VoiceEngine {
   // rapid preset / layer churn.
   private pendingRetire: { gain: GainNode; voices: Voice[]; stopTimeout: number; filter: BiquadFilterNode | null }[] = [];
   private stopDroneTimeout: number | null = null;
+  /** Voices / sub pairs released by stopDrone() and awaiting their
+   *  post-release stop. Shared across calls so an overlapping stop
+   *  can't orphan an earlier batch. */
+  private pendingStopVoices: Voice[] = [];
+  private pendingStopSubs: { a: OscillatorNode; b: OscillatorNode }[] = [];
   private disposed = false;
   private voiceUpdateDepth = 0;
   private voiceRebuildPending = false;
@@ -354,13 +359,16 @@ export class VoiceEngine {
     // drone instead of lingering past it.
     this.killPendingRetire(now);
 
-    const allVoices: Voice[] = [];
+    // Queue onto the shared pending-stop lists rather than closing over
+    // this call's batch: a stop → start → stop inside the release window
+    // replaces the timeout below, and a batch held only by the cancelled
+    // callback would never be stopped (stuck voices + leaked worklets).
     for (const vs of this.droneVoicesByLayer.values()) {
-      for (const v of vs) allVoices.push(v);
+      for (const v of vs) this.pendingStopVoices.push(v);
     }
     this.droneVoicesByLayer.clear();
 
-    const sub = this.subOscs;
+    if (this.subOscs) this.pendingStopSubs.push(this.subOscs);
     this.subOscs = null;
 
     if (this.stopDroneTimeout != null) {
@@ -368,15 +376,22 @@ export class VoiceEngine {
     }
     this.stopDroneTimeout = window.setTimeout(() => {
       this.stopDroneTimeout = null;
-      for (const v of allVoices) v.stop();
-      if (sub) {
-        try { sub.a.stop(); sub.a.disconnect(); } catch { /* ok */ }
-        try { sub.b.stop(); sub.b.disconnect(); } catch { /* ok */ }
-      }
+      this.flushPendingStops();
     }, (release + 0.1) * 1000);
 
     this.droneOn = false;
     this.updateMaterialMotion();
+  }
+
+  /** Stop every voice / sub pair queued by stopDrone(). */
+  private flushPendingStops(): void {
+    for (const v of this.pendingStopVoices.splice(0)) {
+      try { v.stop(); } catch { /* best-effort */ }
+    }
+    for (const sub of this.pendingStopSubs.splice(0)) {
+      try { sub.a.stop(); sub.a.disconnect(); } catch { /* ok */ }
+      try { sub.b.stop(); sub.b.disconnect(); } catch { /* ok */ }
+    }
   }
 
   setDroneFreq(freq: number): void {
@@ -1331,6 +1346,9 @@ export class VoiceEngine {
       clearTimeout(this.stopDroneTimeout);
       this.stopDroneTimeout = null;
     }
+    // The cancelled timeout was the only thing that would have stopped
+    // these — tear them down now.
+    this.flushPendingStops();
 
     // Pending-retire voices from in-flight rebuilds: cancel their delayed
     // stop and tear them down immediately.

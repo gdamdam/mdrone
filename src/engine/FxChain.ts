@@ -966,6 +966,14 @@ export class FxChain {
       const id = setTimeout(() => {
         this.pendingTimers.delete(id);
         performSwap();
+        // Restore the wet level muted above. The caller's setEffect /
+        // setEffectLevel can't be relied on for this: both early-return
+        // when the reverb stays on at the same amount across the preset
+        // change, which left the serial reverb silent until re-toggled.
+        // Reads enabled/level as of now, so a preset that turned the
+        // reverb off in the meantime stays off.
+        const target = this.enabled[kind] ? this.wetTargetFor(kind) : 0;
+        wetParam.setTargetAtTime(target, this.ctx.currentTime, this.xfadeTC);
       }, Math.round(FADE_SEC * 1000) + 5);
       this.pendingTimers.add(id);
     } else {

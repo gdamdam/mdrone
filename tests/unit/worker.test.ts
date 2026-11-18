@@ -150,3 +150,21 @@ describe("worker rate limiting", () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe("dashboard basic auth", () => {
+  const authed = (user: string, pass: string) =>
+    new Request("https://s.mdrone.org/stats", {
+      headers: { Authorization: "Basic " + btoa(`${user}:${pass}`) },
+    });
+
+  it("accepts a password that contains colons", async () => {
+    const env = {
+      ...(makeEnv() as object),
+      DASHBOARD_USER: "admin",
+      DASHBOARD_PASS: "a:b:c",
+    } as unknown as Parameters<typeof worker.fetch>[1];
+    expect((await worker.fetch(authed("admin", "a:b:c"), env, ctx)).status).toBe(200);
+    // The pre-fix parse compared only the text before the second colon.
+    expect((await worker.fetch(authed("admin", "a"), env, ctx)).status).toBe(401);
+  });
+});

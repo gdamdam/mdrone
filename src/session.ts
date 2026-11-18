@@ -11,7 +11,7 @@ import type { Visualizer } from "./components/visualizers";
 import { JOURNEY_IDS, type JourneyId } from "./journey";
 import { PARTNER_RELATIONS, DEFAULT_PARTNER, type PartnerRelation, type PartnerState } from "./partner";
 import { normalizeMotionEvents } from "./sceneRecorder";
-import { isValidTuningId } from "./microtuning";
+import { isValidTuningId, sanitizeTuningDegree } from "./microtuning";
 import {
   DEFAULT_ENTRAIN,
   normalizeEntrain,
@@ -595,9 +595,7 @@ export function normalizePortableScene(value: unknown, fallbackName = "Shared Sc
         // readString caps length (the label lands in the DOM/localStorage),
         // matching every other normalized string field.
         label: readString(ct.label, "Custom Tuning"),
-        degrees: ct.degrees.map((d) =>
-          typeof d === "number" && Number.isFinite(d) ? d : 0,
-        ),
+        degrees: ct.degrees.map(sanitizeTuningDegree),
       };
     }
   }
