@@ -433,11 +433,13 @@ export const RELATIONS: readonly Relation[] = [
 const CUSTOM_STORAGE_KEY = "mdrone.customTunings";
 
 /** Range a stored/shared custom-tuning degree is clamped to (cents).
- *  Matches the Scale Editor's own limits. Finite-but-absurd values
- *  (e.g. 1e9 from a crafted share link) otherwise reach
- *  `root * 2^(cents/1200)` and produce an infinite frequency. */
-export const CUSTOM_DEGREE_MIN = -100;
-export const CUSTOM_DEGREE_MAX = 1300;
+ *  Finite-but-absurd values (e.g. 1e9 from a crafted share link)
+ *  otherwise reach `root * 2^(cents/1200)` and produce an infinite
+ *  frequency. Deliberately much wider than the Scale Editor's own
+ *  -100..1300 limits: non-octave tunings carry their period in slot 12
+ *  (Bohlen-Pierce = 1901.955¢) and must round-trip unchanged. */
+export const CUSTOM_DEGREE_MIN = -1200;
+export const CUSTOM_DEGREE_MAX = 4800;
 
 /** Coerce one untrusted degree to a finite, in-range cents value. */
 export function sanitizeTuningDegree(d: unknown): number {
