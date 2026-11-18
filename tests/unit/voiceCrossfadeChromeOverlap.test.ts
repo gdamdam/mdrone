@@ -164,6 +164,8 @@ function makeEngine() {
     layerFilterWalkStops: new Map(),
     activeGainCurves: new Map(),
     pendingRetire: [],
+    pendingStopVoices: [],
+    pendingStopSubs: [],
     droneVoiceGain: makeGain(),
   });
   return { ve: ve as any, ctx, created };

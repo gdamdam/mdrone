@@ -941,7 +941,7 @@ export class AudioEngine {
     // While an earlier morph is still fading (out or back in) the trim
     // sits at a transient level — restoring to that would leave the
     // master quiet or silent. Reuse the level that morph was heading for.
-    const inFlight = this.morphRestore !== null &&
+    const inFlight = this.morphRestore != null &&
       this.ctx.currentTime < this.morphRestore.until;
     const savedLinear = inFlight ? this.morphRestore!.level : trim.value;
     this.morphRestore = { level: savedLinear, until: Infinity };
