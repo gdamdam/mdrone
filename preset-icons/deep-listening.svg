@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#000" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Sonar waves descending into a cistern / deep space -->
+  <path d="M4 8 Q8 5 12 8 T20 8 T28 8"/>
+  <path d="M5 13 Q8 10 11 13 T17 13 T23 13 T28 13" opacity="0.7"/>
+  <path d="M7 18 Q10 16 13 18 T19 18 T25 18" opacity="0.45"/>
+  <!-- Funnel / descent into depth -->
+  <path d="M10 22 L16 29 L22 22" opacity="0.8"/>
+</svg>

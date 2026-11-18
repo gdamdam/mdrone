@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- House silhouette — the "house tuning" signature drone -->
+  <path d="M4 16 L16 5 L28 16"/>
+  <path d="M7 14 V27 H25 V14"/>
+  <!-- Interior sine wave — the drone living inside the house -->
+  <path d="M10 21 Q13 18 16 21 T22 21" stroke-width="1.4" opacity="0.75"/>
+</svg>

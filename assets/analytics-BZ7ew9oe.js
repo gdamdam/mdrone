@@ -1,0 +1,1 @@
+var e=new Set;function t(){if(!(typeof window>`u`))return window.goatcounter}function n(n,r){if(!n||e.has(n))return;e.add(n);let i=t();if(i?.count&&!(i.filter&&i.filter()))try{i.count({path:n,title:r??n,event:!0})}catch{}}function r(e){return e<4?`delta`:e<8?`theta`:e<12?`alpha`:e<30?`beta`:`gamma`}export{n,r as t};
